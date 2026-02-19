@@ -1,181 +1,190 @@
-import { useMonitorSocket } from '@/hooks/use-socket';
-import { TerminalCard } from '@/components/TerminalCard';
-import { CallLogTable } from '@/components/CallLogTable';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Separator } from '@/components/ui/separator';
-import { 
-  Activity, 
-  Server, 
-  Database, 
-  ShieldCheck, 
-  Radio, 
-  Wifi 
-} from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { useTetraWebSocket, type Terminal, type CallLogEntry } from "../hooks/useTetraWebSocket";
+import { useState, useEffect } from "react";
 
-export default function Dashboard() {
-  const { status, terminals, localHistory, externalHistory } = useMonitorSocket();
+function Clock() {
+  const [time, setTime] = useState(new Date().toLocaleTimeString("en-GB"));
+  useEffect(() => {
+    const interval = setInterval(() => setTime(new Date().toLocaleTimeString("en-GB")), 1000);
+    return () => clearInterval(interval);
+  }, []);
+  return <span>{time}</span>;
+}
 
-  const terminalList = Object.values(terminals).sort((a, b) => {
-    // Online first, then by ID
-    if (a.status === 'Online' && b.status !== 'Online') return -1;
-    if (a.status !== 'Online' && b.status === 'Online') return 1;
-    return a.id.localeCompare(b.id);
-  });
+function StatusIndicator({ status }: { status: string }) {
+  const colorMap: Record<string, string> = {
+    Online: "text-green-400",
+    Offline: "text-red-400",
+    External: "text-orange-400",
+  };
+  return <span className={colorMap[status] || "text-gray-400"}>{status}</span>;
+}
 
-  const activeCount = terminalList.filter(t => t.status === 'Online').length;
-  const totalCalls = localHistory.length + externalHistory.length;
+function TerminalTable({ terminals, title, borderColor, isLocal }: {
+  terminals: Terminal[];
+  title: string;
+  borderColor: string;
+  isLocal: boolean;
+}) {
+  const filtered = terminals
+    .filter(t => t.isLocal === isLocal)
+    .sort((a, b) => a.id.localeCompare(b.id));
 
   return (
-    <div className="min-h-screen bg-background text-foreground flex flex-col font-sans selection:bg-primary/20">
-      
-      {/* Top Bar / Header */}
-      <header className="border-b border-border bg-card/50 backdrop-blur-md sticky top-0 z-50">
-        <div className="container mx-auto px-4 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded bg-primary/10 border border-primary/20 flex items-center justify-center">
-              <Radio className="w-6 h-6 text-primary" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-2">
-                TETRA <span className="text-primary">MONITOR</span>
-                <span className="text-[10px] px-1.5 py-0.5 rounded border border-white/10 bg-white/5 text-muted-foreground font-mono">
-                  v2.4.0
-                </span>
-              </h1>
-              <p className="text-xs text-muted-foreground font-mono uppercase tracking-wider">
-                Tactical Radio Surveillance System
-              </p>
-            </div>
-          </div>
+    <div className={`border ${borderColor} mb-3`} data-testid={`panel-${isLocal ? 'local' : 'external'}-terminals`}>
+      <div className={`text-center py-1 ${borderColor.replace('border-', 'text-')} font-bold text-xs tracking-[0.2em] uppercase`}>
+        &#9472;&#9472; {title} &#9472;&#9472;
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full font-mono text-sm" data-testid={`table-${isLocal ? 'local' : 'external'}-terminals`}>
+          <thead>
+            <tr className="text-cyan-400">
+              <th className="text-center w-8 px-2 py-1">T</th>
+              <th className="text-left px-2 py-1 min-w-[220px]">TERMINAL (CALL)</th>
+              <th className="text-left px-2 py-1 w-28">SELECTED</th>
+              <th className="text-left px-2 py-1 w-24">STATUS</th>
+              <th className="text-left px-2 py-1">SCANLIST</th>
+              <th className="text-right px-2 py-1 w-24">SEEN</th>
+            </tr>
+          </thead>
+          <tbody>
+            {filtered.length === 0 ? (
+              <tr>
+                <td colSpan={6} className="text-center py-6 text-gray-600">
+                  &mdash;
+                </td>
+              </tr>
+            ) : (
+              filtered.map(t => {
+                const selectedNum = t.selectedTg.replace("TG ", "");
+                const scanItems = t.groups.map((g, i) => {
+                  if (g === selectedNum) {
+                    return <span key={g} className="text-yellow-300 font-bold">[{g}]</span>;
+                  }
+                  return <span key={g} className="text-gray-300">{g}</span>;
+                });
 
-          <div className="flex items-center gap-6">
-            {/* Stats Mini-bar */}
-            <div className="hidden md:flex items-center gap-4 text-xs font-mono text-muted-foreground">
-              <div className="flex items-center gap-2">
-                <Activity className="w-3 h-3 text-primary" />
-                <span>UPTIME: <span className="text-foreground">99.9%</span></span>
-              </div>
-              <div className="h-4 w-px bg-white/10" />
-              <div className="flex items-center gap-2">
-                <Database className="w-3 h-3 text-accent" />
-                <span>LOGS: <span className="text-foreground">{totalCalls}</span></span>
-              </div>
-            </div>
-
-            {/* Connection Status Indicator */}
-            <div className={cn(
-              "flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs font-bold uppercase tracking-wider transition-colors",
-              status === 'connected' 
-                ? "bg-green-500/10 border-green-500/20 text-green-500" 
-                : status === 'connecting'
-                  ? "bg-yellow-500/10 border-yellow-500/20 text-yellow-500"
-                  : "bg-red-500/10 border-red-500/20 text-red-500"
-            )}>
-              <div className={cn(
-                "w-2 h-2 rounded-full",
-                status === 'connected' ? "bg-green-500 animate-pulse" : "bg-current"
-              )} />
-              {status === 'connected' ? 'SYSTEM ONLINE' : status.toUpperCase()}
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content Area */}
-      <main className="flex-1 container mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
-        
-        {/* Left Column: Active Terminals */}
-        <div className="lg:col-span-7 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <Wifi className="w-5 h-5 text-primary" />
-              Active Terminals
-            </h2>
-            <Badge variant="outline" className="font-mono bg-primary/5 border-primary/20 text-primary">
-              {activeCount} / {terminalList.length} ONLINE
-            </Badge>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {terminalList.map(terminal => (
-              <TerminalCard key={terminal.id} terminal={terminal} />
-            ))}
-            
-            {terminalList.length === 0 && (
-              <div className="col-span-full py-12 text-center border-2 border-dashed border-white/5 rounded-xl bg-card/30">
-                <p className="text-muted-foreground font-mono text-sm">NO TERMINALS DETECTED</p>
-                <p className="text-xs text-muted-foreground/50 mt-1">Waiting for handshake...</p>
-              </div>
+                return (
+                  <tr key={t.id} data-testid={`row-terminal-${t.id}`}>
+                    <td className="text-center px-2 py-0.5 text-yellow-400 font-bold">
+                      {t.isActive ? "\u25B6" : ""}
+                    </td>
+                    <td className="px-2 py-0.5">
+                      <span className="text-yellow-300">{t.id}</span>
+                      {t.callsign ? (
+                        <span className="text-white font-bold ml-1">({t.callsign})</span>
+                      ) : null}
+                    </td>
+                    <td className="px-2 py-0.5 text-yellow-400 font-bold">{t.selectedTg}</td>
+                    <td className="px-2 py-0.5"><StatusIndicator status={t.status} /></td>
+                    <td className="px-2 py-0.5">
+                      {scanItems.length > 0 ? (
+                        <span>
+                          [{scanItems.reduce<React.ReactNode[]>((acc, item, i) => {
+                            if (i > 0) acc.push(<span key={`sep-${i}`}>, </span>);
+                            acc.push(item);
+                            return acc;
+                          }, [])}]
+                        </span>
+                      ) : (
+                        <span className="text-gray-600">---</span>
+                      )}
+                    </td>
+                    <td className="text-right px-2 py-0.5 text-gray-300">{t.lastSeen}</td>
+                  </tr>
+                );
+              })
             )}
-          </div>
-        </div>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  );
+}
 
-        {/* Right Column: Call Logs & System Info */}
-        <div className="lg:col-span-5 space-y-6">
-          <div className="flex items-center justify-between">
-            <h2 className="text-lg font-bold flex items-center gap-2">
-              <Server className="w-5 h-5 text-accent" />
-              Traffic Log
-            </h2>
-            <div className="flex gap-2">
-              <div className="w-2 h-2 rounded-full bg-accent animate-[ping_3s_infinite]" />
+function CallHistory({ entries, title, borderColor }: {
+  entries: CallLogEntry[];
+  title: string;
+  borderColor: string;
+}) {
+  return (
+    <div className={`border ${borderColor} flex-1 min-w-0 flex flex-col`} data-testid={`panel-${title.toLowerCase().includes('local') ? 'local' : 'external'}-history`}>
+      <div className={`text-center py-1 ${borderColor.replace('border-', 'text-')} font-bold text-xs tracking-[0.2em] uppercase`}>
+        &#9472;&#9472; {title} &#9472;&#9472;
+      </div>
+      <div className="overflow-y-auto flex-1 p-2 font-mono text-sm min-h-[200px] max-h-[320px]">
+        {entries.length === 0 ? (
+          <div className="text-gray-600 text-center py-6">&mdash;</div>
+        ) : (
+          entries.map(entry => (
+            <div key={entry.id} className="leading-relaxed whitespace-nowrap" data-testid={`log-entry-${entry.id}`}>
+              <span className="text-gray-400">[{entry.timestamp}]</span>{" "}
+              <span className="text-yellow-300">{entry.sourceId}</span>
+              {entry.sourceCallsign ? (
+                <span className="text-white"> ({entry.sourceCallsign})</span>
+              ) : null}
+              <span className="text-gray-500"> -&gt; </span>
+              <span className="text-cyan-400">TG {entry.targetTg}</span>
             </div>
-          </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+}
 
-          <Card className="border-white/10 bg-card/40 backdrop-blur-sm shadow-2xl">
-            <CardHeader className="pb-2 border-b border-white/5">
-              <CardTitle className="text-sm font-medium text-muted-foreground uppercase tracking-wider flex justify-between items-center">
-                <span>Communication Stream</span>
-                <ShieldCheck className="w-4 h-4 text-green-500/50" />
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="p-0">
-              <Tabs defaultValue="local" className="w-full">
-                <div className="px-4 py-2 bg-black/20">
-                  <TabsList className="grid w-full grid-cols-2 bg-secondary/50">
-                    <TabsTrigger value="local" className="data-[state=active]:bg-primary/20 data-[state=active]:text-primary font-mono text-xs">
-                      LOCAL NET
-                    </TabsTrigger>
-                    <TabsTrigger value="external" className="data-[state=active]:bg-accent/20 data-[state=active]:text-accent font-mono text-xs">
-                      EXTERNAL
-                    </TabsTrigger>
-                  </TabsList>
-                </div>
-                
-                <TabsContent value="local" className="m-0">
-                  <CallLogTable logs={localHistory} emptyMessage="No local traffic" />
-                </TabsContent>
-                
-                <TabsContent value="external" className="m-0">
-                  <CallLogTable logs={externalHistory} emptyMessage="No external traffic" />
-                </TabsContent>
-              </Tabs>
-            </CardContent>
-          </Card>
+export default function Dashboard() {
+  const { terminals, localHistory, externalHistory, connected } = useTetraWebSocket();
+  const terminalList = Object.values(terminals);
 
-          {/* System Environment Stats - Decorative for this demo */}
-          <div className="grid grid-cols-2 gap-4">
-            <Card className="bg-card/30 border-white/5 p-4">
-              <div className="text-xs text-muted-foreground uppercase mb-1">Frequency</div>
-              <div className="text-2xl font-mono text-foreground">380.0<span className="text-sm text-muted-foreground">MHz</span></div>
-              <div className="h-1 w-full bg-secondary mt-2 rounded-full overflow-hidden">
-                <div className="h-full bg-primary w-[75%]" />
-              </div>
-            </Card>
-            <Card className="bg-card/30 border-white/5 p-4">
-              <div className="text-xs text-muted-foreground uppercase mb-1">Signal Strength</div>
-              <div className="text-2xl font-mono text-foreground">-65<span className="text-sm text-muted-foreground">dBm</span></div>
-              <div className="h-1 w-full bg-secondary mt-2 rounded-full overflow-hidden">
-                <div className="h-full bg-green-500 w-[90%]" />
-              </div>
-            </Card>
-          </div>
+  return (
+    <div className="min-h-screen bg-black text-gray-200 font-mono flex flex-col">
+      {/* Header bar - matches screenshot */}
+      <div className="bg-blue-800 px-4 py-1.5 flex items-center gap-3 flex-wrap" data-testid="header-bar">
+        <span className="text-white font-bold tracking-wide text-sm" data-testid="text-title">
+          TETRA LIVE MONITOR
+        </span>
+        <span className="text-blue-300">|</span>
+        <span className="text-white font-bold text-sm" data-testid="text-clock"><Clock /></span>
+        <span className="ml-auto flex items-center gap-2">
+          <span
+            className={`inline-block w-2 h-2 rounded-full ${connected ? "bg-green-400 animate-pulse" : "bg-red-500"}`}
+            data-testid="status-connection"
+          />
+          <span className="text-blue-200 text-xs" data-testid="text-connection-status">
+            {connected ? "CONNECTED" : "DISCONNECTED"}
+          </span>
+        </span>
+      </div>
 
+      {/* Main content area */}
+      <div className="flex-1 p-3 flex flex-col overflow-auto">
+        <TerminalTable
+          terminals={terminalList}
+          title="LOCAL TERMINALS"
+          borderColor="border-cyan-700"
+          isLocal={true}
+        />
+
+        <TerminalTable
+          terminals={terminalList}
+          title="EXTERNAL TERMINALS"
+          borderColor="border-orange-700"
+          isLocal={false}
+        />
+
+        <div className="flex flex-col md:flex-row gap-3 mt-1 flex-1">
+          <CallHistory
+            entries={localHistory}
+            title="LOCAL CALL HISTORY"
+            borderColor="border-cyan-700"
+          />
+          <CallHistory
+            entries={externalHistory}
+            title="EXTERNAL CALL HISTORY"
+            borderColor="border-orange-700"
+          />
         </div>
-      </main>
+      </div>
     </div>
   );
 }
