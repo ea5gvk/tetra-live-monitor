@@ -9,6 +9,8 @@ export interface Terminal {
   lastSeen: string;
   isLocal: boolean;
   isActive?: boolean;
+  activity?: "TX" | "RX" | null;
+  activityTg?: string | null;
 }
 
 export interface CallLogEntry {
@@ -19,6 +21,7 @@ export interface CallLogEntry {
   targetTg: string;
   display: string;
   isLocal: boolean;
+  activity?: "TX" | "RX" | null;
 }
 
 export interface TetraState {

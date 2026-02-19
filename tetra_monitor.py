@@ -80,8 +80,32 @@ class TetraMonitor:
             "groups": t["groups"],
             "lastSeen": t["last_seen"],
             "isLocal": t["is_local"],
-            "isActive": tid == self.last_active and t["status"] != "Offline"
+            "isActive": tid == self.last_active and t["status"] != "Offline",
+            "activity": t.get("activity", None),
+            "activityTg": t.get("activity_tg", None),
         }
+
+    def _set_activity(self, s_issi, d_gssi):
+        """Set TX on source, RX on all terminals listening on same TG."""
+        self.terminals[s_issi]["activity"] = "TX"
+        self.terminals[s_issi]["activity_tg"] = d_gssi
+        emit("update_terminal", self._terminal_to_dict(s_issi))
+
+        for tid, t in self.terminals.items():
+            if tid == s_issi:
+                continue
+            if d_gssi in t["groups"] or t["selected"] == f"TG {d_gssi}":
+                t["activity"] = "RX"
+                t["activity_tg"] = d_gssi
+                emit("update_terminal", self._terminal_to_dict(tid))
+
+    def _clear_activity(self):
+        """Clear all TX/RX activity states."""
+        for tid, t in self.terminals.items():
+            if t.get("activity"):
+                t["activity"] = None
+                t["activity_tg"] = None
+                emit("update_terminal", self._terminal_to_dict(tid))
 
     def emit_full_state(self):
         terminals = {}
@@ -124,6 +148,8 @@ class TetraMonitor:
                 if target_id and target_id in self.terminals:
                     self.terminals[target_id]["status"] = "Offline"
                     self.terminals[target_id]["selected"] = "---"
+                    self.terminals[target_id]["activity"] = None
+                    self.terminals[target_id]["activity_tg"] = None
                     emit("update_terminal", self._terminal_to_dict(target_id))
                 return
 
@@ -138,7 +164,9 @@ class TetraMonitor:
                         "groups": [d_gssi],
                         "status": "External",
                         "is_local": False,
-                        "last_seen": timestamp
+                        "last_seen": timestamp,
+                        "activity": None,
+                        "activity_tg": None,
                     }
                 else:
                     self.terminals[s_issi]["selected"] = f"TG {d_gssi}"
@@ -155,7 +183,8 @@ class TetraMonitor:
                     "sourceCallsign": call,
                     "targetTg": d_gssi,
                     "display": f"[{timestamp}] {display_name} -> TG {d_gssi}",
-                    "isLocal": self.terminals[s_issi]["is_local"]
+                    "isLocal": self.terminals[s_issi]["is_local"],
+                    "activity": "TX",
                 }
 
                 if self.terminals[s_issi]["is_local"]:
@@ -165,7 +194,8 @@ class TetraMonitor:
                     self.hist_ext.insert(0, entry)
                     self.hist_ext = self.hist_ext[:MAX_HISTORY]
 
-                emit("update_terminal", self._terminal_to_dict(s_issi))
+                self._clear_activity()
+                self._set_activity(s_issi, d_gssi)
                 emit("new_call", entry)
                 return
 
@@ -184,7 +214,9 @@ class TetraMonitor:
                         "groups": [],
                         "status": "Online" if is_reg else "External",
                         "is_local": is_reg,
-                        "last_seen": timestamp
+                        "last_seen": timestamp,
+                        "activity": None,
+                        "activity_tg": None,
                     }
                 if is_reg:
                     self.terminals[tid]["is_local"] = True
@@ -298,7 +330,6 @@ def run_demo_mode(mon):
     ]
     tgs = ["91", "262", "1", "10"]
 
-    # Register all terminals
     for dt in demo_terminals:
         mon.callsign_cache[dt["issi"]] = dt["call"]
         status = "Online" if dt["local"] else "External"
@@ -308,20 +339,20 @@ def run_demo_mode(mon):
             "groups": [initial_tg],
             "status": status,
             "is_local": dt["local"],
-            "last_seen": datetime.now().strftime("%H:%M:%S")
+            "last_seen": datetime.now().strftime("%H:%M:%S"),
+            "activity": None,
+            "activity_tg": None,
         }
 
-    # Set local terminal offline to match screenshot
     mon.terminals["2145007"]["status"] = "Offline"
     mon.terminals["2145007"]["selected"] = "---"
     mon.terminals["2145007"]["groups"] = []
 
-    # Send initial full state
     mon.emit_full_state()
 
-    # Generate periodic calls
     while True:
         time.sleep(random.uniform(2.0, 5.0))
+        mon._clear_activity()
         dt = random.choice([d for d in demo_terminals if not d["local"]])
         tg = random.choice(tgs)
         line = json.dumps({
@@ -348,7 +379,6 @@ def run_journal_mode(mon):
 def main():
     mon = TetraMonitor()
 
-    # Check if journalctl is available
     use_journal = True
     try:
         result = subprocess.run(["which", "journalctl"], capture_output=True, text=True)
@@ -357,7 +387,6 @@ def main():
     except Exception:
         use_journal = False
 
-    # Also allow forcing demo mode via env var
     if os.environ.get("TETRA_DEMO", "0") == "1":
         use_journal = False
 
