@@ -1,6 +1,7 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef } from "react";
 import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine } from "lucide-react";
+import { getCountryCode, getFlagUrl } from "@/lib/callsignFlags";
 
 function Clock() {
   const [time, setTime] = useState(new Date().toLocaleTimeString("en-GB"));
@@ -32,6 +33,21 @@ function ActivityBadge({ activity }: { activity?: "TX" | "RX" | null }) {
       <ArrowDownToLine className="w-3 h-3" />
       RX
     </span>
+  );
+}
+
+function CountryFlag({ callsign }: { callsign?: string }) {
+  if (!callsign) return null;
+  const cc = getCountryCode(callsign);
+  if (!cc) return null;
+  return (
+    <img
+      src={getFlagUrl(cc)}
+      alt={cc.toUpperCase()}
+      className="inline-block w-5 h-auto rounded-[2px] shadow-sm shadow-black/30"
+      loading="lazy"
+      data-testid={`flag-${cc}`}
+    />
   );
 }
 
@@ -75,11 +91,16 @@ function TerminalRow({ t }: { t: Terminal }) {
       <td className="px-3 py-1.5 text-center w-16">
         <ActivityBadge activity={t.activity} />
       </td>
-      <td className="px-3 py-1.5 min-w-[200px]">
-        <span className="text-primary font-mono font-semibold">{t.id}</span>
-        {t.callsign ? (
-          <span className="text-foreground font-bold ml-1.5">({t.callsign})</span>
-        ) : null}
+      <td className="px-3 py-1.5 min-w-[240px]">
+        <span className="inline-flex items-center gap-1.5">
+          <span className="text-primary font-mono font-semibold">{t.id}</span>
+          {t.callsign ? (
+            <>
+              <CountryFlag callsign={t.callsign} />
+              <span className="text-foreground font-bold">({t.callsign})</span>
+            </>
+          ) : null}
+        </span>
       </td>
       <td className="px-3 py-1.5">
         <span className="text-amber-400 font-semibold font-mono">{t.selectedTg}</span>
@@ -206,7 +227,10 @@ function CallHistory({ entries, title, isLocal }: {
               <span className="text-muted-foreground">[{entry.timestamp}]</span>{" "}
               <span className="text-primary">{entry.sourceId}</span>
               {entry.sourceCallsign ? (
-                <span className="text-foreground font-semibold"> ({entry.sourceCallsign})</span>
+                <span className="inline-flex items-center gap-1 align-middle">
+                  {" "}<CountryFlag callsign={entry.sourceCallsign} />
+                  <span className="text-foreground font-semibold">({entry.sourceCallsign})</span>
+                </span>
               ) : null}
               <span className="text-muted-foreground/60"> {">"} </span>
               <span className="text-amber-400 font-semibold">TG {entry.targetTg}</span>
