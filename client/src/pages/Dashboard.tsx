@@ -1,7 +1,8 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef } from "react";
-import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine } from "lucide-react";
+import { Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine } from "lucide-react";
 import { getCountryCode, getFlagUrl } from "@/lib/callsignFlags";
+import tetraLogo from "@assets/tetra_1771538916537.png";
 
 function Clock() {
   const [time, setTime] = useState(new Date().toLocaleTimeString("en-GB"));
@@ -256,9 +257,9 @@ export default function Dashboard() {
         data-testid="header-bar"
       >
         <div className="flex items-center gap-2">
-          <Radio className="w-5 h-5 text-primary" />
+          <img src={tetraLogo} alt="TETRA" className="h-7 w-auto" data-testid="img-logo" />
           <h1 className="text-sm font-bold tracking-wide text-foreground" data-testid="text-title">
-            TETRA LIVE MONITOR
+            LIVE MONITOR
           </h1>
         </div>
 
