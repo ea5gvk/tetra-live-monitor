@@ -1,37 +1,62 @@
-import { type User, type InsertUser } from "@shared/schema";
-import { randomUUID } from "crypto";
 
-// modify the interface with any CRUD methods
-// you might need
+import { type Terminal, type CallLog } from "@shared/schema";
 
 export interface IStorage {
-  getUser(id: string): Promise<User | undefined>;
-  getUserByUsername(username: string): Promise<User | undefined>;
-  createUser(user: InsertUser): Promise<User>;
+  // We keep everything in memory for this real-time monitor
+  getTerminals(): Promise<Record<string, Terminal>>;
+  updateTerminal(id: string, update: Partial<Terminal>): Promise<Terminal>;
+  addCallLog(log: CallLog, isLocal: boolean): Promise<void>;
+  getHistory(isLocal: boolean): Promise<CallLog[]>;
+  clearTerminals(): Promise<void>;
 }
 
 export class MemStorage implements IStorage {
-  private users: Map<string, User>;
+  private terminals: Map<string, Terminal>;
+  private localHistory: CallLog[];
+  private externalHistory: CallLog[];
+  private readonly MAX_HISTORY = 50;
 
   constructor() {
-    this.users = new Map();
+    this.terminals = new Map();
+    this.localHistory = [];
+    this.externalHistory = [];
   }
 
-  async getUser(id: string): Promise<User | undefined> {
-    return this.users.get(id);
+  async getTerminals(): Promise<Record<string, Terminal>> {
+    return Object.fromEntries(this.terminals);
   }
 
-  async getUserByUsername(username: string): Promise<User | undefined> {
-    return Array.from(this.users.values()).find(
-      (user) => user.username === username,
-    );
+  async updateTerminal(id: string, update: Partial<Terminal>): Promise<Terminal> {
+    const existing = this.terminals.get(id) || {
+      id,
+      status: 'External',
+      selectedTg: '---',
+      groups: [],
+      lastSeen: new Date().toISOString(),
+      isLocal: false
+    };
+    
+    const updated = { ...existing, ...update };
+    this.terminals.set(id, updated);
+    return updated;
   }
 
-  async createUser(insertUser: InsertUser): Promise<User> {
-    const id = randomUUID();
-    const user: User = { ...insertUser, id };
-    this.users.set(id, user);
-    return user;
+  async addCallLog(log: CallLog, isLocal: boolean): Promise<void> {
+    const target = isLocal ? this.localHistory : this.externalHistory;
+    target.unshift(log);
+    if (target.length > this.MAX_HISTORY) {
+      target.pop();
+    }
+  }
+
+  async getHistory(isLocal: boolean): Promise<CallLog[]> {
+    return isLocal ? this.localHistory : this.externalHistory;
+  }
+
+  async clearTerminals(): Promise<void> {
+    this.terminals.clear();
+    this.localHistory = [];
+    this.externalHistory = [];
   }
 }
 
