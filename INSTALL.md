@@ -9,48 +9,9 @@
 
 ---
 
-## 1. Subir el proyecto a GitHub
+## 1. Instalar en un VPS
 
-### 1.1 Crear el repositorio en GitHub
-
-1. Ve a [github.com/new](https://github.com/new)
-2. Ponle un nombre al repositorio (por ejemplo `tetra-live-monitor`)
-3. Elige público o privado según prefieras
-4. **No** marques ninguna casilla de inicialización (ni README, ni .gitignore, ni licencia)
-5. Haz clic en **"Create repository"**
-
-### 1.2 Subir el código desde Replit
-
-En la terminal (Shell) de Replit, ejecuta:
-
-```bash
-git remote add origin https://github.com/TU_USUARIO/tetra-live-monitor.git
-git branch -M main
-git push -u origin main
-```
-
-Te pedirá usuario y contraseña. Como contraseña, usa un **Personal Access Token** de GitHub:
-
-1. Ve a GitHub > **Settings** > **Developer settings** > **Personal access tokens** > **Tokens (classic)**
-2. Haz clic en **"Generate new token (classic)"**
-3. Dale un nombre, selecciona el permiso **repo** y genera el token
-4. Copia el token y pégalo como contraseña cuando te lo pida la terminal
-
-### 1.3 Actualizar GitHub con nuevos cambios
-
-Cada vez que hagas cambios en Replit y quieras subirlos a GitHub:
-
-```bash
-git add .
-git commit -m "Descripción de los cambios"
-git push
-```
-
----
-
-## 2. Instalar en un VPS
-
-### 2.1 Instalar Node.js 20
+### 1.1 Instalar Node.js 20
 
 ```bash
 curl -fsSL https://deb.nodesource.com/setup_20.x | sudo bash -
@@ -64,21 +25,21 @@ node --version
 npm --version
 ```
 
-### 2.2 Instalar Python 3
+### 1.2 Instalar Python 3
 
 ```bash
 sudo apt install -y python3 python3-pip
 ```
 
-### 2.3 Clonar el repositorio
+### 1.3 Clonar el repositorio
 
 ```bash
 cd /opt
-git clone https://github.com/TU_USUARIO/tetra-live-monitor.git
+git clone https://github.com/ea5gvk/tetra-live-monitor.git
 cd tetra-live-monitor
 ```
 
-### 2.4 Instalar dependencias
+### 1.4 Instalar dependencias
 
 ```bash
 # Dependencias de Node.js
@@ -88,7 +49,7 @@ npm install
 pip3 install requests
 ```
 
-### 2.5 Compilar el proyecto
+### 1.5 Compilar el proyecto
 
 ```bash
 npm run build
@@ -96,7 +57,7 @@ npm run build
 
 Esto genera la carpeta `dist/` con la aplicación compilada.
 
-### 2.6 Ejecutar la aplicación
+### 1.6 Ejecutar la aplicación
 
 ```bash
 NODE_ENV=production node dist/index.cjs
@@ -112,7 +73,7 @@ TETRA_DEMO=1 NODE_ENV=production node dist/index.cjs
 
 ---
 
-## 3. Mantener el servicio activo con PM2
+## 2. Mantener el servicio activo con PM2
 
 Para que la aplicación siga funcionando en segundo plano y se reinicie automáticamente:
 
@@ -142,7 +103,7 @@ pm2 stop tetra-monitor     # Parar
 
 ---
 
-## 4. Actualizar la aplicación
+## 3. Actualizar la aplicación
 
 Cuando haya cambios nuevos en GitHub:
 
@@ -156,7 +117,7 @@ pm2 restart tetra-monitor
 
 ---
 
-## 5. Configurar un proxy inverso con Nginx (opcional)
+## 4. Configurar un proxy inverso con Nginx (opcional)
 
 Para acceder por el puerto 80/443 con un dominio:
 
