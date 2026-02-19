@@ -1,6 +1,6 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef } from "react";
-import { Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine } from "lucide-react";
+import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine } from "lucide-react";
 import { getCountryCode, getFlagUrl } from "@/lib/callsignFlags";
 import tetraLogo from "@assets/tetra_1771538916537.png";
 
