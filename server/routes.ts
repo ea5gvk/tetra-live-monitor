@@ -89,22 +89,12 @@ export async function registerRoutes(
     });
   }
 
-  let currentState: {
-    terminals: Record<string, any>;
-    localHistory: any[];
-    externalHistory: any[];
-  } = { terminals: {}, localHistory: [], externalHistory: [] };
+  let latestFullState: string | null = null;
 
   wss.on('connection', (ws) => {
-    const fullMsg = JSON.stringify({
-      type: "full_state",
-      payload: {
-        terminals: currentState.terminals,
-        localHistory: currentState.localHistory,
-        externalHistory: currentState.externalHistory,
-      }
-    });
-    ws.send(fullMsg);
+    if (latestFullState) {
+      ws.send(latestFullState);
+    }
   });
 
   // Spawn Python monitor script
@@ -130,24 +120,8 @@ export async function registerRoutes(
           const event = JSON.parse(line);
           const msg = JSON.stringify(event);
 
-          const payload = event.payload || {};
-
           if (event.type === 'full_state') {
-            currentState.terminals = payload.terminals || {};
-            currentState.localHistory = payload.localHistory || [];
-            currentState.externalHistory = payload.externalHistory || [];
-          } else if (event.type === 'update_terminal') {
-            if (payload.id) {
-              currentState.terminals[payload.id] = payload;
-            }
-          } else if (event.type === 'new_call') {
-            if (payload.isLocal) {
-              currentState.localHistory.unshift(payload);
-              if (currentState.localHistory.length > 100) currentState.localHistory.pop();
-            } else {
-              currentState.externalHistory.unshift(payload);
-              if (currentState.externalHistory.length > 100) currentState.externalHistory.pop();
-            }
+            latestFullState = msg;
           }
 
           broadcast(msg);
