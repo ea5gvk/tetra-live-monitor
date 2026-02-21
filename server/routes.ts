@@ -2,7 +2,7 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { api } from "@shared/routes";
-import { spawn, type ChildProcess } from "child_process";
+import { spawn, exec, type ChildProcess } from "child_process";
 import * as path from "path";
 
 let pythonProcess: ChildProcess | null = null;
@@ -19,6 +19,24 @@ export async function registerRoutes(
       uptime: (Date.now() - startTime) / 1000,
       activeConnections: wss.clients.size
     });
+  });
+
+  app.post(api.system.shutdown.path, (_req, res) => {
+    res.json({ message: "Apagando sistema..." });
+    setTimeout(() => {
+      exec("sudo shutdown -h now", (err) => {
+        if (err) console.error("Error al apagar:", err.message);
+      });
+    }, 1000);
+  });
+
+  app.post(api.system.reboot.path, (_req, res) => {
+    res.json({ message: "Reiniciando sistema..." });
+    setTimeout(() => {
+      exec("sudo reboot", (err) => {
+        if (err) console.error("Error al reiniciar:", err.message);
+      });
+    }, 1000);
   });
 
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });

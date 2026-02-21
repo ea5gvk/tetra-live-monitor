@@ -15,6 +15,14 @@ export const api = {
         }),
       },
     },
+    shutdown: {
+      method: 'POST' as const,
+      path: '/api/system/shutdown' as const,
+    },
+    reboot: {
+      method: 'POST' as const,
+      path: '/api/system/reboot' as const,
+    },
   },
 };
 

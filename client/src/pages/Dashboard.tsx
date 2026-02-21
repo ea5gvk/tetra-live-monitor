@@ -1,6 +1,6 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef } from "react";
-import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine } from "lucide-react";
+import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw } from "lucide-react";
 import { getCountryCode, getFlagUrl } from "@/lib/callsignFlags";
 import tetraLogo from "@assets/tetra_1771538916537.png";
 
@@ -243,6 +243,79 @@ function CallHistory({ entries, title, isLocal }: {
   );
 }
 
+function SystemControls() {
+  const [confirmAction, setConfirmAction] = useState<"shutdown" | "reboot" | null>(null);
+  const [status, setStatus] = useState<string | null>(null);
+
+  const executeAction = async (action: "shutdown" | "reboot") => {
+    const url = action === "shutdown" ? "/api/system/shutdown" : "/api/system/reboot";
+    try {
+      const res = await fetch(url, { method: "POST" });
+      const data = await res.json();
+      setStatus(data.message);
+      setConfirmAction(null);
+    } catch {
+      setStatus("Error de conexión");
+    }
+    setTimeout(() => setStatus(null), 5000);
+  };
+
+  if (status) {
+    return (
+      <span className="text-xs text-amber-400 font-semibold animate-pulse" data-testid="text-system-status">
+        {status}
+      </span>
+    );
+  }
+
+  if (confirmAction) {
+    return (
+      <div className="flex items-center gap-2" data-testid="confirm-system-action">
+        <span className="text-xs text-amber-400">
+          {confirmAction === "shutdown" ? "¿Apagar?" : "¿Reiniciar?"}
+        </span>
+        <button
+          onClick={() => executeAction(confirmAction)}
+          className="px-2 py-0.5 text-[10px] font-bold rounded bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors"
+          data-testid="button-confirm-action"
+        >
+          SÍ
+        </button>
+        <button
+          onClick={() => setConfirmAction(null)}
+          className="px-2 py-0.5 text-[10px] font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 transition-colors"
+          data-testid="button-cancel-action"
+        >
+          NO
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-1.5" data-testid="system-controls">
+      <button
+        onClick={() => setConfirmAction("reboot")}
+        className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
+        title="Reiniciar Raspberry Pi"
+        data-testid="button-reboot"
+      >
+        <RotateCcw className="w-3 h-3" />
+        REINICIAR
+      </button>
+      <button
+        onClick={() => setConfirmAction("shutdown")}
+        className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
+        title="Apagar Raspberry Pi"
+        data-testid="button-shutdown"
+      >
+        <Power className="w-3 h-3" />
+        APAGAR
+      </button>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { terminals, localHistory, externalHistory, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
@@ -267,6 +340,10 @@ export default function Dashboard() {
         <span className="text-foreground font-mono text-sm font-semibold"><Clock /></span>
 
         <div className="flex items-center gap-3 ml-auto">
+          <SystemControls />
+
+          <span className="text-muted-foreground/30 text-xs">|</span>
+
           {txCount > 0 && (
             <span className="inline-flex items-center gap-1 text-xs text-red-400 font-semibold" data-testid="status-tx-count">
               <ArrowUpFromLine className="w-3.5 h-3.5" />
