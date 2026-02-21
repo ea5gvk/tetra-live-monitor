@@ -98,9 +98,11 @@ export async function registerRoutes(
   wss.on('connection', (ws) => {
     const fullMsg = JSON.stringify({
       type: "full_state",
-      terminals: currentState.terminals,
-      localHistory: currentState.localHistory,
-      externalHistory: currentState.externalHistory,
+      payload: {
+        terminals: currentState.terminals,
+        localHistory: currentState.localHistory,
+        externalHistory: currentState.externalHistory,
+      }
     });
     ws.send(fullMsg);
   });
@@ -128,22 +130,22 @@ export async function registerRoutes(
           const event = JSON.parse(line);
           const msg = JSON.stringify(event);
 
+          const payload = event.payload || {};
+
           if (event.type === 'full_state') {
-            currentState.terminals = event.terminals || {};
-            currentState.localHistory = event.localHistory || [];
-            currentState.externalHistory = event.externalHistory || [];
+            currentState.terminals = payload.terminals || {};
+            currentState.localHistory = payload.localHistory || [];
+            currentState.externalHistory = payload.externalHistory || [];
           } else if (event.type === 'update_terminal') {
-            const t = event;
-            if (t.id) {
-              currentState.terminals[t.id] = t;
+            if (payload.id) {
+              currentState.terminals[payload.id] = payload;
             }
-          } else if (event.type === 'call') {
-            const entry = event;
-            if (entry.isLocal) {
-              currentState.localHistory.unshift(entry);
+          } else if (event.type === 'new_call') {
+            if (payload.isLocal) {
+              currentState.localHistory.unshift(payload);
               if (currentState.localHistory.length > 100) currentState.localHistory.pop();
             } else {
-              currentState.externalHistory.unshift(entry);
+              currentState.externalHistory.unshift(payload);
               if (currentState.externalHistory.length > 100) currentState.externalHistory.pop();
             }
           }
