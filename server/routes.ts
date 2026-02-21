@@ -2,8 +2,10 @@ import type { Express } from "express";
 import type { Server } from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { api } from "@shared/routes";
-import { spawn, exec, type ChildProcess } from "child_process";
+import { spawn, exec, execSync, type ChildProcess } from "child_process";
 import * as path from "path";
+import * as fs from "fs";
+import * as os from "os";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -18,6 +20,44 @@ export async function registerRoutes(
       status: pythonProcess ? "running" : "starting",
       uptime: (Date.now() - startTime) / 1000,
       activeConnections: wss.clients.size
+    });
+  });
+
+  app.get(api.system.stats.path, (_req, res) => {
+    let cpuTemp: number | null = null;
+    let cpuLoad: number | null = null;
+
+    try {
+      const tempPath = "/sys/class/thermal/thermal_zone0/temp";
+      if (fs.existsSync(tempPath)) {
+        const raw = fs.readFileSync(tempPath, "utf-8").trim();
+        cpuTemp = Math.round(parseInt(raw) / 1000 * 10) / 10;
+      }
+    } catch {}
+
+    try {
+      const cpus = os.cpus();
+      const loadAvg = os.loadavg();
+      cpuLoad = Math.round((loadAvg[0] / cpus.length) * 100);
+      if (cpuLoad > 100) cpuLoad = 100;
+    } catch {}
+
+    let memTotal = 0;
+    let memAvailable = 0;
+    try {
+      const memInfo = fs.readFileSync("/proc/meminfo", "utf-8");
+      const totalMatch = memInfo.match(/MemTotal:\s+(\d+)/);
+      const availMatch = memInfo.match(/MemAvailable:\s+(\d+)/);
+      if (totalMatch) memTotal = parseInt(totalMatch[1]);
+      if (availMatch) memAvailable = parseInt(availMatch[1]);
+    } catch {}
+
+    const memUsed = memTotal > 0 ? Math.round(((memTotal - memAvailable) / memTotal) * 100) : null;
+
+    res.json({
+      cpuTemp,
+      cpuLoad,
+      memUsed,
     });
   });
 

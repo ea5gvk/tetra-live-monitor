@@ -15,6 +15,10 @@ export const api = {
         }),
       },
     },
+    stats: {
+      method: 'GET' as const,
+      path: '/api/system/stats' as const,
+    },
     shutdown: {
       method: 'POST' as const,
       path: '/api/system/shutdown' as const,

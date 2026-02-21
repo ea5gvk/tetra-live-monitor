@@ -1,6 +1,6 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef } from "react";
-import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw } from "lucide-react";
+import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick } from "lucide-react";
 import { getCountryCode, getFlagUrl } from "@/lib/callsignFlags";
 import tetraLogo from "@assets/tetra_1771538916537.png";
 
@@ -243,6 +243,54 @@ function CallHistory({ entries, title, isLocal }: {
   );
 }
 
+function PiStats() {
+  const [stats, setStats] = useState<{ cpuTemp: number | null; cpuLoad: number | null; memUsed: number | null }>({
+    cpuTemp: null, cpuLoad: null, memUsed: null
+  });
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const res = await fetch("/api/system/stats");
+        const data = await res.json();
+        setStats(data);
+      } catch {}
+    };
+    fetchStats();
+    const interval = setInterval(fetchStats, 5000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const tempColor = stats.cpuTemp !== null
+    ? stats.cpuTemp >= 70 ? "text-red-400" : stats.cpuTemp >= 55 ? "text-amber-400" : "text-emerald-400"
+    : "text-muted-foreground";
+
+  const loadColor = stats.cpuLoad !== null
+    ? stats.cpuLoad >= 80 ? "text-red-400" : stats.cpuLoad >= 50 ? "text-amber-400" : "text-emerald-400"
+    : "text-muted-foreground";
+
+  const memColor = stats.memUsed !== null
+    ? stats.memUsed >= 85 ? "text-red-400" : stats.memUsed >= 60 ? "text-amber-400" : "text-emerald-400"
+    : "text-muted-foreground";
+
+  return (
+    <div className="flex items-center gap-3" data-testid="pi-stats">
+      <span className={`inline-flex items-center gap-1 text-xs font-mono ${loadColor}`} title="Carga CPU" data-testid="stat-cpu-load">
+        <Cpu className="w-3.5 h-3.5" />
+        {stats.cpuLoad !== null ? `${stats.cpuLoad}%` : "--"}
+      </span>
+      <span className={`inline-flex items-center gap-1 text-xs font-mono ${tempColor}`} title="Temperatura CPU" data-testid="stat-cpu-temp">
+        <Thermometer className="w-3.5 h-3.5" />
+        {stats.cpuTemp !== null ? `${stats.cpuTemp}°C` : "--"}
+      </span>
+      <span className={`inline-flex items-center gap-1 text-xs font-mono ${memColor}`} title="Memoria RAM" data-testid="stat-mem-used">
+        <MemoryStick className="w-3.5 h-3.5" />
+        {stats.memUsed !== null ? `${stats.memUsed}%` : "--"}
+      </span>
+    </div>
+  );
+}
+
 function SystemControls() {
   const [confirmAction, setConfirmAction] = useState<"shutdown" | "reboot" | null>(null);
   const [status, setStatus] = useState<string | null>(null);
@@ -340,6 +388,10 @@ export default function Dashboard() {
         <span className="text-foreground font-mono text-sm font-semibold"><Clock /></span>
 
         <div className="flex items-center gap-3 ml-auto">
+          <PiStats />
+
+          <span className="text-muted-foreground/30 text-xs">|</span>
+
           <SystemControls />
 
           <span className="text-muted-foreground/30 text-xs">|</span>
