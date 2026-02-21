@@ -61,7 +61,21 @@ export async function registerRoutes(
     });
   });
 
-  app.post(api.system.shutdown.path, (_req, res) => {
+  function getSystemPassword(): string {
+    try {
+      const configPath = path.join(process.cwd(), "config.json");
+      const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
+      return config.systemPassword || "";
+    } catch {
+      return "";
+    }
+  }
+
+  app.post(api.system.shutdown.path, (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ message: "Contraseña incorrecta" });
+    }
     res.json({ message: "Apagando sistema..." });
     setTimeout(() => {
       exec("sudo shutdown -h now", (err) => {
@@ -70,7 +84,11 @@ export async function registerRoutes(
     }, 1000);
   });
 
-  app.post(api.system.reboot.path, (_req, res) => {
+  app.post(api.system.reboot.path, (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ message: "Contraseña incorrecta" });
+    }
     res.json({ message: "Reiniciando sistema..." });
     setTimeout(() => {
       exec("sudo reboot", (err) => {
