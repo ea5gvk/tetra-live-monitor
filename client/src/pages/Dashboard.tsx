@@ -133,7 +133,7 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
   icon: "local" | "external";
   isLocal: boolean;
 }) {
-  const filtered = terminals
+  const sorted = terminals
     .filter(t => t.isLocal === isLocal)
     .sort((a, b) => {
       if (a.activity === "TX") return -1;
@@ -142,6 +142,8 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
       if (b.activity === "RX" && !a.activity) return 1;
       return a.id.localeCompare(b.id);
     });
+
+  const filtered = !isLocal ? sorted.slice(-12) : sorted;
 
   return (
     <div
