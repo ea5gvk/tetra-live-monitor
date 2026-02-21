@@ -171,6 +171,28 @@ sudo systemctl restart nginx
 
 ---
 
+### 5. Contraseña para apagar/reiniciar la Raspberry Pi
+
+El dashboard incluye botones para apagar y reiniciar la Raspberry Pi. Estos botones están protegidos con contraseña.
+
+Para configurar la contraseña, edita el archivo `config.json` en la raíz del proyecto:
+
+```json
+{
+  "systemPassword": "tu_contraseña_aquí"
+}
+```
+
+Puedes cambiar la contraseña en cualquier momento editando ese archivo. No es necesario reiniciar la aplicación, el cambio se aplica inmediatamente.
+
+**Nota:** Para que los comandos de apagado y reinicio funcionen, el usuario que ejecuta la aplicación debe tener permisos de `sudo` sin contraseña para `shutdown` y `reboot`. Puedes configurarlo añadiendo esta línea a `/etc/sudoers` (con `sudo visudo`):
+
+```
+tu_usuario ALL=(ALL) NOPASSWD: /sbin/shutdown, /sbin/reboot
+```
+
+---
+
 ### Resumen de puertos
 
 | Servicio | Puerto |
@@ -346,6 +368,28 @@ sudo systemctl restart nginx
 ```
 
 **Important:** The `Upgrade` and `Connection` headers are required for WebSocket support.
+
+---
+
+### 5. Password for shutdown/reboot buttons
+
+The dashboard includes buttons to shut down and reboot the Raspberry Pi. These buttons are password-protected.
+
+To set the password, edit the `config.json` file in the project root:
+
+```json
+{
+  "systemPassword": "your_password_here"
+}
+```
+
+You can change the password at any time by editing this file. No application restart is needed — the change takes effect immediately.
+
+**Note:** For the shutdown and reboot commands to work, the user running the application must have passwordless `sudo` permissions for `shutdown` and `reboot`. You can configure this by adding the following line to `/etc/sudoers` (using `sudo visudo`):
+
+```
+your_user ALL=(ALL) NOPASSWD: /sbin/shutdown, /sbin/reboot
+```
 
 ---
 
