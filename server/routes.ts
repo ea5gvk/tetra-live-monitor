@@ -136,18 +136,28 @@ export async function registerRoutes(
         },
       };
 
-      for (const [section, fields] of Object.entries(sectionUpdates)) {
-        for (const [key, value] of Object.entries(fields)) {
-          const regex = new RegExp(
-            `(\\[${section}\\][\\s\\S]*?)^(\\s*${key}\\s*=\\s*)(.*)$`,
-            "m"
-          );
-          const match = content.match(regex);
-          if (match) {
-            content = content.replace(regex, `$1$2${value}`);
+      const lines = content.split("\n");
+      let currentSection = "";
+
+      for (let i = 0; i < lines.length; i++) {
+        const sectionMatch = lines[i].match(/^\s*\[([^\]]+)\]/);
+        if (sectionMatch) {
+          currentSection = sectionMatch[1].trim();
+          continue;
+        }
+
+        if (sectionUpdates[currentSection]) {
+          const keyMatch = lines[i].match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
+          if (keyMatch) {
+            const keyName = keyMatch[2];
+            if (sectionUpdates[currentSection][keyName] !== undefined) {
+              lines[i] = `${keyMatch[1]}${keyName}${keyMatch[3]}${sectionUpdates[currentSection][keyName]}`;
+            }
           }
         }
       }
+
+      content = lines.join("\n");
 
       fs.writeFileSync(configPath, content, "utf-8");
 
