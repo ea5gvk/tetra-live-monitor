@@ -1025,7 +1025,8 @@
       main_carrier: carrier.main_carrier,
       duplex_spacing: duplexCodeIdx,
       freq_offset: carrier.freq_offset,
-      reverse_operation: reverse
+      reverse_operation: reverse,
+      custom_duplex_spacing: (duplexCodeIdx === 7 && customDuplexHz !== null) ? customDuplexHz : null
     };
 el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     el("outRxHz").textContent = fmtHz(rxHz) + "  (" + fmtMHz(rxHz) + " MHz)";
