@@ -140,15 +140,30 @@ export async function registerRoutes(
         sectionUpdates["cell_info"]["custom_duplex_spacing"] = String(values.custom_duplex_spacing);
       }
 
+      const hasCustomDuplex = !!(sectionUpdates["cell_info"]["custom_duplex_spacing"]);
+
       const lines = content.split("\n");
       let currentSection = "";
       let customDuplexFound = false;
-
       for (let i = 0; i < lines.length; i++) {
         const sectionMatch = lines[i].match(/^\s*\[([^\]]+)\]/);
         if (sectionMatch) {
           currentSection = sectionMatch[1].trim();
           continue;
+        }
+
+        if (currentSection === "cell_info") {
+          const keyMatch = lines[i].match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
+          if (keyMatch && keyMatch[2] === "custom_duplex_spacing") {
+            if (hasCustomDuplex) {
+              lines[i] = `${keyMatch[1]}custom_duplex_spacing${keyMatch[3]}${sectionUpdates["cell_info"]["custom_duplex_spacing"]}`;
+              customDuplexFound = true;
+            } else {
+              lines.splice(i, 1);
+              i--;
+            }
+            continue;
+          }
         }
 
         if (sectionUpdates[currentSection]) {
@@ -157,13 +172,12 @@ export async function registerRoutes(
             const keyName = keyMatch[2];
             if (sectionUpdates[currentSection][keyName] !== undefined) {
               lines[i] = `${keyMatch[1]}${keyName}${keyMatch[3]}${sectionUpdates[currentSection][keyName]}`;
-              if (keyName === "custom_duplex_spacing") customDuplexFound = true;
             }
           }
         }
       }
 
-      if (sectionUpdates["cell_info"]["custom_duplex_spacing"] && !customDuplexFound) {
+      if (hasCustomDuplex && !customDuplexFound) {
         for (let i = 0; i < lines.length; i++) {
           if (lines[i].match(/^\s*\[cell_info\]/)) {
             let insertAt = i + 1;
