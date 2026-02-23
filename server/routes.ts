@@ -98,13 +98,17 @@ export async function registerRoutes(
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, values } = req.body || {};
+    const { password, configPath, serviceName, values } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
 
     if (!configPath || typeof configPath !== "string") {
       return res.status(400).json({ message: "Ruta del archivo no especificada" });
+    }
+
+    if (!serviceName || typeof serviceName !== "string") {
+      return res.status(400).json({ message: "Nombre del servicio no especificado" });
     }
 
     if (!values || typeof values !== "object") {
@@ -147,8 +151,9 @@ export async function registerRoutes(
 
       fs.writeFileSync(configPath, content, "utf-8");
 
-      exec("sudo systemctl restart tmo 2>/dev/null || sudo systemctl restart tetra-bluestation 2>/dev/null || true", (err) => {
-        if (err) console.error("Error al reiniciar TMO:", err.message);
+      const safeServiceName = serviceName.replace(/[^a-zA-Z0-9._-]/g, '');
+      exec(`sudo systemctl restart ${safeServiceName}`, (err) => {
+        if (err) console.error(`Error al reiniciar ${safeServiceName}:`, err.message);
       });
 
       res.json({ message: "Config aplicada. Reiniciando TMO..." });

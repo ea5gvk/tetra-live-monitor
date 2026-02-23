@@ -378,10 +378,19 @@
           <div class="hint" data-i18n="config_path_hint">Full path to the TOML configuration file on your Raspberry Pi.</div>
         </div>
         <div>
+          <label for="serviceNameVal" data-i18n="service_name_label">TMO service name</label>
+          <input id="serviceNameVal" type="text" value="tmo.service" placeholder="tmo.service" />
+          <div class="hint" data-i18n="service_name_hint">Service name to restart after applying changes (e.g. tmo.service).</div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <div>
           <label for="applyPassword" data-i18n="apply_password_label">System password</label>
           <input id="applyPassword" type="password" placeholder="" />
           <div class="hint" data-i18n="apply_password_hint">Password configured in config.json of the monitor.</div>
         </div>
+        <div></div>
       </div>
 
       <div class="btns" style="margin-top:14px;">
@@ -459,8 +468,11 @@
       apply_password_label: "System password",
       apply_password_hint: "Password configured in config.json of the monitor.",
       apply_btn: "APPLY CHANGES & RESTART TMO",
+      service_name_label: "TMO service name",
+      service_name_hint: "Service name to restart after applying changes (e.g. tmo.service).",
       apply_need_calc: "Please calculate frequencies first.",
       apply_need_path: "Please enter the config.toml file path.",
+      apply_need_service: "Please enter the service name.",
       apply_need_password: "Please enter the system password.",
       apply_success: "✅ Config applied. Restarting TMO...",
       apply_error: "⚠️ Error: {msg}",
@@ -526,8 +538,11 @@
       apply_password_label: "系統密碼",
       apply_password_hint: "在 monitor 的 config.json 中設定的密碼。",
       apply_btn: "套用變更並重啟 TMO",
+      service_name_label: "TMO 服務名稱",
+      service_name_hint: "套用變更後要重啟的服務名稱（例如 tmo.service）。",
       apply_need_calc: "請先計算頻率。",
       apply_need_path: "請輸入 config.toml 檔案路徑。",
+      apply_need_service: "請輸入服務名稱。",
       apply_need_password: "請輸入系統密碼。",
       apply_success: "✅ 設定已套用。正在重啟 TMO...",
       apply_error: "⚠️ 錯誤：{msg}",
@@ -593,8 +608,11 @@
       apply_password_label: "Contraseña del sistema",
       apply_password_hint: "Contraseña configurada en config.json del monitor.",
       apply_btn: "APLICAR CAMBIOS Y REINICIO DE TMO",
+      service_name_label: "Nombre del servicio TMO",
+      service_name_hint: "Nombre del servicio a reiniciar tras aplicar los cambios (ej. tmo.service).",
       apply_need_calc: "Primero calcula las frecuencias.",
       apply_need_path: "Introduce la ruta del archivo config.toml.",
+      apply_need_service: "Introduce el nombre del servicio.",
       apply_need_password: "Introduce la contraseña del sistema.",
       apply_success: "✅ Config aplicada. Reiniciando TMO...",
       apply_error: "⚠️ Error: {msg}",
@@ -1232,6 +1250,12 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       return;
     }
 
+    const serviceName = el("serviceNameVal").value.trim();
+    if (!serviceName){
+      statusEl.innerHTML = `<span class="warn">${escapeHtml(t("apply_need_service"))}</span>`;
+      return;
+    }
+
     const password = el("applyPassword").value;
     if (!password){
       statusEl.innerHTML = `<span class="warn">${escapeHtml(t("apply_need_password"))}</span>`;
@@ -1247,6 +1271,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         body: JSON.stringify({
           password,
           configPath,
+          serviceName,
           values: lastComputedResult
         })
       });
