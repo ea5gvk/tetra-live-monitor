@@ -2,6 +2,7 @@ import { useTetraWebSocket, type Terminal, type CallLogEntry } from "../hooks/us
 import { useState, useEffect, useRef } from "react";
 import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock } from "lucide-react";
 import { getCountryCode, getFlagUrl } from "@/lib/callsignFlags";
+import { useI18n } from "@/lib/i18n";
 import tetraLogo from "@assets/tetra_1771538916537.png";
 
 function Clock() {
@@ -68,15 +69,15 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
-function TerminalRow({ t }: { t: Terminal }) {
-  const selectedNum = t.selectedTg.replace("TG ", "");
-  const rowBg = t.activity === "TX"
+function TerminalRow({ t: terminal }: { t: Terminal }) {
+  const selectedNum = terminal.selectedTg.replace("TG ", "");
+  const rowBg = terminal.activity === "TX"
     ? "bg-red-500/10 border-l-2 border-l-red-500"
-    : t.activity === "RX"
+    : terminal.activity === "RX"
     ? "bg-emerald-500/10 border-l-2 border-l-emerald-500"
     : "border-l-2 border-l-transparent";
 
-  const scanItems = t.groups.map((g) => {
+  const scanItems = terminal.groups.map((g) => {
     if (g === selectedNum) {
       return <span key={g} className="text-primary font-bold">[{g}]</span>;
     }
@@ -85,29 +86,29 @@ function TerminalRow({ t }: { t: Terminal }) {
 
   return (
     <tr
-      key={t.id}
+      key={terminal.id}
       className={`${rowBg} transition-colors duration-300`}
-      data-testid={`row-terminal-${t.id}`}
+      data-testid={`row-terminal-${terminal.id}`}
     >
       <td className="px-2 sm:px-3 py-1.5 text-center w-10 sm:w-16">
-        <ActivityBadge activity={t.activity} />
+        <ActivityBadge activity={terminal.activity} />
       </td>
       <td className="px-2 sm:px-3 py-1.5 min-w-0 sm:min-w-[240px]">
         <span className="inline-flex items-center gap-1 sm:gap-1.5 flex-wrap">
-          <span className="text-primary font-mono font-semibold text-xs sm:text-sm">{t.id}</span>
-          {t.callsign ? (
+          <span className="text-primary font-mono font-semibold text-xs sm:text-sm">{terminal.id}</span>
+          {terminal.callsign ? (
             <>
-              <CountryFlag callsign={t.callsign} />
-              <span className="text-foreground font-bold text-xs sm:text-sm">({t.callsign})</span>
+              <CountryFlag callsign={terminal.callsign} />
+              <span className="text-foreground font-bold text-xs sm:text-sm">({terminal.callsign})</span>
             </>
           ) : null}
         </span>
       </td>
       <td className="px-2 sm:px-3 py-1.5">
-        <span className="text-amber-400 font-semibold font-mono text-xs sm:text-sm">{t.selectedTg}</span>
+        <span className="text-amber-400 font-semibold font-mono text-xs sm:text-sm">{terminal.selectedTg}</span>
       </td>
       <td className="px-2 sm:px-3 py-1.5 hidden sm:table-cell">
-        <StatusDot status={t.status} />
+        <StatusDot status={terminal.status} />
       </td>
       <td className="px-2 sm:px-3 py-1.5 font-mono text-xs hidden lg:table-cell">
         {scanItems.length > 0 ? (
@@ -122,7 +123,7 @@ function TerminalRow({ t }: { t: Terminal }) {
           <span className="text-muted-foreground/50">---</span>
         )}
       </td>
-      <td className="px-2 sm:px-3 py-1.5 text-right text-xs text-muted-foreground font-mono hidden md:table-cell">{t.lastSeen}</td>
+      <td className="px-2 sm:px-3 py-1.5 text-right text-xs text-muted-foreground font-mono hidden md:table-cell">{terminal.lastSeen}</td>
     </tr>
   );
 }
@@ -133,6 +134,7 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
   icon: "local" | "external";
   isLocal: boolean;
 }) {
+  const { t } = useI18n();
   const sorted = terminals
     .filter(t => t.isLocal === isLocal)
     .sort((a, b) => {
@@ -158,30 +160,30 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
           {title}
         </h2>
         <span className="ml-auto text-[10px] text-muted-foreground font-mono">
-          {sorted.length} {sorted.length === 1 ? "terminal" : "terminales"}
+          {sorted.length} {sorted.length === 1 ? t("terminal_one") : t("terminal_other")}
         </span>
       </div>
       <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
         <table className="w-full text-sm" data-testid={`table-${isLocal ? 'local' : 'external'}-terminals`}>
           <thead>
             <tr className="text-muted-foreground text-xs border-b border-white/5">
-              <th className="text-center px-2 sm:px-3 py-2 w-10 sm:w-16 font-medium">ACT</th>
-              <th className="text-left px-2 sm:px-3 py-2 font-medium">TERMINAL (CALL)</th>
-              <th className="text-left px-2 sm:px-3 py-2 font-medium">SELECTED</th>
-              <th className="text-left px-2 sm:px-3 py-2 font-medium hidden sm:table-cell">STATUS</th>
-              <th className="text-left px-2 sm:px-3 py-2 font-medium hidden lg:table-cell">SCANLIST</th>
-              <th className="text-right px-2 sm:px-3 py-2 font-medium hidden md:table-cell">SEEN</th>
+              <th className="text-center px-2 sm:px-3 py-2 w-10 sm:w-16 font-medium">{t("th_act")}</th>
+              <th className="text-left px-2 sm:px-3 py-2 font-medium">{t("th_terminal_call")}</th>
+              <th className="text-left px-2 sm:px-3 py-2 font-medium">{t("th_selected")}</th>
+              <th className="text-left px-2 sm:px-3 py-2 font-medium hidden sm:table-cell">{t("th_status")}</th>
+              <th className="text-left px-2 sm:px-3 py-2 font-medium hidden lg:table-cell">{t("th_scanlist")}</th>
+              <th className="text-right px-2 sm:px-3 py-2 font-medium hidden md:table-cell">{t("th_seen")}</th>
             </tr>
           </thead>
           <tbody className="divide-y divide-white/[0.03]">
             {sorted.length === 0 ? (
               <tr>
                 <td colSpan={6} className="text-center py-8 text-muted-foreground/50 text-xs">
-                  Sin terminales activos
+                  {t("no_active_terminals")}
                 </td>
               </tr>
             ) : (
-              sorted.map(t => <TerminalRow key={t.id} t={t} />)
+              sorted.map(terminal => <TerminalRow key={terminal.id} t={terminal} />)
             )}
           </tbody>
         </table>
@@ -195,6 +197,7 @@ function CallHistory({ entries, title, isLocal }: {
   title: string;
   isLocal: boolean;
 }) {
+  const { t } = useI18n();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -207,7 +210,7 @@ function CallHistory({ entries, title, isLocal }: {
           {title}
         </span>
         <span className="ml-auto text-[10px] text-muted-foreground font-mono">
-          {entries.length} {entries.length === 1 ? "entrada" : "entradas"}
+          {entries.length} {entries.length === 1 ? t("entry_one") : t("entry_other")}
         </span>
       </div>
       <div
@@ -215,7 +218,7 @@ function CallHistory({ entries, title, isLocal }: {
         className="overflow-y-auto flex-1 p-2 sm:p-3 font-mono text-xs sm:text-sm min-h-[150px] max-h-[300px] space-y-0.5"
       >
         {entries.length === 0 ? (
-          <div className="text-muted-foreground/50 text-center py-8 text-xs">Sin llamadas registradas</div>
+          <div className="text-muted-foreground/50 text-center py-8 text-xs">{t("no_calls_logged")}</div>
         ) : (
           entries.map((entry, i) => (
             <div
@@ -244,6 +247,7 @@ function CallHistory({ entries, title, isLocal }: {
 }
 
 function PiStats() {
+  const { t } = useI18n();
   const [stats, setStats] = useState<{ cpuTemp: number | null; cpuLoad: number | null; memUsed: number | null }>({
     cpuTemp: null, cpuLoad: null, memUsed: null
   });
@@ -275,15 +279,15 @@ function PiStats() {
 
   return (
     <div className="flex items-center gap-3" data-testid="pi-stats">
-      <span className={`inline-flex items-center gap-1 text-xs font-mono ${loadColor}`} title="Carga CPU" data-testid="stat-cpu-load">
+      <span className={`inline-flex items-center gap-1 text-xs font-mono ${loadColor}`} title={t("cpu_load")} data-testid="stat-cpu-load">
         <Cpu className="w-3.5 h-3.5" />
         {stats.cpuLoad !== null ? `${stats.cpuLoad}%` : "--"}
       </span>
-      <span className={`inline-flex items-center gap-1 text-xs font-mono ${tempColor}`} title="Temperatura CPU" data-testid="stat-cpu-temp">
+      <span className={`inline-flex items-center gap-1 text-xs font-mono ${tempColor}`} title={t("cpu_temp")} data-testid="stat-cpu-temp">
         <Thermometer className="w-3.5 h-3.5" />
         {stats.cpuTemp !== null ? `${stats.cpuTemp}°C` : "--"}
       </span>
-      <span className={`inline-flex items-center gap-1 text-xs font-mono ${memColor}`} title="Memoria RAM" data-testid="stat-mem-used">
+      <span className={`inline-flex items-center gap-1 text-xs font-mono ${memColor}`} title={t("ram_memory")} data-testid="stat-mem-used">
         <MemoryStick className="w-3.5 h-3.5" />
         {stats.memUsed !== null ? `${stats.memUsed}%` : "--"}
       </span>
@@ -292,6 +296,7 @@ function PiStats() {
 }
 
 function SystemControls() {
+  const { t } = useI18n();
   const [confirmAction, setConfirmAction] = useState<"shutdown" | "reboot" | null>(null);
   const [password, setPassword] = useState("");
   const [status, setStatus] = useState<string | null>(null);
@@ -315,7 +320,7 @@ function SystemControls() {
       setConfirmAction(null);
       setPassword("");
     } catch {
-      setStatus("Error de conexión");
+      setStatus(t("connection_error"));
     }
     setTimeout(() => setStatus(null), 5000);
   };
@@ -339,14 +344,14 @@ function SystemControls() {
       <div className="flex items-center gap-2" data-testid="confirm-system-action">
         <Lock className="w-3 h-3 text-amber-400" />
         <span className="text-xs text-amber-400 hidden sm:inline">
-          {confirmAction === "shutdown" ? "¿Apagar?" : "¿Reiniciar?"}
+          {confirmAction === "shutdown" ? t("confirm_shutdown") : t("confirm_reboot")}
         </span>
         <input
           type="password"
           value={password}
           onChange={(e) => { setPassword(e.target.value); setError(null); }}
           onKeyDown={(e) => e.key === "Enter" && password && executeAction(confirmAction)}
-          placeholder="Contraseña"
+          placeholder={t("password")}
           className="w-24 px-2 py-0.5 text-[10px] rounded bg-black/30 border border-white/10 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-amber-500/50"
           autoFocus
           data-testid="input-password"
@@ -357,7 +362,7 @@ function SystemControls() {
           className="px-2 py-0.5 text-[10px] font-bold rounded bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-colors disabled:opacity-30"
           data-testid="button-confirm-action"
         >
-          OK
+          {t("ok")}
         </button>
         <button
           onClick={cancel}
@@ -376,26 +381,27 @@ function SystemControls() {
       <button
         onClick={() => setConfirmAction("reboot")}
         className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"
-        title="Reiniciar Raspberry Pi"
+        title={t("confirm_reboot")}
         data-testid="button-reboot"
       >
         <RotateCcw className="w-3 h-3" />
-        <span className="hidden sm:inline">REINICIAR</span>
+        <span className="hidden sm:inline">{t("reboot")}</span>
       </button>
       <button
         onClick={() => setConfirmAction("shutdown")}
         className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 transition-colors"
-        title="Apagar Raspberry Pi"
+        title={t("confirm_shutdown")}
         data-testid="button-shutdown"
       >
         <Power className="w-3 h-3" />
-        <span className="hidden sm:inline">APAGAR</span>
+        <span className="hidden sm:inline">{t("shutdown")}</span>
       </button>
     </div>
   );
 }
 
 export default function Dashboard() {
+  const { t } = useI18n();
   const { terminals, localHistory, externalHistory, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 
@@ -412,7 +418,7 @@ export default function Dashboard() {
           <div className="flex items-center gap-2">
             <img src={tetraLogo} alt="TETRA" className="h-6 sm:h-7 w-auto" data-testid="img-logo" />
             <h1 className="text-xs sm:text-sm font-bold tracking-wide text-foreground" data-testid="text-title">
-              LIVE MONITOR
+              {t("live_monitor")}
             </h1>
           </div>
 
@@ -448,7 +454,7 @@ export default function Dashboard() {
                 <WifiOff className="w-4 h-4 text-red-400" />
               )}
               <span className={`text-xs font-medium hidden sm:inline ${connected ? "text-emerald-400" : "text-red-400"}`} data-testid="text-connection-status">
-                {connected ? "CONECTADO" : "DESCONECTADO"}
+                {connected ? t("connected") : t("disconnected")}
               </span>
             </span>
           </div>
@@ -462,14 +468,14 @@ export default function Dashboard() {
       <main className="flex-1 p-2 sm:p-3 flex flex-col gap-2 sm:gap-3 overflow-auto">
         <TerminalTable
           terminals={terminalList}
-          title="TERMINALES LOCALES"
+          title={t("local_terminals")}
           icon="local"
           isLocal={true}
         />
 
         <TerminalTable
           terminals={terminalList}
-          title="TERMINALES EXTERNOS"
+          title={t("external_terminals")}
           icon="external"
           isLocal={false}
         />
@@ -477,12 +483,12 @@ export default function Dashboard() {
         <div className="flex flex-col md:flex-row gap-3 flex-1">
           <CallHistory
             entries={localHistory}
-            title="HISTORIAL LOCAL"
+            title={t("local_history")}
             isLocal={true}
           />
           <CallHistory
             entries={externalHistory}
-            title="HISTORIAL EXTERNO"
+            title={t("external_history")}
             isLocal={false}
           />
         </div>

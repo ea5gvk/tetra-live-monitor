@@ -1,0 +1,303 @@
+import { createContext, useContext, useState, useCallback } from "react";
+
+export const LANGUAGES = ["en", "es", "zh", "pt", "de", "fr", "it"] as const;
+export type Language = (typeof LANGUAGES)[number];
+
+export const LANGUAGE_LABELS: Record<Language, string> = {
+  en: "EN",
+  es: "ES",
+  zh: "ZH",
+  pt: "PT",
+  de: "DE",
+  fr: "FR",
+  it: "IT",
+};
+
+const translations: Record<Language, Record<string, string>> = {
+  en: {
+    "live_monitor": "LIVE MONITOR",
+    "local_terminals": "LOCAL TERMINALS",
+    "external_terminals": "EXTERNAL TERMINALS",
+    "th_act": "ACT",
+    "th_terminal_call": "TERMINAL (CALL)",
+    "th_selected": "SELECTED",
+    "th_status": "STATUS",
+    "th_scanlist": "SCANLIST",
+    "th_seen": "SEEN",
+    "no_active_terminals": "No active terminals",
+    "terminal_one": "terminal",
+    "terminal_other": "terminals",
+    "local_history": "LOCAL HISTORY",
+    "external_history": "EXTERNAL HISTORY",
+    "no_calls_logged": "No calls logged",
+    "entry_one": "entry",
+    "entry_other": "entries",
+    "confirm_shutdown": "Shutdown?",
+    "confirm_reboot": "Reboot?",
+    "password": "Password",
+    "reboot": "REBOOT",
+    "shutdown": "SHUTDOWN",
+    "connected": "CONNECTED",
+    "disconnected": "DISCONNECTED",
+    "cpu_load": "CPU Load",
+    "cpu_temp": "CPU Temperature",
+    "ram_memory": "RAM Memory",
+    "shutting_down": "Shutting down system...",
+    "rebooting": "Rebooting system...",
+    "connection_error": "Connection error",
+    "ok": "OK",
+    "calculator": "CALCULATOR",
+  },
+  es: {
+    "live_monitor": "LIVE MONITOR",
+    "local_terminals": "TERMINALES LOCALES",
+    "external_terminals": "TERMINALES EXTERNOS",
+    "th_act": "ACT",
+    "th_terminal_call": "TERMINAL (CALL)",
+    "th_selected": "SELECTED",
+    "th_status": "STATUS",
+    "th_scanlist": "SCANLIST",
+    "th_seen": "SEEN",
+    "no_active_terminals": "Sin terminales activos",
+    "terminal_one": "terminal",
+    "terminal_other": "terminales",
+    "local_history": "HISTORIAL LOCAL",
+    "external_history": "HISTORIAL EXTERNO",
+    "no_calls_logged": "Sin llamadas registradas",
+    "entry_one": "entrada",
+    "entry_other": "entradas",
+    "confirm_shutdown": "\u00bfApagar?",
+    "confirm_reboot": "\u00bfReiniciar?",
+    "password": "Contrase\u00f1a",
+    "reboot": "REINICIAR",
+    "shutdown": "APAGAR",
+    "connected": "CONECTADO",
+    "disconnected": "DESCONECTADO",
+    "cpu_load": "Carga CPU",
+    "cpu_temp": "Temperatura CPU",
+    "ram_memory": "Memoria RAM",
+    "shutting_down": "Apagando sistema...",
+    "rebooting": "Reiniciando sistema...",
+    "connection_error": "Error de conexi\u00f3n",
+    "ok": "OK",
+    "calculator": "CALCULADORA",
+  },
+  zh: {
+    "live_monitor": "\u5b9e\u65f6\u76d1\u63a7",
+    "local_terminals": "\u672c\u5730\u7ec8\u7aef",
+    "external_terminals": "\u5916\u90e8\u7ec8\u7aef",
+    "th_act": "\u6d3b\u52a8",
+    "th_terminal_call": "\u7ec8\u7aef (\u547c\u53f7)",
+    "th_selected": "\u5df2\u9009",
+    "th_status": "\u72b6\u6001",
+    "th_scanlist": "\u626b\u63cf\u5217\u8868",
+    "th_seen": "\u6700\u8fd1",
+    "no_active_terminals": "\u65e0\u6d3b\u52a8\u7ec8\u7aef",
+    "terminal_one": "\u7ec8\u7aef",
+    "terminal_other": "\u7ec8\u7aef",
+    "local_history": "\u672c\u5730\u5386\u53f2",
+    "external_history": "\u5916\u90e8\u5386\u53f2",
+    "no_calls_logged": "\u65e0\u901a\u8bdd\u8bb0\u5f55",
+    "entry_one": "\u6761",
+    "entry_other": "\u6761",
+    "confirm_shutdown": "\u5173\u673a\uff1f",
+    "confirm_reboot": "\u91cd\u542f\uff1f",
+    "password": "\u5bc6\u7801",
+    "reboot": "\u91cd\u542f",
+    "shutdown": "\u5173\u673a",
+    "connected": "\u5df2\u8fde\u63a5",
+    "disconnected": "\u5df2\u65ad\u5f00",
+    "cpu_load": "CPU\u8d1f\u8f7d",
+    "cpu_temp": "CPU\u6e29\u5ea6",
+    "ram_memory": "\u5185\u5b58",
+    "shutting_down": "\u6b63\u5728\u5173\u673a...",
+    "rebooting": "\u6b63\u5728\u91cd\u542f...",
+    "connection_error": "\u8fde\u63a5\u9519\u8bef",
+    "ok": "\u786e\u5b9a",
+    "calculator": "\u8ba1\u7b97\u5668",
+  },
+  pt: {
+    "live_monitor": "MONITOR AO VIVO",
+    "local_terminals": "TERMINAIS LOCAIS",
+    "external_terminals": "TERMINAIS EXTERNOS",
+    "th_act": "ACT",
+    "th_terminal_call": "TERMINAL (CALL)",
+    "th_selected": "SELECIONADO",
+    "th_status": "STATUS",
+    "th_scanlist": "SCANLIST",
+    "th_seen": "VISTO",
+    "no_active_terminals": "Sem terminais ativos",
+    "terminal_one": "terminal",
+    "terminal_other": "terminais",
+    "local_history": "HIST\u00d3RICO LOCAL",
+    "external_history": "HIST\u00d3RICO EXTERNO",
+    "no_calls_logged": "Sem chamadas registradas",
+    "entry_one": "entrada",
+    "entry_other": "entradas",
+    "confirm_shutdown": "Desligar?",
+    "confirm_reboot": "Reiniciar?",
+    "password": "Senha",
+    "reboot": "REINICIAR",
+    "shutdown": "DESLIGAR",
+    "connected": "CONECTADO",
+    "disconnected": "DESCONECTADO",
+    "cpu_load": "Carga CPU",
+    "cpu_temp": "Temperatura CPU",
+    "ram_memory": "Mem\u00f3ria RAM",
+    "shutting_down": "Desligando sistema...",
+    "rebooting": "Reiniciando sistema...",
+    "connection_error": "Erro de conex\u00e3o",
+    "ok": "OK",
+    "calculator": "CALCULADORA",
+  },
+  de: {
+    "live_monitor": "LIVE-MONITOR",
+    "local_terminals": "LOKALE TERMINALS",
+    "external_terminals": "EXTERNE TERMINALS",
+    "th_act": "AKT",
+    "th_terminal_call": "TERMINAL (RUF)",
+    "th_selected": "AUSGEW\u00c4HLT",
+    "th_status": "STATUS",
+    "th_scanlist": "SCANLISTE",
+    "th_seen": "GESEHEN",
+    "no_active_terminals": "Keine aktiven Terminals",
+    "terminal_one": "Terminal",
+    "terminal_other": "Terminals",
+    "local_history": "LOKALER VERLAUF",
+    "external_history": "EXTERNER VERLAUF",
+    "no_calls_logged": "Keine Anrufe protokolliert",
+    "entry_one": "Eintrag",
+    "entry_other": "Eintr\u00e4ge",
+    "confirm_shutdown": "Herunterfahren?",
+    "confirm_reboot": "Neustarten?",
+    "password": "Passwort",
+    "reboot": "NEUSTART",
+    "shutdown": "HERUNTERFAHREN",
+    "connected": "VERBUNDEN",
+    "disconnected": "GETRENNT",
+    "cpu_load": "CPU-Last",
+    "cpu_temp": "CPU-Temperatur",
+    "ram_memory": "RAM-Speicher",
+    "shutting_down": "System wird heruntergefahren...",
+    "rebooting": "System wird neu gestartet...",
+    "connection_error": "Verbindungsfehler",
+    "ok": "OK",
+    "calculator": "RECHNER",
+  },
+  fr: {
+    "live_monitor": "MONITEUR EN DIRECT",
+    "local_terminals": "TERMINAUX LOCAUX",
+    "external_terminals": "TERMINAUX EXTERNES",
+    "th_act": "ACT",
+    "th_terminal_call": "TERMINAL (APPEL)",
+    "th_selected": "S\u00c9LECTIONN\u00c9",
+    "th_status": "STATUT",
+    "th_scanlist": "LISTE SCAN",
+    "th_seen": "VU",
+    "no_active_terminals": "Aucun terminal actif",
+    "terminal_one": "terminal",
+    "terminal_other": "terminaux",
+    "local_history": "HISTORIQUE LOCAL",
+    "external_history": "HISTORIQUE EXTERNE",
+    "no_calls_logged": "Aucun appel enregistr\u00e9",
+    "entry_one": "entr\u00e9e",
+    "entry_other": "entr\u00e9es",
+    "confirm_shutdown": "\u00c9teindre ?",
+    "confirm_reboot": "Red\u00e9marrer ?",
+    "password": "Mot de passe",
+    "reboot": "RED\u00c9MARRER",
+    "shutdown": "\u00c9TEINDRE",
+    "connected": "CONNECT\u00c9",
+    "disconnected": "D\u00c9CONNECT\u00c9",
+    "cpu_load": "Charge CPU",
+    "cpu_temp": "Temp\u00e9rature CPU",
+    "ram_memory": "M\u00e9moire RAM",
+    "shutting_down": "Arr\u00eat du syst\u00e8me...",
+    "rebooting": "Red\u00e9marrage du syst\u00e8me...",
+    "connection_error": "Erreur de connexion",
+    "ok": "OK",
+    "calculator": "CALCULATRICE",
+  },
+  it: {
+    "live_monitor": "MONITOR DAL VIVO",
+    "local_terminals": "TERMINALI LOCALI",
+    "external_terminals": "TERMINALI ESTERNI",
+    "th_act": "ATT",
+    "th_terminal_call": "TERMINALE (CHIAM)",
+    "th_selected": "SELEZIONATO",
+    "th_status": "STATO",
+    "th_scanlist": "LISTA SCAN",
+    "th_seen": "VISTO",
+    "no_active_terminals": "Nessun terminale attivo",
+    "terminal_one": "terminale",
+    "terminal_other": "terminali",
+    "local_history": "CRONOLOGIA LOCALE",
+    "external_history": "CRONOLOGIA ESTERNA",
+    "no_calls_logged": "Nessuna chiamata registrata",
+    "entry_one": "voce",
+    "entry_other": "voci",
+    "confirm_shutdown": "Spegnere?",
+    "confirm_reboot": "Riavviare?",
+    "password": "Password",
+    "reboot": "RIAVVIA",
+    "shutdown": "SPEGNI",
+    "connected": "CONNESSO",
+    "disconnected": "DISCONNESSO",
+    "cpu_load": "Carico CPU",
+    "cpu_temp": "Temperatura CPU",
+    "ram_memory": "Memoria RAM",
+    "shutting_down": "Spegnimento del sistema...",
+    "rebooting": "Riavvio del sistema...",
+    "connection_error": "Errore di connessione",
+    "ok": "OK",
+    "calculator": "CALCOLATRICE",
+  },
+};
+
+const STORAGE_KEY = "tetra_dashboard_lang";
+
+function getStoredLang(): Language {
+  try {
+    const stored = localStorage.getItem(STORAGE_KEY);
+    if (stored && LANGUAGES.includes(stored as Language)) {
+      return stored as Language;
+    }
+  } catch {}
+  return "es";
+}
+
+interface I18nContextValue {
+  lang: Language;
+  setLang: (lang: Language) => void;
+  t: (key: string) => string;
+}
+
+export const I18nContext = createContext<I18nContextValue>({
+  lang: "es",
+  setLang: () => {},
+  t: (key: string) => key,
+});
+
+export function useI18n() {
+  return useContext(I18nContext);
+}
+
+export function useI18nState(): I18nContextValue {
+  const [lang, setLangState] = useState<Language>(getStoredLang);
+
+  const setLang = useCallback((newLang: Language) => {
+    setLangState(newLang);
+    try {
+      localStorage.setItem(STORAGE_KEY, newLang);
+    } catch {}
+  }, []);
+
+  const t = useCallback(
+    (key: string): string => {
+      return translations[lang]?.[key] ?? translations["en"]?.[key] ?? key;
+    },
+    [lang],
+  );
+
+  return { lang, setLang, t };
+}

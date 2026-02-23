@@ -6,10 +6,30 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/Dashboard";
 import Calculator from "@/pages/Calculator";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon } from "lucide-react";
+import { Radio, Calculator as CalcIcon, Globe } from "lucide-react";
+import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
+
+function LangSelector() {
+  const { lang, setLang } = useI18n();
+  const idx = LANGUAGES.indexOf(lang);
+  const next = LANGUAGES[(idx + 1) % LANGUAGES.length];
+
+  return (
+    <button
+      onClick={() => setLang(next)}
+      className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 hover:text-foreground transition-colors"
+      title="Change language"
+      data-testid="button-lang-selector"
+    >
+      <Globe className="w-3 h-3" />
+      {LANGUAGE_LABELS[lang]}
+    </button>
+  );
+}
 
 function NavBar() {
   const [location] = useLocation();
+  const { t } = useI18n();
 
   return (
     <nav className="bg-card border-b border-border px-3 py-1 flex items-center gap-1" data-testid="nav-bar">
@@ -35,8 +55,11 @@ function NavBar() {
         data-testid="nav-link-calculator"
       >
         <CalcIcon className="w-3.5 h-3.5" />
-        CALCULADORA
+        {t("calculator")}
       </Link>
+      <div className="ml-auto">
+        <LangSelector />
+      </div>
     </nav>
   );
 }
@@ -57,11 +80,15 @@ function Router() {
 }
 
 function App() {
+  const i18n = useI18nState();
+
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
-        <Router />
-        <Toaster />
+        <I18nContext.Provider value={i18n}>
+          <Router />
+          <Toaster />
+        </I18nContext.Provider>
       </TooltipProvider>
     </QueryClientProvider>
   );
