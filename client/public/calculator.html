@@ -665,12 +665,12 @@
 
   function fmtHz(n){
     if (n === null || n === undefined) return "—";
-    return String(Math.round(n));
+    return String(Math.round(n)).padStart(9, '0');
   }
 
   function fmtMHz(nHz){
     if (nHz === null || nHz === undefined) return "—";
-    return (nHz / 1_000_000).toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
+    return (nHz / 1_000_000).toFixed(6);
   }
 
   function escapeHtml(s){
