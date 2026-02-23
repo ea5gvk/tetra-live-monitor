@@ -151,6 +151,10 @@ class TetraMonitor:
             ts = int(data.get("__REALTIME_TIMESTAMP", time.time() * 1000000)) / 1000000
             timestamp = datetime.fromtimestamp(ts).strftime("%H:%M:%S")
 
+            context_ssi = self._extract_ssi(msg)
+            if context_ssi:
+                self.last_context_id = context_ssi
+
             # 1. CALLS (GROUP_TX from BrewWorker)
             call_match = re.search(r"GROUP_TX\s+.*?src=(\d+)\s+dst=(\d+)", msg)
             if not call_match:
@@ -314,11 +318,13 @@ class TetraMonitor:
                 emit("update_terminal", self._terminal_to_dict(ssi))
                 return
 
-            # 6. DEREGISTER (explicit deregister keyword)
-            if "deregister" in msg.lower():
+            # 6. DEREGISTER (UItsiDetach / explicit deregister)
+            if "UItsiDetach" in msg or "deregister" in msg.lower():
                 ssi = self._extract_ssi(msg)
                 if not ssi:
-                    m = re.search(r"\b(?:issi|ssi)[:\s=]+(?:Some\()?(\d+)", msg, re.I)
+                    m = re.search(r"received_address:\s*TetraAddress\s*\{[^}]*ssi:\s*(\d+)", msg)
+                    if not m:
+                        m = re.search(r"\b(?:issi|ssi)[:\s=]+(?:Some\()?(\d+)", msg, re.I)
                     if m:
                         ssi = m.group(1)
                 if ssi and ssi in self.terminals:
