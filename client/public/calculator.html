@@ -665,17 +665,16 @@
 
   function fmtHz(n){
     if (n === null || n === undefined) return "—";
-    return String(Math.round(n)).padStart(9, '0');
+    return String(Math.round(n));
   }
 
   function fmtMHz(nHz){
     if (nHz === null || nHz === undefined) return "—";
-    var mhz = (nHz / 1_000_000).toFixed(6);
-    var parts = mhz.split('.');
-    var intPart = parts[0];
-    var decPart = (parts[1] || '').substring(0, 3);
-    decPart = decPart.padEnd(3, '0');
-    return intPart + '.' + decPart;
+    var mhz = nHz / 1_000_000;
+    var s = mhz.toFixed(6);
+    s = s.replace(/0+$/, '');
+    s = s.replace(/\.$/, '');
+    return s;
   }
 
   function escapeHtml(s){
