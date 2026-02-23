@@ -670,7 +670,12 @@
 
   function fmtMHz(nHz){
     if (nHz === null || nHz === undefined) return "—";
-    return (nHz / 1_000_000).toFixed(6);
+    var mhz = (nHz / 1_000_000).toFixed(6);
+    var parts = mhz.split('.');
+    var intPart = parts[0];
+    var decPart = (parts[1] || '').substring(0, 3);
+    decPart = decPart.padEnd(3, '0');
+    return intPart + '.' + decPart;
   }
 
   function escapeHtml(s){
