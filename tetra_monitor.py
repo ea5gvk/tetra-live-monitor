@@ -117,6 +117,31 @@ class TetraMonitor:
             "externalHistory": self.hist_ext[-MAX_HISTORY:]
         })
 
+    def _extract_ssi(self, msg):
+        m = re.search(
+            r"received_address:\s*TetraAddress\s*\{\s*ssi:\s*(\d+),\s*ssi_type:\s*Ssi",
+            msg
+        )
+        if m:
+            return m.group(1)
+        m = re.search(
+            r"\bssi:\s*(?:Some\()?(\d+)\)?,\s*ssi_type:\s*Ssi",
+            msg
+        )
+        if m:
+            return m.group(1)
+        return None
+
+    def _extract_gssi_list(self, msg):
+        groups = []
+        for m in re.finditer(r"GroupIdentityUplink\s*\{([^}]+)\}", msg):
+            block = m.group(1)
+            g = re.search(r"\bgssi:\s*Some\((\d+)\)", block)
+            if g:
+                det = re.search(r"group_identity_detachment_uplink:\s*Some", block)
+                groups.append((g.group(1), bool(det)))
+        return groups
+
     def process_line(self, line):
         try:
             data = json.loads(line)
@@ -126,35 +151,10 @@ class TetraMonitor:
             ts = int(data.get("__REALTIME_TIMESTAMP", time.time() * 1000000)) / 1000000
             timestamp = datetime.fromtimestamp(ts).strftime("%H:%M:%S")
 
-            global_id = None
-            id_match = re.search(
-                r"\b(?:issi|ssi|subscriber)[:\s=]+(?:Some\()?(\d+)(?:[\),]*\s*,?\s*ssi_type[:\s=]+(\w+))?",
-                msg, re.I
-            )
-            if id_match:
-                found_id = id_match.group(1)
-                type_found = id_match.group(2)
-                if not (type_found and "gssi" in type_found.lower()):
-                    global_id = found_id
-                    self.last_context_id = global_id
-
-            # 1. DEREGISTER
-            if "deregister" in msg.lower():
-                target_id = global_id
-                if not target_id:
-                    det = re.search(r"\b(?:issi|ssi|subscriber)[:\s=]+(?:Some\()?(\d+)", msg, re.I)
-                    if det:
-                        target_id = det.group(1)
-                if target_id and target_id in self.terminals:
-                    self.terminals[target_id]["status"] = "Offline"
-                    self.terminals[target_id]["selected"] = "---"
-                    self.terminals[target_id]["activity"] = None
-                    self.terminals[target_id]["activity_tg"] = None
-                    emit("update_terminal", self._terminal_to_dict(target_id))
-                return
-
-            # 2. CALLS & TRANSMISSIONS
-            call_match = re.search(r"(?:call from ISSI|src=)\s*(\d+).*?(?:to GSSI|dst=)\s*(\d+)", msg, re.I)
+            # 1. CALLS (GROUP_TX from BrewWorker)
+            call_match = re.search(r"GROUP_TX\s+.*?src=(\d+)\s+dst=(\d+)", msg)
+            if not call_match:
+                call_match = re.search(r"call from ISSI\s*(\d+).*?to GSSI\s*(\d+)", msg, re.I)
             if call_match:
                 s_issi, d_gssi = call_match.groups()
                 self.last_active = s_issi
@@ -199,127 +199,141 @@ class TetraMonitor:
                 emit("new_call", entry)
                 return
 
-            # 3. REGISTER & DEEP GSSI RECOVERY
-            if id_match:
-                tid = id_match.group(1)
-                type_found = id_match.group(2)
-                if type_found and "gssi" in type_found.lower():
+            # 2. SPEAKER CHANGE
+            speaker_match = re.search(
+                r"speaker change gssi=(\d+)\s+new_speaker=(\d+)",
+                msg
+            )
+            if speaker_match:
+                gssi, new_speaker = speaker_match.groups()
+                self._clear_activity()
+                if new_speaker in self.terminals:
+                    self.terminals[new_speaker]["last_seen"] = timestamp
+                    self._set_activity(new_speaker, gssi)
+                return
+
+            # 3. CALL END (GROUP_IDLE / D-TX CEASED / network call ended)
+            if "GROUP_IDLE" in msg or "D-TX CEASED" in msg:
+                self._clear_activity()
+                gssi_m = re.search(r"\bgssi=(\d+)", msg)
+                if not gssi_m:
+                    gssi_m = re.search(r"\bgssi[:\s=]+(\d+)", msg, re.I)
+                return
+
+            if "network call ended" in msg:
+                self._clear_activity()
+                return
+
+            # 4. REGISTRATION (ULocationUpdateDemand / ItsiAttach)
+            if "ULocationUpdateDemand" in msg:
+                ssi = self._extract_ssi(msg)
+                if not ssi:
                     return
 
-                is_reg = bool(re.search(r"register|affiliate|attach", msg, re.I))
+                loc_type_m = re.search(r"location_update_type:\s*(\w+)", msg)
+                loc_type = loc_type_m.group(1) if loc_type_m else ""
 
-                if tid not in self.terminals:
-                    self.terminals[tid] = {
+                if "Detach" in loc_type:
+                    if ssi in self.terminals:
+                        self.terminals[ssi]["status"] = "Offline"
+                        self.terminals[ssi]["selected"] = "---"
+                        self.terminals[ssi]["groups"] = []
+                        self.terminals[ssi]["activity"] = None
+                        self.terminals[ssi]["activity_tg"] = None
+                        emit("update_terminal", self._terminal_to_dict(ssi))
+                    return
+
+                if ssi not in self.terminals:
+                    self.terminals[ssi] = {
                         "selected": "---",
                         "groups": [],
-                        "status": "Online" if is_reg else "External",
-                        "is_local": is_reg,
+                        "status": "Online",
+                        "is_local": True,
                         "last_seen": timestamp,
                         "activity": None,
                         "activity_tg": None,
                     }
-                if is_reg:
-                    self.terminals[tid]["is_local"] = True
-                    self.terminals[tid]["status"] = "Online"
-                self.terminals[tid]["last_seen"] = timestamp
+                self.terminals[ssi]["status"] = "Online"
+                self.terminals[ssi]["is_local"] = True
+                self.terminals[ssi]["last_seen"] = timestamp
 
-                found_gssi = None
-                patterns = [
-                    r"selected(?:[\s_]*tg)?[:\s=]+(\d+)",
-                    r"target[:\s=]+(\d+)",
-                    r"dest(?:ination)?[:\s=]+(\d+)",
-                    r"group[:\s=]+(\d+)"
-                ]
-                for p in patterns:
-                    m = re.search(p, msg, re.I)
-                    if m:
-                        found_gssi = m.group(1)
-                        break
+                gssi_entries = self._extract_gssi_list(msg)
+                for gssi, is_detach in gssi_entries:
+                    if not is_detach:
+                        if gssi not in self.terminals[ssi]["groups"]:
+                            self.terminals[ssi]["groups"].append(gssi)
+                        if self.terminals[ssi]["selected"] == "---":
+                            self.terminals[ssi]["selected"] = f"TG {gssi}"
 
-                if found_gssi:
-                    self.terminals[tid]["selected"] = f"TG {found_gssi}"
-                    if found_gssi not in self.terminals[tid]["groups"]:
-                        self.terminals[tid]["groups"].append(found_gssi)
-                        self.terminals[tid]["groups"].sort()
-
-                grps_match = re.search(r"groups=\[(.*?)\]", msg)
-                if grps_match:
-                    raw_grps = [g.strip() for g in grps_match.group(1).split(",") if g.strip()]
-                    is_deaffiliate = "deaffiliate" in msg.lower() or "detach" in msg.lower()
-                    if is_deaffiliate:
-                        for g in raw_grps:
-                            if g in self.terminals[tid]["groups"]:
-                                self.terminals[tid]["groups"].remove(g)
-                        if not self.terminals[tid]["groups"]:
-                            self.terminals[tid]["status"] = "Offline"
-                            self.terminals[tid]["selected"] = "---"
-                            self.terminals[tid]["activity"] = None
-                            self.terminals[tid]["activity_tg"] = None
-                    else:
-                        combined = set(self.terminals[tid]["groups"]) | set(raw_grps)
-                        self.terminals[tid]["groups"] = sorted(list(combined))
-
-                emit("update_terminal", self._terminal_to_dict(tid))
+                self.terminals[ssi]["groups"].sort()
+                emit("update_terminal", self._terminal_to_dict(ssi))
                 return
 
-            # 4. GROUP CHANGE (ATTACH/DETACH)
-            if "AttachDetachGroupIdentity" in msg or "LocationUpdate" in msg:
-                id_m = re.search(
-                    r"\b(?:issi|ssi|subscriber)[:\s=]+(?:Some\()?(\d+)(?:[\),]*\s*,?\s*ssi_type[:\s=]+(\w+))?",
-                    msg, re.I
-                )
-                current_id = id_m.group(1) if id_m else self.last_context_id
+            # 5. GROUP ATTACH/DETACH (UAttachDetachGroupIdentity)
+            if "UAttachDetachGroupIdentity" in msg:
+                ssi = self._extract_ssi(msg)
+                if not ssi:
+                    ssi = self.last_context_id
+                if not ssi:
+                    return
 
-                if current_id and current_id in self.terminals:
-                    structs = re.findall(r"GroupIdentity(?:Up|Down)link\s*\{(.*?)\}", msg)
-                    to_attach = []
-                    to_detach = []
+                if ssi not in self.terminals:
+                    self.terminals[ssi] = {
+                        "selected": "---",
+                        "groups": [],
+                        "status": "Online",
+                        "is_local": True,
+                        "last_seen": timestamp,
+                        "activity": None,
+                        "activity_tg": None,
+                    }
 
-                    if structs:
-                        for s in structs:
-                            g_match = re.search(r"\bgssi[:\s=]+(?:Some\()?(\d+)", s, re.I)
-                            if g_match:
-                                gssi = g_match.group(1)
-                                is_det = re.search(r"detachment_(?:up|down)link[:\s]+Some", s) is not None
-                                if is_det:
-                                    to_detach.append(gssi)
-                                else:
-                                    to_attach.append(gssi)
+                gssi_entries = self._extract_gssi_list(msg)
+                to_attach = [g for g, det in gssi_entries if not det]
+                to_detach = [g for g, det in gssi_entries if det]
 
-                    current_groups = self.terminals[current_id]["groups"]
-                    current_selected = self.terminals[current_id]["selected"]
-                    selected_gssi = current_selected.replace("TG ", "") if "TG " in current_selected else None
+                current_groups = self.terminals[ssi]["groups"]
+                for g in to_detach:
+                    if g in current_groups:
+                        current_groups.remove(g)
+                for g in to_attach:
+                    if g not in current_groups:
+                        current_groups.append(g)
 
-                    for g in to_detach:
-                        if g in current_groups:
-                            current_groups.remove(g)
-                    for g in to_attach:
-                        if g not in current_groups:
-                            current_groups.append(g)
+                if to_detach and not to_attach and not current_groups:
+                    self.terminals[ssi]["status"] = "Offline"
+                    self.terminals[ssi]["selected"] = "---"
+                    self.terminals[ssi]["activity"] = None
+                    self.terminals[ssi]["activity_tg"] = None
+                elif to_attach:
+                    self.terminals[ssi]["selected"] = f"TG {to_attach[0]}"
+                    self.terminals[ssi]["status"] = "Online"
 
-                    if to_detach and not to_attach and not current_groups:
-                        self.terminals[current_id]["status"] = "Offline"
-                        self.terminals[current_id]["selected"] = "---"
-                        self.terminals[current_id]["activity"] = None
-                        self.terminals[current_id]["activity_tg"] = None
+                self.terminals[ssi]["last_seen"] = timestamp
+                self.terminals[ssi]["groups"].sort()
+                emit("update_terminal", self._terminal_to_dict(ssi))
+                return
 
-                    if len(to_attach) == 1:
-                        primary_gssi = to_attach[0]
-                        if current_id != primary_gssi:
-                            self.terminals[current_id]["selected"] = f"TG {primary_gssi}"
-                            selected_gssi = primary_gssi
-                            if len(current_groups) <= 2 and len(to_detach) == 0:
-                                self.terminals[current_id]["groups"] = [primary_gssi]
-                                current_groups = self.terminals[current_id]["groups"]
-                            elif primary_gssi not in current_groups:
-                                current_groups.append(primary_gssi)
+            # 6. DEREGISTER (explicit deregister keyword)
+            if "deregister" in msg.lower():
+                ssi = self._extract_ssi(msg)
+                if not ssi:
+                    m = re.search(r"\b(?:issi|ssi)[:\s=]+(?:Some\()?(\d+)", msg, re.I)
+                    if m:
+                        ssi = m.group(1)
+                if ssi and ssi in self.terminals:
+                    self.terminals[ssi]["status"] = "Offline"
+                    self.terminals[ssi]["selected"] = "---"
+                    self.terminals[ssi]["groups"] = []
+                    self.terminals[ssi]["activity"] = None
+                    self.terminals[ssi]["activity_tg"] = None
+                    emit("update_terminal", self._terminal_to_dict(ssi))
+                return
 
-                    if selected_gssi and selected_gssi not in current_groups and selected_gssi != "---":
-                        current_groups.append(selected_gssi)
-
-                    self.terminals[current_id]["last_seen"] = datetime.now().strftime("%H:%M:%S")
-                    self.terminals[current_id]["groups"].sort()
-                    emit("update_terminal", self._terminal_to_dict(current_id))
+            # 7. BrewWorker affiliated groups (BS own groups, informational)
+            brew_groups = re.search(r"affiliated to groups \[([^\]]*)\]", msg)
+            if brew_groups:
+                return
 
         except Exception:
             pass
