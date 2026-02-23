@@ -143,8 +143,6 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
       return a.id.localeCompare(b.id);
     });
 
-  const filtered = !isLocal ? sorted.slice(-12) : sorted;
-
   return (
     <div
       className="glass-panel rounded-md overflow-hidden"
@@ -160,10 +158,10 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
           {title}
         </h2>
         <span className="ml-auto text-[10px] text-muted-foreground font-mono">
-          {filtered.length} {filtered.length === 1 ? "terminal" : "terminales"}
+          {sorted.length} {sorted.length === 1 ? "terminal" : "terminales"}
         </span>
       </div>
-      <div className="overflow-x-auto">
+      <div className="overflow-x-auto max-h-[400px] overflow-y-auto">
         <table className="w-full text-sm" data-testid={`table-${isLocal ? 'local' : 'external'}-terminals`}>
           <thead>
             <tr className="text-muted-foreground text-xs border-b border-white/5">
@@ -176,14 +174,14 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
             </tr>
           </thead>
           <tbody className="divide-y divide-white/[0.03]">
-            {filtered.length === 0 ? (
+            {sorted.length === 0 ? (
               <tr>
                 <td colSpan={6} className="text-center py-8 text-muted-foreground/50 text-xs">
                   Sin terminales activos
                 </td>
               </tr>
             ) : (
-              filtered.map(t => <TerminalRow key={t.id} t={t} />)
+              sorted.map(t => <TerminalRow key={t.id} t={t} />)
             )}
           </tbody>
         </table>
