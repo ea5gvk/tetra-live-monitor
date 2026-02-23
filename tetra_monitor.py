@@ -232,6 +232,8 @@ class TetraMonitor:
             if "ULocationUpdateDemand" in msg:
                 ssi = self._extract_ssi(msg)
                 if not ssi:
+                    ssi = self.last_context_id
+                if not ssi:
                     return
 
                 loc_type_m = re.search(r"location_update_type:\s*(\w+)", msg)
@@ -319,7 +321,7 @@ class TetraMonitor:
                 return
 
             # 6. DEREGISTER (UItsiDetach / explicit deregister)
-            if "UItsiDetach" in msg or "deregister" in msg.lower():
+            if "UItsiDetach" in msg or "ItsiDetach" in msg or "deregister" in msg.lower():
                 ssi = self._extract_ssi(msg)
                 if not ssi:
                     m = re.search(r"received_address:\s*TetraAddress\s*\{[^}]*ssi:\s*(\d+)", msg)
@@ -327,6 +329,8 @@ class TetraMonitor:
                         m = re.search(r"\b(?:issi|ssi)[:\s=]+(?:Some\()?(\d+)", msg, re.I)
                     if m:
                         ssi = m.group(1)
+                if not ssi:
+                    ssi = self.last_context_id
                 if ssi and ssi in self.terminals:
                     self.terminals[ssi]["status"] = "Offline"
                     self.terminals[ssi]["selected"] = "---"
