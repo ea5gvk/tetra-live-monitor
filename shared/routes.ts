@@ -27,6 +27,10 @@ export const api = {
       method: 'POST' as const,
       path: '/api/system/reboot' as const,
     },
+    applyConfig: {
+      method: 'POST' as const,
+      path: '/api/system/apply-config' as const,
+    },
   },
 };
 

@@ -97,6 +97,67 @@ export async function registerRoutes(
     }, 1000);
   });
 
+  app.post(api.system.applyConfig.path, (req, res) => {
+    const { password, configPath, values } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ message: "Contraseña incorrecta" });
+    }
+
+    if (!configPath || typeof configPath !== "string") {
+      return res.status(400).json({ message: "Ruta del archivo no especificada" });
+    }
+
+    if (!values || typeof values !== "object") {
+      return res.status(400).json({ message: "Valores no proporcionados" });
+    }
+
+    try {
+      if (!fs.existsSync(configPath)) {
+        return res.status(404).json({ message: `Archivo no encontrado: ${configPath}` });
+      }
+
+      let content = fs.readFileSync(configPath, "utf-8");
+
+      const sectionUpdates: Record<string, Record<string, string>> = {
+        "phy_io_soapy": {
+          "tx_freq": String(values.tx_freq),
+          "rx_freq": String(values.rx_freq),
+        },
+        "cell_info": {
+          "freq_band": String(values.freq_band),
+          "main_carrier": String(values.main_carrier),
+          "duplex_spacing": String(values.duplex_spacing),
+          "freq_offset": String(values.freq_offset),
+          "reverse_operation": String(values.reverse_operation),
+        },
+      };
+
+      for (const [section, fields] of Object.entries(sectionUpdates)) {
+        for (const [key, value] of Object.entries(fields)) {
+          const regex = new RegExp(
+            `(\\[${section}\\][\\s\\S]*?)^(\\s*${key}\\s*=\\s*)(.*)$`,
+            "m"
+          );
+          const match = content.match(regex);
+          if (match) {
+            content = content.replace(regex, `$1$2${value}`);
+          }
+        }
+      }
+
+      fs.writeFileSync(configPath, content, "utf-8");
+
+      exec("sudo systemctl restart tmo 2>/dev/null || sudo systemctl restart tetra-bluestation 2>/dev/null || true", (err) => {
+        if (err) console.error("Error al reiniciar TMO:", err.message);
+      });
+
+      res.json({ message: "Config aplicada. Reiniciando TMO..." });
+    } catch (err: any) {
+      console.error("Error al aplicar config:", err);
+      res.status(500).json({ message: `Error: ${err.message}` });
+    }
+  });
+
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
   function broadcast(data: string) {

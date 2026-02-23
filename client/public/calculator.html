@@ -366,6 +366,31 @@
       </div>
     </section>
   </div>
+
+  <div style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="apply_title">Apply to Raspberry Pi</h2>
+
+      <div class="row">
+        <div>
+          <label for="configPathVal" data-i18n="config_path_label">config.toml file path on Raspberry Pi</label>
+          <input id="configPathVal" type="text" value="/root/tetra-bluestation/config.toml" placeholder="/root/tetra-bluestation/config.toml" />
+          <div class="hint" data-i18n="config_path_hint">Full path to the TOML configuration file on your Raspberry Pi.</div>
+        </div>
+        <div>
+          <label for="applyPassword" data-i18n="apply_password_label">System password</label>
+          <input id="applyPassword" type="password" placeholder="" />
+          <div class="hint" data-i18n="apply_password_hint">Password configured in config.json of the monitor.</div>
+        </div>
+      </div>
+
+      <div class="btns" style="margin-top:14px;">
+        <button id="applyConfigBtn" data-i18n="apply_btn">APPLY CHANGES &amp; RESTART TMO</button>
+      </div>
+
+      <div id="applyStatus" class="footer-note"></div>
+    </section>
+  </div>
 </main>
 
 <script type="text/javascript">
@@ -427,7 +452,19 @@
       copy_fail: "⚠️ Unable to copy automatically. Please select and copy manually.",
       duplex_hint_ok: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) → {mhz} MHz",
       duplex_hint_reserved: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is reserved (ETSI NOTE 1). Enter RX or use duplex_spacing=7 with custom spacing.",
-      duplex_hint_custom: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is undefined (ETSI NOTE 3 / 1112). Enter custom_duplex_spacing to derive RX."
+      duplex_hint_custom: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is undefined (ETSI NOTE 3 / 1112). Enter custom_duplex_spacing to derive RX.",
+      apply_title: "Apply to Raspberry Pi",
+      config_path_label: "config.toml file path on Raspberry Pi",
+      config_path_hint: "Full path to the TOML configuration file on your Raspberry Pi.",
+      apply_password_label: "System password",
+      apply_password_hint: "Password configured in config.json of the monitor.",
+      apply_btn: "APPLY CHANGES & RESTART TMO",
+      apply_need_calc: "Please calculate frequencies first.",
+      apply_need_path: "Please enter the config.toml file path.",
+      apply_need_password: "Please enter the system password.",
+      apply_success: "✅ Config applied. Restarting TMO...",
+      apply_error: "⚠️ Error: {msg}",
+      apply_sending: "Applying changes..."
     },
     zh: {
       title: "TETRA 頻率計算器",
@@ -482,7 +519,19 @@
       copy_fail: "⚠️ 無法自動複製，請手動選取上方內容。",
       duplex_hint_ok: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）→ {mhz} MHz",
       duplex_hint_reserved: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）為 reserved（ETSI NOTE 1）。請直接填 RX 或改用 duplex_spacing=7 並填 custom spacing。",
-      duplex_hint_custom: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）為未定義（ETSI NOTE 3 / 1112）。請填 custom_duplex_spacing 才能推算 RX。"
+      duplex_hint_custom: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）為未定義（ETSI NOTE 3 / 1112）。請填 custom_duplex_spacing 才能推算 RX。",
+      apply_title: "套用到 Raspberry Pi",
+      config_path_label: "Raspberry Pi 上的 config.toml 檔案路徑",
+      config_path_hint: "Raspberry Pi 上 TOML 設定檔的完整路徑。",
+      apply_password_label: "系統密碼",
+      apply_password_hint: "在 monitor 的 config.json 中設定的密碼。",
+      apply_btn: "套用變更並重啟 TMO",
+      apply_need_calc: "請先計算頻率。",
+      apply_need_path: "請輸入 config.toml 檔案路徑。",
+      apply_need_password: "請輸入系統密碼。",
+      apply_success: "✅ 設定已套用。正在重啟 TMO...",
+      apply_error: "⚠️ 錯誤：{msg}",
+      apply_sending: "正在套用變更..."
     },
     es: {
       title: "Calculadora de Frecuencias TETRA",
@@ -537,7 +586,19 @@
       copy_fail: "⚠️ No se pudo copiar automáticamente. Selecciona y copia manualmente.",
       duplex_hint_ok: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) → {mhz} MHz",
       duplex_hint_reserved: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) está reservado (ETSI NOTE 1). Introduce RX o usa duplex_spacing=7 con custom spacing.",
-      duplex_hint_custom: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) no está definido (ETSI NOTE 3 / 1112). Introduce custom_duplex_spacing para calcular RX."
+      duplex_hint_custom: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) no está definido (ETSI NOTE 3 / 1112). Introduce custom_duplex_spacing para calcular RX.",
+      apply_title: "Aplicar a Raspberry Pi",
+      config_path_label: "Ruta del archivo config.toml en la Raspberry Pi",
+      config_path_hint: "Ruta completa al archivo de configuración TOML en tu Raspberry Pi.",
+      apply_password_label: "Contraseña del sistema",
+      apply_password_hint: "Contraseña configurada en config.json del monitor.",
+      apply_btn: "APLICAR CAMBIOS Y REINICIO DE TMO",
+      apply_need_calc: "Primero calcula las frecuencias.",
+      apply_need_path: "Introduce la ruta del archivo config.toml.",
+      apply_need_password: "Introduce la contraseña del sistema.",
+      apply_success: "✅ Config aplicada. Reiniciando TMO...",
+      apply_error: "⚠️ Error: {msg}",
+      apply_sending: "Aplicando cambios..."
     }
   };
 
@@ -551,6 +612,7 @@
   let lastComputedBaseHz = null;
   let lastComputedFreqOffset = null; // Hz (one of 0, 6250, -6250, 12500)
   let lastOffsetSel = "auto";
+  let lastComputedResult = null;
 
 
   function t(key, vars){
@@ -938,6 +1000,15 @@
     lastComputedMainCarrier = carrier.main_carrier;
     lastComputedBaseHz = baseHz;
     lastComputedFreqOffset = carrier.freq_offset;
+    lastComputedResult = {
+      tx_freq: txHz,
+      rx_freq: rxHz,
+      freq_band: band,
+      main_carrier: carrier.main_carrier,
+      duplex_spacing: duplexCodeIdx,
+      freq_offset: carrier.freq_offset,
+      reverse_operation: reverse
+    };
 el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     el("outRxHz").textContent = fmtHz(rxHz) + "  (" + fmtMHz(rxHz) + " MHz)";
     el("outMainCarrier").textContent = String(carrier.main_carrier);
@@ -1144,6 +1215,49 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       }catch(e2){
         setStatus(`<span class="warn">${escapeHtml(t("copy_fail"))}</span>`, "warn");
       }
+    }
+  });
+
+  el("applyConfigBtn").addEventListener("click", async ()=>{
+    const statusEl = el("applyStatus");
+
+    if (!lastComputedResult){
+      statusEl.innerHTML = `<span class="warn">${escapeHtml(t("apply_need_calc"))}</span>`;
+      return;
+    }
+
+    const configPath = el("configPathVal").value.trim();
+    if (!configPath){
+      statusEl.innerHTML = `<span class="warn">${escapeHtml(t("apply_need_path"))}</span>`;
+      return;
+    }
+
+    const password = el("applyPassword").value;
+    if (!password){
+      statusEl.innerHTML = `<span class="warn">${escapeHtml(t("apply_need_password"))}</span>`;
+      return;
+    }
+
+    statusEl.innerHTML = `<span class="muted">${escapeHtml(t("apply_sending"))}</span>`;
+
+    try {
+      const res = await fetch("/api/system/apply-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          password,
+          configPath,
+          values: lastComputedResult
+        })
+      });
+      const data = await res.json();
+      if (!res.ok){
+        statusEl.innerHTML = `<span class="bad">${escapeHtml(t("apply_error", { msg: data.message || "Unknown error" }))}</span>`;
+      } else {
+        statusEl.innerHTML = `<span class="good">${escapeHtml(t("apply_success"))}</span>`;
+      }
+    } catch(e){
+      statusEl.innerHTML = `<span class="bad">${escapeHtml(t("apply_error", { msg: "Connection error" }))}</span>`;
     }
   });
 
