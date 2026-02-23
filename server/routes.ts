@@ -123,7 +123,7 @@ export async function registerRoutes(
       let content = fs.readFileSync(configPath, "utf-8");
 
       const sectionUpdates: Record<string, Record<string, string>> = {
-        "phy_io_soapy": {
+        "phy_io_soapysdr": {
           "tx_freq": String(values.tx_freq),
           "rx_freq": String(values.rx_freq),
         },
