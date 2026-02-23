@@ -250,6 +250,11 @@ class TetraMonitor:
                         for g in raw_grps:
                             if g in self.terminals[tid]["groups"]:
                                 self.terminals[tid]["groups"].remove(g)
+                        if not self.terminals[tid]["groups"]:
+                            self.terminals[tid]["status"] = "Offline"
+                            self.terminals[tid]["selected"] = "---"
+                            self.terminals[tid]["activity"] = None
+                            self.terminals[tid]["activity_tg"] = None
                     else:
                         combined = set(self.terminals[tid]["groups"]) | set(raw_grps)
                         self.terminals[tid]["groups"] = sorted(list(combined))
@@ -291,6 +296,12 @@ class TetraMonitor:
                     for g in to_attach:
                         if g not in current_groups:
                             current_groups.append(g)
+
+                    if to_detach and not to_attach and not current_groups:
+                        self.terminals[current_id]["status"] = "Offline"
+                        self.terminals[current_id]["selected"] = "---"
+                        self.terminals[current_id]["activity"] = None
+                        self.terminals[current_id]["activity_tg"] = None
 
                     if len(to_attach) == 1:
                         primary_gssi = to_attach[0]
