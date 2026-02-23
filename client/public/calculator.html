@@ -1,0 +1,1069 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>TETRA Frequency Calculator (ETSI TS 100 392-15)</title>
+  <style>
+    :root{
+      --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans TC", "Microsoft JhengHei", Arial, sans-serif;
+
+      /* Theme tokens (overridden by [data-theme]) */
+      --bg: #0b1020;
+      --bg2:#080b18;
+      --panel:#111a33;
+      --panel2:#0f1730;
+      --text:#e8ecff;
+      --muted:#a9b2d6;
+      --line:#27335e;
+      --accent:#5aa6ff;
+      --warn:#ffcc66;
+      --bad:#ff6b6b;
+      --good:#75f0a4;
+      --shadow: rgba(0,0,0,.25);
+      --codebg: rgba(0,0,0,.35);
+      --inputbg: rgba(8,12,28,.8);
+      --btntext:#071022;
+    }
+
+    /* Light theme */
+    :root[data-theme="light"]{
+      --bg:#f6f7fb;
+      --bg2:#ffffff;
+      --panel:#ffffff;
+      --panel2:#f5f7ff;
+      --text:#151a2d;
+      --muted:#52608a;
+      --line:#d7def2;
+      --accent:#2563eb;
+      --warn:#a16207;
+      --bad:#b91c1c;
+      --good:#047857;
+      --shadow: rgba(19,30,62,.12);
+      --codebg: rgba(37, 99, 235, .06);
+      --inputbg: rgba(15, 23, 42, .04);
+      --btntext:#ffffff;
+    }
+
+    *{box-sizing:border-box}
+    body{
+      margin:0;
+      font-family:var(--sans);
+      background:linear-gradient(180deg, var(--bg2), var(--bg));
+      color:var(--text);
+    }
+    header{
+      padding:18px 18px 10px 18px;
+      border-bottom:1px solid var(--line);
+      background:color-mix(in srgb, var(--panel) 58%, transparent);
+      backdrop-filter:saturate(140%) blur(8px);
+      position:sticky; top:0; z-index:10;
+    }
+    h1{margin:0; font-size:18px; font-weight:800;}
+    .sub{margin-top:6px; color:var(--muted); font-size:13px; line-height:1.4}
+    main{padding:18px; max-width:1200px; margin:0 auto;}
+    .grid{display:grid; grid-template-columns:1.15fr .85fr; gap:14px;}
+    @media (max-width: 960px){ .grid{grid-template-columns:1fr; } }
+
+    .topbar{
+      display:flex; gap:10px; align-items:center; justify-content:space-between;
+    }
+    .toggles{display:flex; gap:10px; align-items:center; flex-wrap:wrap;}
+    .chipbtn{
+      display:inline-flex; gap:8px; align-items:center;
+      border:1px solid var(--line);
+      background:color-mix(in srgb, var(--panel) 78%, transparent);
+      color:var(--text);
+      border-radius:999px;
+      padding:8px 10px;
+      cursor:pointer;
+      font-size:12px;
+      user-select:none;
+    }
+    .dot{
+      width:10px; height:10px; border-radius:999px;
+      background: var(--accent);
+      box-shadow: 0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);
+    }
+    .chipbtn .mono{font-family:var(--mono)}
+
+    .card{
+      background:linear-gradient(180deg, color-mix(in srgb, var(--panel) 98%, transparent), color-mix(in srgb, var(--panel2) 98%, transparent));
+      border:1px solid var(--line);
+      border-radius:16px;
+      padding:14px;
+      box-shadow:0 10px 26px var(--shadow);
+    }
+    .card h2{margin:0 0 12px 0; font-size:14px; color:color-mix(in srgb, var(--text) 92%, var(--muted));}
+    .row{display:grid; grid-template-columns: 1fr 1fr; gap:10px; align-items:end;}
+    @media (max-width: 720px){ .row{grid-template-columns:1fr;} }
+
+    label{display:block; font-size:12px; color:var(--muted); margin:0 0 6px;}
+    input, select, textarea{
+      width:100%;
+      background:var(--inputbg);
+      border:1px solid var(--line);
+      color:var(--text);
+      border-radius:12px;
+      padding:10px 10px;
+      outline:none;
+      font-size:14px;
+    }
+    input:focus, select:focus, textarea:focus{border-color:color-mix(in srgb, var(--accent) 70%, transparent); box-shadow:0 0 0 4px color-mix(in srgb, var(--accent) 18%, transparent);}
+    .inline{display:flex; gap:10px; align-items:center;}
+    .inline > *{flex:1;}
+    .hint{font-size:12px; color:var(--muted); margin-top:8px; line-height:1.45}
+    .btns{display:flex; gap:10px; flex-wrap:wrap; margin-top:12px;}
+    button{
+      background:linear-gradient(180deg, color-mix(in srgb, var(--accent) 92%, transparent), color-mix(in srgb, var(--accent) 80%, transparent));
+      color:var(--btntext);
+      border:none;
+      border-radius:12px;
+      padding:10px 12px;
+      font-weight:800;
+      cursor:pointer;
+      box-shadow:0 10px 20px color-mix(in srgb, var(--accent) 22%, transparent);
+    }
+    button.secondary{
+      background:color-mix(in srgb, var(--panel) 78%, transparent);
+      color:var(--text);
+      border:1px solid var(--line);
+      box-shadow:none;
+      font-weight:700;
+    }
+    button:active{transform:translateY(1px);}
+    .pill{
+      display:inline-flex; align-items:center; gap:8px;
+      border:1px solid var(--line);
+      background:color-mix(in srgb, var(--panel) 78%, transparent);
+      border-radius:999px;
+      padding:7px 10px;
+      font-size:12px;
+      color:var(--muted);
+      margin:6px 8px 0 0;
+    }
+    .pill b{color:var(--text); font-weight:800}
+    .warn{color:var(--warn)}
+    .bad{color:var(--bad)}
+    .good{color:var(--good)}
+    .mono{font-family:var(--mono);}
+    pre{
+      margin:0;
+      padding:12px;
+      background:var(--codebg);
+      border:1px solid color-mix(in srgb, var(--line) 70%, transparent);
+      border-radius:14px;
+      overflow:auto;
+      color:color-mix(in srgb, var(--text) 92%, white);
+      font-family:var(--mono);
+      font-size:12.5px;
+      line-height:1.45;
+      white-space:pre;
+    }
+    .footer-note{margin-top:10px; font-size:12px; color:var(--muted); line-height:1.45}
+    .kvs{display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-top:10px;}
+    @media (max-width: 620px){ .kvs{grid-template-columns:1fr;} }
+    .kv{padding:10px; border:1px solid var(--line); border-radius:14px; background:color-mix(in srgb, var(--panel) 78%, transparent);}
+    .kv .k{font-size:12px; color:var(--muted); margin-bottom:6px;}
+    .kv .v{font-size:14px; font-family:var(--mono);}
+  </style>
+</head>
+<header>
+  <div class="topbar">
+    <div>
+      <h1 data-i18n="title">TETRA Frequency Calculator</h1>
+      <div class="sub" data-i18n="subtitle">
+        ETSI TS 100 392-15: band base/reference, duplex spacing mapping, 25 kHz raster + offset.
+      </div>
+    </div>
+
+    <div class="toggles">
+      <div id="langBtn" class="chipbtn" role="button" tabindex="0" aria-label="Toggle language">
+        <span class="dot"></span>
+        <span class="mono" id="langLabel">EN</span>
+      </div>
+      <div id="themeBtn" class="chipbtn" role="button" tabindex="0" aria-label="Toggle theme">
+        <span class="dot"></span>
+        <span id="themeLabel" data-i18n="theme_dark">Dark</span>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <div class="grid">
+    <section class="card">
+      <h2 data-i18n="input">Input</h2>
+
+      <div class="row">
+        <div>
+          <label for="freqBand" data-i18n="freq_band">Freq band</label>
+          <select id="freqBand">
+            <option value="3">3 (base/reference = 300 MHz)</option>
+            <option value="4" selected>4 (base/reference = 400 MHz)</option>
+            <option value="8">8 (base/reference = 800 MHz)</option>
+          </select>
+          <div class="hint" data-i18n="band_hint">
+            Band 3/4/8 follow ETSI Table 1 base/reference: 300/400/800 MHz.
+          </div>
+        </div>
+
+        <div>
+          <label data-i18n="base_ref">Base/reference frequency</label>
+          <input id="baseHz" class="mono" value="400000000" readonly />
+          <div class="hint" data-i18n="base_hint">
+            Used for: base + main_carrier×25k + freq_offset.
+          </div>
+        </div>
+      </div>
+
+      <div style="height:12px;"></div>
+
+      <div class="row">
+        <div>
+          <label for="txVal" data-i18n="tx_label">TX (Downlink / BS Tx)</label>
+          <div class="inline">
+            <input id="txVal" inputmode="decimal" placeholder="e.g. 431.7375 or 431737500" />
+            <select id="txUnit">
+              <option value="MHz" selected>MHz</option>
+              <option value="Hz">Hz</option>
+            </select>
+          </div>
+          <div class="hint" data-i18n="tx_hint">Paste integer Hz, or enter MHz decimals.</div>
+        </div>
+
+        <div>
+          <label for="rxVal" data-i18n="rx_label">RX (Uplink / MS Tx) (optional)</label>
+          <div class="inline">
+            <input id="rxVal" inputmode="decimal" placeholder="optional; derive from duplex spacing" />
+            <select id="rxUnit">
+              <option value="MHz" selected>MHz</option>
+              <option value="Hz">Hz</option>
+            </select>
+          </div>
+          <div class="hint" data-i18n="rx_hint">
+            If provided, the tool derives duplex_spacing + reverse_operation from |TX-RX|.
+          </div>
+        </div>
+      </div>
+
+      <div style="height:12px;"></div>
+
+      <div class="row">
+        <div>
+          <label for="offsetSel" data-i18n="offset_label">freq_offset selection</label>
+          <select id="offsetSel">
+            <option value="auto" selected data-i18n="offset_auto">Auto (best match)</option>
+            <option value="0">0</option>
+            <option value="6250">6250</option>
+            <option value="-6250">-6250</option>
+            <option value="12500">12500</option>
+          </select>
+          <div class="hint" data-i18n="offset_hint">
+            When not Auto, main_carrier is computed from TX using your selected freq_offset.
+          </div>
+        </div>
+
+        <div>
+          <label for="duplexCode" data-i18n="duplex_label">duplex_spacing (ETSI Table 2 code)</label>
+          <select id="duplexCode"></select>
+          <div class="hint" id="duplexHint">—</div>
+        </div>
+      </div>
+
+      <div style="height:12px;"></div>
+
+      <div class="row">
+        <div>
+          <label for="reverseOp" data-i18n="reverse_label">reverse_operation</label>
+          <select id="reverseOp">
+            <option value="false" selected data-i18n="reverse_false">false (UL below DL / normal)</option>
+            <option value="true" data-i18n="reverse_true">true (UL above DL / reverse)</option>
+          </select>
+          <div class="hint" data-i18n="reverse_hint">
+            If RX is provided, this is overridden by RX&gt;TX.
+          </div>
+        </div>
+
+        <div></div>
+      </div>
+
+      <div style="height:12px;"></div>
+
+      <div class="row" id="customRow" style="display:none;">
+        <div>
+          <label for="customDuplexVal" data-i18n="custom_label">custom_duplex_spacing (only when duplex_spacing=7 / 1112)</label>
+          <div class="inline">
+            <input id="customDuplexVal" inputmode="decimal" placeholder="e.g. 10 or 10000000" />
+            <select id="customDuplexUnit">
+              <option value="MHz" selected>MHz</option>
+              <option value="Hz">Hz</option>
+            </select>
+          </div>
+          <div class="hint" data-i18n="custom_hint">
+            ETSI NOTE 3: 1112 means undefined duplex spacing; it must be known by other means.
+          </div>
+        </div>
+        <div></div>
+      </div>
+
+      <div class="btns">
+        <button id="calcBtn" data-i18n="calc">Calculate</button>
+        <button id="swapBtn" class="secondary" data-i18n="swap">Swap TX/RX</button>
+        <button id="sampleBtn1" class="secondary" data-i18n="sample1">Sample (amateur band: 438.025 / 433.025)</button>
+      </div>
+
+      <div id="status" class="footer-note"></div>
+    </section>
+
+    <section class="card">
+      <h2 data-i18n="output">Output</h2>
+
+      <div class="kvs">
+        <div class="kv">
+          <div class="k" data-i18n="out_tx">tx_freq (Hz)</div>
+          <div class="v" id="outTxHz">—</div>
+        </div>
+        <div class="kv">
+          <div class="k" data-i18n="out_rx">rx_freq (Hz)</div>
+          <div class="v" id="outRxHz">—</div>
+        </div>
+        <div class="kv">
+          <div class="k" data-i18n="out_main">main_carrier</div>
+          <div class="v" id="outMainCarrier">—</div>
+        </div>
+        <div class="kv">
+          <div class="k" data-i18n="out_offset">freq_offset (Hz)</div>
+          <div class="v" id="outOffset">—</div>
+        </div>
+        <div class="kv">
+          <div class="k" data-i18n="out_duplex">duplex_spacing</div>
+          <div class="v" id="outDuplexCode">—</div>
+        </div>
+        <div class="kv">
+          <div class="k" data-i18n="out_reverse">reverse_operation</div>
+          <div class="v" id="outReverse">—</div>
+        </div>
+      </div>
+
+      <div style="height:12px;"></div>
+
+      <div class="pill"><b data-i18n="pill_base">base</b> <span class="mono" id="outBaseHz">—</span> Hz</div>
+      <div class="pill"><b data-i18n="pill_raster">raster</b> <span class="mono">25000</span> Hz</div>
+      <div class="pill"><b data-i18n="pill_offsets">offset set</b> <span class="mono">0 / 6250 / -6250 / 12500</span></div>
+
+      <div style="height:12px;"></div>
+
+      <pre id="tomlPreview"># Click "Calculate" to show</pre>
+
+      <div class="btns">
+        <button id="copyBtn" class="secondary" data-i18n="copy">Copy config snippet</button>
+      </div>
+
+      <div class="footer-note" data-i18n="note">
+        If TX cannot be represented exactly with 25kHz raster + allowed offsets, the tool shows a warning and an approximation.
+      </div>
+    </section>
+  </div>
+</main>
+
+<script type="text/javascript">
+(function(){
+  // =========================
+  // i18n (default EN)
+  // =========================
+  const I18N = {
+    en: {
+      title: "TETRA Frequency Calculator",
+      subtitle: "ETSI TS 100 392-15: band base/reference, duplex spacing mapping, 25 kHz raster + offset.",
+      theme_dark: "Dark",
+      theme_light: "Light",
+      input: "Input",
+      output: "Output",
+      freq_band: "Freq band",
+      band_hint: "Band 3/4/8 follow ETSI Table 1 base/reference: 300/400/800 MHz.",
+      base_ref: "Base/reference frequency",
+      base_hint: "Used for: base + main_carrier×25k + freq_offset.",
+      tx_label: "TX (Downlink / BS Tx)",
+      tx_hint: "Paste integer Hz, or enter MHz decimals.",
+      rx_label: "RX (Uplink / MS Tx) (optional)",
+      rx_hint: "If provided, the tool derives duplex_spacing + reverse_operation from |TX-RX|.",
+      offset_label: "freq_offset selection",
+      offset_auto: "Auto (best match)",
+      offset_hint: "Offset is applied after main_carrier. Selecting a fixed offset will update TX to base + main_carrier×25k + offset (and then recalc).",
+      duplex_label: "duplex_spacing (ETSI Table 2 code)",
+      reverse_label: "reverse_operation",
+      reverse_false: "false (UL below DL / normal)",
+      reverse_true: "true (UL above DL / reverse)",
+      reverse_hint: "If RX is provided, this is overridden by RX>TX.",
+      custom_label: "custom_duplex_spacing (only when duplex_spacing=7 / 1112)",
+      custom_hint: "ETSI NOTE 3: 1112 means undefined duplex spacing; it must be known by other means.",
+      calc: "Calculate",
+      swap: "Swap TX/RX",
+      sample1: "Sample (amateur band: 438.025 / 433.025)",
+      out_tx: "tx_freq (Hz)",
+      out_rx: "rx_freq (Hz)",
+      out_main: "main_carrier",
+      out_offset: "freq_offset (Hz)",
+      out_duplex: "duplex_spacing",
+      out_reverse: "reverse_operation",
+      pill_base: "base",
+      pill_raster: "raster",
+      pill_offsets: "offset set",
+      copy: "Copy config snippet",
+      note: "If TX cannot be represented exactly with 25kHz raster + allowed offsets, the tool shows a warning and an approximation.",
+      status_need_tx: "Please enter TX frequency.",
+      status_reserved: "duplex_spacing={idx} (IE {code}) is reserved for base={baseHz} (ETSI NOTE 1). Please choose a valid code or enter RX directly.",
+      status_need_custom: "When duplex_spacing=7 (1112), please enter custom_duplex_spacing to derive RX.",
+      status_custom_positive: "custom_duplex_spacing must be a positive number.",
+      warn_header: "⚠️",
+      done: "✅ Done. |TX-RX| = {spacing} Hz",
+      warn_no_match: "|TX-RX|={spacing} Hz does not match ETSI Table 2 predefined duplex spacing (base={baseHz}). Switched to duplex_spacing=7 (1112) with custom_duplex_spacing={spacing}.",
+      warn_tx_approx: "TX cannot be represented exactly with 25kHz raster + allowed offsets; approx error ≈ {err} Hz",
+      warn_fixed_offset_mismatch: "With fixed freq_offset={off}, TX is not on 25kHz raster: error ≈ {err} Hz (nearest main_carrier chosen).",
+      copied: "✅ Copied to clipboard.",
+      copied_fallback: "✅ Copied to clipboard (fallback).",
+      copy_fail: "⚠️ Unable to copy automatically. Please select and copy manually.",
+      duplex_hint_ok: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) → {mhz} MHz",
+      duplex_hint_reserved: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is reserved (ETSI NOTE 1). Enter RX or use duplex_spacing=7 with custom spacing.",
+      duplex_hint_custom: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is undefined (ETSI NOTE 3 / 1112). Enter custom_duplex_spacing to derive RX."
+    },
+    zh: {
+      title: "TETRA 頻率計算器",
+      subtitle: "依 ETSI TS 100 392-15：頻段 base/reference、duplex spacing 對照、25 kHz raster + offset。",
+      theme_dark: "深色",
+      theme_light: "淺色",
+      input: "輸入",
+      output: "結果",
+      freq_band: "Freq band（頻段）",
+      band_hint: "band 3/4/8 依 ETSI Table 1 base/reference：300/400/800 MHz。",
+      base_ref: "Base/reference frequency（Hz）",
+      base_hint: "用於：base + main_carrier×25k + freq_offset。",
+      tx_label: "TX（Downlink / BS Tx）",
+      tx_hint: "可直接貼整數 Hz，或輸入 MHz 小數。",
+      rx_label: "RX（Uplink / MS Tx）（可選）",
+      rx_hint: "若有填 RX：會依 |TX-RX| 反推 duplex_spacing + reverse_operation。",
+      offset_label: "freq_offset（選擇）",
+      offset_auto: "自動（最佳匹配）",
+      offset_hint: "offset 是在 main_carrier 之後加上去的。選固定 offset 會自動把 TX 更新成 base + main_carrier×25k + offset（並重新計算）。",
+      duplex_label: "duplex_spacing（ETSI Table 2 碼值）",
+      reverse_label: "reverse_operation",
+      reverse_false: "false（UL 低於 DL / normal）",
+      reverse_true: "true（UL 高於 DL / reverse）",
+      reverse_hint: "若有填 RX：會依 RX>TX 自動覆蓋此值。",
+      custom_label: "custom_duplex_spacing（僅 duplex_spacing=7 / 1112 時）",
+      custom_hint: "ETSI NOTE 3：1112 表示未定義 duplex spacing，需由其他方式得知。",
+      calc: "計算",
+      swap: "交換 TX/RX",
+      sample1: "範例（業餘段：438.025 / 433.025）",
+      out_tx: "tx_freq（Hz）",
+      out_rx: "rx_freq（Hz）",
+      out_main: "main_carrier",
+      out_offset: "freq_offset（Hz）",
+      out_duplex: "duplex_spacing",
+      out_reverse: "reverse_operation",
+      pill_base: "base",
+      pill_raster: "raster",
+      pill_offsets: "offset set",
+      copy: "複製 config 片段",
+      note: "若 TX 無法用 25kHz raster + offset（0/±6.25k/12.5k）精準表示，會顯示警告並給出近似值。",
+      status_need_tx: "請先輸入 TX 頻率。",
+      status_reserved: "duplex_spacing={idx}（IE {code}）在 base={baseHz} 下屬於 reserved（ETSI NOTE 1）。請改成可用碼值或直接填 RX。",
+      status_need_custom: "當 duplex_spacing=7（1112）時，請填 custom_duplex_spacing 才能推算 RX。",
+      status_custom_positive: "custom_duplex_spacing 必須是正數。",
+      warn_header: "⚠️",
+      done: "✅ 完成。|TX-RX| = {spacing} Hz",
+      warn_no_match: "|TX-RX|={spacing} Hz 無法對應 ETSI Table 2 的預定義 duplex spacing（base={baseHz}）。已改用 duplex_spacing=7（1112）並填入 custom_duplex_spacing={spacing}。",
+      warn_tx_approx: "TX 無法用 25kHz raster + offset 精準表示，近似誤差約 {err} Hz",
+      warn_fixed_offset_mismatch: "固定 freq_offset={off} 時，TX 不落在 25kHz raster 上：誤差約 {err} Hz（已取最接近的 main_carrier）。",
+      copied: "✅ 已複製到剪貼簿。",
+      copied_fallback: "✅ 已複製到剪貼簿（fallback）。",
+      copy_fail: "⚠️ 無法自動複製，請手動選取上方內容。",
+      duplex_hint_ok: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）→ {mhz} MHz",
+      duplex_hint_reserved: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）為 reserved（ETSI NOTE 1）。請直接填 RX 或改用 duplex_spacing=7 並填 custom spacing。",
+      duplex_hint_custom: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）為未定義（ETSI NOTE 3 / 1112）。請填 custom_duplex_spacing 才能推算 RX。"
+    }
+  };
+
+  const STORAGE_KEYS = { lang: "tetra_freq_lang", theme: "tetra_freq_theme" };
+  const state = {
+    lang: (localStorage.getItem(STORAGE_KEYS.lang) || "en"),
+    theme: (localStorage.getItem(STORAGE_KEYS.theme) || ((window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark")),
+  };
+  // Track last computed carrier parameters so changing freq_offset can update TX by keeping main_carrier
+  let lastComputedMainCarrier = null;
+  let lastComputedBaseHz = null;
+  let lastComputedFreqOffset = null; // Hz (one of 0, 6250, -6250, 12500)
+  let lastOffsetSel = "auto";
+
+
+  function t(key, vars){
+    const dict = I18N[state.lang] || I18N.en;
+    let s = dict[key] ?? I18N.en[key] ?? key;
+    if (vars){
+      for (const k of Object.keys(vars)){
+        s = s.replaceAll("{"+k+"}", String(vars[k]));
+      }
+    }
+    return s;
+  }
+
+  function applyI18n(){
+    document.documentElement.lang = (state.lang === "zh") ? "zh-Hant-TW" : "en";
+    document.querySelectorAll("[data-i18n]").forEach(node=>{
+      const key = node.getAttribute("data-i18n");
+      node.textContent = t(key);
+    });
+
+    // placeholders
+    const tx = document.getElementById("txVal");
+    const rx = document.getElementById("rxVal");
+    tx.placeholder = (state.lang === "zh") ? "例如：431.7375 或 431737500" : "e.g. 431.7375 or 431737500";
+    rx.placeholder = (state.lang === "zh") ? "可留空，讓系統用 duplex spacing 推算" : "optional; derive from duplex spacing";
+    const cd = document.getElementById("customDuplexVal");
+    cd.placeholder = (state.lang === "zh") ? "例如：10 或 10000000" : "e.g. 10 or 10000000";
+
+    document.getElementById("langLabel").textContent = (state.lang === "zh") ? "中文" : "EN";
+    document.getElementById("themeLabel").textContent = (state.theme === "light") ? t("theme_light") : t("theme_dark");
+
+    const offsetAuto = document.querySelector('#offsetSel option[value="auto"]');
+    if (offsetAuto) offsetAuto.textContent = t("offset_auto");
+
+    updateDuplexHintAndCustomRow();
+  }
+
+  function applyTheme(){
+    document.documentElement.setAttribute("data-theme", state.theme);
+    document.getElementById("themeLabel").textContent = (state.theme === "light") ? t("theme_light") : t("theme_dark");
+  }
+
+  function toggleLang(){
+    state.lang = (state.lang === "en") ? "zh" : "en";
+    localStorage.setItem(STORAGE_KEYS.lang, state.lang);
+    applyI18n();
+  }
+
+  function toggleTheme(){
+    state.theme = (state.theme === "dark") ? "light" : "dark";
+    localStorage.setItem(STORAGE_KEYS.theme, state.theme);
+    applyTheme();
+    applyI18n();
+  }
+
+  function wireToggle(elm, fn){
+    elm.addEventListener("click", fn);
+    elm.addEventListener("keydown", (e)=>{
+      if (e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        fn();
+      }
+    });
+  }
+
+  // =========================
+  // ETSI logic
+  // =========================
+  const BASE_BY_BAND = { 3: 300_000_000, 4: 400_000_000, 8: 800_000_000 };
+  const RASTER_HZ = 25_000;
+  const ALLOWED_OFFSETS = [0, 6250, -6250, 12500];
+
+  // 0->0002, 1->0012, 2->0102, 3->0112, 4->1002, 5->1012, 6->1102, 7->1112
+  const DUPLEX_CODES = [
+    { idx:0, code:"0002" },
+    { idx:1, code:"0012" },
+    { idx:2, code:"0102" },
+    { idx:3, code:"0112" },
+    { idx:4, code:"1002" },
+    { idx:5, code:"1012" },
+    { idx:6, code:"1102" },
+    { idx:7, code:"1112" },
+  ];
+
+  // ETSI Table 2 (MHz) for base/reference 300/400/800.
+  const DUPLEX_MHZ_BY_BASE = {
+    300_000_000: { "0002": 10.0, "0012": 36.0, "0102": 0.0, "0112": 8.0, "1002": 18.0, "1012": null, "1102": null, "1112": "custom" },
+    400_000_000: { "0002": 10.0, "0012": 7.0,  "0102": 0.0, "0112": 8.0, "1002": 5.0,  "1012": 9.5,  "1102": null, "1112": "custom" },
+    800_000_000: { "0002": null, "0012": 45.0, "0102": 0.0, "0112": 18.0, "1002": null, "1012": null, "1102": null, "1112": "custom" }
+  };
+
+  const el = (id)=>document.getElementById(id);
+
+  function parseNumber(raw){
+    if (!raw) return null;
+    const s = String(raw).trim().replace(/,/g,'');
+    if (!s) return null;
+    const v = Number(s);
+    return Number.isFinite(v) ? v : null;
+  }
+
+  function toHz(value, unit){
+    if (value === null) return null;
+    if (unit === "Hz") return Math.round(value);
+    return Math.round(value * 1_000_000);
+  }
+
+  function fmtHz(n){
+    if (n === null || n === undefined) return "—";
+    return String(Math.round(n));
+  }
+
+  function fmtMHz(nHz){
+    if (nHz === null || nHz === undefined) return "—";
+    return (nHz / 1_000_000).toFixed(6).replace(/0+$/,'').replace(/\.$/,'');
+  }
+
+  function escapeHtml(s){
+    return String(s).replace(/[&<>"']/g, (c)=>({
+      "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+    }[c]));
+  }
+
+  function setStatus(msg, kind){
+    const box = el("status");
+    if (!msg){
+      box.textContent = "";
+      box.className = "footer-note";
+      return;
+    }
+    box.innerHTML = msg;
+    box.className = "footer-note " + (kind || "");
+  }
+
+  function mod(a, m){
+    return ((a % m) + m) % m;
+  }
+
+  function bestCarrierAndOffset(freqHz, baseHz){
+    const delta = freqHz - baseHz;
+    const center = delta / RASTER_HZ;
+    const start = Math.floor(center) - 3;
+    const end = Math.ceil(center) + 3;
+
+    let best = null;
+    for (let main = start; main <= end; main++){
+      const offset = delta - main * RASTER_HZ;
+      for (const allowed of ALLOWED_OFFSETS){
+        if (offset === allowed){
+          const score = Math.abs(offset);
+          const cand = { main_carrier: main, freq_offset: offset, exact: true, score, approx_error_hz: 0 };
+          if (!best || cand.score < best.score) best = cand;
+        }
+      }
+    }
+    if (best) return best;
+
+    const mainRound = Math.round(center);
+    const rawOffset = delta - mainRound * RASTER_HZ;
+
+    let bestOff = ALLOWED_OFFSETS[0];
+    let bestErr = Math.abs(rawOffset - bestOff);
+    for (const o of ALLOWED_OFFSETS){
+      const err = Math.abs(rawOffset - o);
+      if (err < bestErr){
+        bestErr = err;
+        bestOff = o;
+      }
+    }
+    const mainAdj = Math.round((delta - bestOff) / RASTER_HZ);
+    const recomposed = baseHz + mainAdj * RASTER_HZ + bestOff;
+
+    return { main_carrier: mainAdj, freq_offset: bestOff, exact: (recomposed === freqHz), approx_error_hz: Math.abs(freqHz - recomposed) };
+  }
+
+  function carrierFromFixedOffset(freqHz, baseHz, fixedOffset){
+    const delta = freqHz - baseHz - fixedOffset;
+    const main = Math.round(delta / RASTER_HZ);
+    const recomposed = baseHz + main * RASTER_HZ + fixedOffset;
+    const exactRaster = (mod(delta, RASTER_HZ) === 0);
+    const exact = exactRaster && (recomposed === freqHz);
+    return { main_carrier: main, freq_offset: fixedOffset, exact, approx_error_hz: Math.abs(freqHz - recomposed) };
+  }
+
+  function duplexMhzForCurrent(){
+    const band = Number(el("freqBand").value);
+    const baseHz = BASE_BY_BAND[band];
+    const codeIdx = Number(el("duplexCode").value);
+    const code = DUPLEX_CODES.find(x=>x.idx===codeIdx)?.code;
+    const mhz = (DUPLEX_MHZ_BY_BASE[baseHz]||{})[code];
+    return { baseHz, codeIdx, code, mhz, band };
+  }
+
+  function updateBase(){
+    const band = Number(el("freqBand").value);
+    const baseHz = BASE_BY_BAND[band];
+    el("baseHz").value = String(baseHz);
+    el("outBaseHz").textContent = String(baseHz);
+    updateDuplexOptions();
+  }
+
+  function updateDuplexOptions(){
+    const band = Number(el("freqBand").value);
+    const baseHz = BASE_BY_BAND[band];
+    const sel = el("duplexCode");
+    const keep = sel.value;
+    sel.innerHTML = "";
+
+    for (const item of DUPLEX_CODES){
+      const mhz = (DUPLEX_MHZ_BY_BASE[baseHz]||{})[item.code];
+      let label;
+      if (mhz === null){
+        label = `${item.idx} (IE ${item.code}) - reserved`;
+      } else if (mhz === "custom"){
+        label = `${item.idx} (IE ${item.code}) - custom/unknown`;
+      } else {
+        label = `${item.idx} (IE ${item.code}) - ${mhz} MHz`;
+      }
+      const opt = document.createElement("option");
+      opt.value = String(item.idx);
+      opt.textContent = label;
+      sel.appendChild(opt);
+    }
+
+    sel.value = keep || "0";
+    updateDuplexHintAndCustomRow();
+  }
+
+  function updateDuplexHintAndCustomRow(){
+    const { baseHz, codeIdx, code, mhz, band } = duplexMhzForCurrent();
+    const hintEl = el("duplexHint");
+
+    if (mhz === null){
+      hintEl.innerHTML = `<span class="warn">${escapeHtml(t("duplex_hint_reserved",{band, baseHz, idx:codeIdx, code}))}</span>`;
+      el("customRow").style.display = "none";
+      return;
+    }
+    if (mhz === "custom"){
+      hintEl.innerHTML = `<span class="warn">${escapeHtml(t("duplex_hint_custom",{band, baseHz, idx:codeIdx, code}))}</span>`;
+      el("customRow").style.display = "";
+      return;
+    }
+    hintEl.textContent = t("duplex_hint_ok",{band, baseHz, idx:codeIdx, code, mhz});
+    el("customRow").style.display = "none";
+  }
+
+  function findDuplexCodeIdxBySpacingHz(baseHz, spacingHz){
+    const tolHz = 100;
+    const map = DUPLEX_MHZ_BY_BASE[baseHz] || {};
+    const spacingMhz = spacingHz / 1_000_000;
+
+    for (const item of DUPLEX_CODES){
+      const mhz = map[item.code];
+      if (typeof mhz === "number"){
+        if (Math.abs(mhz - spacingMhz) < (tolHz/1_000_000)){
+          return item.idx;
+        }
+      }
+    }
+    return null;
+  }
+
+  function buildToml(out){
+    // Minimal config snippet (no header / no config_version / no unused comments)
+    const lines = [];
+    lines.push("[phy_io_soapy]");
+    lines.push(`tx_freq = ${out.txHz}`);
+    lines.push(`rx_freq = ${out.rxHz}`);
+    lines.push("");
+    lines.push("[cell_info]");
+    lines.push(`freq_band = ${out.band}`);
+    lines.push(`main_carrier = ${out.mainCarrier}`);
+    lines.push(`duplex_spacing = ${out.duplexCodeIdx}`);
+    if (out.duplexCodeIdx === 7 && out.customDuplexHz !== null){
+      lines.push(`custom_duplex_spacing = ${out.customDuplexHz}`);
+    }
+    lines.push(`freq_offset = ${out.freqOffset}`);
+    lines.push(`reverse_operation = ${out.reverse}`);
+    return lines.join("\n");
+  }
+
+  function calc(){
+    const band = Number(el("freqBand").value);
+    const baseHz = BASE_BY_BAND[band];
+
+    const txV = parseNumber(el("txVal").value);
+    const txHz = toHz(txV, el("txUnit").value);
+    if (txHz === null){
+      setStatus(`<span class="warn">${escapeHtml(t("status_need_tx"))}</span>`, "warn");
+      return;
+    }
+
+    const rxV = parseNumber(el("rxVal").value);
+    const rxHzInput = (rxV === null) ? null : toHz(rxV, el("rxUnit").value);
+
+    let reverse = (el("reverseOp").value === "true");
+    let duplexCodeIdx = Number(el("duplexCode").value);
+    let customDuplexHz = null;
+    let rxHz = rxHzInput;
+
+    const map = DUPLEX_MHZ_BY_BASE[baseHz] || {};
+    const selCode = DUPLEX_CODES.find(x=>x.idx===duplexCodeIdx)?.code;
+
+    const warns = [];
+
+    // Duplex spacing logic
+    if (rxHzInput !== null){
+      const spacingHz = Math.abs(txHz - rxHzInput);
+      reverse = (rxHzInput > txHz);
+
+      const foundIdx = findDuplexCodeIdxBySpacingHz(baseHz, spacingHz);
+      if (foundIdx !== null){
+        duplexCodeIdx = foundIdx;
+        customDuplexHz = null;
+      } else {
+        duplexCodeIdx = 7;
+        customDuplexHz = spacingHz;
+        warns.push(t("warn_no_match",{spacing: spacingHz, baseHz}));
+      }
+
+      el("reverseOp").value = reverse ? "true" : "false";
+      el("duplexCode").value = String(duplexCodeIdx);
+      updateDuplexHintAndCustomRow();
+      if (customDuplexHz !== null){
+        el("customDuplexVal").value = String(customDuplexHz);
+        el("customDuplexUnit").value = "Hz";
+        el("customRow").style.display = "";
+      }
+    } else {
+      const mhz = map[selCode];
+      if (mhz === null){
+        setStatus(`<span class="warn">${escapeHtml(t("status_reserved",{idx: duplexCodeIdx, code: selCode, baseHz}))}</span>`, "warn");
+        return;
+      }
+
+      let spacingHz = null;
+
+      if (mhz === "custom"){
+        const cv = parseNumber(el("customDuplexVal").value);
+        if (cv === null){
+          setStatus(`<span class="warn">${escapeHtml(t("status_need_custom"))}</span>`, "warn");
+          return;
+        }
+        spacingHz = toHz(cv, el("customDuplexUnit").value);
+        if (!Number.isFinite(spacingHz) || spacingHz <= 0){
+          setStatus(`<span class="warn">${escapeHtml(t("status_custom_positive"))}</span>`, "warn");
+          return;
+        }
+        customDuplexHz = spacingHz;
+      } else {
+        spacingHz = Math.round(mhz * 1_000_000);
+        customDuplexHz = null;
+      }
+
+      rxHz = reverse ? (txHz + spacingHz) : (txHz - spacingHz);
+    }
+
+    // Carrier / offset logic
+    const offsetSel = el("offsetSel").value;
+    let carrier;
+    if (offsetSel === "auto"){
+      carrier = bestCarrierAndOffset(txHz, baseHz);
+      if (!carrier.exact && carrier.approx_error_hz > 0){
+        warns.push(t("warn_tx_approx",{err: carrier.approx_error_hz}));
+      }
+    } else {
+      const fixedOffset = Number(offsetSel);
+      carrier = carrierFromFixedOffset(txHz, baseHz, fixedOffset);
+      if (!carrier.exact && carrier.approx_error_hz > 0){
+        warns.push(t("warn_fixed_offset_mismatch",{off: fixedOffset, err: carrier.approx_error_hz}));
+      }
+    }
+
+    
+    // Remember last computed carrier parameters for offset switching UX
+    lastComputedMainCarrier = carrier.main_carrier;
+    lastComputedBaseHz = baseHz;
+    lastComputedFreqOffset = carrier.freq_offset;
+el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
+    el("outRxHz").textContent = fmtHz(rxHz) + "  (" + fmtMHz(rxHz) + " MHz)";
+    el("outMainCarrier").textContent = String(carrier.main_carrier);
+    el("outOffset").textContent = String(carrier.freq_offset);
+
+    const codeStr = DUPLEX_CODES.find(x=>x.idx===duplexCodeIdx)?.code || "????";
+    el("outDuplexCode").textContent = `${duplexCodeIdx} (IE ${codeStr})`;
+    el("outReverse").textContent = reverse ? "true" : "false";
+    el("outBaseHz").textContent = String(baseHz);
+
+    const toml = buildToml({
+      txHz, rxHz,
+      band,
+      mainCarrier: carrier.main_carrier,
+      freqOffset: carrier.freq_offset,
+      duplexCodeIdx,
+      customDuplexHz,
+      reverse
+    });
+    el("tomlPreview").textContent = toml;
+
+    if (warns.length){
+      setStatus(`${escapeHtml(t("warn_header"))} ` + warns.map(x=>`<div class="warn">- ${escapeHtml(x)}</div>`).join(""), "warn");
+    } else {
+      const spacingHz = Math.abs(txHz - rxHz);
+      setStatus(t("done",{spacing: `<span class="mono">${spacingHz}</span>`}), "good");
+    }
+  }
+
+  
+  // Auto-recalc helpers (run calc() when inputs change, if TX is present)
+  function txIsReady(){
+    const txV = parseNumber(el("txVal").value);
+    return txV !== null;
+  }
+  function tryRecalc(){
+    if (!txIsReady()) return;
+    calc();
+  }
+  function debounce(fn, ms){
+    let t = null;
+    return function(...args){
+      if (t) clearTimeout(t);
+      t = setTimeout(()=>fn.apply(this, args), ms);
+    };
+  }
+  const tryRecalcDebounced = debounce(tryRecalc, 250);
+
+  function setTxInputFromHz(txHz){
+    // keep user's chosen unit if possible
+    const unit = el("txUnit").value;
+    if (unit === "Hz"){
+      el("txVal").value = String(Math.round(txHz));
+    } else {
+      // show 6 decimals (Hz exact at 1e-6 MHz resolution), keep trailing zeros for clarity
+      el("txVal").value = (txHz / 1_000_000).toFixed(6);
+      el("txUnit").value = "MHz";
+    }
+  }
+
+  function deriveMainCarrierForOffsetSwitch(baseHz){
+    // Prefer last computed main_carrier if it matches current base
+    if (lastComputedMainCarrier !== null && lastComputedBaseHz === baseHz){
+      return lastComputedMainCarrier;
+    }
+
+    // Otherwise, derive from current TX using the *previous* offset selection
+    const txV = parseNumber(el("txVal").value);
+    const txHz = toHz(txV, el("txUnit").value);
+    if (txHz === null) return null;
+
+    if (lastOffsetSel !== "auto"){
+      const oldOff = Number(lastOffsetSel);
+      const delta = txHz - baseHz - oldOff;
+      return Math.round(delta / RASTER_HZ);
+    } else {
+      return bestCarrierAndOffset(txHz, baseHz).main_carrier;
+    }
+  }
+
+  function applySelectedOffsetToTx(){
+    const band = Number(el("freqBand").value);
+    const baseHz = BASE_BY_BAND[band];
+
+    const newSel = el("offsetSel").value;
+
+    // update TX only when selecting a fixed offset (offset applied after main_carrier)
+    if (newSel === "auto"){
+      lastOffsetSel = newSel;
+      tryRecalc();
+      return;
+    }
+
+    const newOff = Number(newSel);
+    const main = deriveMainCarrierForOffsetSwitch(baseHz);
+    if (main === null) return;
+
+    const newTxHz = baseHz + main * RASTER_HZ + newOff;
+
+    // Validate: (tx - base - offset) divisible by 25kHz by construction; keep it explicit
+    const rem = ((newTxHz - baseHz - newOff) % RASTER_HZ + RASTER_HZ) % RASTER_HZ;
+    if (rem !== 0){
+      // should never happen
+      console.warn("Raster validation failed", { newTxHz, baseHz, newOff, rem });
+    }
+
+    setTxInputFromHz(newTxHz);
+    lastOffsetSel = newSel;
+    calc();
+  }
+
+
+// UI wiring
+  el("freqBand").addEventListener("change", ()=>{
+    updateBase();
+    updateDuplexHintAndCustomRow();
+    tryRecalc();
+  });
+  el("duplexCode").addEventListener("change", ()=>{
+    updateDuplexHintAndCustomRow();
+    tryRecalc();
+  });
+
+
+  // Auto-recalc when dropdowns are changed
+  el("offsetSel").addEventListener("change", applySelectedOffsetToTx);
+  el("reverseOp").addEventListener("change", tryRecalc);
+  el("txUnit").addEventListener("change", tryRecalc);
+  el("rxUnit").addEventListener("change", tryRecalc);
+  el("customDuplexUnit").addEventListener("change", tryRecalc);
+  el("customDuplexVal").addEventListener("input", tryRecalcDebounced);
+
+  // Auto-recalc while typing frequencies (debounced)
+  el("txVal").addEventListener("input", tryRecalcDebounced);
+  el("rxVal").addEventListener("input", tryRecalcDebounced);
+
+  el("calcBtn").addEventListener("click", calc);
+
+  el("swapBtn").addEventListener("click", ()=>{
+    const txVal = el("txVal").value, txUnit = el("txUnit").value;
+    const rxVal = el("rxVal").value, rxUnit = el("rxUnit").value;
+    el("txVal").value = rxVal;
+    el("txUnit").value = rxUnit;
+    el("rxVal").value = txVal;
+    el("rxUnit").value = txUnit;
+  });
+
+  el("sampleBtn1").addEventListener("click", ()=>{
+    // Amateur range example (all within 430-440 MHz)
+    el("freqBand").value = "4";
+    updateBase();
+    el("txVal").value = "438.025";
+    el("txUnit").value = "MHz";
+    el("rxVal").value = "433.025";
+    el("rxUnit").value = "MHz";
+    el("offsetSel").value = "auto";
+    setStatus("", "");
+    calc();
+  });
+
+  el("copyBtn").addEventListener("click", async ()=>{
+    const text = el("tomlPreview").textContent || "";
+    try{
+      await navigator.clipboard.writeText(text);
+      setStatus(`<span class="good">${escapeHtml(t("copied"))}</span>`, "good");
+    }catch(e){
+      try{
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand("copy");
+        document.body.removeChild(ta);
+        setStatus(`<span class="good">${escapeHtml(t("copied_fallback"))}</span>`, "good");
+      }catch(e2){
+        setStatus(`<span class="warn">${escapeHtml(t("copy_fail"))}</span>`, "warn");
+      }
+    }
+  });
+
+  // toggles
+  wireToggle(el("langBtn"), toggleLang);
+  wireToggle(el("themeBtn"), toggleTheme);
+
+  // init
+  applyTheme();
+  updateBase();
+  updateDuplexOptions();
+  applyI18n();
+})();
+</script>
+</body>
+</html>
