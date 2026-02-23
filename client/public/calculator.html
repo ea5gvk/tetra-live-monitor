@@ -1070,9 +1070,38 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   el("customDuplexUnit").addEventListener("change", tryRecalc);
   el("customDuplexVal").addEventListener("input", tryRecalcDebounced);
 
-  // Auto-recalc while typing frequencies (debounced)
-  el("txVal").addEventListener("input", tryRecalcDebounced);
-  el("rxVal").addEventListener("input", tryRecalcDebounced);
+  function enforceFreqFormat(inputEl, unitEl){
+    inputEl.addEventListener("input", function(){
+      var unit = unitEl.value;
+      var val = inputEl.value;
+      if (unit === "MHz"){
+        val = val.replace(/[^0-9.]/g, '');
+        var dotIdx = val.indexOf('.');
+        if (dotIdx !== -1){
+          val = val.substring(0, dotIdx + 1) + val.substring(dotIdx + 1).replace(/\./g, '');
+          var intPart = val.substring(0, dotIdx);
+          var decPart = val.substring(dotIdx + 1);
+          if (intPart.length > 3) intPart = intPart.substring(0, 3);
+          if (decPart.length > 4) decPart = decPart.substring(0, 4);
+          val = intPart + '.' + decPart;
+        } else {
+          if (val.length > 3) val = val.substring(0, 3);
+        }
+      } else {
+        val = val.replace(/[^0-9]/g, '');
+        if (val.length > 9) val = val.substring(0, 9);
+      }
+      inputEl.value = val;
+      tryRecalcDebounced();
+    });
+    unitEl.addEventListener("change", function(){
+      inputEl.value = '';
+      tryRecalc();
+    });
+  }
+
+  enforceFreqFormat(el("txVal"), el("txUnit"));
+  enforceFreqFormat(el("rxVal"), el("rxUnit"));
 
   el("calcBtn").addEventListener("click", calc);
 
