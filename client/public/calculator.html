@@ -483,6 +483,61 @@
       duplex_hint_ok: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）→ {mhz} MHz",
       duplex_hint_reserved: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）為 reserved（ETSI NOTE 1）。請直接填 RX 或改用 duplex_spacing=7 並填 custom spacing。",
       duplex_hint_custom: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）為未定義（ETSI NOTE 3 / 1112）。請填 custom_duplex_spacing 才能推算 RX。"
+    },
+    es: {
+      title: "Calculadora de Frecuencias TETRA",
+      subtitle: "ETSI TS 100 392-15: base/referencia de banda, mapeo de duplex spacing, raster de 25 kHz + offset.",
+      theme_dark: "Oscuro",
+      theme_light: "Claro",
+      input: "Entrada",
+      output: "Resultado",
+      freq_band: "Banda de frecuencia",
+      band_hint: "Las bandas 3/4/8 siguen la Table 1 de ETSI base/referencia: 300/400/800 MHz.",
+      base_ref: "Frecuencia base/referencia",
+      base_hint: "Se usa para: base + main_carrier×25k + freq_offset.",
+      tx_label: "TX (Downlink / BS Tx)",
+      tx_hint: "Pega Hz enteros, o introduce decimales en MHz.",
+      rx_label: "RX (Uplink / MS Tx) (opcional)",
+      rx_hint: "Si se proporciona, la herramienta calcula duplex_spacing + reverse_operation a partir de |TX-RX|.",
+      offset_label: "Selección de freq_offset",
+      offset_auto: "Automático (mejor coincidencia)",
+      offset_hint: "El offset se aplica después de main_carrier. Seleccionar un offset fijo actualizará TX a base + main_carrier×25k + offset (y recalculará).",
+      duplex_label: "duplex_spacing (código ETSI Table 2)",
+      reverse_label: "reverse_operation",
+      reverse_false: "false (UL por debajo de DL / normal)",
+      reverse_true: "true (UL por encima de DL / invertido)",
+      reverse_hint: "Si se proporciona RX, este valor se sobreescribe según RX>TX.",
+      custom_label: "custom_duplex_spacing (solo cuando duplex_spacing=7 / 1112)",
+      custom_hint: "ETSI NOTE 3: 1112 significa duplex spacing no definido; debe conocerse por otros medios.",
+      calc: "Calcular",
+      swap: "Intercambiar TX/RX",
+      sample1: "Ejemplo (banda amateur: 438.025 / 433.025)",
+      out_tx: "tx_freq (Hz)",
+      out_rx: "rx_freq (Hz)",
+      out_main: "main_carrier",
+      out_offset: "freq_offset (Hz)",
+      out_duplex: "duplex_spacing",
+      out_reverse: "reverse_operation",
+      pill_base: "base",
+      pill_raster: "raster",
+      pill_offsets: "conjunto de offsets",
+      copy: "Copiar fragmento de config",
+      note: "Si TX no puede representarse exactamente con raster de 25kHz + offsets permitidos, se mostrará una advertencia y una aproximación.",
+      status_need_tx: "Por favor, introduce la frecuencia TX.",
+      status_reserved: "duplex_spacing={idx} (IE {code}) está reservado para base={baseHz} (ETSI NOTE 1). Elige un código válido o introduce RX directamente.",
+      status_need_custom: "Cuando duplex_spacing=7 (1112), introduce custom_duplex_spacing para calcular RX.",
+      status_custom_positive: "custom_duplex_spacing debe ser un número positivo.",
+      warn_header: "⚠️",
+      done: "✅ Hecho. |TX-RX| = {spacing} Hz",
+      warn_no_match: "|TX-RX|={spacing} Hz no coincide con ningún duplex spacing predefinido en ETSI Table 2 (base={baseHz}). Se ha cambiado a duplex_spacing=7 (1112) con custom_duplex_spacing={spacing}.",
+      warn_tx_approx: "TX no puede representarse exactamente con raster de 25kHz + offsets permitidos; error aprox. ≈ {err} Hz",
+      warn_fixed_offset_mismatch: "Con freq_offset={off} fijo, TX no cae en el raster de 25kHz: error ≈ {err} Hz (se ha elegido el main_carrier más cercano).",
+      copied: "✅ Copiado al portapapeles.",
+      copied_fallback: "✅ Copiado al portapapeles (fallback).",
+      copy_fail: "⚠️ No se pudo copiar automáticamente. Selecciona y copia manualmente.",
+      duplex_hint_ok: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) → {mhz} MHz",
+      duplex_hint_reserved: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) está reservado (ETSI NOTE 1). Introduce RX o usa duplex_spacing=7 con custom spacing.",
+      duplex_hint_custom: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) no está definido (ETSI NOTE 3 / 1112). Introduce custom_duplex_spacing para calcular RX."
     }
   };
 
@@ -510,21 +565,25 @@
   }
 
   function applyI18n(){
-    document.documentElement.lang = (state.lang === "zh") ? "zh-Hant-TW" : "en";
+    const langMap = { en: "en", es: "es", zh: "zh-Hant-TW" };
+    document.documentElement.lang = langMap[state.lang] || "en";
     document.querySelectorAll("[data-i18n]").forEach(node=>{
       const key = node.getAttribute("data-i18n");
       node.textContent = t(key);
     });
 
-    // placeholders
-    const tx = document.getElementById("txVal");
-    const rx = document.getElementById("rxVal");
-    tx.placeholder = (state.lang === "zh") ? "例如：431.7375 或 431737500" : "e.g. 431.7375 or 431737500";
-    rx.placeholder = (state.lang === "zh") ? "可留空，讓系統用 duplex spacing 推算" : "optional; derive from duplex spacing";
-    const cd = document.getElementById("customDuplexVal");
-    cd.placeholder = (state.lang === "zh") ? "例如：10 或 10000000" : "e.g. 10 or 10000000";
+    const placeholders = {
+      en: { tx: "e.g. 431.7375 or 431737500", rx: "optional; derive from duplex spacing", cd: "e.g. 10 or 10000000" },
+      es: { tx: "ej. 431.7375 o 431737500", rx: "opcional; se calcula con duplex spacing", cd: "ej. 10 o 10000000" },
+      zh: { tx: "例如：431.7375 或 431737500", rx: "可留空，讓系統用 duplex spacing 推算", cd: "例如：10 或 10000000" }
+    };
+    const ph = placeholders[state.lang] || placeholders.en;
+    document.getElementById("txVal").placeholder = ph.tx;
+    document.getElementById("rxVal").placeholder = ph.rx;
+    document.getElementById("customDuplexVal").placeholder = ph.cd;
 
-    document.getElementById("langLabel").textContent = (state.lang === "zh") ? "中文" : "EN";
+    const langLabels = { en: "EN", es: "ES", zh: "中文" };
+    document.getElementById("langLabel").textContent = langLabels[state.lang] || "EN";
     document.getElementById("themeLabel").textContent = (state.theme === "light") ? t("theme_light") : t("theme_dark");
 
     const offsetAuto = document.querySelector('#offsetSel option[value="auto"]');
@@ -539,7 +598,8 @@
   }
 
   function toggleLang(){
-    state.lang = (state.lang === "en") ? "zh" : "en";
+    const cycle = { en: "es", es: "zh", zh: "en" };
+    state.lang = cycle[state.lang] || "en";
     localStorage.setItem(STORAGE_KEYS.lang, state.lang);
     applyI18n();
   }
