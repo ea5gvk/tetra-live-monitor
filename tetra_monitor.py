@@ -379,10 +379,10 @@ class TetraMonitor:
                         current_groups.append(g)
 
                 if to_detach and not to_attach and not current_groups:
-                    self.terminals[ssi]["status"] = "Offline"
-                    self.terminals[ssi]["selected"] = "---"
-                    self.terminals[ssi]["activity"] = None
-                    self.terminals[ssi]["activity_tg"] = None
+                    self.terminals[ssi]["status"] = "Online"
+                    prev = self.terminals[ssi].get("selected", "---")
+                    if prev == "---" and to_detach:
+                        self.terminals[ssi]["selected"] = f"TG {to_detach[0]}"
                 elif to_attach:
                     self.terminals[ssi]["selected"] = f"TG {to_attach[0]}"
                     self.terminals[ssi]["status"] = "Online"
