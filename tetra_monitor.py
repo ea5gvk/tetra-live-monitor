@@ -235,11 +235,10 @@ class TetraMonitor:
                                 if tt.get("time_slot") != voice_ts:
                                     tt["time_slot"] = voice_ts
                                     emit("update_terminal", self._terminal_to_dict(tid))
-                        is_local = t.get("is_local", False)
-                        hist = self.hist_local if is_local else self.hist_ext
-                        if hist and hist[0].get("sourceId") == self.last_active and hist[0].get("timeSlot") is None:
-                            hist[0]["timeSlot"] = voice_ts
-                            emit("update_call", hist[0])
+                        for hist in [self.hist_local, self.hist_ext]:
+                            if hist and hist[0].get("sourceId") == self.last_active and hist[0].get("timeSlot") != voice_ts:
+                                hist[0]["timeSlot"] = voice_ts
+                                emit("update_call", hist[0])
                 return
 
             # 2. SPEAKER CHANGE
