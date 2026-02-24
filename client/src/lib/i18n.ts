@@ -54,6 +54,9 @@ const translations: Record<Language, Record<string, string>> = {
     "log_live_lines": "lines",
     "log_live_clear": "CLEAR",
     "log_live_autoscroll": "Auto-scroll",
+    "log_live_service": "Service",
+    "log_live_service_hint": "Service name for journalctl -u (e.g. tmo.service)",
+    "log_live_apply": "APPLY",
   },
   es: {
     "live_monitor": "LIVE MONITOR",
@@ -95,6 +98,9 @@ const translations: Record<Language, Record<string, string>> = {
     "log_live_lines": "líneas",
     "log_live_clear": "LIMPIAR",
     "log_live_autoscroll": "Auto-scroll",
+    "log_live_service": "Servicio",
+    "log_live_service_hint": "Nombre del servicio para journalctl -u (ej. tmo.service)",
+    "log_live_apply": "APLICAR",
   },
   zh: {
     "live_monitor": "\u5b9e\u65f6\u76d1\u63a7",
@@ -136,6 +142,9 @@ const translations: Record<Language, Record<string, string>> = {
     "log_live_lines": "\u884c",
     "log_live_clear": "\u6e05\u9664",
     "log_live_autoscroll": "\u81ea\u52a8\u6eda\u52a8",
+    "log_live_service": "\u670d\u52a1",
+    "log_live_service_hint": "journalctl -u \u7684\u670d\u52a1\u540d\u79f0\uff08\u4f8b\u5982 tmo.service\uff09",
+    "log_live_apply": "\u5e94\u7528",
   },
   pt: {
     "live_monitor": "MONITOR AO VIVO",
@@ -177,6 +186,9 @@ const translations: Record<Language, Record<string, string>> = {
     "log_live_lines": "linhas",
     "log_live_clear": "LIMPAR",
     "log_live_autoscroll": "Auto-scroll",
+    "log_live_service": "Servi\u00e7o",
+    "log_live_service_hint": "Nome do servi\u00e7o para journalctl -u (ex. tmo.service)",
+    "log_live_apply": "APLICAR",
   },
   de: {
     "live_monitor": "LIVE-MONITOR",
@@ -218,6 +230,9 @@ const translations: Record<Language, Record<string, string>> = {
     "log_live_lines": "Zeilen",
     "log_live_clear": "L\u00d6SCHEN",
     "log_live_autoscroll": "Auto-Scroll",
+    "log_live_service": "Dienst",
+    "log_live_service_hint": "Dienstname f\u00fcr journalctl -u (z.B. tmo.service)",
+    "log_live_apply": "ANWENDEN",
   },
   fr: {
     "live_monitor": "MONITEUR EN DIRECT",
@@ -259,6 +274,9 @@ const translations: Record<Language, Record<string, string>> = {
     "log_live_lines": "lignes",
     "log_live_clear": "EFFACER",
     "log_live_autoscroll": "D\u00e9filement auto",
+    "log_live_service": "Service",
+    "log_live_service_hint": "Nom du service pour journalctl -u (ex. tmo.service)",
+    "log_live_apply": "APPLIQUER",
   },
   it: {
     "live_monitor": "MONITOR DAL VIVO",
@@ -300,6 +318,9 @@ const translations: Record<Language, Record<string, string>> = {
     "log_live_lines": "righe",
     "log_live_clear": "CANCELLA",
     "log_live_autoscroll": "Scorrimento auto",
+    "log_live_service": "Servizio",
+    "log_live_service_hint": "Nome del servizio per journalctl -u (es. tmo.service)",
+    "log_live_apply": "APPLICA",
   },
 };
 

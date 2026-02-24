@@ -223,7 +223,13 @@ export async function registerRoutes(
     } catch {}
 
     if (hasJournalctl) {
-      journalProcess = spawn('journalctl', ['-f', '-n', '50', '--no-pager'], {
+      const serviceName = typeof req.query.service === 'string' && /^[a-zA-Z0-9._@-]+$/.test(req.query.service)
+        ? req.query.service
+        : '';
+      const args = serviceName
+        ? ['-u', serviceName, '-f', '-n', '50', '--no-pager']
+        : ['-f', '-n', '50', '--no-pager'];
+      journalProcess = spawn('journalctl', args, {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 

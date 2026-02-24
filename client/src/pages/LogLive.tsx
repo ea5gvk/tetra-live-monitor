@@ -1,18 +1,40 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
-import { Trash2 } from "lucide-react";
+import { Trash2, Settings2 } from "lucide-react";
 
 const MAX_LINES = 5000;
+const SERVICE_STORAGE_KEY = "tetra_log_service";
+
+function getStoredService(): string {
+  try {
+    return localStorage.getItem(SERVICE_STORAGE_KEY) || "tmo.service";
+  } catch {
+    return "tmo.service";
+  }
+}
 
 export default function LogLive() {
   const { t } = useI18n();
   const [lines, setLines] = useState<string[]>([]);
   const [isDemo, setIsDemo] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [service, setService] = useState(getStoredService);
+  const [serviceInput, setServiceInput] = useState(getStoredService);
+  const [showServiceInput, setShowServiceInput] = useState(false);
   const eventSourceRef = useRef<EventSource | null>(null);
 
-  useEffect(() => {
-    const es = new EventSource("/api/log-stream");
+  const connect = useCallback((svc: string) => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
+
+    setLines([]);
+    setIsDemo(false);
+    setConnected(false);
+
+    const url = svc ? `/api/log-stream?service=${encodeURIComponent(svc)}` : "/api/log-stream";
+    const es = new EventSource(url);
     eventSourceRef.current = es;
 
     es.onopen = () => {
@@ -43,12 +65,26 @@ export default function LogLive() {
     es.onerror = () => {
       setConnected(false);
     };
-
-    return () => {
-      es.close();
-      eventSourceRef.current = null;
-    };
   }, []);
+
+  useEffect(() => {
+    connect(service);
+    return () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+    };
+  }, [service, connect]);
+
+  const handleApplyService = () => {
+    const trimmed = serviceInput.trim();
+    try {
+      localStorage.setItem(SERVICE_STORAGE_KEY, trimmed);
+    } catch {}
+    setService(trimmed);
+    setShowServiceInput(false);
+  };
 
   const handleClear = () => {
     setLines([]);
@@ -65,11 +101,29 @@ export default function LogLive() {
             <span className={`w-1.5 h-1.5 rounded-full ${connected ? "bg-green-400 animate-pulse" : "bg-red-400"}`} />
             {connected ? t("connected") : t("disconnected")}
           </span>
+          {service && (
+            <span className="text-[10px] text-cyan-400 font-mono bg-cyan-400/10 px-1.5 py-0.5 rounded border border-cyan-400/20" data-testid="text-log-service-badge">
+              {service}
+            </span>
+          )}
           <span className="text-[10px] text-muted-foreground font-mono" data-testid="text-log-line-count">
             {lines.length} {t("log_live_lines")}
           </span>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => setShowServiceInput(!showServiceInput)}
+            className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border transition-colors ${
+              showServiceInput
+                ? "bg-primary/20 text-primary border-primary/30"
+                : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10 hover:text-foreground"
+            }`}
+            title={t("log_live_service_hint")}
+            data-testid="button-toggle-service"
+          >
+            <Settings2 className="w-3 h-3" />
+            {t("log_live_service")}
+          </button>
           <button
             onClick={handleClear}
             className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-colors"
@@ -81,6 +135,33 @@ export default function LogLive() {
           </button>
         </div>
       </div>
+
+      {showServiceInput && (
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/80" data-testid="service-input-bar">
+          <label className="text-[10px] text-muted-foreground font-mono whitespace-nowrap">
+            journalctl -u
+          </label>
+          <input
+            type="text"
+            value={serviceInput}
+            onChange={(e) => setServiceInput(e.target.value)}
+            onKeyDown={(e) => { if (e.key === "Enter") handleApplyService(); }}
+            placeholder="tmo.service"
+            className="flex-1 max-w-xs bg-black/40 border border-white/10 rounded px-2 py-1 text-xs font-mono text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-primary/50"
+            data-testid="input-service-name"
+          />
+          <button
+            onClick={handleApplyService}
+            className="px-3 py-1 text-[10px] font-bold rounded bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 transition-colors"
+            data-testid="button-apply-service"
+          >
+            {t("log_live_apply")}
+          </button>
+          <span className="text-[10px] text-muted-foreground/60 font-mono hidden sm:inline">
+            {t("log_live_service_hint")}
+          </span>
+        </div>
+      )}
 
       <div
         className="flex-1 overflow-auto p-2 font-mono text-[11px] leading-[1.6] bg-black/40"

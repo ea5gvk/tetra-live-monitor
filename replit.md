@@ -44,14 +44,20 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 
 ## Log Live
 - New tab "LOG LIVE" in the nav bar, next to CALCULATOR
-- Shows real-time `journalctl -f` output via Server-Sent Events (SSE)
-- Backend endpoint: `GET /api/log-stream` spawns `journalctl -f -n 50 --no-pager` and streams lines as SSE events
+- Shows real-time `journalctl -u <service> -f` output via Server-Sent Events (SSE)
+- Backend endpoint: `GET /api/log-stream?service=<name>` spawns `journalctl -u <service> -f -n 50 --no-pager` and streams lines as SSE events
 - Frontend: `LogLive.tsx` connects via EventSource, displays lines with color coding (ERROR=red, WARN=yellow, DEBUG=blue, TRACE=gray, default=green)
-- Features: auto-scroll toggle, clear button, line counter, max 5000 lines buffer
+- Configurable service name: click the gear icon to change the service (default: `tmo.service`), stored in localStorage key `tetra_log_service`
+- Features: service selector, clear button, line counter, max 5000 lines buffer
 - When `journalctl` is not available (Replit), shows a demo message explaining it works on Raspberry Pi
 
 ## Demo Mode
-When `journalctl` is not available (like in Replit), the Python script runs in demo mode with simulated TETRA traffic using realistic callsigns and talk groups.
+When `journalctl` is not available (like in Replit), the Python script runs in demo mode with simulated TETRA traffic using realistic callsigns and talk groups. ~35% of demo cycles simulate two concurrent calls on different TGs with different time slots.
+
+## Concurrent Calls
+- `_clear_activity(tg=X)` only clears terminals on the specified TG, allowing multiple simultaneous calls
+- `_update_time_slot()` scopes TS propagation to terminals on the same TG as the active call
+- Call end events (GROUP_IDLE, D-TX CEASED) extract the GSSI to clear only the relevant TG
 
 ## User Preferences
 - Language: Spanish (default), with 7-language support
