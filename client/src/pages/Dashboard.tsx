@@ -14,8 +14,9 @@ function Clock() {
   return <span data-testid="text-clock">{time}</span>;
 }
 
-function ActivityBadge({ activity }: { activity?: "TX" | "RX" | null }) {
+function ActivityBadge({ activity, timeSlot }: { activity?: "TX" | "RX" | null; timeSlot?: number | null }) {
   if (!activity) return null;
+  const tsLabel = timeSlot != null ? ` TS${timeSlot}` : "";
   if (activity === "TX") {
     return (
       <span
@@ -23,7 +24,7 @@ function ActivityBadge({ activity }: { activity?: "TX" | "RX" | null }) {
         data-testid="badge-tx"
       >
         <ArrowUpFromLine className="w-3 h-3" />
-        TX
+        TX{tsLabel}
       </span>
     );
   }
@@ -33,7 +34,7 @@ function ActivityBadge({ activity }: { activity?: "TX" | "RX" | null }) {
       data-testid="badge-rx"
     >
       <ArrowDownToLine className="w-3 h-3" />
-      RX
+      RX{tsLabel}
     </span>
   );
 }
@@ -91,7 +92,7 @@ function TerminalRow({ t: terminal }: { t: Terminal }) {
       data-testid={`row-terminal-${terminal.id}`}
     >
       <td className="px-2 sm:px-3 py-1.5 text-center w-10 sm:w-16">
-        <ActivityBadge activity={terminal.activity} />
+        <ActivityBadge activity={terminal.activity} timeSlot={terminal.timeSlot} />
       </td>
       <td className="px-2 sm:px-3 py-1.5 min-w-0 sm:min-w-[240px]">
         <span className="inline-flex items-center gap-1 sm:gap-1.5 flex-wrap">

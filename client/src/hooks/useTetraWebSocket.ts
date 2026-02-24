@@ -11,6 +11,7 @@ export interface Terminal {
   isActive?: boolean;
   activity?: "TX" | "RX" | null;
   activityTg?: string | null;
+  timeSlot?: number | null;
 }
 
 export interface CallLogEntry {
@@ -22,6 +23,7 @@ export interface CallLogEntry {
   display: string;
   isLocal: boolean;
   activity?: "TX" | "RX" | null;
+  timeSlot?: number | null;
 }
 
 export interface TetraState {

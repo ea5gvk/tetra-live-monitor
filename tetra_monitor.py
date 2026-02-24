@@ -83,12 +83,15 @@ class TetraMonitor:
             "isActive": tid == self.last_active and t["status"] != "Offline",
             "activity": t.get("activity", None),
             "activityTg": t.get("activity_tg", None),
+            "timeSlot": t.get("time_slot", None),
         }
 
-    def _set_activity(self, s_issi, d_gssi):
+    def _set_activity(self, s_issi, d_gssi, time_slot=None):
         """Set TX on source, RX on all terminals listening on same TG."""
         self.terminals[s_issi]["activity"] = "TX"
         self.terminals[s_issi]["activity_tg"] = d_gssi
+        if time_slot is not None:
+            self.terminals[s_issi]["time_slot"] = time_slot
         emit("update_terminal", self._terminal_to_dict(s_issi))
 
         for tid, t in self.terminals.items():
@@ -97,6 +100,8 @@ class TetraMonitor:
             if d_gssi in t["groups"] or t["selected"] == f"TG {d_gssi}":
                 t["activity"] = "RX"
                 t["activity_tg"] = d_gssi
+                if time_slot is not None:
+                    t["time_slot"] = time_slot
                 emit("update_terminal", self._terminal_to_dict(tid))
 
     def _clear_activity(self):
@@ -105,6 +110,7 @@ class TetraMonitor:
             if t.get("activity"):
                 t["activity"] = None
                 t["activity_tg"] = None
+                t["time_slot"] = None
                 emit("update_terminal", self._terminal_to_dict(tid))
 
     def emit_full_state(self):
@@ -201,6 +207,22 @@ class TetraMonitor:
                 self._clear_activity()
                 self._set_activity(s_issi, d_gssi)
                 emit("new_call", entry)
+                return
+
+            # 1b. VOICE FRAME (BrewEntity: voice frame ... ts=N)
+            voice_match = re.search(r"voice frame\s+#\d+.*?\bts=(\d+)", msg)
+            if voice_match:
+                voice_ts = int(voice_match.group(1))
+                if self.last_active and self.last_active in self.terminals:
+                    t = self.terminals[self.last_active]
+                    if t.get("activity") and t.get("time_slot") != voice_ts:
+                        t["time_slot"] = voice_ts
+                        emit("update_terminal", self._terminal_to_dict(self.last_active))
+                        for tid, tt in self.terminals.items():
+                            if tid != self.last_active and tt.get("activity") == "RX":
+                                if tt.get("time_slot") != voice_ts:
+                                    tt["time_slot"] = voice_ts
+                                    emit("update_terminal", self._terminal_to_dict(tid))
                 return
 
             # 2. SPEAKER CHANGE
@@ -390,11 +412,17 @@ def run_demo_mode(mon):
         mon._clear_activity()
         dt = random.choice([d for d in demo_terminals if not d["local"]])
         tg = random.choice(tgs)
+        demo_ts = random.choice([1, 2, 3, 4])
         line = json.dumps({
             "MESSAGE": f"call from ISSI {dt['issi']} to GSSI {tg}",
             "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
         })
         mon.process_line(line)
+        voice_line = json.dumps({
+            "MESSAGE": f"BrewEntity: voice frame #1 uuid=demo len=36 bytes ts={demo_ts}",
+            "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
+        })
+        mon.process_line(voice_line)
 
 
 def run_journal_mode(mon):
