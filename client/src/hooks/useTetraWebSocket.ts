@@ -82,6 +82,16 @@ export function useTetraWebSocket(): TetraState {
             break;
           }
 
+          case "update_call": {
+            const updated = msg.payload as CallLogEntry;
+            if (updated.isLocal) {
+              setLocalHistory(prev => prev.map(e => e.id === updated.id ? updated : e));
+            } else {
+              setExternalHistory(prev => prev.map(e => e.id === updated.id ? updated : e));
+            }
+            break;
+          }
+
           case "status":
             setMode(msg.payload.mode || "unknown");
             break;

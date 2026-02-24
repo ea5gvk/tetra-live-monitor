@@ -239,6 +239,9 @@ function CallHistory({ entries, title, isLocal }: {
               ) : null}
               <span className="text-muted-foreground/60"> {">"} </span>
               <span className="text-amber-400 font-semibold">TG {entry.targetTg}</span>
+              {entry.timeSlot != null ? (
+                <span className="text-cyan-400/80 text-[10px] ml-1">TS{entry.timeSlot}</span>
+              ) : null}
             </div>
           ))
         )}

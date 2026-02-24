@@ -186,6 +186,7 @@ class TetraMonitor:
 
                 call = self.get_callsign(s_issi)
                 display_name = f"{s_issi} ({call})" if call else s_issi
+                call_ts = self.terminals[s_issi].get("time_slot", None)
                 entry = {
                     "id": self._next_id(),
                     "timestamp": timestamp,
@@ -195,6 +196,7 @@ class TetraMonitor:
                     "display": f"[{timestamp}] {display_name} -> TG {d_gssi}",
                     "isLocal": self.terminals[s_issi]["is_local"],
                     "activity": "TX",
+                    "timeSlot": call_ts,
                 }
 
                 if self.terminals[s_issi]["is_local"]:
@@ -233,6 +235,11 @@ class TetraMonitor:
                                 if tt.get("time_slot") != voice_ts:
                                     tt["time_slot"] = voice_ts
                                     emit("update_terminal", self._terminal_to_dict(tid))
+                        is_local = t.get("is_local", False)
+                        hist = self.hist_local if is_local else self.hist_ext
+                        if hist and hist[0].get("sourceId") == self.last_active and hist[0].get("timeSlot") is None:
+                            hist[0]["timeSlot"] = voice_ts
+                            emit("update_call", hist[0])
                 return
 
             # 2. SPEAKER CHANGE
