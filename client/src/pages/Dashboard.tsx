@@ -143,6 +143,9 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
       if (b.activity === "TX") return 1;
       if (a.activity === "RX" && !b.activity) return -1;
       if (b.activity === "RX" && !a.activity) return 1;
+      const timeA = a.lastSeen || "";
+      const timeB = b.lastSeen || "";
+      if (timeA !== timeB) return timeB.localeCompare(timeA);
       return a.id.localeCompare(b.id);
     });
 
