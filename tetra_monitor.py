@@ -105,16 +105,17 @@ class TetraMonitor:
                 emit("update_terminal", self._terminal_to_dict(tid))
 
     def _update_time_slot(self, voice_ts):
-        """Update time slot on active terminals and most recent history entry."""
+        """Update time slot on active terminals (same TG as last_active) and most recent history entry."""
         if not self.last_active or self.last_active not in self.terminals:
             return
         t = self.terminals[self.last_active]
         if not t.get("activity") or t.get("time_slot") == voice_ts:
             return
+        active_tg = t.get("activity_tg")
         t["time_slot"] = voice_ts
         emit("update_terminal", self._terminal_to_dict(self.last_active))
         for tid, tt in self.terminals.items():
-            if tid != self.last_active and tt.get("activity") == "RX":
+            if tid != self.last_active and tt.get("activity") == "RX" and str(tt.get("activity_tg")) == str(active_tg):
                 if tt.get("time_slot") != voice_ts:
                     tt["time_slot"] = voice_ts
                     emit("update_terminal", self._terminal_to_dict(tid))
@@ -123,10 +124,12 @@ class TetraMonitor:
                 hist[0]["timeSlot"] = voice_ts
                 emit("update_call", hist[0])
 
-    def _clear_activity(self):
-        """Clear all TX/RX activity states."""
+    def _clear_activity(self, tg=None):
+        """Clear TX/RX activity states. If tg is given, only clear terminals on that TG."""
         for tid, t in self.terminals.items():
             if t.get("activity"):
+                if tg is not None and str(t.get("activity_tg")) != str(tg):
+                    continue
                 t["activity"] = None
                 t["activity_tg"] = None
                 t["time_slot"] = None
@@ -225,7 +228,7 @@ class TetraMonitor:
                     self.hist_ext.insert(0, entry)
                     self.hist_ext = self.hist_ext[:MAX_HISTORY]
 
-                self._clear_activity()
+                self._clear_activity(tg=d_gssi)
                 self._set_activity(s_issi, d_gssi)
                 emit("new_call", entry)
                 return
@@ -254,7 +257,7 @@ class TetraMonitor:
             )
             if speaker_match:
                 gssi, new_speaker = speaker_match.groups()
-                self._clear_activity()
+                self._clear_activity(tg=gssi)
                 if new_speaker in self.terminals:
                     self.terminals[new_speaker]["last_seen"] = timestamp
                     self._set_activity(new_speaker, gssi)
@@ -262,14 +265,21 @@ class TetraMonitor:
 
             # 3. CALL END (GROUP_IDLE / D-TX CEASED / network call ended)
             if "GROUP_IDLE" in msg or "D-TX CEASED" in msg:
-                self._clear_activity()
                 gssi_m = re.search(r"\bgssi=(\d+)", msg)
                 if not gssi_m:
                     gssi_m = re.search(r"\bgssi[:\s=]+(\d+)", msg, re.I)
+                if gssi_m:
+                    self._clear_activity(tg=gssi_m.group(1))
+                else:
+                    self._clear_activity()
                 return
 
             if "network call ended" in msg:
-                self._clear_activity()
+                gssi_m = re.search(r"\bgssi=(\d+)", msg)
+                if gssi_m:
+                    self._clear_activity(tg=gssi_m.group(1))
+                else:
+                    self._clear_activity()
                 return
 
             # 4. REGISTRATION (ULocationUpdateDemand / ItsiAttach)
@@ -457,22 +467,39 @@ def run_demo_mode(mon):
 
     mon.emit_full_state()
 
+    used_slots = set()
+
     while True:
         time.sleep(random.uniform(2.0, 5.0))
+
+        concurrent = random.random() < 0.35
+        num_calls = 2 if concurrent else 1
+
+        available_slots = [s for s in [1, 2, 3, 4] if s not in used_slots]
+        if not available_slots:
+            available_slots = [1, 2, 3, 4]
+        used_slots.clear()
+
         mon._clear_activity()
-        dt = random.choice([d for d in demo_terminals if not d["local"]])
-        tg = random.choice(tgs)
-        demo_ts = random.choice([1, 2, 3, 4])
-        line = json.dumps({
-            "MESSAGE": f"call from ISSI {dt['issi']} to GSSI {tg}",
-            "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
-        })
-        mon.process_line(line)
-        voice_line = json.dumps({
-            "MESSAGE": f"BrewEntity: voice frame #1 uuid=demo len=36 bytes ts={demo_ts}",
-            "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
-        })
-        mon.process_line(voice_line)
+
+        external = [d for d in demo_terminals if not d["local"]]
+        chosen = random.sample(external, min(num_calls, len(external)))
+
+        for i, dt in enumerate(chosen):
+            tg = tgs[i % len(tgs)] if num_calls > 1 else random.choice(tgs)
+            demo_ts = available_slots[i] if i < len(available_slots) else random.choice([1, 2, 3, 4])
+            used_slots.add(demo_ts)
+
+            line = json.dumps({
+                "MESSAGE": f"call from ISSI {dt['issi']} to GSSI {tg}",
+                "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
+            })
+            mon.process_line(line)
+            voice_line = json.dumps({
+                "MESSAGE": f"BrewEntity: voice frame #1 uuid=demo len=36 bytes ts={demo_ts}",
+                "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
+            })
+            mon.process_line(voice_line)
 
 
 def run_journal_mode(mon):
