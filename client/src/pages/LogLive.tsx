@@ -1,6 +1,6 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useI18n } from "@/lib/i18n";
-import { Trash2, ArrowDownToLine } from "lucide-react";
+import { Trash2 } from "lucide-react";
 
 const MAX_LINES = 5000;
 
@@ -9,19 +9,7 @@ export default function LogLive() {
   const [lines, setLines] = useState<string[]>([]);
   const [isDemo, setIsDemo] = useState(false);
   const [connected, setConnected] = useState(false);
-  const [autoScroll, setAutoScroll] = useState(true);
-  const containerRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
-
-  const scrollToBottom = useCallback(() => {
-    if (autoScroll && containerRef.current) {
-      containerRef.current.scrollTop = containerRef.current.scrollHeight;
-    }
-  }, [autoScroll]);
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [lines, scrollToBottom]);
 
   useEffect(() => {
     const es = new EventSource("/api/log-stream");
@@ -42,9 +30,9 @@ export default function LogLive() {
         if (data.line) {
           setConnected(true);
           setLines((prev) => {
-            const next = [...prev, data.line];
+            const next = [data.line, ...prev];
             if (next.length > MAX_LINES) {
-              return next.slice(next.length - MAX_LINES);
+              return next.slice(0, MAX_LINES);
             }
             return next;
           });
@@ -66,13 +54,6 @@ export default function LogLive() {
     setLines([]);
   };
 
-  const handleScroll = () => {
-    if (!containerRef.current) return;
-    const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
-    const isAtBottom = scrollHeight - scrollTop - clientHeight < 40;
-    setAutoScroll(isAtBottom);
-  };
-
   return (
     <div className="flex flex-col h-full bg-background" data-testid="log-live-page">
       <div className="flex items-center justify-between px-3 py-2 border-b border-border bg-card">
@@ -89,16 +70,6 @@ export default function LogLive() {
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <label className="flex items-center gap-1.5 text-[10px] text-muted-foreground cursor-pointer select-none" data-testid="toggle-autoscroll">
-            <input
-              type="checkbox"
-              checked={autoScroll}
-              onChange={(e) => setAutoScroll(e.target.checked)}
-              className="w-3 h-3 accent-primary"
-            />
-            <ArrowDownToLine className="w-3 h-3" />
-            {t("log_live_autoscroll")}
-          </label>
           <button
             onClick={handleClear}
             className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-red-500/20 hover:text-red-400 hover:border-red-500/30 transition-colors"
@@ -112,8 +83,6 @@ export default function LogLive() {
       </div>
 
       <div
-        ref={containerRef}
-        onScroll={handleScroll}
         className="flex-1 overflow-auto p-2 font-mono text-[11px] leading-[1.6] bg-black/40"
         data-testid="log-live-container"
       >
