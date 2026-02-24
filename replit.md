@@ -11,9 +11,10 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 
 ## Key Files
 - `tetra_monitor.py` — Python TETRA log processor (the brain)
-- `server/routes.ts` — Node.js server that spawns Python and relays data via WebSocket
+- `server/routes.ts` — Node.js server that spawns Python, relays data via WebSocket, and serves SSE log stream
 - `client/src/pages/Dashboard.tsx` — Main dashboard UI (terminal-style)
 - `client/src/pages/Calculator.tsx` — TETRA frequency calculator (iframe wrapper, syncs language via postMessage)
+- `client/src/pages/LogLive.tsx` — Real-time journalctl log viewer (SSE stream)
 - `client/public/calculator.html` — Standalone TETRA frequency calculator (ETSI TS 100 392-15)
 - `client/src/lib/i18n.ts` — Internationalization system (7 languages)
 - `client/src/hooks/useTetraWebSocket.ts` — WebSocket connection hook
@@ -40,6 +41,14 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 - Can apply calculated values directly to Raspberry Pi config.toml via API
 - Config section: `[phy_io.soapysdr]` for tx_freq/rx_freq, `[cell_info]` for other params
 - `custom_duplex_spacing` only written when `duplex_spacing=7`; removed from config if not applicable
+
+## Log Live
+- New tab "LOG LIVE" in the nav bar, next to CALCULATOR
+- Shows real-time `journalctl -f` output via Server-Sent Events (SSE)
+- Backend endpoint: `GET /api/log-stream` spawns `journalctl -f -n 50 --no-pager` and streams lines as SSE events
+- Frontend: `LogLive.tsx` connects via EventSource, displays lines with color coding (ERROR=red, WARN=yellow, DEBUG=blue, TRACE=gray, default=green)
+- Features: auto-scroll toggle, clear button, line counter, max 5000 lines buffer
+- When `journalctl` is not available (Replit), shows a demo message explaining it works on Raspberry Pi
 
 ## Demo Mode
 When `journalctl` is not available (like in Replit), the Python script runs in demo mode with simulated TETRA traffic using realistic callsigns and talk groups.

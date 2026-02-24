@@ -5,8 +5,9 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/Dashboard";
 import Calculator from "@/pages/Calculator";
+import LogLive from "@/pages/LogLive";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon, Globe } from "lucide-react";
+import { Radio, Calculator as CalcIcon, Globe, ScrollText } from "lucide-react";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 
 function LangSelector() {
@@ -57,6 +58,18 @@ function NavBar() {
         <CalcIcon className="w-3.5 h-3.5" />
         {t("calculator")}
       </Link>
+      <Link
+        href="/log-live"
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-t transition-colors ${
+          location === "/log-live"
+            ? "bg-primary/10 text-primary border border-primary/20 border-b-0"
+            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+        }`}
+        data-testid="nav-link-log-live"
+      >
+        <ScrollText className="w-3.5 h-3.5" />
+        {t("log_live")}
+      </Link>
       <div className="ml-auto">
         <LangSelector />
       </div>
@@ -72,6 +85,7 @@ function Router() {
         <Switch>
           <Route path="/" component={Dashboard} />
           <Route path="/calculator" component={Calculator} />
+          <Route path="/log-live" component={LogLive} />
           <Route component={NotFound} />
         </Switch>
       </div>

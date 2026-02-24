@@ -206,6 +206,67 @@ export async function registerRoutes(
     }
   });
 
+  app.get('/api/log-stream', (req, res) => {
+    res.writeHead(200, {
+      'Content-Type': 'text/event-stream',
+      'Cache-Control': 'no-cache',
+      'Connection': 'keep-alive',
+      'X-Accel-Buffering': 'no',
+    });
+
+    let journalProcess: ChildProcess | null = null;
+    let hasJournalctl = false;
+
+    try {
+      execSync('which journalctl', { stdio: 'ignore' });
+      hasJournalctl = true;
+    } catch {}
+
+    if (hasJournalctl) {
+      journalProcess = spawn('journalctl', ['-f', '-n', '50', '--no-pager'], {
+        stdio: ['ignore', 'pipe', 'pipe'],
+      });
+
+      let buf = '';
+      journalProcess.stdout?.on('data', (chunk: Buffer) => {
+        buf += chunk.toString();
+        const lines = buf.split('\n');
+        buf = lines.pop() || '';
+        for (const line of lines) {
+          if (line.trim()) {
+            res.write(`data: ${JSON.stringify({ line })}\n\n`);
+          }
+        }
+      });
+
+      journalProcess.stderr?.on('data', (chunk: Buffer) => {
+        const text = chunk.toString().trim();
+        if (text) {
+          res.write(`data: ${JSON.stringify({ line: `[stderr] ${text}` })}\n\n`);
+        }
+      });
+
+      journalProcess.on('close', () => {
+        res.write(`data: ${JSON.stringify({ line: "[journalctl process ended]" })}\n\n`);
+        res.end();
+      });
+
+      journalProcess.on('error', (err) => {
+        res.write(`data: ${JSON.stringify({ error: err.message })}\n\n`);
+        res.end();
+      });
+    } else {
+      res.write(`data: ${JSON.stringify({ demo: true })}\n\n`);
+    }
+
+    req.on('close', () => {
+      if (journalProcess) {
+        journalProcess.kill();
+        journalProcess = null;
+      }
+    });
+  });
+
   const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
 
   function broadcast(data: string) {
