@@ -104,6 +104,25 @@ class TetraMonitor:
                     t["time_slot"] = time_slot
                 emit("update_terminal", self._terminal_to_dict(tid))
 
+    def _update_time_slot(self, voice_ts):
+        """Update time slot on active terminals and most recent history entry."""
+        if not self.last_active or self.last_active not in self.terminals:
+            return
+        t = self.terminals[self.last_active]
+        if not t.get("activity") or t.get("time_slot") == voice_ts:
+            return
+        t["time_slot"] = voice_ts
+        emit("update_terminal", self._terminal_to_dict(self.last_active))
+        for tid, tt in self.terminals.items():
+            if tid != self.last_active and tt.get("activity") == "RX":
+                if tt.get("time_slot") != voice_ts:
+                    tt["time_slot"] = voice_ts
+                    emit("update_terminal", self._terminal_to_dict(tid))
+        for hist in [self.hist_local, self.hist_ext]:
+            if hist and hist[0].get("sourceId") == self.last_active and hist[0].get("timeSlot") != voice_ts:
+                hist[0]["timeSlot"] = voice_ts
+                emit("update_call", hist[0])
+
     def _clear_activity(self):
         """Clear all TX/RX activity states."""
         for tid, t in self.terminals.items():
@@ -211,35 +230,22 @@ class TetraMonitor:
                 emit("new_call", entry)
                 return
 
-            # 1b. VOICE FRAME (BrewEntity: voice frame ... ts=N) or ts_assigned
-            voice_ts = None
+            # 1b. VOICE FRAME (BrewEntity: voice frame ... ts=N)
             voice_match = re.search(r"voice frame\s+#\d+.*?\bts=(\d+)", msg)
             if voice_match:
                 voice_ts = int(voice_match.group(1))
-            if voice_ts is None:
+                self._update_time_slot(voice_ts)
+                return
+
+            # 1c. ts_assigned from ChanAllocElement (only during active call)
+            if self.last_active and self.last_active in self.terminals and self.terminals[self.last_active].get("activity"):
                 ts_assigned = re.search(r"ts_assigned:\s*\[([^\]]+)\]", msg)
                 if ts_assigned:
                     slots = [s.strip().lower() == "true" for s in ts_assigned.group(1).split(",")]
                     for idx, val in enumerate(slots):
                         if val:
-                            voice_ts = idx + 1
+                            self._update_time_slot(idx + 1)
                             break
-            if voice_ts is not None:
-                if self.last_active and self.last_active in self.terminals:
-                    t = self.terminals[self.last_active]
-                    if t.get("activity") and t.get("time_slot") != voice_ts:
-                        t["time_slot"] = voice_ts
-                        emit("update_terminal", self._terminal_to_dict(self.last_active))
-                        for tid, tt in self.terminals.items():
-                            if tid != self.last_active and tt.get("activity") == "RX":
-                                if tt.get("time_slot") != voice_ts:
-                                    tt["time_slot"] = voice_ts
-                                    emit("update_terminal", self._terminal_to_dict(tid))
-                        for hist in [self.hist_local, self.hist_ext]:
-                            if hist and hist[0].get("sourceId") == self.last_active and hist[0].get("timeSlot") != voice_ts:
-                                hist[0]["timeSlot"] = voice_ts
-                                emit("update_call", hist[0])
-                return
 
             # 2. SPEAKER CHANGE
             speaker_match = re.search(
