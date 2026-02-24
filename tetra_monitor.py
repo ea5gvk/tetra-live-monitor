@@ -319,6 +319,34 @@ class TetraMonitor:
                 emit("update_terminal", self._terminal_to_dict(ssi))
                 return
 
+            # 4b. SUBSCRIBER AFFILIATE (scan mode groups)
+            affiliate_match = re.search(r"subscriber affiliate issi=(\d+)\s+groups=\[([^\]]*)\]", msg)
+            if affiliate_match:
+                ssi = affiliate_match.group(1)
+                groups_str = affiliate_match.group(2).strip()
+                new_groups = [g.strip() for g in groups_str.split(",") if g.strip()] if groups_str else []
+
+                if ssi not in self.terminals:
+                    self.terminals[ssi] = {
+                        "selected": "---",
+                        "groups": [],
+                        "status": "Online",
+                        "is_local": True,
+                        "last_seen": timestamp,
+                        "activity": None,
+                        "activity_tg": None,
+                    }
+
+                self.terminals[ssi]["groups"] = sorted(new_groups)
+                self.terminals[ssi]["status"] = "Online"
+                self.terminals[ssi]["is_local"] = True
+                self.terminals[ssi]["last_seen"] = timestamp
+                if new_groups:
+                    self.terminals[ssi]["selected"] = f"TG {new_groups[0]}"
+
+                emit("update_terminal", self._terminal_to_dict(ssi))
+                return
+
             # 5. GROUP ATTACH/DETACH (UAttachDetachGroupIdentity)
             if "UAttachDetachGroupIdentity" in msg:
                 ssi = self._extract_ssi(msg)
