@@ -209,10 +209,20 @@ class TetraMonitor:
                 emit("new_call", entry)
                 return
 
-            # 1b. VOICE FRAME (BrewEntity: voice frame ... ts=N)
+            # 1b. VOICE FRAME (BrewEntity: voice frame ... ts=N) or ts_assigned
+            voice_ts = None
             voice_match = re.search(r"voice frame\s+#\d+.*?\bts=(\d+)", msg)
             if voice_match:
                 voice_ts = int(voice_match.group(1))
+            if voice_ts is None:
+                ts_assigned = re.search(r"ts_assigned:\s*\[([^\]]+)\]", msg)
+                if ts_assigned:
+                    slots = [s.strip().lower() == "true" for s in ts_assigned.group(1).split(",")]
+                    for idx, val in enumerate(slots):
+                        if val:
+                            voice_ts = idx + 1
+                            break
+            if voice_ts is not None:
                 if self.last_active and self.last_active in self.terminals:
                     t = self.terminals[self.last_active]
                     if t.get("activity") and t.get("time_slot") != voice_ts:
