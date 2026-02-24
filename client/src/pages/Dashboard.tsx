@@ -111,7 +111,7 @@ function TerminalRow({ t: terminal }: { t: Terminal }) {
       <td className="px-2 sm:px-3 py-1.5 hidden sm:table-cell">
         <StatusDot status={terminal.status} />
       </td>
-      <td className="px-2 sm:px-3 py-1.5 font-mono text-xs hidden lg:table-cell">
+      <td className="px-2 sm:px-3 py-1.5 font-mono text-xs hidden sm:table-cell">
         {scanItems.length > 0 ? (
           <span className="flex items-center gap-0.5 flex-wrap">
             [{scanItems.reduce<React.ReactNode[]>((acc, item, i) => {
@@ -172,7 +172,7 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
               <th className="text-left px-2 sm:px-3 py-2 font-medium">{t("th_terminal_call")}</th>
               <th className="text-left px-2 sm:px-3 py-2 font-medium">{t("th_selected")}</th>
               <th className="text-left px-2 sm:px-3 py-2 font-medium hidden sm:table-cell">{t("th_status")}</th>
-              <th className="text-left px-2 sm:px-3 py-2 font-medium hidden lg:table-cell">{t("th_scanlist")}</th>
+              <th className="text-left px-2 sm:px-3 py-2 font-medium hidden sm:table-cell">{t("th_scanlist")}</th>
               <th className="text-right px-2 sm:px-3 py-2 font-medium hidden md:table-cell">{t("th_seen")}</th>
             </tr>
           </thead>
