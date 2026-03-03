@@ -28,6 +28,13 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 - **Calculator**: Standalone I18N object in `calculator.html`, synced from dashboard via postMessage
 - **Language selector**: Globe button in the navigation bar, cycles through all 7 languages
 
+## System Controls
+- **Restart Service**: Button to restart a systemd service via `sudo systemctl restart <service>`, requires password
+  - Configurable service name (default: `tmo.service`), stored in localStorage key `tetra_restart_service`
+  - API endpoint: `POST /api/system/restart-service` with `{ password, serviceName }`
+- **Reboot**: Reboots the Raspberry Pi via `sudo reboot`, requires password
+- **Shutdown**: Shuts down the Raspberry Pi via `sudo shutdown -h now`, requires password
+
 ## How It Works
 1. Node.js starts and spawns `tetra_monitor.py`
 2. Python processes TETRA logs (or runs demo mode if journalctl unavailable)

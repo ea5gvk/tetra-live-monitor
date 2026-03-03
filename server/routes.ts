@@ -97,6 +97,26 @@ export async function registerRoutes(
     }, 1000);
   });
 
+  app.post(api.system.restartService.path, (req, res) => {
+    const { password, serviceName } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ message: "Contraseña incorrecta" });
+    }
+    if (!serviceName || typeof serviceName !== "string") {
+      return res.status(400).json({ message: "Nombre del servicio no especificado" });
+    }
+    const safeServiceName = serviceName.replace(/[^a-zA-Z0-9._@-]/g, '');
+    if (!safeServiceName) {
+      return res.status(400).json({ message: "Nombre del servicio no válido" });
+    }
+    res.json({ message: `Reiniciando ${safeServiceName}...` });
+    setTimeout(() => {
+      exec(`sudo systemctl restart ${safeServiceName}`, (err) => {
+        if (err) console.error(`Error al reiniciar ${safeServiceName}:`, err.message);
+      });
+    }, 500);
+  });
+
   app.post(api.system.applyConfig.path, (req, res) => {
     const { password, configPath, serviceName, values } = req.body || {};
     if (!password || password !== getSystemPassword()) {

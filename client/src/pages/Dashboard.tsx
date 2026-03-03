@@ -1,6 +1,6 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef } from "react";
-import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock } from "lucide-react";
+import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw } from "lucide-react";
 import { getCountryCode, getFlagUrl } from "@/lib/callsignFlags";
 import { useI18n } from "@/lib/i18n";
 import tetraLogo from "@assets/tetra_1771538916537.png";
@@ -302,20 +302,46 @@ function PiStats() {
   );
 }
 
+const SERVICE_STORAGE_KEY = "tetra_restart_service";
+
+function getStoredRestartService(): string {
+  try {
+    return localStorage.getItem(SERVICE_STORAGE_KEY) || "tmo.service";
+  } catch {
+    return "tmo.service";
+  }
+}
+
 function SystemControls() {
   const { t } = useI18n();
-  const [confirmAction, setConfirmAction] = useState<"shutdown" | "reboot" | null>(null);
+  const [confirmAction, setConfirmAction] = useState<"shutdown" | "reboot" | "restart-service" | null>(null);
   const [password, setPassword] = useState("");
+  const [serviceName, setServiceName] = useState(getStoredRestartService);
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  const executeAction = async (action: "shutdown" | "reboot") => {
-    const url = action === "shutdown" ? "/api/system/shutdown" : "/api/system/reboot";
+  const executeAction = async (action: "shutdown" | "reboot" | "restart-service") => {
+    let url: string;
+    let body: Record<string, string>;
+
+    if (action === "restart-service") {
+      if (!serviceName.trim()) {
+        setError(t("restart_service_name"));
+        return;
+      }
+      url = "/api/system/restart-service";
+      body = { password, serviceName: serviceName.trim() };
+      try { localStorage.setItem(SERVICE_STORAGE_KEY, serviceName.trim()); } catch {}
+    } else {
+      url = action === "shutdown" ? "/api/system/shutdown" : "/api/system/reboot";
+      body = { password };
+    }
+
     try {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify(body),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -323,7 +349,9 @@ function SystemControls() {
         setTimeout(() => setError(null), 3000);
         return;
       }
-      setStatus(data.message);
+      setStatus(action === "restart-service"
+        ? t("restarting_service").replace("{service}", serviceName.trim())
+        : data.message);
       setConfirmAction(null);
       setPassword("");
     } catch {
@@ -347,12 +375,28 @@ function SystemControls() {
   }
 
   if (confirmAction) {
+    const actionLabel = confirmAction === "shutdown"
+      ? t("confirm_shutdown")
+      : confirmAction === "reboot"
+      ? t("confirm_reboot")
+      : t("confirm_restart_service");
+
     return (
-      <div className="flex items-center gap-2" data-testid="confirm-system-action">
+      <div className="flex items-center gap-2 flex-wrap" data-testid="confirm-system-action">
         <Lock className="w-3 h-3 text-amber-400" />
         <span className="text-xs text-amber-400 hidden sm:inline">
-          {confirmAction === "shutdown" ? t("confirm_shutdown") : t("confirm_reboot")}
+          {actionLabel}
         </span>
+        {confirmAction === "restart-service" && (
+          <input
+            type="text"
+            value={serviceName}
+            onChange={(e) => setServiceName(e.target.value)}
+            placeholder="tmo.service"
+            className="w-28 px-2 py-0.5 text-[10px] rounded bg-black/30 border border-white/10 text-foreground font-mono placeholder:text-muted-foreground/50 focus:outline-none focus:border-cyan-500/50"
+            data-testid="input-service-name"
+          />
+        )}
         <input
           type="password"
           value={password}
@@ -360,7 +404,7 @@ function SystemControls() {
           onKeyDown={(e) => e.key === "Enter" && password && executeAction(confirmAction)}
           placeholder={t("password")}
           className="w-24 px-2 py-0.5 text-[10px] rounded bg-black/30 border border-white/10 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-amber-500/50"
-          autoFocus
+          autoFocus={confirmAction !== "restart-service"}
           data-testid="input-password"
         />
         <button
@@ -385,6 +429,15 @@ function SystemControls() {
 
   return (
     <div className="flex items-center gap-1.5" data-testid="system-controls">
+      <button
+        onClick={() => setConfirmAction("restart-service")}
+        className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 hover:bg-cyan-500/20 transition-colors"
+        title={t("confirm_restart_service")}
+        data-testid="button-restart-service"
+      >
+        <RefreshCw className="w-3 h-3" />
+        <span className="hidden sm:inline">{t("restart_service")}</span>
+      </button>
       <button
         onClick={() => setConfirmAction("reboot")}
         className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 hover:bg-amber-500/20 transition-colors"

@@ -31,6 +31,10 @@ export const api = {
       method: 'POST' as const,
       path: '/api/system/apply-config' as const,
     },
+    restartService: {
+      method: 'POST' as const,
+      path: '/api/system/restart-service' as const,
+    },
   },
 };
 
