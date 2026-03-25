@@ -40,7 +40,8 @@ class TetraMonitor:
         self.last_context_id = None
         self.callsign_cache = {}
         self.event_counter = 0
-        self.sds_report_uuids = set()  # UUIDs of delivery reports to suppress
+        self.sds_report_uuids = set()      # UUIDs of delivery reports to suppress
+        self.sds_pending_ack = {}          # (dst, src) -> timestamp, for delivery-report filtering
 
     def get_callsign(self, issi):
         if not issi or int(issi) < 1000:
@@ -432,8 +433,8 @@ class TetraMonitor:
 
             # 8. SDS messages
 
-            # Delivery report: BrewEntity: SDS_REPORT uuid=... status=N -> Brew
-            # Register its UUID so the matching SDS transfer (ACK payload) is suppressed
+            # Delivery report UUID registration: BrewEntity: SDS_REPORT uuid=... status=N -> Brew
+            # Secondary filter — UUID arrives in any order relative to SDS transfer
             sds_report = re.search(
                 r"BrewEntity: SDS_REPORT\s+uuid=(\S+)\s+status=",
                 msg
@@ -446,11 +447,18 @@ class TetraMonitor:
 
             # Outgoing: BrewEntity: sending SDS uuid=... src=X dst=Y type=N N bits
             sds_out = re.search(
-                r"BrewEntity: sending SDS\s+uuid=\S+\s+src=(\d+)\s+dst=(\d+)\s+type=(\d+)\s+(\d+)\s+bits",
+                r"BrewEntity: sending SDS\s+uuid=(\S+)\s+src=(\d+)\s+dst=(\d+)\s+type=(\d+)\s+(\d+)\s+bits",
                 msg
             )
             if sds_out:
-                src, dst, sds_type, size = sds_out.groups()
+                uuid_out, src, dst, sds_type, size = sds_out.groups()
+                # Register (dst, src) so the delivery-report transfer back is suppressed
+                self.sds_pending_ack[(dst, src)] = time.time()
+                # Keep dict bounded; evict entries older than 30 s
+                now = time.time()
+                self.sds_pending_ack = {
+                    k: v for k, v in self.sds_pending_ack.items() if now - v < 30
+                }
                 src_call = self.get_callsign(src)
                 dst_call = self.get_callsign(dst)
                 entry = {
@@ -478,10 +486,21 @@ class TetraMonitor:
             )
             if sds_in:
                 uuid_val, src, dst, size = sds_in.groups()
-                # Skip delivery-report payloads (the ACK back-channel for our outgoing messages)
+                size_int = int(size)
+
+                # Filter 1: UUID-based (SDS_REPORT arrived before this transfer)
                 if uuid_val in self.sds_report_uuids:
                     self.sds_report_uuids.discard(uuid_val)
                     return
+
+                # Filter 2: pair-based (SDS_REPORT arrived after, or UUID missed)
+                # A delivery report is tiny (≤ 8 bytes) and the pair (src, dst) was
+                # registered when we emitted the matching outgoing message.
+                pair_key = (src, dst)
+                if size_int <= 8 and pair_key in self.sds_pending_ack:
+                    del self.sds_pending_ack[pair_key]
+                    return
+
                 src_call = self.get_callsign(src)
                 dst_call = self.get_callsign(dst)
                 entry = {
@@ -494,7 +513,7 @@ class TetraMonitor:
                     "direction": "incoming",
                     "messageType": "data",
                     "sdsType": 3,
-                    "size": int(size),
+                    "size": size_int,
                     "sizeUnit": "bytes",
                 }
                 self.sds_messages.insert(0, entry)
