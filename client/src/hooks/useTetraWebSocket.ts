@@ -34,6 +34,8 @@ export interface SdsMessage {
   dstIssi: string;
   dstCallsign?: string;
   direction: "outgoing" | "incoming";
+  messageType: "data" | "status";
+  statusCode?: string;
   sdsType: number;
   size: number;
   sizeUnit: "bits" | "bytes";

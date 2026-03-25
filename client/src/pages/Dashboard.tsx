@@ -483,24 +483,35 @@ function SdsPanel({ messages }: { messages: SdsMessage[] }) {
           </div>
         ) : (
           messages.map((msg) => {
+            const isStatus = msg.messageType === "status";
             const isOut = msg.direction === "outgoing";
+            const rowBg = isStatus
+              ? "bg-amber-500/5"
+              : isOut ? "bg-cyan-500/5" : "bg-emerald-500/5";
             return (
               <div
                 key={msg.id}
-                className={`flex items-center gap-1.5 py-0.5 px-1.5 rounded ${isOut ? "bg-cyan-500/5" : "bg-emerald-500/5"}`}
+                className={`flex items-center gap-1.5 py-0.5 px-1.5 rounded flex-wrap ${rowBg}`}
                 data-testid={`sds-entry-${msg.id}`}
               >
                 <span className="text-muted-foreground shrink-0">[{msg.timestamp}]</span>
-                <span
-                  className={`inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold rounded shrink-0 ${
-                    isOut
-                      ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
-                      : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                  }`}
-                >
-                  {isOut ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
-                  {isOut ? t("sds_out") : t("sds_in")}
-                </span>
+                {isStatus ? (
+                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold rounded shrink-0 bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                    <MessageSquare className="w-2.5 h-2.5" />
+                    {t("sds_status")}
+                  </span>
+                ) : (
+                  <span
+                    className={`inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold rounded shrink-0 ${
+                      isOut
+                        ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                        : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                    }`}
+                  >
+                    {isOut ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
+                    {isOut ? t("sds_out") : t("sds_in")}
+                  </span>
+                )}
                 <span className="text-primary shrink-0">{msg.srcIssi}</span>
                 {msg.srcCallsign && (
                   <span className="text-foreground/70 shrink-0">({msg.srcCallsign})</span>
@@ -510,9 +521,15 @@ function SdsPanel({ messages }: { messages: SdsMessage[] }) {
                 {msg.dstCallsign && (
                   <span className="text-foreground/70 shrink-0">({msg.dstCallsign})</span>
                 )}
-                <span className="ml-auto text-muted-foreground/50 shrink-0 text-[9px]">
-                  T{msg.sdsType} · {msg.size}{msg.sizeUnit === "bits" ? "b" : "B"}
-                </span>
+                {isStatus && msg.statusCode ? (
+                  <span className="ml-auto text-amber-300/80 shrink-0 text-[9px] font-mono">
+                    {msg.statusCode}
+                  </span>
+                ) : (
+                  <span className="ml-auto text-muted-foreground/50 shrink-0 text-[9px]">
+                    T{msg.sdsType} · {msg.size}{msg.sizeUnit === "bits" ? "b" : "B"}
+                  </span>
+                )}
               </div>
             );
           })

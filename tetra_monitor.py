@@ -447,6 +447,7 @@ class TetraMonitor:
                     "dstIssi": dst,
                     "dstCallsign": dst_call,
                     "direction": "outgoing",
+                    "messageType": "data",
                     "sdsType": int(sds_type),
                     "size": int(size),
                     "sizeUnit": "bits",
@@ -473,9 +474,39 @@ class TetraMonitor:
                     "dstIssi": dst,
                     "dstCallsign": dst_call,
                     "direction": "incoming",
+                    "messageType": "data",
                     "sdsType": 3,
                     "size": int(size),
                     "sizeUnit": "bytes",
+                }
+                self.sds_messages.insert(0, entry)
+                self.sds_messages = self.sds_messages[:MAX_HISTORY]
+                emit("sds_message", entry)
+                return
+
+            # Status message: SDS: U-STATUS from ISSI X to ISSI Y, status=Z
+            sds_status = re.search(
+                r"SDS: U-STATUS from ISSI\s+(\d+)\s+to ISSI\s+(\d+),\s+status=(.+)",
+                msg
+            )
+            if sds_status:
+                src, dst, status_code = sds_status.groups()
+                status_code = status_code.strip()
+                src_call = self.get_callsign(src)
+                dst_call = self.get_callsign(dst)
+                entry = {
+                    "id": self._next_id(),
+                    "timestamp": timestamp,
+                    "srcIssi": src,
+                    "srcCallsign": src_call,
+                    "dstIssi": dst,
+                    "dstCallsign": dst_call,
+                    "direction": "outgoing",
+                    "messageType": "status",
+                    "statusCode": status_code,
+                    "sdsType": 0,
+                    "size": 0,
+                    "sizeUnit": "bits",
                 }
                 self.sds_messages.insert(0, entry)
                 self.sds_messages = self.sds_messages[:MAX_HISTORY]
@@ -556,7 +587,7 @@ def run_demo_mode(mon):
             })
             mon.process_line(voice_line)
 
-        # ~20% chance of an SDS message each cycle
+        # ~20% chance of an SDS data message each cycle
         if random.random() < 0.20:
             sds_terminals = [d for d in demo_terminals if d["issi"] != "2145007"]
             if len(sds_terminals) >= 2:
@@ -575,6 +606,26 @@ def run_demo_mode(mon):
                         "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
                     })
                 mon.process_line(sds_line)
+
+        # ~10% chance of an SDS status message each cycle
+        if random.random() < 0.10:
+            all_terminals = demo_terminals
+            if len(all_terminals) >= 2:
+                src_t, dst_t = random.sample(all_terminals, 2)
+                status_codes = [
+                    "NetworkUserSpecific(61000)",
+                    "NetworkUserSpecific(61001)",
+                    "NetworkUserSpecific(62000)",
+                    "EmergencyAlert",
+                    "Acknowledge",
+                    "Called party busy",
+                ]
+                status_code = random.choice(status_codes)
+                status_line = json.dumps({
+                    "MESSAGE": f"SDS: U-STATUS from ISSI {src_t['issi']} to ISSI {dst_t['issi']}, status={status_code}",
+                    "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
+                })
+                mon.process_line(status_line)
 
 
 def run_journal_mode(mon):
