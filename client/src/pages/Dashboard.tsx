@@ -514,12 +514,18 @@ function SdsPanel({ messages }: { messages: SdsMessage[] }) {
                 )}
                 <span className="text-primary shrink-0">{msg.srcIssi}</span>
                 {msg.srcCallsign && (
-                  <span className="text-foreground/70 shrink-0">({msg.srcCallsign})</span>
+                  <span className="inline-flex items-center gap-1 shrink-0">
+                    <CountryFlag callsign={msg.srcCallsign} />
+                    <span className="text-foreground/70">({msg.srcCallsign})</span>
+                  </span>
                 )}
                 <span className="text-muted-foreground/60 shrink-0">{"→"}</span>
                 <span className="text-amber-400 shrink-0">{msg.dstIssi}</span>
                 {msg.dstCallsign && (
-                  <span className="text-foreground/70 shrink-0">({msg.dstCallsign})</span>
+                  <span className="inline-flex items-center gap-1 shrink-0">
+                    <CountryFlag callsign={msg.dstCallsign} />
+                    <span className="text-foreground/70">({msg.dstCallsign})</span>
+                  </span>
                 )}
                 {isStatus && msg.statusCode ? (
                   <span className="ml-auto text-amber-300/80 shrink-0 text-[9px] font-mono">
