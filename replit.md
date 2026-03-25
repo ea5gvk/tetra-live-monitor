@@ -58,8 +58,17 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 - Features: service selector, clear button, line counter, max 5000 lines buffer
 - When `journalctl` is not available (Replit), shows a demo message explaining it works on Raspberry Pi
 
+## SDS Messages
+SDS (Short Data Service) messages are detected from TETRA logs and displayed in a dedicated panel at the bottom of the dashboard:
+- **Outgoing** (radio → network): `BrewEntity: sending SDS uuid=... src=X dst=Y type=N N bits`
+- **Incoming** (network → radio): `BrewEntity: SDS transfer uuid=... src=X dst=Y N bytes`
+- Panel shows: timestamp, direction badge (OUT/IN), source ISSI, destination ISSI, SDS type, and message size
+- Up to 50 SDS messages kept in history
+- Displayed in violet/purple color scheme to distinguish from voice calls
+- State tracked in server `currentState.sdsMessages` so new connections receive full history
+
 ## Demo Mode
-When `journalctl` is not available (like in Replit), the Python script runs in demo mode with simulated TETRA traffic using realistic callsigns and talk groups. ~35% of demo cycles simulate two concurrent calls on different TGs with different time slots.
+When `journalctl` is not available (like in Replit), the Python script runs in demo mode with simulated TETRA traffic using realistic callsigns and talk groups. ~35% of demo cycles simulate two concurrent calls on different TGs with different time slots. ~20% of demo cycles also simulate an SDS message (outgoing or incoming).
 
 ## Concurrent Calls
 - `_clear_activity(tg=X)` only clears terminals on the specified TG, allowing multiple simultaneous calls

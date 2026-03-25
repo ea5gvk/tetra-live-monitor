@@ -307,7 +307,8 @@ export async function registerRoutes(
     terminals: Record<string, any>;
     localHistory: any[];
     externalHistory: any[];
-  } = { terminals: {}, localHistory: [], externalHistory: [] };
+    sdsMessages: any[];
+  } = { terminals: {}, localHistory: [], externalHistory: [], sdsMessages: [] };
   const MAX_HISTORY = 50;
 
   function updateStateFromEvent(event: any) {
@@ -316,6 +317,7 @@ export async function registerRoutes(
         currentState.terminals = event.payload.terminals || {};
         currentState.localHistory = event.payload.localHistory || [];
         currentState.externalHistory = event.payload.externalHistory || [];
+        currentState.sdsMessages = event.payload.sdsMessages || [];
         break;
       case 'update_terminal':
         if (event.payload && event.payload.id) {
@@ -352,6 +354,15 @@ export async function registerRoutes(
         }
         break;
       }
+      case 'sds_message': {
+        const sds = event.payload;
+        if (sds) {
+          currentState.sdsMessages.unshift(sds);
+          if (currentState.sdsMessages.length > MAX_HISTORY)
+            currentState.sdsMessages = currentState.sdsMessages.slice(0, MAX_HISTORY);
+        }
+        break;
+      }
     }
   }
 
@@ -362,6 +373,7 @@ export async function registerRoutes(
         terminals: currentState.terminals,
         localHistory: currentState.localHistory,
         externalHistory: currentState.externalHistory,
+        sdsMessages: currentState.sdsMessages,
       }
     });
     ws.send(snapshot);

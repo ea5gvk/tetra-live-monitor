@@ -35,6 +35,7 @@ class TetraMonitor:
         self.terminals = {}
         self.hist_local = []
         self.hist_ext = []
+        self.sds_messages = []
         self.last_active = None
         self.last_context_id = None
         self.callsign_cache = {}
@@ -142,7 +143,8 @@ class TetraMonitor:
         emit("full_state", {
             "terminals": terminals,
             "localHistory": self.hist_local[-MAX_HISTORY:],
-            "externalHistory": self.hist_ext[-MAX_HISTORY:]
+            "externalHistory": self.hist_ext[-MAX_HISTORY:],
+            "sdsMessages": self.sds_messages[-MAX_HISTORY:],
         })
 
     def _extract_ssi(self, msg):
@@ -427,6 +429,59 @@ class TetraMonitor:
             if brew_groups:
                 return
 
+            # 8. SDS messages
+            # Outgoing: BrewEntity: sending SDS uuid=... src=X dst=Y type=N N bits
+            sds_out = re.search(
+                r"BrewEntity: sending SDS\s+uuid=\S+\s+src=(\d+)\s+dst=(\d+)\s+type=(\d+)\s+(\d+)\s+bits",
+                msg
+            )
+            if sds_out:
+                src, dst, sds_type, size = sds_out.groups()
+                src_call = self.get_callsign(src)
+                dst_call = self.get_callsign(dst)
+                entry = {
+                    "id": self._next_id(),
+                    "timestamp": timestamp,
+                    "srcIssi": src,
+                    "srcCallsign": src_call,
+                    "dstIssi": dst,
+                    "dstCallsign": dst_call,
+                    "direction": "outgoing",
+                    "sdsType": int(sds_type),
+                    "size": int(size),
+                    "sizeUnit": "bits",
+                }
+                self.sds_messages.insert(0, entry)
+                self.sds_messages = self.sds_messages[:MAX_HISTORY]
+                emit("sds_message", entry)
+                return
+
+            # Incoming: BrewEntity: SDS transfer uuid=... src=X dst=Y N bytes
+            sds_in = re.search(
+                r"BrewEntity: SDS transfer\s+uuid=\S+\s+src=(\d+)\s+dst=(\d+)\s+(\d+)\s+bytes",
+                msg
+            )
+            if sds_in:
+                src, dst, size = sds_in.groups()
+                src_call = self.get_callsign(src)
+                dst_call = self.get_callsign(dst)
+                entry = {
+                    "id": self._next_id(),
+                    "timestamp": timestamp,
+                    "srcIssi": src,
+                    "srcCallsign": src_call,
+                    "dstIssi": dst,
+                    "dstCallsign": dst_call,
+                    "direction": "incoming",
+                    "sdsType": 3,
+                    "size": int(size),
+                    "sizeUnit": "bytes",
+                }
+                self.sds_messages.insert(0, entry)
+                self.sds_messages = self.sds_messages[:MAX_HISTORY]
+                emit("sds_message", entry)
+                return
+
         except Exception:
             pass
 
@@ -500,6 +555,26 @@ def run_demo_mode(mon):
                 "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
             })
             mon.process_line(voice_line)
+
+        # ~20% chance of an SDS message each cycle
+        if random.random() < 0.20:
+            sds_terminals = [d for d in demo_terminals if d["issi"] != "2145007"]
+            if len(sds_terminals) >= 2:
+                src_t, dst_t = random.sample(sds_terminals, 2)
+                direction = random.choice(["outgoing", "incoming"])
+                if direction == "outgoing":
+                    size = random.choice([32, 64, 128, 256])
+                    sds_line = json.dumps({
+                        "MESSAGE": f"BrewEntity: sending SDS uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} type=3 {size} bits",
+                        "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
+                    })
+                else:
+                    size = random.choice([10, 20, 40, 82])
+                    sds_line = json.dumps({
+                        "MESSAGE": f"BrewEntity: SDS transfer uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} {size} bytes",
+                        "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
+                    })
+                mon.process_line(sds_line)
 
 
 def run_journal_mode(mon):

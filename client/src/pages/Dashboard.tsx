@@ -1,6 +1,6 @@
-import { useTetraWebSocket, type Terminal, type CallLogEntry } from "../hooks/useTetraWebSocket";
+import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef } from "react";
-import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw } from "lucide-react";
+import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown } from "lucide-react";
 import { getCountryCode, getFlagUrl } from "@/lib/callsignFlags";
 import { useI18n } from "@/lib/i18n";
 import tetraLogo from "@assets/tetra_1771538916537.png";
@@ -460,9 +460,71 @@ function SystemControls() {
   );
 }
 
+function SdsPanel({ messages }: { messages: SdsMessage[] }) {
+  const { t } = useI18n();
+  return (
+    <div
+      className="glass-panel rounded-md overflow-hidden"
+      data-testid="panel-sds-messages"
+    >
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-violet-500/5">
+        <MessageSquare className="w-4 h-4 text-violet-400" />
+        <h2 className="text-xs font-bold tracking-[0.15em] uppercase text-violet-400">
+          {t("sds_messages")}
+        </h2>
+        <span className="ml-auto text-[10px] text-muted-foreground font-mono">
+          {messages.length} {messages.length === 1 ? t("sds_messages_count_one") : t("sds_messages_count_other")}
+        </span>
+      </div>
+      <div className="overflow-y-auto max-h-[220px] font-mono text-xs p-2 sm:p-3 space-y-0.5">
+        {messages.length === 0 ? (
+          <div className="text-muted-foreground/50 text-center py-6 text-xs">
+            {t("sds_no_messages")}
+          </div>
+        ) : (
+          messages.map((msg) => {
+            const isOut = msg.direction === "outgoing";
+            return (
+              <div
+                key={msg.id}
+                className={`flex items-center gap-1.5 py-0.5 px-1.5 rounded ${isOut ? "bg-cyan-500/5" : "bg-emerald-500/5"}`}
+                data-testid={`sds-entry-${msg.id}`}
+              >
+                <span className="text-muted-foreground shrink-0">[{msg.timestamp}]</span>
+                <span
+                  className={`inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold rounded shrink-0 ${
+                    isOut
+                      ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                      : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                  }`}
+                >
+                  {isOut ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
+                  {isOut ? t("sds_out") : t("sds_in")}
+                </span>
+                <span className="text-primary shrink-0">{msg.srcIssi}</span>
+                {msg.srcCallsign && (
+                  <span className="text-foreground/70 shrink-0">({msg.srcCallsign})</span>
+                )}
+                <span className="text-muted-foreground/60 shrink-0">{"→"}</span>
+                <span className="text-amber-400 shrink-0">{msg.dstIssi}</span>
+                {msg.dstCallsign && (
+                  <span className="text-foreground/70 shrink-0">({msg.dstCallsign})</span>
+                )}
+                <span className="ml-auto text-muted-foreground/50 shrink-0 text-[9px]">
+                  T{msg.sdsType} · {msg.size}{msg.sizeUnit === "bits" ? "b" : "B"}
+                </span>
+              </div>
+            );
+          })
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { t } = useI18n();
-  const { terminals, localHistory, externalHistory, connected } = useTetraWebSocket();
+  const { terminals, localHistory, externalHistory, sdsMessages, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 
   const txCount = terminalList.filter(t => t.activity === "TX").length;
@@ -552,6 +614,8 @@ export default function Dashboard() {
             isLocal={false}
           />
         </div>
+
+        <SdsPanel messages={sdsMessages} />
       </main>
     </div>
   );

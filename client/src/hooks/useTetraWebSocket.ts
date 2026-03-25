@@ -26,10 +26,24 @@ export interface CallLogEntry {
   timeSlot?: number | null;
 }
 
+export interface SdsMessage {
+  id: string;
+  timestamp: string;
+  srcIssi: string;
+  srcCallsign?: string;
+  dstIssi: string;
+  dstCallsign?: string;
+  direction: "outgoing" | "incoming";
+  sdsType: number;
+  size: number;
+  sizeUnit: "bits" | "bytes";
+}
+
 export interface TetraState {
   terminals: Record<string, Terminal>;
   localHistory: CallLogEntry[];
   externalHistory: CallLogEntry[];
+  sdsMessages: SdsMessage[];
   connected: boolean;
   mode: string;
 }
@@ -38,6 +52,7 @@ export function useTetraWebSocket(): TetraState {
   const [terminals, setTerminals] = useState<Record<string, Terminal>>({});
   const [localHistory, setLocalHistory] = useState<CallLogEntry[]>([]);
   const [externalHistory, setExternalHistory] = useState<CallLogEntry[]>([]);
+  const [sdsMessages, setSdsMessages] = useState<SdsMessage[]>([]);
   const [connected, setConnected] = useState(false);
   const [mode, setMode] = useState("connecting");
   const wsRef = useRef<WebSocket | null>(null);
@@ -63,6 +78,7 @@ export function useTetraWebSocket(): TetraState {
             setTerminals(msg.payload.terminals || {});
             setLocalHistory(msg.payload.localHistory || []);
             setExternalHistory(msg.payload.externalHistory || []);
+            setSdsMessages(msg.payload.sdsMessages || []);
             break;
 
           case "update_terminal":
@@ -89,6 +105,12 @@ export function useTetraWebSocket(): TetraState {
             } else {
               setExternalHistory(prev => prev.map(e => e.id === updated.id ? updated : e));
             }
+            break;
+          }
+
+          case "sds_message": {
+            const sds = msg.payload as SdsMessage;
+            setSdsMessages(prev => [sds, ...prev].slice(0, 50));
             break;
           }
 
@@ -120,5 +142,5 @@ export function useTetraWebSocket(): TetraState {
     };
   }, [connect]);
 
-  return { terminals, localHistory, externalHistory, connected, mode };
+  return { terminals, localHistory, externalHistory, sdsMessages, connected, mode };
 }
