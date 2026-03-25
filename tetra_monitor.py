@@ -40,6 +40,7 @@ class TetraMonitor:
         self.last_context_id = None
         self.callsign_cache = {}
         self.event_counter = 0
+        self.sds_report_uuids = set()  # UUIDs of delivery reports to suppress
 
     def get_callsign(self, issi):
         if not issi or int(issi) < 1000:
@@ -430,6 +431,19 @@ class TetraMonitor:
                 return
 
             # 8. SDS messages
+
+            # Delivery report: BrewEntity: SDS_REPORT uuid=... status=N -> Brew
+            # Register its UUID so the matching SDS transfer (ACK payload) is suppressed
+            sds_report = re.search(
+                r"BrewEntity: SDS_REPORT\s+uuid=(\S+)\s+status=",
+                msg
+            )
+            if sds_report:
+                self.sds_report_uuids.add(sds_report.group(1))
+                if len(self.sds_report_uuids) > 200:
+                    self.sds_report_uuids = set(list(self.sds_report_uuids)[-100:])
+                return
+
             # Outgoing: BrewEntity: sending SDS uuid=... src=X dst=Y type=N N bits
             sds_out = re.search(
                 r"BrewEntity: sending SDS\s+uuid=\S+\s+src=(\d+)\s+dst=(\d+)\s+type=(\d+)\s+(\d+)\s+bits",
@@ -459,11 +473,15 @@ class TetraMonitor:
 
             # Incoming: BrewEntity: SDS transfer uuid=... src=X dst=Y N bytes
             sds_in = re.search(
-                r"BrewEntity: SDS transfer\s+uuid=\S+\s+src=(\d+)\s+dst=(\d+)\s+(\d+)\s+bytes",
+                r"BrewEntity: SDS transfer\s+uuid=(\S+)\s+src=(\d+)\s+dst=(\d+)\s+(\d+)\s+bytes",
                 msg
             )
             if sds_in:
-                src, dst, size = sds_in.groups()
+                uuid_val, src, dst, size = sds_in.groups()
+                # Skip delivery-report payloads (the ACK back-channel for our outgoing messages)
+                if uuid_val in self.sds_report_uuids:
+                    self.sds_report_uuids.discard(uuid_val)
+                    return
                 src_call = self.get_callsign(src)
                 dst_call = self.get_callsign(dst)
                 entry = {
