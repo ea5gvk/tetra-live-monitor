@@ -167,6 +167,10 @@
     .kv{padding:10px; border:1px solid var(--line); border-radius:14px; background:color-mix(in srgb, var(--panel) 78%, transparent);}
     .kv .k{font-size:12px; color:var(--muted); margin-bottom:6px;}
     .kv .v{font-size:14px; font-family:var(--mono);}
+    .checkbox-row{display:flex; align-items:center; gap:8px; margin:4px 0;}
+    .checkbox-row input[type="checkbox"]{width:16px; height:16px; flex:none; margin:0; cursor:pointer; accent-color:var(--accent);}
+    .checkbox-row label{margin:0; cursor:pointer; color:var(--text); font-size:13px; font-weight:600;}
+    .subsection{margin-top:12px; padding-top:12px; border-top:1px solid var(--line);}
   </style>
 </head>
 <header>
@@ -367,6 +371,27 @@
     </section>
   </div>
 
+
+  <div style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="cell_params_title">📍 Cell Parameters</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableTimezone" />
+            <label for="enableTimezone" data-i18n="timezone_enable">Enable timezone broadcast</label>
+          </div>
+          <div class="hint" data-i18n="timezone_hint">Broadcasts UTC time and local offset once per hyperframe (~61 s). DST handled automatically.</div>
+          <div id="timezoneRow" style="display:none; margin-top:12px;">
+            <label for="timezoneVal" data-i18n="timezone_label">Timezone (IANA)</label>
+            <select id="timezoneVal">
+            </select>
+          </div>
+        </div>
+        <div></div>
+      </div>
+    </section>
+  </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="apply_title">Apply to Raspberry Pi</h2>
@@ -398,6 +423,69 @@
       </div>
 
       <div id="applyStatus" class="footer-note"></div>
+    </section>
+  
+  <div style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="brew_title">🍺 Homebrew Protocol [brew]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableBrew" />
+            <label for="enableBrew" data-i18n="brew_enable">Enable Brew Connection</label>
+          </div>
+          <div class="hint" data-i18n="brew_hint">Enables connection to a Homebrew/DMR+ repeater. Writes [brew] section in config.toml.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="brewFields" style="display:none;">
+        <div style="height:10px;"></div>
+        <div class="row">
+          <div>
+            <label for="brewHost" data-i18n="brew_host">Host</label>
+            <input id="brewHost" type="text" placeholder="e.g. homebrew.example.com" />
+          </div>
+          <div>
+            <label for="brewPort" data-i18n="brew_port">Port</label>
+            <input id="brewPort" type="number" placeholder="62031" value="62031" />
+          </div>
+        </div>
+        <div style="height:8px;"></div>
+        <div class="row">
+          <div>
+            <label for="brewUsername" data-i18n="brew_username">Username (SSID: DMR ID + 2-digit suffix)</label>
+            <input id="brewUsername" type="text" placeholder="e.g. 214500701" />
+          </div>
+          <div>
+            <label for="brewPassword" data-i18n="brew_password">Password</label>
+            <input id="brewPassword" type="password" placeholder="" />
+          </div>
+        </div>
+        <div style="height:8px;"></div>
+        <div class="row">
+          <div>
+            <div class="checkbox-row">
+              <input type="checkbox" id="brewTls" />
+              <label for="brewTls" data-i18n="brew_tls">TLS (wss:// / https://)</label>
+            </div>
+          </div>
+          <div>
+            <label for="brewReconnect" data-i18n="brew_reconnect">reconnect_delay_secs</label>
+            <input id="brewReconnect" type="number" value="15" min="1" />
+          </div>
+        </div>
+        <div class="subsection">
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableWhitelist" />
+            <label for="enableWhitelist" data-i18n="brew_whitelist_enable">Enable whitelisted_ssis</label>
+          </div>
+          <div id="whitelistRow" style="display:none; margin-top:10px;">
+            <label for="brewWhitelist" data-i18n="brew_whitelist_label">whitelisted_ssis (comma-separated)</label>
+            <input id="brewWhitelist" type="text" placeholder="e.g. 2145007,2149735" />
+            <div class="hint" data-i18n="brew_whitelist_hint">Only listed SSIs will be transmitted over Brew. Leave empty to allow all.</div>
+          </div>
+        </div>
+      </div>
     </section>
   </div>
 </main>
@@ -462,6 +550,22 @@
       duplex_hint_ok: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) → {mhz} MHz",
       duplex_hint_reserved: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is reserved (ETSI NOTE 1). Enter RX or use duplex_spacing=7 with custom spacing.",
       duplex_hint_custom: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is undefined (ETSI NOTE 3 / 1112). Enter custom_duplex_spacing to derive RX.",
+      cell_params_title: "📍 Cell Parameters",
+      timezone_enable: "Enable timezone broadcast",
+      timezone_hint: "Broadcasts UTC time and local offset once per hyperframe (~61 s). DST handled automatically.",
+      timezone_label: "Timezone (IANA)",
+      brew_title: "🍺 Homebrew Protocol [brew]",
+      brew_enable: "Enable Brew Connection",
+      brew_hint: "Enables connection to a Homebrew/DMR+ repeater. Writes [brew] section in config.toml.",
+      brew_host: "Host",
+      brew_port: "Port",
+      brew_username: "Username (SSID: DMR ID + 2-digit suffix)",
+      brew_password: "Password",
+      brew_tls: "TLS (wss:// / https://)",
+      brew_reconnect: "reconnect_delay_secs",
+      brew_whitelist_enable: "Enable whitelisted_ssis",
+      brew_whitelist_label: "whitelisted_ssis (comma-separated)",
+      brew_whitelist_hint: "Only listed SSIs will be transmitted over Brew. Leave empty to allow all.",
       apply_title: "Apply to Raspberry Pi",
       config_path_label: "config.toml file path on Raspberry Pi",
       config_path_hint: "Full path to the TOML configuration file on your Raspberry Pi.",
@@ -532,6 +636,22 @@
       duplex_hint_ok: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）→ {mhz} MHz",
       duplex_hint_reserved: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）為 reserved（ETSI NOTE 1）。請直接填 RX 或改用 duplex_spacing=7 並填 custom spacing。",
       duplex_hint_custom: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）為未定義（ETSI NOTE 3 / 1112）。請填 custom_duplex_spacing 才能推算 RX。",
+      cell_params_title: "📍 小區參數",
+      timezone_enable: "啟用時區廣播",
+      timezone_hint: "每超幀（~61秒）廣播一次UTC時間和本地偏移，DST自動處理。",
+      timezone_label: "時區（IANA）",
+      brew_title: "🍺 Homebrew協議 [brew]",
+      brew_enable: "啟用 Brew 連接",
+      brew_hint: "啟用到 Homebrew/DMR+ 中繼台的連接，寫入 config.toml 的 [brew] 部分。",
+      brew_host: "主機",
+      brew_port: "端口",
+      brew_username: "用戶名（SSID：DMR ID + 2位後綴）",
+      brew_password: "密碼",
+      brew_tls: "TLS (wss:// / https://)",
+      brew_reconnect: "reconnect_delay_secs",
+      brew_whitelist_enable: "啟用白名單 SSI",
+      brew_whitelist_label: "whitelisted_ssis（逗號分隔）",
+      brew_whitelist_hint: "只有列出的 SSI 才會通過 Brew 傳輸。留空表示允許所有。",
       apply_title: "套用到 Raspberry Pi",
       config_path_label: "Raspberry Pi 上的 config.toml 檔案路徑",
       config_path_hint: "Raspberry Pi 上 TOML 設定檔的完整路徑。",
@@ -602,6 +722,22 @@
       duplex_hint_ok: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) → {mhz} MHz",
       duplex_hint_reserved: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) está reservado (ETSI NOTE 1). Introduce RX o usa duplex_spacing=7 con custom spacing.",
       duplex_hint_custom: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) no está definido (ETSI NOTE 3 / 1112). Introduce custom_duplex_spacing para calcular RX.",
+      cell_params_title: "📍 Parámetros de Celda",
+      timezone_enable: "Activar difusión de zona horaria",
+      timezone_hint: "Difunde la hora UTC y el desfase local una vez por superhipertrama (~61 s). DST gestionado automáticamente.",
+      timezone_label: "Zona horaria (IANA)",
+      brew_title: "🍺 Protocolo Homebrew [brew]",
+      brew_enable: "Activar conexión Brew",
+      brew_hint: "Habilita la conexión a un repetidor Homebrew/DMR+. Escribe la sección [brew] en config.toml.",
+      brew_host: "Host",
+      brew_port: "Puerto",
+      brew_username: "Usuario (SSID: ID DMR + sufijo de 2 dígitos)",
+      brew_password: "Contraseña",
+      brew_tls: "TLS (wss:// / https://)",
+      brew_reconnect: "reconnect_delay_secs",
+      brew_whitelist_enable: "Activar lista blanca de SSIs",
+      brew_whitelist_label: "whitelisted_ssis (separados por coma)",
+      brew_whitelist_hint: "Solo los SSIs listados se transmitirán por Brew. Dejar vacío para permitir todos.",
       apply_title: "Aplicar a Raspberry Pi",
       config_path_label: "Ruta del archivo config.toml en la Raspberry Pi",
       config_path_hint: "Ruta completa al archivo de configuración TOML en tu Raspberry Pi.",
@@ -672,6 +808,22 @@
       duplex_hint_ok: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
       duplex_hint_reserved: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) est\u00e1 reservado (ETSI NOTE 1). Insira RX ou use duplex_spacing=7 com custom spacing.",
       duplex_hint_custom: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) n\u00e3o est\u00e1 definido (ETSI NOTE 3 / 1112). Insira custom_duplex_spacing para calcular RX.",
+      cell_params_title: "📍 Parâmetros de Célula",
+      timezone_enable: "Ativar difusão de fuso horário",
+      timezone_hint: "Transmite hora UTC e desfasamento local uma vez por super-trama (~61 s). DST tratado automaticamente.",
+      timezone_label: "Fuso horário (IANA)",
+      brew_title: "🍺 Protocolo Homebrew [brew]",
+      brew_enable: "Ativar conexão Brew",
+      brew_hint: "Ativa a ligação a um repetidor Homebrew/DMR+. Escreve a secção [brew] em config.toml.",
+      brew_host: "Host",
+      brew_port: "Porta",
+      brew_username: "Utilizador (SSID: ID DMR + sufixo de 2 dígitos)",
+      brew_password: "Palavra-passe",
+      brew_tls: "TLS (wss:// / https://)",
+      brew_reconnect: "reconnect_delay_secs",
+      brew_whitelist_enable: "Ativar lista branca de SSIs",
+      brew_whitelist_label: "whitelisted_ssis (separados por vírgula)",
+      brew_whitelist_hint: "Apenas os SSIs listados serão transmitidos pelo Brew. Deixar vazio para permitir todos.",
       apply_title: "Aplicar ao Raspberry Pi",
       config_path_label: "Caminho do arquivo config.toml no Raspberry Pi",
       config_path_hint: "Caminho completo para o arquivo de configura\u00e7\u00e3o TOML no seu Raspberry Pi.",
@@ -742,6 +894,22 @@
       duplex_hint_ok: "Band {band} / Basis {baseHz}: duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
       duplex_hint_reserved: "Band {band} / Basis {baseHz}: duplex_spacing={idx} (IE {code}) ist reserviert (ETSI NOTE 1). Geben Sie RX ein oder verwenden Sie duplex_spacing=7 mit custom spacing.",
       duplex_hint_custom: "Band {band} / Basis {baseHz}: duplex_spacing={idx} (IE {code}) ist undefiniert (ETSI NOTE 3 / 1112). Geben Sie custom_duplex_spacing ein, um RX zu berechnen.",
+      cell_params_title: "📍 Zellparameter",
+      timezone_enable: "Zeitzonenübertragung aktivieren",
+      timezone_hint: "Überträgt UTC-Zeit und lokalen Offset einmal pro Super-Hyperframe (~61 s). DST wird automatisch verarbeitet.",
+      timezone_label: "Zeitzone (IANA)",
+      brew_title: "🍺 Homebrew-Protokoll [brew]",
+      brew_enable: "Brew-Verbindung aktivieren",
+      brew_hint: "Aktiviert die Verbindung zu einem Homebrew/DMR+ Relais. Schreibt den [brew]-Abschnitt in config.toml.",
+      brew_host: "Host",
+      brew_port: "Port",
+      brew_username: "Benutzername (SSID: DMR-ID + 2-stelliges Suffix)",
+      brew_password: "Passwort",
+      brew_tls: "TLS (wss:// / https://)",
+      brew_reconnect: "reconnect_delay_secs",
+      brew_whitelist_enable: "Whitelist SSIs aktivieren",
+      brew_whitelist_label: "whitelisted_ssis (kommagetrennt)",
+      brew_whitelist_hint: "Nur aufgeführte SSIs werden über Brew übertragen. Leer lassen, um alle zu erlauben.",
       apply_title: "Auf Raspberry Pi anwenden",
       config_path_label: "Pfad zur config.toml auf dem Raspberry Pi",
       config_path_hint: "Vollst\u00e4ndiger Pfad zur TOML-Konfigurationsdatei auf Ihrem Raspberry Pi.",
@@ -812,6 +980,22 @@
       duplex_hint_ok: "bande {band} / base {baseHz} : duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
       duplex_hint_reserved: "bande {band} / base {baseHz} : duplex_spacing={idx} (IE {code}) est r\u00e9serv\u00e9 (ETSI NOTE 1). Saisissez RX ou utilisez duplex_spacing=7 avec custom spacing.",
       duplex_hint_custom: "bande {band} / base {baseHz} : duplex_spacing={idx} (IE {code}) n\u2019est pas d\u00e9fini (ETSI NOTE 3 / 1112). Saisissez custom_duplex_spacing pour calculer RX.",
+      cell_params_title: "📍 Paramètres de cellule",
+      timezone_enable: "Activer la diffusion du fuseau horaire",
+      timezone_hint: "Diffuse l'heure UTC et le décalage local une fois par super-hypertrame (~61 s). L'heure d'été est gérée automatiquement.",
+      timezone_label: "Fuseau horaire (IANA)",
+      brew_title: "🍺 Protocole Homebrew [brew]",
+      brew_enable: "Activer la connexion Brew",
+      brew_hint: "Active la connexion à un relais Homebrew/DMR+. Écrit la section [brew] dans config.toml.",
+      brew_host: "Hôte",
+      brew_port: "Port",
+      brew_username: "Nom d'utilisateur (SSID : ID DMR + suffixe à 2 chiffres)",
+      brew_password: "Mot de passe",
+      brew_tls: "TLS (wss:// / https://)",
+      brew_reconnect: "reconnect_delay_secs",
+      brew_whitelist_enable: "Activer la liste blanche SSIs",
+      brew_whitelist_label: "whitelisted_ssis (séparés par des virgules)",
+      brew_whitelist_hint: "Seuls les SSIs listés seront transmis via Brew. Laisser vide pour tout autoriser.",
       apply_title: "Appliquer au Raspberry Pi",
       config_path_label: "Chemin du fichier config.toml sur le Raspberry Pi",
       config_path_hint: "Chemin complet vers le fichier de configuration TOML sur votre Raspberry Pi.",
@@ -882,6 +1066,22 @@
       duplex_hint_ok: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
       duplex_hint_reserved: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) \u00e8 riservato (ETSI NOTE 1). Inserisci RX o usa duplex_spacing=7 con custom spacing.",
       duplex_hint_custom: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) non \u00e8 definito (ETSI NOTE 3 / 1112). Inserisci custom_duplex_spacing per calcolare RX.",
+      cell_params_title: "📍 Parametri di Cella",
+      timezone_enable: "Abilita trasmissione fuso orario",
+      timezone_hint: "Trasmette ora UTC e offset locale una volta per super-ipertrama (~61 s). DST gestito automaticamente.",
+      timezone_label: "Fuso orario (IANA)",
+      brew_title: "🍺 Protocollo Homebrew [brew]",
+      brew_enable: "Abilita connessione Brew",
+      brew_hint: "Abilita la connessione a un ripetitore Homebrew/DMR+. Scrive la sezione [brew] in config.toml.",
+      brew_host: "Host",
+      brew_port: "Porta",
+      brew_username: "Nome utente (SSID: ID DMR + suffisso a 2 cifre)",
+      brew_password: "Password",
+      brew_tls: "TLS (wss:// / https://)",
+      brew_reconnect: "reconnect_delay_secs",
+      brew_whitelist_enable: "Abilita whitelist SSIs",
+      brew_whitelist_label: "whitelisted_ssis (separati da virgola)",
+      brew_whitelist_hint: "Solo i SSIs elencati saranno trasmessi via Brew. Lasciare vuoto per consentire tutti.",
       apply_title: "Applica al Raspberry Pi",
       config_path_label: "Percorso del file config.toml sul Raspberry Pi",
       config_path_hint: "Percorso completo del file di configurazione TOML sul tuo Raspberry Pi.",
@@ -1202,6 +1402,26 @@
     }
     lines.push(`freq_offset = ${out.freqOffset}`);
     lines.push(`reverse_operation = ${out.reverse}`);
+    // Timezone broadcast
+    if (el("enableTimezone").checked){
+      lines.push(`timezone_broadcast = true`);
+      lines.push(`timezone = "${el("timezoneVal").value}"`);
+    }
+    // Homebrew Protocol
+    if (el("enableBrew").checked){
+      lines.push("");
+      lines.push("[brew]");
+      lines.push(`host = "${el("brewHost").value.trim()}"`);
+      lines.push(`port = ${Number(el("brewPort").value) || 62031}`);
+      lines.push(`username = "${el("brewUsername").value.trim()}"`);
+      lines.push(`password = "${el("brewPassword").value}"`);
+      lines.push(`tls = ${el("brewTls").checked}`);
+      lines.push(`reconnect_delay_secs = ${Number(el("brewReconnect").value) || 15}`);
+      if (el("enableWhitelist").checked && el("brewWhitelist").value.trim()){
+        const ssis = el("brewWhitelist").value.trim().split(",").map(s => s.trim()).filter(Boolean);
+        lines.push(`whitelisted_ssis = [${ssis.join(", ")}]`);
+      }
+    }
     return lines.join("\n");
   }
 
@@ -1549,6 +1769,25 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
     statusEl.innerHTML = `<span class="muted">${escapeHtml(t("apply_sending"))}</span>`;
 
+    // Collect timezone options
+    const timezoneConfig = el("enableTimezone").checked
+      ? { enabled: true, timezone: el("timezoneVal").value }
+      : { enabled: false };
+
+    // Collect brew options
+    const brewConfig = el("enableBrew").checked ? {
+      enabled: true,
+      host: el("brewHost").value.trim(),
+      port: Number(el("brewPort").value) || 62031,
+      username: el("brewUsername").value.trim(),
+      password: el("brewPassword").value,
+      tls: el("brewTls").checked,
+      reconnect_delay_secs: Number(el("brewReconnect").value) || 15,
+      whitelisted_ssis: el("enableWhitelist").checked && el("brewWhitelist").value.trim()
+        ? el("brewWhitelist").value.trim().split(",").map(s => s.trim()).filter(Boolean)
+        : null
+    } : { enabled: false };
+
     try {
       const res = await fetch("/api/system/apply-config", {
         method: "POST",
@@ -1557,7 +1796,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           password,
           configPath,
           serviceName,
-          values: lastComputedResult
+          values: lastComputedResult,
+          timezoneConfig,
+          brewConfig
         })
       });
       const data = await res.json();
@@ -1574,6 +1815,73 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   // toggles
   wireToggle(el("langBtn"), toggleLang);
   wireToggle(el("themeBtn"), toggleTheme);
+
+  // Timezone toggle
+  el("enableTimezone").addEventListener("change", function(){
+    el("timezoneRow").style.display = this.checked ? "block" : "none";
+    if (lastComputedResult) buildToml && (el("tomlPreview").textContent = buildToml({
+      txHz: lastComputedResult.tx_freq,
+      rxHz: lastComputedResult.rx_freq,
+      band: lastComputedResult.freq_band,
+      mainCarrier: lastComputedResult.main_carrier,
+      freqOffset: lastComputedResult.freq_offset,
+      duplexCodeIdx: lastComputedResult.duplex_spacing,
+      customDuplexHz: lastComputedResult.custom_duplex_spacing,
+      reverse: lastComputedResult.reverse_operation
+    }));
+  });
+  el("timezoneVal").addEventListener("change", function(){
+    if (lastComputedResult) el("tomlPreview").textContent = buildToml({
+      txHz: lastComputedResult.tx_freq,
+      rxHz: lastComputedResult.rx_freq,
+      band: lastComputedResult.freq_band,
+      mainCarrier: lastComputedResult.main_carrier,
+      freqOffset: lastComputedResult.freq_offset,
+      duplexCodeIdx: lastComputedResult.duplex_spacing,
+      customDuplexHz: lastComputedResult.custom_duplex_spacing,
+      reverse: lastComputedResult.reverse_operation
+    });
+  });
+
+  // Brew toggle
+  el("enableBrew").addEventListener("change", function(){
+    el("brewFields").style.display = this.checked ? "block" : "none";
+    if (lastComputedResult) el("tomlPreview").textContent = buildToml({
+      txHz: lastComputedResult.tx_freq,
+      rxHz: lastComputedResult.rx_freq,
+      band: lastComputedResult.freq_band,
+      mainCarrier: lastComputedResult.main_carrier,
+      freqOffset: lastComputedResult.freq_offset,
+      duplexCodeIdx: lastComputedResult.duplex_spacing,
+      customDuplexHz: lastComputedResult.custom_duplex_spacing,
+      reverse: lastComputedResult.reverse_operation
+    });
+  });
+
+  // Whitelist toggle
+  el("enableWhitelist").addEventListener("change", function(){
+    el("whitelistRow").style.display = this.checked ? "block" : "none";
+  });
+
+  // Populate timezone select
+  (function(){
+    const sel = el("timezoneVal");
+    const TZ_LIST = ["Europe/Amsterdam","Asia/Taipei","UTC","Africa/Abidjan","Africa/Accra","Africa/Addis_Ababa","Africa/Algiers","Africa/Asmera","Africa/Bamako","Africa/Bangui","Africa/Banjul","Africa/Bissau","Africa/Blantyre","Africa/Brazzaville","Africa/Bujumbura","Africa/Cairo","Africa/Casablanca","Africa/Ceuta","Africa/Conakry","Africa/Dakar","Africa/Dar_es_Salaam","Africa/Djibouti","Africa/Douala","Africa/El_Aaiun","Africa/Freetown","Africa/Gaborone","Africa/Harare","Africa/Johannesburg","Africa/Juba","Africa/Kampala","Africa/Khartoum","Africa/Kigali","Africa/Kinshasa","Africa/Lagos","Africa/Libreville","Africa/Lome","Africa/Luanda","Africa/Lubumbashi","Africa/Lusaka","Africa/Malabo","Africa/Maputo","Africa/Maseru","Africa/Mbabane","Africa/Mogadishu","Africa/Monrovia","Africa/Nairobi","Africa/Ndjamena","Africa/Niamey","Africa/Nouakchott","Africa/Ouagadougou","Africa/Porto-Novo","Africa/Sao_Tome","Africa/Tripoli","Africa/Tunis","Africa/Windhoek","America/Adak","America/Anchorage","America/Anguilla","America/Antigua","America/Araguaina","America/Argentina/La_Rioja","America/Argentina/Rio_Gallegos","America/Argentina/Salta","America/Argentina/San_Juan","America/Argentina/San_Luis","America/Argentina/Tucuman","America/Argentina/Ushuaia","America/Aruba","America/Asuncion","America/Bahia","America/Bahia_Banderas","America/Barbados","America/Belem","America/Belize","America/Blanc-Sablon","America/Boa_Vista","America/Bogota","America/Boise","America/Buenos_Aires","America/Cambridge_Bay","America/Campo_Grande","America/Cancun","America/Caracas","America/Catamarca","America/Cayenne","America/Cayman","America/Chicago","America/Chihuahua","America/Ciudad_Juarez","America/Coral_Harbour","America/Cordoba","America/Costa_Rica","America/Coyhaique","America/Creston","America/Cuiaba","America/Curacao","America/Danmarkshavn","America/Dawson","America/Dawson_Creek","America/Denver","America/Detroit","America/Dominica","America/Edmonton","America/Eirunepe","America/El_Salvador","America/Fort_Nelson","America/Fortaleza","America/Glace_Bay","America/Godthab","America/Goose_Bay","America/Grand_Turk","America/Grenada","America/Guadeloupe","America/Guatemala","America/Guayaquil","America/Guyana","America/Halifax","America/Havana","America/Hermosillo","America/Indiana/Knox","America/Indiana/Marengo","America/Indiana/Petersburg","America/Indiana/Tell_City","America/Indiana/Vevay","America/Indiana/Vincennes","America/Indiana/Winamac","America/Indianapolis","America/Inuvik","America/Iqaluit","America/Jamaica","America/Jujuy","America/Juneau","America/Kentucky/Monticello","America/Kralendijk","America/La_Paz","America/Lima","America/Los_Angeles","America/Louisville","America/Lower_Princes","America/Maceio","America/Managua","America/Manaus","America/Marigot","America/Martinique","America/Matamoros","America/Mazatlan","America/Mendoza","America/Menominee","America/Merida","America/Metlakatla","America/Mexico_City","America/Miquelon","America/Moncton","America/Monterrey","America/Montevideo","America/Montserrat","America/Nassau","America/New_York","America/Nome","America/Noronha","America/North_Dakota/Beulah","America/North_Dakota/Center","America/North_Dakota/New_Salem","America/Ojinaga","America/Panama","America/Paramaribo","America/Phoenix","America/Port-au-Prince","America/Port_of_Spain","America/Porto_Velho","America/Puerto_Rico","America/Punta_Arenas","America/Rankin_Inlet","America/Recife","America/Regina","America/Resolute","America/Rio_Branco","America/Santarem","America/Santiago","America/Santo_Domingo","America/Sao_Paulo","America/Scoresbysund","America/Sitka","America/St_Barthelemy","America/St_Johns","America/St_Kitts","America/St_Lucia","America/St_Thomas","America/St_Vincent","America/Swift_Current","America/Tegucigalpa","America/Thule","America/Tijuana","America/Toronto","America/Tortola","America/Vancouver","America/Whitehorse","America/Winnipeg","America/Yakutat","Antarctica/Casey","Antarctica/Davis","Antarctica/DumontDUrville","Antarctica/Macquarie","Antarctica/Mawson","Antarctica/McMurdo","Antarctica/Palmer","Antarctica/Rothera","Antarctica/Syowa","Antarctica/Troll","Antarctica/Vostok","Arctic/Longyearbyen","Asia/Aden","Asia/Almaty","Asia/Amman","Asia/Anadyr","Asia/Aqtau","Asia/Aqtobe","Asia/Ashgabat","Asia/Atyrau","Asia/Baghdad","Asia/Bahrain","Asia/Baku","Asia/Bangkok","Asia/Barnaul","Asia/Beirut","Asia/Bishkek","Asia/Brunei","Asia/Calcutta","Asia/Chita","Asia/Colombo","Asia/Damascus","Asia/Dhaka","Asia/Dili","Asia/Dubai","Asia/Dushanbe","Asia/Famagusta","Asia/Gaza","Asia/Hebron","Asia/Hong_Kong","Asia/Hovd","Asia/Irkutsk","Asia/Jakarta","Asia/Jayapura","Asia/Jerusalem","Asia/Kabul","Asia/Kamchatka","Asia/Karachi","Asia/Katmandu","Asia/Khandyga","Asia/Krasnoyarsk","Asia/Kuala_Lumpur","Asia/Kuching","Asia/Kuwait","Asia/Macau","Asia/Magadan","Asia/Makassar","Asia/Manila","Asia/Muscat","Asia/Nicosia","Asia/Novokuznetsk","Asia/Novosibirsk","Asia/Omsk","Asia/Oral","Asia/Phnom_Penh","Asia/Pontianak","Asia/Pyongyang","Asia/Qatar","Asia/Qostanay","Asia/Qyzylorda","Asia/Rangoon","Asia/Riyadh","Asia/Saigon","Asia/Sakhalin","Asia/Samarkand","Asia/Seoul","Asia/Shanghai","Asia/Singapore","Asia/Srednekolymsk","Asia/Tashkent","Asia/Tbilisi","Asia/Tehran","Asia/Thimphu","Asia/Tokyo","Asia/Tomsk","Asia/Ulaanbaatar","Asia/Urumqi","Asia/Ust-Nera","Asia/Vientiane","Asia/Vladivostok","Asia/Yakutsk","Asia/Yekaterinburg","Asia/Yerevan","Atlantic/Azores","Atlantic/Bermuda","Atlantic/Canary","Atlantic/Cape_Verde","Atlantic/Faeroe","Atlantic/Madeira","Atlantic/Reykjavik","Atlantic/South_Georgia","Atlantic/St_Helena","Atlantic/Stanley","Australia/Adelaide","Australia/Brisbane","Australia/Broken_Hill","Australia/Darwin","Australia/Eucla","Australia/Hobart","Australia/Lindeman","Australia/Lord_Howe","Australia/Melbourne","Australia/Perth","Australia/Sydney","Europe/Andorra","Europe/Astrakhan","Europe/Athens","Europe/Belgrade","Europe/Berlin","Europe/Bratislava","Europe/Brussels","Europe/Bucharest","Europe/Budapest","Europe/Busingen","Europe/Chisinau","Europe/Copenhagen","Europe/Dublin","Europe/Gibraltar","Europe/Guernsey","Europe/Helsinki","Europe/Isle_of_Man","Europe/Istanbul","Europe/Jersey","Europe/Kaliningrad","Europe/Kiev","Europe/Kirov","Europe/Lisbon","Europe/Ljubljana","Europe/London","Europe/Luxembourg","Europe/Madrid","Europe/Malta","Europe/Mariehamn","Europe/Minsk","Europe/Monaco","Europe/Moscow","Europe/Oslo","Europe/Paris","Europe/Podgorica","Europe/Prague","Europe/Riga","Europe/Rome","Europe/Samara","Europe/San_Marino","Europe/Sarajevo","Europe/Saratov","Europe/Simferopol","Europe/Skopje","Europe/Sofia","Europe/Stockholm","Europe/Tallinn","Europe/Tirane","Europe/Ulyanovsk","Europe/Vaduz","Europe/Vatican","Europe/Vienna","Europe/Vilnius","Europe/Volgograd","Europe/Warsaw","Europe/Zagreb","Europe/Zurich","Indian/Antananarivo","Indian/Chagos","Indian/Christmas","Indian/Cocos","Indian/Comoro","Indian/Kerguelen","Indian/Mahe","Indian/Maldives","Indian/Mauritius","Indian/Mayotte","Indian/Reunion","Pacific/Apia","Pacific/Auckland","Pacific/Bougainville","Pacific/Chatham","Pacific/Chuuk","Pacific/Easter","Pacific/Efate","Pacific/Fakaofo","Pacific/Fiji","Pacific/Funafuti","Pacific/Galapagos","Pacific/Gambier","Pacific/Guadalcanal","Pacific/Guam","Pacific/Honolulu","Pacific/Johnston","Pacific/Kanton","Pacific/Kiritimati","Pacific/Kosrae","Pacific/Kwajalein","Pacific/Majuro","Pacific/Marquesas","Pacific/Midway","Pacific/Nauru","Pacific/Niue","Pacific/Norfolk","Pacific/Noumea","Pacific/Pago_Pago","Pacific/Palau","Pacific/Pitcairn","Pacific/Ponape","Pacific/Port_Moresby","Pacific/Rarotonga","Pacific/Saipan","Pacific/Tahiti","Pacific/Tarawa","Pacific/Tongatapu","Pacific/Truk","Pacific/Wake","Pacific/Wallis"];
+    const frag = document.createDocumentFragment();
+    for (const tz of TZ_LIST){
+      const opt = document.createElement("option");
+      opt.value = tz;
+      opt.textContent = tz;
+      if (tz === "UTC") opt.selected = true;
+      frag.appendChild(opt);
+    }
+    sel.innerHTML = "";
+    sel.appendChild(frag);
+    // Restore saved timezone from localStorage
+    const savedTz = localStorage.getItem("tetra_calc_timezone");
+    if (savedTz && TZ_LIST.includes(savedTz)) sel.value = savedTz;
+    sel.addEventListener("change", () => localStorage.setItem("tetra_calc_timezone", sel.value));
+  })();
 
   window.addEventListener("message", function(e) {
     if (e.data && e.data.type === "setLang" && ["en","es","zh","pt","de","fr","it"].includes(e.data.lang)) {

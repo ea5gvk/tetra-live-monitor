@@ -118,7 +118,7 @@ export async function registerRoutes(
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values } = req.body || {};
+    const { password, configPath, serviceName, values, timezoneConfig, brewConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -160,29 +160,92 @@ export async function registerRoutes(
         sectionUpdates["cell_info"]["custom_duplex_spacing"] = String(values.custom_duplex_spacing);
       }
 
+      // Timezone broadcast (goes under [cell_info])
+      const tzEnabled = timezoneConfig?.enabled === true;
+      if (tzEnabled && timezoneConfig?.timezone) {
+        sectionUpdates["cell_info"]["timezone_broadcast"] = "true";
+        sectionUpdates["cell_info"]["timezone"] = `"${timezoneConfig.timezone}"`;
+      } else {
+        // Will remove these keys if present
+        sectionUpdates["cell_info"]["timezone_broadcast"] = "__REMOVE__";
+        sectionUpdates["cell_info"]["timezone"] = "__REMOVE__";
+      }
+
       const hasCustomDuplex = !!(sectionUpdates["cell_info"]["custom_duplex_spacing"]);
+
+      // Build brew section update map
+      const brewEnabled = brewConfig?.enabled === true;
+      const brewUpdates: Record<string, string> = {};
+      if (brewEnabled) {
+        brewUpdates["host"] = `"${brewConfig.host || ""}"`;
+        brewUpdates["port"] = String(brewConfig.port || 62031);
+        brewUpdates["username"] = `"${brewConfig.username || ""}"`;
+        brewUpdates["password"] = `"${brewConfig.password || ""}"`;
+        brewUpdates["tls"] = brewConfig.tls ? "true" : "false";
+        brewUpdates["reconnect_delay_secs"] = String(brewConfig.reconnect_delay_secs || 15);
+        if (brewConfig.whitelisted_ssis && Array.isArray(brewConfig.whitelisted_ssis) && brewConfig.whitelisted_ssis.length > 0) {
+          brewUpdates["whitelisted_ssis"] = `[${brewConfig.whitelisted_ssis.join(", ")}]`;
+        }
+      }
 
       const lines = content.split("\n");
       let currentSection = "";
       let customDuplexFound = false;
+      let tzBroadcastFound = false;
+      let tzFound = false;
+      const brewKeyFound: Record<string, boolean> = {};
+      let brewSectionExists = false;
+
       for (let i = 0; i < lines.length; i++) {
         const sectionMatch = lines[i].match(/^\s*\[([^\]]+)\]/);
         if (sectionMatch) {
           currentSection = sectionMatch[1].trim();
+          if (currentSection === "brew") brewSectionExists = true;
           continue;
         }
 
         if (currentSection === "cell_info") {
           const keyMatch = lines[i].match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
-          if (keyMatch && keyMatch[2] === "custom_duplex_spacing") {
-            if (hasCustomDuplex) {
-              lines[i] = `${keyMatch[1]}custom_duplex_spacing${keyMatch[3]}${sectionUpdates["cell_info"]["custom_duplex_spacing"]}`;
-              customDuplexFound = true;
-            } else {
-              lines.splice(i, 1);
-              i--;
+          if (keyMatch) {
+            const k = keyMatch[2];
+            if (k === "custom_duplex_spacing") {
+              if (hasCustomDuplex) {
+                lines[i] = `${keyMatch[1]}custom_duplex_spacing${keyMatch[3]}${sectionUpdates["cell_info"]["custom_duplex_spacing"]}`;
+                customDuplexFound = true;
+              } else {
+                lines.splice(i, 1); i--;
+              }
+              continue;
             }
-            continue;
+            if (k === "timezone_broadcast") {
+              if (tzEnabled) {
+                lines[i] = `${keyMatch[1]}timezone_broadcast${keyMatch[3]}true`;
+                tzBroadcastFound = true;
+              } else {
+                lines.splice(i, 1); i--;
+              }
+              continue;
+            }
+            if (k === "timezone") {
+              if (tzEnabled) {
+                lines[i] = `${keyMatch[1]}timezone${keyMatch[3]}"${timezoneConfig.timezone}"`;
+                tzFound = true;
+              } else {
+                lines.splice(i, 1); i--;
+              }
+              continue;
+            }
+          }
+        }
+
+        if (currentSection === "brew" && brewEnabled) {
+          const keyMatch = lines[i].match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
+          if (keyMatch) {
+            const k = keyMatch[2];
+            if (brewUpdates[k] !== undefined) {
+              lines[i] = `${keyMatch[1]}${k}${keyMatch[3]}${brewUpdates[k]}`;
+              brewKeyFound[k] = true;
+            }
           }
         }
 
@@ -190,13 +253,17 @@ export async function registerRoutes(
           const keyMatch = lines[i].match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
           if (keyMatch) {
             const keyName = keyMatch[2];
-            if (sectionUpdates[currentSection][keyName] !== undefined) {
-              lines[i] = `${keyMatch[1]}${keyName}${keyMatch[3]}${sectionUpdates[currentSection][keyName]}`;
+            const val = sectionUpdates[currentSection][keyName];
+            if (val !== undefined && val !== "__REMOVE__") {
+              if (!["custom_duplex_spacing","timezone_broadcast","timezone"].includes(keyName)) {
+                lines[i] = `${keyMatch[1]}${keyName}${keyMatch[3]}${val}`;
+              }
             }
           }
         }
       }
 
+      // Insert custom_duplex_spacing under cell_info if needed
       if (hasCustomDuplex && !customDuplexFound) {
         for (let i = 0; i < lines.length; i++) {
           if (lines[i].match(/^\s*\[cell_info\]/)) {
@@ -206,6 +273,68 @@ export async function registerRoutes(
             }
             lines.splice(insertAt, 0, `custom_duplex_spacing = ${sectionUpdates["cell_info"]["custom_duplex_spacing"]}`);
             break;
+          }
+        }
+      }
+
+      // Insert timezone keys under cell_info if not found
+      if (tzEnabled) {
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[cell_info\]/)) {
+            let insertAt = i + 1;
+            while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") {
+              insertAt++;
+            }
+            if (!tzFound) lines.splice(insertAt, 0, `timezone = "${timezoneConfig.timezone}"`);
+            if (!tzBroadcastFound) lines.splice(insertAt, 0, `timezone_broadcast = true`);
+            break;
+          }
+        }
+      }
+
+      // Append or update [brew] section
+      if (brewEnabled) {
+        if (!brewSectionExists) {
+          lines.push("");
+          lines.push("[brew]");
+          for (const [k, v] of Object.entries(brewUpdates)) {
+            lines.push(`${k} = ${v}`);
+          }
+        } else {
+          // Insert missing keys into existing [brew] section
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].match(/^\s*\[brew\]/)) {
+              let insertAt = i + 1;
+              while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") {
+                insertAt++;
+              }
+              for (const [k, v] of Object.entries(brewUpdates)) {
+                if (!brewKeyFound[k]) {
+                  lines.splice(insertAt, 0, `${k} = ${v}`);
+                  insertAt++;
+                }
+              }
+              break;
+            }
+          }
+        }
+      } else if (brewSectionExists) {
+        // Remove entire [brew] section if brew is disabled
+        let inBrew = false;
+        for (let i = lines.length - 1; i >= 0; i--) {
+          if (lines[i].match(/^\s*\[brew\]/)) {
+            lines.splice(i, 1);
+            inBrew = false;
+            break;
+          }
+        }
+        // Remove lines between [brew] header and next section
+        inBrew = false;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[brew\]/)) { inBrew = true; lines.splice(i, 1); i--; continue; }
+          if (inBrew) {
+            if (lines[i].match(/^\s*\[/)) { inBrew = false; continue; }
+            lines.splice(i, 1); i--;
           }
         }
       }
