@@ -284,7 +284,7 @@ export async function registerRoutes(
       if (brewEnabled) {
         brewUpdates["host"] = `"${brewConfig.host || ""}"`;
         brewUpdates["port"] = String(brewConfig.port || 62031);
-        brewUpdates["username"] = `"${brewConfig.username || ""}"`;
+        brewUpdates["username"] = `${brewConfig.username || ""}`;
         brewUpdates["password"] = `"${brewConfig.password || ""}"`;
         brewUpdates["tls"] = brewConfig.tls ? "true" : "false";
         brewUpdates["reconnect_delay_secs"] = String(brewConfig.reconnect_delay_secs || 15);
