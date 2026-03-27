@@ -537,7 +537,8 @@
         <div></div>
       </div>
 
-      <div class="btns" style="margin-top:14px;">
+      <div class="btns" style="margin-top:14px; gap:10px; display:flex; flex-wrap:wrap;">
+        <button id="loadConfigBtn" data-i18n="load_btn" style="background:#0e8a6e; color:#fff;">LOAD FROM CONFIG.TOML</button>
         <button id="applyConfigBtn" data-i18n="apply_btn">APPLY CHANGES &amp; RESTART TMO</button>
       </div>
 
@@ -642,6 +643,7 @@
       apply_password_label: "System password",
       apply_password_hint: "Password configured in config.json of the monitor.",
       apply_btn: "APPLY CHANGES & RESTART TMO",
+      load_btn: "LOAD FROM CONFIG.TOML",
       service_name_label: "TMO service name",
       service_name_hint: "Service name to restart after applying changes (e.g. tmo.service).",
       apply_need_calc: "Please calculate frequencies first.",
@@ -742,6 +744,7 @@
       apply_password_label: "系統密碼",
       apply_password_hint: "在 monitor 的 config.json 中設定的密碼。",
       apply_btn: "套用變更並重啟 TMO",
+      load_btn: "從 CONFIG.TOML 載入",
       service_name_label: "TMO 服務名稱",
       service_name_hint: "套用變更後要重啟的服務名稱（例如 tmo.service）。",
       apply_need_calc: "請先計算頻率。",
@@ -842,6 +845,7 @@
       apply_password_label: "Contraseña del sistema",
       apply_password_hint: "Contraseña configurada en config.json del monitor.",
       apply_btn: "APLICAR CAMBIOS Y REINICIO DE TMO",
+      load_btn: "CARGAR DESDE CONFIG.TOML",
       service_name_label: "Nombre del servicio TMO",
       service_name_hint: "Nombre del servicio a reiniciar tras aplicar los cambios (ej. tmo.service).",
       apply_need_calc: "Primero calcula las frecuencias.",
@@ -942,6 +946,7 @@
       apply_password_label: "Senha do sistema",
       apply_password_hint: "Senha configurada no config.json do monitor.",
       apply_btn: "APLICAR ALTERA\u00c7\u00d5ES E REINICIAR TMO",
+      load_btn: "CARREGAR DO CONFIG.TOML",
       service_name_label: "Nome do servi\u00e7o TMO",
       service_name_hint: "Nome do servi\u00e7o a reiniciar ap\u00f3s aplicar as altera\u00e7\u00f5es (ex. tmo.service).",
       apply_need_calc: "Primeiro calcule as frequ\u00eancias.",
@@ -1042,6 +1047,7 @@
       apply_password_label: "Systempasswort",
       apply_password_hint: "Im config.json des Monitors konfiguriertes Passwort.",
       apply_btn: "\u00c4NDERUNGEN ANWENDEN & TMO NEUSTARTEN",
+      load_btn: "AUS CONFIG.TOML LADEN",
       service_name_label: "TMO-Dienstname",
       service_name_hint: "Name des Dienstes, der nach dem Anwenden neu gestartet wird (z.B. tmo.service).",
       apply_need_calc: "Bitte berechnen Sie zuerst die Frequenzen.",
@@ -1142,6 +1148,7 @@
       apply_password_label: "Mot de passe syst\u00e8me",
       apply_password_hint: "Mot de passe configur\u00e9 dans config.json du moniteur.",
       apply_btn: "APPLIQUER LES MODIFICATIONS & RED\u00c9MARRER TMO",
+      load_btn: "CHARGER DEPUIS CONFIG.TOML",
       service_name_label: "Nom du service TMO",
       service_name_hint: "Nom du service \u00e0 red\u00e9marrer apr\u00e8s application des modifications (ex. tmo.service).",
       apply_need_calc: "Veuillez d\u2019abord calculer les fr\u00e9quences.",
@@ -1242,6 +1249,7 @@
       apply_password_label: "Password di sistema",
       apply_password_hint: "Password configurata nel config.json del monitor.",
       apply_btn: "APPLICA MODIFICHE & RIAVVIA TMO",
+      load_btn: "CARICA DA CONFIG.TOML",
       service_name_label: "Nome del servizio TMO",
       service_name_hint: "Nome del servizio da riavviare dopo aver applicato le modifiche (es. tmo.service).",
       apply_need_calc: "Prima calcola le frequenze.",
@@ -1915,6 +1923,91 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       }catch(e2){
         setStatus(`<span class="warn">${escapeHtml(t("copy_fail"))}</span>`, "warn");
       }
+    }
+  });
+
+  el("loadConfigBtn").addEventListener("click", async ()=>{
+    const statusEl = el("applyStatus");
+    const configPath = el("configPathVal").value.trim();
+    if (!configPath) {
+      statusEl.innerHTML = `<span class="warn">${escapeHtml(t("apply_need_path"))}</span>`;
+      return;
+    }
+    statusEl.innerHTML = `<span style="color:var(--accent2)">⏳ Cargando...</span>`;
+    try {
+      const resp = await fetch(`/api/system/read-config?path=${encodeURIComponent(configPath)}`);
+      const data = await resp.json();
+      if (!resp.ok) { statusEl.innerHTML = `<span class="warn">❌ ${escapeHtml(data.message)}</span>`; return; }
+
+      // ── Grid: freq_band → trigger change to update baseHz
+      if (data.cell_info.freq_band !== null) {
+        el("freqBand").value = String(data.cell_info.freq_band);
+        el("freqBand").dispatchEvent(new Event("change"));
+      }
+
+      // ── TX / RX frequencies (set as Hz so we get exact integers)
+      if (data.phy_io_soapysdr.tx_freq !== null) {
+        el("txVal").value = String(data.phy_io_soapysdr.tx_freq);
+        el("txUnit").value = "Hz";
+      }
+      if (data.phy_io_soapysdr.rx_freq !== null) {
+        el("rxVal").value = String(data.phy_io_soapysdr.rx_freq);
+        el("rxUnit").value = "Hz";
+      }
+
+      // ── Trigger main calculation to derive main_carrier, duplex_spacing, etc.
+      calc();
+
+      // ── reverse_operation
+      if (data.cell_info.reverse_operation !== null)
+        el("reverseOp").value = data.cell_info.reverse_operation ? "true" : "false";
+
+      // ── Cell Parameters extras
+      if (data.cell_info.location_area !== null) el("locationArea").value = String(data.cell_info.location_area);
+      if (data.cell_info.colour_code !== null) el("colourCode").value = String(data.cell_info.colour_code);
+      if (data.cell_info.system_code !== null) el("systemCode").value = String(data.cell_info.system_code);
+
+      // ── Timezone broadcast
+      const tzEnabled = data.cell_info.timezone_broadcast === true;
+      el("enableTimezone").checked = tzEnabled;
+      el("enableTimezone").dispatchEvent(new Event("change"));
+      if (tzEnabled && data.cell_info.timezone) {
+        el("timezoneVal").value = data.cell_info.timezone;
+      }
+
+      // ── Net Info (MCC / MNC)
+      if (data.net_info.mcc !== null) el("mccVal").value = String(data.net_info.mcc);
+      if (data.net_info.mnc !== null) el("mncVal").value = String(data.net_info.mnc);
+
+      // ── Local SSI Ranges
+      const ssiEnabled = data.cell_info.local_ssi_ranges && data.cell_info.local_ssi_ranges.length > 0;
+      el("enableSsiRanges").checked = ssiEnabled;
+      el("enableSsiRanges").dispatchEvent(new Event("change"));
+      if (ssiEnabled) {
+        el("ssiRangesList").innerHTML = "";
+        data.cell_info.local_ssi_ranges.forEach(r => addSsiRangeRow(r.start, r.end));
+      }
+
+      // ── Homebrew [brew]
+      el("enableBrew").checked = data.brew.enabled;
+      el("enableBrew").dispatchEvent(new Event("change"));
+      if (data.brew.enabled) {
+        if (data.brew.host !== null) el("brewHost").value = data.brew.host;
+        if (data.brew.port !== null) el("brewPort").value = String(data.brew.port);
+        if (data.brew.username !== null) el("brewUsername").value = data.brew.username;
+        if (data.brew.password !== null) el("brewPassword").value = data.brew.password;
+        if (data.brew.tls !== null) el("brewTls").checked = data.brew.tls;
+        if (data.brew.reconnect_delay_secs !== null) el("brewReconnect").value = String(data.brew.reconnect_delay_secs);
+        if (data.brew.whitelisted_ssis && data.brew.whitelisted_ssis.length > 0) {
+          el("enableWhitelist").checked = true;
+          el("enableWhitelist").dispatchEvent(new Event("change"));
+          el("brewWhitelist").value = data.brew.whitelisted_ssis.join(", ");
+        }
+      }
+
+      statusEl.innerHTML = `<span style="color:var(--ok)">✅ Config cargada correctamente desde ${escapeHtml(configPath)}</span>`;
+    } catch(e) {
+      statusEl.innerHTML = `<span class="warn">❌ Error: ${escapeHtml(String(e))}</span>`;
     }
   });
 

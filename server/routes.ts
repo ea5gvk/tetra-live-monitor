@@ -117,6 +117,87 @@ export async function registerRoutes(
     }, 500);
   });
 
+  app.get('/api/system/read-config', (req, res) => {
+    const configPath = typeof req.query.path === 'string' ? req.query.path : '';
+    if (!configPath) return res.status(400).json({ message: 'Ruta no especificada' });
+    if (!fs.existsSync(configPath)) return res.status(404).json({ message: `Archivo no encontrado: ${configPath}` });
+
+    try {
+      const content = fs.readFileSync(configPath, 'utf-8');
+      const lines = content.split('\n');
+
+      let currentSection = '';
+      const sections: Record<string, Record<string, string>> = {};
+
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line || line.startsWith('#')) continue;
+        const sectionMatch = line.match(/^\[([^\]]+)\]/);
+        if (sectionMatch) { currentSection = sectionMatch[1]; sections[currentSection] = sections[currentSection] || {}; continue; }
+        const kvMatch = line.match(/^([a-zA-Z0-9_.]+)\s*=\s*(.+)/);
+        if (kvMatch && currentSection) sections[currentSection][kvMatch[1].trim()] = kvMatch[2].trim();
+      }
+
+      const get = (sec: string, key: string) => sections[sec]?.[key] ?? null;
+      const num = (sec: string, key: string) => { const v = get(sec, key); return v !== null ? parseFloat(v) : null; };
+      const bool = (sec: string, key: string) => { const v = get(sec, key); return v === 'true' ? true : v === 'false' ? false : null; };
+      const str = (sec: string, key: string) => { const v = get(sec, key); return v !== null ? v.replace(/^"|"$/g, '') : null; };
+
+      // Parse local_ssi_ranges: [[start, end], ...]
+      let ssiRanges: Array<{start: number; end: number}> = [];
+      const rawSsi = get('cell_info', 'local_ssi_ranges');
+      if (rawSsi) {
+        const matches = [...rawSsi.matchAll(/\[\s*(\d+)\s*,\s*(\d+)\s*\]/g)];
+        ssiRanges = matches.map(m => ({ start: parseInt(m[1]), end: parseInt(m[2]) }));
+      }
+
+      // Parse whitelisted_ssis: [id, id, ...]
+      let whitelistedSsis: number[] = [];
+      const rawWl = get('brew', 'whitelisted_ssis');
+      if (rawWl) {
+        const nums = rawWl.replace(/[\[\]]/g, '').split(',').map((s: string) => parseInt(s.trim())).filter((n: number) => !isNaN(n));
+        whitelistedSsis = nums;
+      }
+
+      res.json({
+        phy_io_soapysdr: {
+          tx_freq: num('phy_io.soapysdr', 'tx_freq'),
+          rx_freq: num('phy_io.soapysdr', 'rx_freq'),
+        },
+        cell_info: {
+          freq_band: num('cell_info', 'freq_band'),
+          main_carrier: num('cell_info', 'main_carrier'),
+          duplex_spacing: num('cell_info', 'duplex_spacing'),
+          custom_duplex_spacing: num('cell_info', 'custom_duplex_spacing'),
+          freq_offset: num('cell_info', 'freq_offset'),
+          reverse_operation: bool('cell_info', 'reverse_operation'),
+          location_area: num('cell_info', 'location_area'),
+          colour_code: num('cell_info', 'colour_code'),
+          system_code: num('cell_info', 'system_code'),
+          timezone_broadcast: bool('cell_info', 'timezone_broadcast'),
+          timezone: str('cell_info', 'timezone'),
+          local_ssi_ranges: ssiRanges,
+        },
+        net_info: {
+          mcc: num('net_info', 'mcc'),
+          mnc: num('net_info', 'mnc'),
+        },
+        brew: {
+          enabled: 'brew' in sections,
+          host: str('brew', 'host'),
+          port: num('brew', 'port'),
+          username: str('brew', 'username'),
+          password: str('brew', 'password'),
+          tls: bool('brew', 'tls'),
+          reconnect_delay_secs: num('brew', 'reconnect_delay_secs'),
+          whitelisted_ssis: whitelistedSsis,
+        },
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: `Error leyendo config: ${err.message}` });
+    }
+  });
+
   app.post(api.system.applyConfig.path, (req, res) => {
     const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, brewConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
