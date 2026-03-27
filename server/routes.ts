@@ -127,13 +127,41 @@ export async function registerRoutes(
       const lines = content.split('\n');
 
       let currentSection = '';
+      let inCommentedBrew = false;
+      let brewCommented = false; // true if [brew] header is commented out
+      let brewActive = false;    // true if [brew] header is active
       const sections: Record<string, Record<string, string>> = {};
 
       for (const raw of lines) {
         const line = raw.trim();
-        if (!line || line.startsWith('#')) continue;
+        if (!line) continue;
+
+        // Detect #[brew] (disabled brew section header)
+        if (line.match(/^#\s*\[brew\]/)) {
+          inCommentedBrew = true;
+          brewCommented = true;
+          sections['brew'] = sections['brew'] || {};
+          continue;
+        }
+
+        if (line.startsWith('#')) {
+          // Read commented key=value lines inside a commented [brew] section
+          if (inCommentedBrew) {
+            const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
+            if (ckv) sections['brew'][ckv[1].trim()] = ckv[2].trim();
+          }
+          continue;
+        }
+
+        // Active section header resets commented-brew tracking
+        inCommentedBrew = false;
         const sectionMatch = line.match(/^\[([^\]]+)\]/);
-        if (sectionMatch) { currentSection = sectionMatch[1]; sections[currentSection] = sections[currentSection] || {}; continue; }
+        if (sectionMatch) {
+          currentSection = sectionMatch[1];
+          if (currentSection === 'brew') brewActive = true;
+          sections[currentSection] = sections[currentSection] || {};
+          continue;
+        }
         const kvMatch = line.match(/^([a-zA-Z0-9_.]+)\s*=\s*(.+)/);
         if (kvMatch && currentSection) sections[currentSection][kvMatch[1].trim()] = kvMatch[2].trim();
       }
@@ -183,7 +211,7 @@ export async function registerRoutes(
           mnc: num('net_info', 'mnc'),
         },
         brew: {
-          enabled: 'brew' in sections,
+          enabled: brewActive,
           host: str('brew', 'host'),
           port: num('brew', 'port'),
           username: str('brew', 'username'),
@@ -299,8 +327,6 @@ export async function registerRoutes(
       let tzBroadcastFound = false;
       let tzFound = false;
       let ssiRangesFound = false;
-      const brewKeyFound: Record<string, boolean> = {};
-      let brewSectionExists = false;
       const netInfoKeyFound: Record<string, boolean> = {};
       let netInfoSectionExists = false;
 
@@ -308,7 +334,6 @@ export async function registerRoutes(
         const sectionMatch = lines[i].match(/^\s*\[([^\]]+)\]/);
         if (sectionMatch) {
           currentSection = sectionMatch[1].trim();
-          if (currentSection === "brew") brewSectionExists = true;
           if (currentSection === "net_info") netInfoSectionExists = true;
           continue;
         }
@@ -364,17 +389,6 @@ export async function registerRoutes(
             if (netInfoUpdates[k] !== undefined) {
               lines[i] = `${keyMatch[1]}${k}${keyMatch[3]}${netInfoUpdates[k]}`;
               netInfoKeyFound[k] = true;
-            }
-          }
-        }
-
-        if (currentSection === "brew" && brewEnabled) {
-          const keyMatch = lines[i].match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
-          if (keyMatch) {
-            const k = keyMatch[2];
-            if (brewUpdates[k] !== undefined) {
-              lines[i] = `${keyMatch[1]}${k}${keyMatch[3]}${brewUpdates[k]}`;
-              brewKeyFound[k] = true;
             }
           }
         }
@@ -473,51 +487,79 @@ export async function registerRoutes(
         }
       }
 
-      // Append or update [brew] section
+      // ── BREW SECTION: comment/uncomment instead of remove/insert ──
+      // Locate brew section header (active [brew] or commented #[brew])
+      let brewHeaderIdx = -1;
+      let brewIsActive = false;
+      for (let i = 0; i < lines.length; i++) {
+        if (lines[i].match(/^\s*\[brew\]/)) { brewHeaderIdx = i; brewIsActive = true; break; }
+        if (lines[i].match(/^\s*#\s*\[brew\]/)) { brewHeaderIdx = i; brewIsActive = false; break; }
+      }
+      // Find end of brew section (index of next active section header, or end of file)
+      const getBrewEnd = (start: number): number => {
+        for (let j = start + 1; j < lines.length; j++) {
+          if (lines[j].match(/^\s*\[[^\]]+\]/)) return j;
+        }
+        return lines.length;
+      };
+
       if (brewEnabled) {
-        if (!brewSectionExists) {
+        if (brewHeaderIdx === -1) {
+          // No brew section at all → append fresh block
           lines.push("");
           lines.push("[brew]");
           for (const [k, v] of Object.entries(brewUpdates)) {
             lines.push(`${k} = ${v}`);
           }
         } else {
-          // Insert missing keys into existing [brew] section
-          for (let i = 0; i < lines.length; i++) {
-            if (lines[i].match(/^\s*\[brew\]/)) {
-              let insertAt = i + 1;
-              while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") {
-                insertAt++;
+          // Uncomment header if needed
+          if (!brewIsActive) lines[brewHeaderIdx] = "[brew]";
+          const brewEnd = getBrewEnd(brewHeaderIdx);
+          const found: Record<string, boolean> = {};
+          for (let i = brewHeaderIdx + 1; i < brewEnd; i++) {
+            const line = lines[i];
+            // Match commented key=value: #key = value  (not pure comment lines like # text)
+            const commentedKV = line.match(/^\s*#\s*([\w]+)\s*=\s*(.*)/);
+            if (commentedKV) {
+              const k = commentedKV[1];
+              if (brewUpdates[k] !== undefined) {
+                lines[i] = `${k} = ${brewUpdates[k]}`; // uncomment + update value
+                found[k] = true;
+              } else {
+                lines[i] = line.replace(/^(\s*)#\s*/, '$1'); // just uncomment
               }
-              for (const [k, v] of Object.entries(brewUpdates)) {
-                if (!brewKeyFound[k]) {
-                  lines.splice(insertAt, 0, `${k} = ${v}`);
-                  insertAt++;
-                }
+              continue;
+            }
+            // Match active key=value
+            const activeKV = line.match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
+            if (activeKV) {
+              const k = activeKV[2];
+              if (brewUpdates[k] !== undefined) {
+                lines[i] = `${activeKV[1]}${k}${activeKV[3]}${brewUpdates[k]}`;
+                found[k] = true;
               }
-              break;
             }
           }
-        }
-      } else if (brewSectionExists) {
-        // Remove entire [brew] section if brew is disabled
-        let inBrew = false;
-        for (let i = lines.length - 1; i >= 0; i--) {
-          if (lines[i].match(/^\s*\[brew\]/)) {
-            lines.splice(i, 1);
-            inBrew = false;
-            break;
+          // Append any keys not present in the existing section
+          let insertAt = getBrewEnd(brewHeaderIdx);
+          for (const [k, v] of Object.entries(brewUpdates)) {
+            if (!found[k]) { lines.splice(insertAt, 0, `${k} = ${v}`); insertAt++; }
           }
         }
-        // Remove lines between [brew] header and next section
-        inBrew = false;
-        for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[brew\]/)) { inBrew = true; lines.splice(i, 1); i--; continue; }
-          if (inBrew) {
-            if (lines[i].match(/^\s*\[/)) { inBrew = false; continue; }
-            lines.splice(i, 1); i--;
+      } else {
+        // Brew disabled: comment out instead of removing
+        if (brewHeaderIdx !== -1 && brewIsActive) {
+          lines[brewHeaderIdx] = "#[brew]";
+          const brewEnd = getBrewEnd(brewHeaderIdx);
+          for (let i = brewHeaderIdx + 1; i < brewEnd; i++) {
+            const line = lines[i];
+            // Skip empty lines and already-commented lines
+            if (!line.trim() || line.trim().startsWith('#')) continue;
+            // Comment out active key=value lines
+            if (line.match(/^\s*[\w][\w]*\s*=/)) lines[i] = `#${line}`;
           }
         }
+        // If already commented or not present → nothing to do
       }
 
       content = lines.join("\n");
