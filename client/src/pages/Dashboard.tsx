@@ -136,13 +136,14 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
   isLocal: boolean;
 }) {
   const { t } = useI18n();
+  const activityRank = (activity?: string) =>
+    activity === "TX" ? 2 : activity === "RX" ? 1 : 0;
+
   const sorted = terminals
     .filter(t => t.isLocal === isLocal)
     .sort((a, b) => {
-      if (a.activity === "TX") return -1;
-      if (b.activity === "TX") return 1;
-      if (a.activity === "RX" && !b.activity) return -1;
-      if (b.activity === "RX" && !a.activity) return 1;
+      const rankDiff = activityRank(b.activity) - activityRank(a.activity);
+      if (rankDiff !== 0) return rankDiff;
       const timeA = a.lastSeen || "";
       const timeB = b.lastSeen || "";
       if (timeA !== timeB) return timeB.localeCompare(timeA);
