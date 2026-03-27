@@ -1967,11 +1967,11 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       if (data.cell_info.colour_code !== null) el("colourCode").value = String(data.cell_info.colour_code);
       if (data.cell_info.system_code !== null) el("systemCode").value = String(data.cell_info.system_code);
 
-      // ── Timezone broadcast
+      // ── Timezone broadcast (load value even when disabled/commented)
       const tzEnabled = data.cell_info.timezone_broadcast === true;
       el("enableTimezone").checked = tzEnabled;
       el("enableTimezone").dispatchEvent(new Event("change"));
-      if (tzEnabled && data.cell_info.timezone) {
+      if (data.cell_info.timezone) {
         el("timezoneVal").value = data.cell_info.timezone;
       }
 
@@ -2056,9 +2056,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const ssiRangesConfig = { enabled: el("enableSsiRanges").checked, ranges: getSsiRanges() };
 
     // Collect timezone options
-    const timezoneConfig = el("enableTimezone").checked
-      ? { enabled: true, timezone: el("timezoneVal").value }
-      : { enabled: false };
+    const timezoneConfig = { enabled: el("enableTimezone").checked, timezone: el("timezoneVal").value };
 
     // Collect brew options
     const brewConfig = el("enableBrew").checked ? {

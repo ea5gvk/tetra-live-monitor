@@ -150,6 +150,14 @@ export async function registerRoutes(
             const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
             if (ckv) sections['brew'][ckv[1].trim()] = ckv[2].trim();
           }
+          // Parse commented timezone in [cell_info] so it loads even when disabled
+          if (currentSection === 'cell_info' && !sections['cell_info']?.['timezone']) {
+            const tzM = line.match(/^#\s*timezone\s*=\s*"(.*)"/);
+            if (tzM) {
+              sections['cell_info'] = sections['cell_info'] || {};
+              sections['cell_info']['timezone'] = `"${tzM[1]}"`;
+            }
+          }
           continue;
         }
 
@@ -326,14 +334,13 @@ export async function registerRoutes(
 
       // Timezone broadcast (goes under [cell_info])
       const tzEnabled = timezoneConfig?.enabled === true;
-      if (tzEnabled && timezoneConfig?.timezone) {
+      const tzValue = timezoneConfig?.timezone || "";
+      if (tzEnabled && tzValue) {
         sectionUpdates["cell_info"]["timezone_broadcast"] = "true";
-        sectionUpdates["cell_info"]["timezone"] = `"${timezoneConfig.timezone}"`;
       } else {
-        // Will remove these keys if present
         sectionUpdates["cell_info"]["timezone_broadcast"] = "__REMOVE__";
-        sectionUpdates["cell_info"]["timezone"] = "__REMOVE__";
       }
+      // timezone key itself is handled by targeted pass below (active or commented)
 
       const hasCustomDuplex = !!(sectionUpdates["cell_info"]["custom_duplex_spacing"]);
 
@@ -371,6 +378,21 @@ export async function registerRoutes(
         }
 
         if (currentSection === "cell_info") {
+          // Handle commented # timezone = "..." line
+          const commentedTzMatch = lines[i].match(/^(\s*)#\s*timezone\s*=\s*"(.*)"/);
+          if (commentedTzMatch) {
+            if (tzEnabled && tzValue) {
+              lines[i] = `${commentedTzMatch[1]}timezone = "${tzValue}"`;
+              tzFound = true;
+            } else if (tzValue) {
+              lines[i] = `${commentedTzMatch[1]}# timezone = "${tzValue}"`;
+              tzFound = true;
+            } else {
+              lines.splice(i, 1); i--;
+            }
+            continue;
+          }
+
           const keyMatch = lines[i].match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
           if (keyMatch) {
             const k = keyMatch[2];
@@ -393,8 +415,11 @@ export async function registerRoutes(
               continue;
             }
             if (k === "timezone") {
-              if (tzEnabled) {
-                lines[i] = `${keyMatch[1]}timezone${keyMatch[3]}"${timezoneConfig.timezone}"`;
+              if (tzEnabled && tzValue) {
+                lines[i] = `${keyMatch[1]}timezone${keyMatch[3]}"${tzValue}"`;
+                tzFound = true;
+              } else if (tzValue) {
+                lines[i] = `# timezone = "${tzValue}"`;
                 tzFound = true;
               } else {
                 lines.splice(i, 1); i--;
@@ -444,15 +469,15 @@ export async function registerRoutes(
       }
 
       // Insert timezone keys under cell_info if not found
-      if (tzEnabled) {
+      if (tzValue || tzEnabled) {
         for (let i = 0; i < lines.length; i++) {
           if (lines[i].match(/^\s*\[cell_info\]/)) {
             let insertAt = i + 1;
-            while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") {
-              insertAt++;
+            while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") insertAt++;
+            if (!tzFound && tzValue) {
+              lines.splice(insertAt, 0, tzEnabled ? `timezone = "${tzValue}"` : `# timezone = "${tzValue}"`);
             }
-            if (!tzFound) lines.splice(insertAt, 0, `timezone = "${timezoneConfig.timezone}"`);
-            if (!tzBroadcastFound) lines.splice(insertAt, 0, `timezone_broadcast = true`);
+            if (!tzBroadcastFound && tzEnabled) lines.splice(insertAt, 0, `timezone_broadcast = true`);
             break;
           }
         }
