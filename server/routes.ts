@@ -118,7 +118,7 @@ export async function registerRoutes(
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, timezoneConfig, brewConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, brewConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -155,6 +155,30 @@ export async function registerRoutes(
           "reverse_operation": String(values.reverse_operation),
         },
       };
+
+      // cell_info extra fields (optional — only update if provided)
+      if (cellInfoExtra) {
+        if (cellInfoExtra.location_area !== null && cellInfoExtra.location_area !== undefined) {
+          sectionUpdates["cell_info"]["location_area"] = String(cellInfoExtra.location_area);
+        }
+        if (cellInfoExtra.colour_code !== null && cellInfoExtra.colour_code !== undefined) {
+          sectionUpdates["cell_info"]["colour_code"] = String(cellInfoExtra.colour_code);
+        }
+        if (cellInfoExtra.system_code !== null && cellInfoExtra.system_code !== undefined) {
+          sectionUpdates["cell_info"]["system_code"] = String(cellInfoExtra.system_code);
+        }
+      }
+
+      // net_info section
+      const netInfoUpdates: Record<string, string> = {};
+      if (netInfoConfig) {
+        if (netInfoConfig.mcc !== null && netInfoConfig.mcc !== undefined) netInfoUpdates["mcc"] = String(netInfoConfig.mcc);
+        if (netInfoConfig.mnc !== null && netInfoConfig.mnc !== undefined) netInfoUpdates["mnc"] = String(netInfoConfig.mnc);
+      }
+
+      // SSI ranges
+      const ssiEnabled = ssiRangesConfig?.enabled === true;
+      const ssiRanges: Array<[number, number]> = ssiEnabled && Array.isArray(ssiRangesConfig.ranges) ? ssiRangesConfig.ranges : [];
 
       if (values.custom_duplex_spacing !== null && values.custom_duplex_spacing !== undefined && values.duplex_spacing === 7) {
         sectionUpdates["cell_info"]["custom_duplex_spacing"] = String(values.custom_duplex_spacing);
@@ -193,14 +217,18 @@ export async function registerRoutes(
       let customDuplexFound = false;
       let tzBroadcastFound = false;
       let tzFound = false;
+      let ssiRangesFound = false;
       const brewKeyFound: Record<string, boolean> = {};
       let brewSectionExists = false;
+      const netInfoKeyFound: Record<string, boolean> = {};
+      let netInfoSectionExists = false;
 
       for (let i = 0; i < lines.length; i++) {
         const sectionMatch = lines[i].match(/^\s*\[([^\]]+)\]/);
         if (sectionMatch) {
           currentSection = sectionMatch[1].trim();
           if (currentSection === "brew") brewSectionExists = true;
+          if (currentSection === "net_info") netInfoSectionExists = true;
           continue;
         }
 
@@ -234,6 +262,27 @@ export async function registerRoutes(
                 lines.splice(i, 1); i--;
               }
               continue;
+            }
+            if (k === "local_ssi_ranges") {
+              if (ssiEnabled && ssiRanges.length > 0) {
+                const rangesStr = `[${ssiRanges.map((r: [number,number]) => `[${r[0]}, ${r[1]}]`).join(", ")}]`;
+                lines[i] = `${keyMatch[1]}local_ssi_ranges${keyMatch[3]}${rangesStr}`;
+                ssiRangesFound = true;
+              } else {
+                lines.splice(i, 1); i--;
+              }
+              continue;
+            }
+          }
+        }
+
+        if (currentSection === "net_info" && Object.keys(netInfoUpdates).length > 0) {
+          const keyMatch = lines[i].match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
+          if (keyMatch) {
+            const k = keyMatch[2];
+            if (netInfoUpdates[k] !== undefined) {
+              lines[i] = `${keyMatch[1]}${k}${keyMatch[3]}${netInfoUpdates[k]}`;
+              netInfoKeyFound[k] = true;
             }
           }
         }
@@ -288,6 +337,57 @@ export async function registerRoutes(
             if (!tzFound) lines.splice(insertAt, 0, `timezone = "${timezoneConfig.timezone}"`);
             if (!tzBroadcastFound) lines.splice(insertAt, 0, `timezone_broadcast = true`);
             break;
+          }
+        }
+      }
+
+      // Insert SSI ranges under cell_info if enabled but not found
+      if (ssiEnabled && ssiRanges.length > 0 && !ssiRangesFound) {
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[cell_info\]/)) {
+            let insertAt = i + 1;
+            while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") {
+              insertAt++;
+            }
+            const rangesStr = `[${ssiRanges.map((r: [number,number]) => `[${r[0]}, ${r[1]}]`).join(", ")}]`;
+            lines.splice(insertAt, 0, `local_ssi_ranges = ${rangesStr}`);
+            break;
+          }
+        }
+      }
+
+      // Handle [net_info] section
+      if (Object.keys(netInfoUpdates).length > 0) {
+        if (!netInfoSectionExists) {
+          // Append new [net_info] section before [cell_info] if possible, else at end before [brew]
+          let insertIdx = lines.length;
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].match(/^\s*\[cell_info\]/)) { insertIdx = i; break; }
+          }
+          lines.splice(insertIdx, 0, "");
+          lines.splice(insertIdx + 1, 0, "[net_info]");
+          let off = 2;
+          for (const [k, v] of Object.entries(netInfoUpdates)) {
+            lines.splice(insertIdx + off, 0, `${k} = ${v}`);
+            off++;
+          }
+          lines.splice(insertIdx + off, 0, "");
+        } else {
+          // Insert missing keys into existing [net_info] section
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].match(/^\s*\[net_info\]/)) {
+              let insertAt = i + 1;
+              while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") {
+                insertAt++;
+              }
+              for (const [k, v] of Object.entries(netInfoUpdates)) {
+                if (!netInfoKeyFound[k]) {
+                  lines.splice(insertAt, 0, `${k} = ${v}`);
+                  insertAt++;
+                }
+              }
+              break;
+            }
           }
         }
       }
