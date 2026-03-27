@@ -450,39 +450,6 @@
   </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
-      <h2 data-i18n="apply_title">Apply to Raspberry Pi</h2>
-
-      <div class="row">
-        <div>
-          <label for="configPathVal" data-i18n="config_path_label">config.toml file path on Raspberry Pi</label>
-          <input id="configPathVal" type="text" value="/root/tetra-bluestation/config.toml" placeholder="/root/tetra-bluestation/config.toml" />
-          <div class="hint" data-i18n="config_path_hint">Full path to the TOML configuration file on your Raspberry Pi.</div>
-        </div>
-        <div>
-          <label for="serviceNameVal" data-i18n="service_name_label">TMO service name</label>
-          <input id="serviceNameVal" type="text" value="tmo.service" placeholder="tmo.service" />
-          <div class="hint" data-i18n="service_name_hint">Service name to restart after applying changes (e.g. tmo.service).</div>
-        </div>
-      </div>
-
-      <div class="row" style="margin-top:12px;">
-        <div>
-          <label for="applyPassword" data-i18n="apply_password_label">System password</label>
-          <input id="applyPassword" type="password" placeholder="" />
-          <div class="hint" data-i18n="apply_password_hint">Password configured in config.json of the monitor.</div>
-        </div>
-        <div></div>
-      </div>
-
-      <div class="btns" style="margin-top:14px;">
-        <button id="applyConfigBtn" data-i18n="apply_btn">APPLY CHANGES &amp; RESTART TMO</button>
-      </div>
-
-      <div id="applyStatus" class="footer-note"></div>
-    </section>
-  
-  <div style="max-width:1200px; margin:14px auto 0 auto;">
-    <section class="card">
       <h2 data-i18n="brew_title">🍺 Homebrew Protocol [brew]</h2>
       <div class="row">
         <div>
@@ -544,6 +511,39 @@
       </div>
     </section>
   </div>
+  <div style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="apply_title">Apply to Raspberry Pi</h2>
+
+      <div class="row">
+        <div>
+          <label for="configPathVal" data-i18n="config_path_label">config.toml file path on Raspberry Pi</label>
+          <input id="configPathVal" type="text" value="/root/tetra-bluestation/config.toml" placeholder="/root/tetra-bluestation/config.toml" />
+          <div class="hint" data-i18n="config_path_hint">Full path to the TOML configuration file on your Raspberry Pi.</div>
+        </div>
+        <div>
+          <label for="serviceNameVal" data-i18n="service_name_label">TMO service name</label>
+          <input id="serviceNameVal" type="text" value="tmo.service" placeholder="tmo.service" />
+          <div class="hint" data-i18n="service_name_hint">Service name to restart after applying changes (e.g. tmo.service).</div>
+        </div>
+      </div>
+
+      <div class="row" style="margin-top:12px;">
+        <div>
+          <label for="applyPassword" data-i18n="apply_password_label">System password</label>
+          <input id="applyPassword" type="password" placeholder="" />
+          <div class="hint" data-i18n="apply_password_hint">Password configured in config.json of the monitor.</div>
+        </div>
+        <div></div>
+      </div>
+
+      <div class="btns" style="margin-top:14px;">
+        <button id="applyConfigBtn" data-i18n="apply_btn">APPLY CHANGES &amp; RESTART TMO</button>
+      </div>
+
+      <div id="applyStatus" class="footer-note"></div>
+    </section>
+  
 </main>
 
 <script type="text/javascript">
