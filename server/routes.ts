@@ -171,12 +171,42 @@ export async function registerRoutes(
       const bool = (sec: string, key: string) => { const v = get(sec, key); return v === 'true' ? true : v === 'false' ? false : null; };
       const str = (sec: string, key: string) => { const v = get(sec, key); return v !== null ? v.replace(/^"|"$/g, '') : null; };
 
-      // Parse local_ssi_ranges: [[start, end], ...]
+      // Parse local_ssi_ranges: handles single-line, multi-line, and #commented formats
       let ssiRanges: Array<{start: number; end: number}> = [];
-      const rawSsi = get('cell_info', 'local_ssi_ranges');
-      if (rawSsi) {
-        const matches = [...rawSsi.matchAll(/\[\s*(\d+)\s*,\s*(\d+)\s*\]/g)];
-        ssiRanges = matches.map(m => ({ start: parseInt(m[1]), end: parseInt(m[2]) }));
+      let ssiRangesEnabled = false;
+      {
+        let inSsiBlock = false;
+        let ssiBlockCommented = false;
+        let ssiRawAccum = "";
+        let ssiInCellInfo = false;
+        let ssiDone = false;
+        for (const rawLine of lines) {
+          if (ssiDone) break;
+          const t = rawLine.trim();
+          const secM = t.match(/^\[([^\]]+)\]/);
+          if (secM) { ssiInCellInfo = secM[1] === "cell_info"; inSsiBlock = false; continue; }
+          if (!inSsiBlock) {
+            if (!ssiInCellInfo) continue;
+            const activeM = t.match(/^local_ssi_ranges\s*=\s*(.*)/);
+            const commentedM = t.match(/^#\s*local_ssi_ranges\s*=\s*(.*)/);
+            if (activeM) {
+              ssiRangesEnabled = true; ssiBlockCommented = false;
+              const rest = activeM[1].trim();
+              if (rest.endsWith("]")) { ssiRawAccum = rest; ssiDone = true; }
+              else { ssiRawAccum = rest; inSsiBlock = true; }
+            } else if (commentedM) {
+              ssiRangesEnabled = false; ssiBlockCommented = true;
+              ssiRawAccum = commentedM[1].trim();
+              inSsiBlock = true;
+            }
+          } else {
+            const stripped = ssiBlockCommented ? t.replace(/^#\s*/, "") : t;
+            ssiRawAccum += stripped;
+            if (stripped.trim() === "]") ssiDone = true;
+          }
+        }
+        const ssiMatches = [...ssiRawAccum.matchAll(/\[\s*(\d+)\s*,\s*(\d+)\s*\]/g)];
+        ssiRanges = ssiMatches.map(m => ({ start: parseInt(m[1]), end: parseInt(m[2]) }));
       }
 
       // Parse whitelisted_ssis: [id, id, ...]
@@ -205,6 +235,7 @@ export async function registerRoutes(
           timezone_broadcast: bool('cell_info', 'timezone_broadcast'),
           timezone: str('cell_info', 'timezone'),
           local_ssi_ranges: ssiRanges,
+          ssi_ranges_enabled: ssiRangesEnabled,
         },
         net_info: {
           mcc: num('net_info', 'mcc'),
@@ -285,9 +316,9 @@ export async function registerRoutes(
         if (netInfoConfig.mnc !== null && netInfoConfig.mnc !== undefined) netInfoUpdates["mnc"] = String(netInfoConfig.mnc);
       }
 
-      // SSI ranges
+      // SSI ranges (ranges always sent from form, even when disabled)
       const ssiEnabled = ssiRangesConfig?.enabled === true;
-      const ssiRanges: Array<[number, number]> = ssiEnabled && Array.isArray(ssiRangesConfig.ranges) ? ssiRangesConfig.ranges : [];
+      const ssiRanges: Array<[number, number]> = Array.isArray(ssiRangesConfig?.ranges) ? ssiRangesConfig.ranges : [];
 
       if (values.custom_duplex_spacing !== null && values.custom_duplex_spacing !== undefined && values.duplex_spacing === 7) {
         sectionUpdates["cell_info"]["custom_duplex_spacing"] = String(values.custom_duplex_spacing);
@@ -328,7 +359,6 @@ export async function registerRoutes(
       let customDuplexFound = false;
       let tzBroadcastFound = false;
       let tzFound = false;
-      let ssiRangesFound = false;
       const netInfoKeyFound: Record<string, boolean> = {};
       let netInfoSectionExists = false;
 
@@ -366,16 +396,6 @@ export async function registerRoutes(
               if (tzEnabled) {
                 lines[i] = `${keyMatch[1]}timezone${keyMatch[3]}"${timezoneConfig.timezone}"`;
                 tzFound = true;
-              } else {
-                lines.splice(i, 1); i--;
-              }
-              continue;
-            }
-            if (k === "local_ssi_ranges") {
-              if (ssiEnabled && ssiRanges.length > 0) {
-                const rangesStr = `[${ssiRanges.map((r: [number,number]) => `[${r[0]}, ${r[1]}]`).join(", ")}]`;
-                lines[i] = `${keyMatch[1]}local_ssi_ranges${keyMatch[3]}${rangesStr}`;
-                ssiRangesFound = true;
               } else {
                 lines.splice(i, 1); i--;
               }
@@ -438,17 +458,57 @@ export async function registerRoutes(
         }
       }
 
-      // Insert SSI ranges under cell_info if enabled but not found
-      if (ssiEnabled && ssiRanges.length > 0 && !ssiRangesFound) {
+      // SSI ranges: find existing block (single-line, multi-line active, or commented), replace with correct format
+      {
+        let ssiBlockStart = -1;
+        let ssiBlockEnd = -1;
+        let ssiSec = "";
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[cell_info\]/)) {
-            let insertAt = i + 1;
-            while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") {
-              insertAt++;
+          const t = lines[i].trim();
+          const secM = t.match(/^\[([^\]]+)\]/);
+          if (secM) { ssiSec = secM[1]; continue; }
+          if (ssiSec !== "cell_info") continue;
+          const isActive = t.match(/^local_ssi_ranges\s*=/);
+          const isCommented = t.match(/^#\s*local_ssi_ranges\s*=/);
+          if (isActive || isCommented) {
+            ssiBlockStart = i;
+            const rest = t.replace(/^#?\s*local_ssi_ranges\s*=\s*/, "").trim();
+            if (rest.endsWith("]")) { ssiBlockEnd = i; break; }
+            for (let j = i + 1; j < lines.length; j++) {
+              const tj = lines[j].trim();
+              if (tj === "]" || tj === "#]" || tj.match(/^#\s*\]$/)) { ssiBlockEnd = j; break; }
+              if (tj.match(/^\[[a-zA-Z0-9_.]+\]/) && !tj.startsWith("#")) break;
             }
-            const rangesStr = `[${ssiRanges.map((r: [number,number]) => `[${r[0]}, ${r[1]}]`).join(", ")}]`;
-            lines.splice(insertAt, 0, `local_ssi_ranges = ${rangesStr}`);
             break;
+          }
+        }
+
+        // Build new multi-line SSI block
+        const newSsiLines: string[] = [];
+        if (ssiRanges.length > 0) {
+          if (ssiEnabled) {
+            newSsiLines.push("local_ssi_ranges = [");
+            for (const r of ssiRanges) newSsiLines.push(`[${r[0]}, ${r[1]}],`);
+            newSsiLines.push("]");
+          } else {
+            newSsiLines.push("#local_ssi_ranges = [");
+            for (const r of ssiRanges) newSsiLines.push(`#[${r[0]}, ${r[1]}],`);
+            newSsiLines.push("#]");
+          }
+        }
+
+        if (ssiBlockStart !== -1) {
+          const deleteCount = ssiBlockEnd !== -1 ? ssiBlockEnd - ssiBlockStart + 1 : 1;
+          lines.splice(ssiBlockStart, deleteCount, ...newSsiLines);
+        } else if (newSsiLines.length > 0) {
+          // Not found in file: insert at end of [cell_info] section
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].match(/^\s*\[cell_info\]/)) {
+              let insertAt = i + 1;
+              while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") insertAt++;
+              lines.splice(insertAt, 0, ...newSsiLines);
+              break;
+            }
           }
         }
       }

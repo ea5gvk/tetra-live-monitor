@@ -1979,11 +1979,11 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       if (data.net_info.mcc !== null) el("mccVal").value = String(data.net_info.mcc);
       if (data.net_info.mnc !== null) el("mncVal").value = String(data.net_info.mnc);
 
-      // ── Local SSI Ranges
-      const ssiEnabled = data.cell_info.local_ssi_ranges && data.cell_info.local_ssi_ranges.length > 0;
+      // ── Local SSI Ranges (loads ranges even when commented/disabled)
+      const ssiEnabled = !!data.cell_info.ssi_ranges_enabled;
       el("enableSsiRanges").checked = ssiEnabled;
       el("enableSsiRanges").dispatchEvent(new Event("change"));
-      if (ssiEnabled) {
+      if (data.cell_info.local_ssi_ranges && data.cell_info.local_ssi_ranges.length > 0) {
         el("ssiRangesList").innerHTML = "";
         data.cell_info.local_ssi_ranges.forEach(r => addSsiRangeRow(r.start, r.end));
       }
@@ -2052,10 +2052,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       system_code: el("systemCode").value.trim() !== "" ? Number(el("systemCode").value) : null
     };
 
-    // Collect SSI ranges
-    const ssiRangesConfig = el("enableSsiRanges").checked
-      ? { enabled: true, ranges: getSsiRanges() }
-      : { enabled: false };
+    // Collect SSI ranges (always send ranges so server can write commented block when disabled)
+    const ssiRangesConfig = { enabled: el("enableSsiRanges").checked, ranges: getSsiRanges() };
 
     // Collect timezone options
     const timezoneConfig = el("enableTimezone").checked
