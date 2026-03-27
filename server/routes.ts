@@ -308,15 +308,17 @@ export async function registerRoutes(
 
       // Build brew section update map
       const brewEnabled = brewConfig?.enabled === true;
+      const whitelistEnabled = brewEnabled && brewConfig.whitelistEnabled === true;
+      const tlsValue = brewConfig?.tls === true ? "true" : "false"; // always available
       const brewUpdates: Record<string, string> = {};
       if (brewEnabled) {
         brewUpdates["host"] = `"${brewConfig.host || ""}"`;
         brewUpdates["port"] = String(brewConfig.port || 62031);
         brewUpdates["username"] = `${brewConfig.username || ""}`;
         brewUpdates["password"] = `"${brewConfig.password || ""}"`;
-        brewUpdates["tls"] = brewConfig.tls ? "true" : "false";
+        brewUpdates["tls"] = tlsValue;
         brewUpdates["reconnect_delay_secs"] = String(brewConfig.reconnect_delay_secs || 15);
-        if (brewConfig.whitelisted_ssis && Array.isArray(brewConfig.whitelisted_ssis) && brewConfig.whitelisted_ssis.length > 0) {
+        if (whitelistEnabled && Array.isArray(brewConfig.whitelisted_ssis) && brewConfig.whitelisted_ssis.length > 0) {
           brewUpdates["whitelisted_ssis"] = `[${brewConfig.whitelisted_ssis.join(", ")}]`;
         }
       }
@@ -522,7 +524,9 @@ export async function registerRoutes(
             const commentedKV = line.match(/^\s*#\s*([\w]+)\s*=\s*(.*)/);
             if (commentedKV) {
               const k = commentedKV[1];
-              if (brewUpdates[k] !== undefined) {
+              if (k === 'whitelisted_ssis' && !whitelistEnabled) {
+                // Keep commented — whitelist disabled
+              } else if (brewUpdates[k] !== undefined) {
                 lines[i] = `${k} = ${brewUpdates[k]}`; // uncomment + update value
                 found[k] = true;
               } else {
@@ -537,6 +541,9 @@ export async function registerRoutes(
               if (brewUpdates[k] !== undefined) {
                 lines[i] = `${activeKV[1]}${k}${activeKV[3]}${brewUpdates[k]}`;
                 found[k] = true;
+              } else if (k === 'whitelisted_ssis' && !whitelistEnabled) {
+                // Whitelist disabled → comment out this active line
+                lines[i] = `#${line}`;
               }
             }
           }
@@ -555,11 +562,24 @@ export async function registerRoutes(
             const line = lines[i];
             // Skip empty lines and already-commented lines
             if (!line.trim() || line.trim().startsWith('#')) continue;
-            // Comment out active key=value lines
-            if (line.match(/^\s*[\w][\w]*\s*=/)) lines[i] = `#${line}`;
+            if (line.match(/^\s*[\w][\w]*\s*=/)) {
+              const keyName = line.match(/^\s*([\w]+)\s*=/)?.[1];
+              if (keyName === 'tls') {
+                // tls is never commented — always written as true/false
+                lines[i] = `tls = ${tlsValue}`;
+              } else {
+                lines[i] = `#${line}`;
+              }
+            }
           }
         }
-        // If already commented or not present → nothing to do
+        // If already commented: still keep tls value updated
+        if (brewHeaderIdx !== -1 && !brewIsActive) {
+          const brewEnd = getBrewEnd(brewHeaderIdx);
+          for (let i = brewHeaderIdx + 1; i < brewEnd; i++) {
+            if (lines[i].match(/^\s*tls\s*=/)) { lines[i] = `tls = ${tlsValue}`; break; }
+          }
+        }
       }
 
       content = lines.join("\n");

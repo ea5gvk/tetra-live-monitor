@@ -2071,10 +2071,11 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       password: el("brewPassword").value,
       tls: el("brewTls").checked,
       reconnect_delay_secs: Number(el("brewReconnect").value) || 15,
+      whitelistEnabled: el("enableWhitelist").checked,
       whitelisted_ssis: el("enableWhitelist").checked && el("brewWhitelist").value.trim()
         ? el("brewWhitelist").value.trim().split(",").map(s => s.trim()).filter(Boolean)
-        : null
-    } : { enabled: false };
+        : []
+    } : { enabled: false, tls: el("brewTls").checked };
 
     try {
       const res = await fetch("/api/system/apply-config", {
