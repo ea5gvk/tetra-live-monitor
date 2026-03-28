@@ -100,6 +100,10 @@ export function getCountryCode(callsign: string): string | null {
   return null;
 }
 
-export function getFlagUrl(countryCode: string): string {
-  return `https://flagcdn.com/w40/${countryCode}.png`;
+export function getFlagEmoji(countryCode: string): string {
+  return countryCode
+    .toUpperCase()
+    .split("")
+    .map((c) => String.fromCodePoint(0x1f1e6 + c.charCodeAt(0) - 65))
+    .join("");
 }

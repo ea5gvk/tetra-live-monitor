@@ -1,7 +1,7 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef } from "react";
 import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown } from "lucide-react";
-import { getCountryCode, getFlagUrl } from "@/lib/callsignFlags";
+import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
 import { useI18n } from "@/lib/i18n";
 import tetraLogo from "@assets/tetra_1771538916537.png";
 
@@ -44,13 +44,14 @@ function CountryFlag({ callsign }: { callsign?: string }) {
   const cc = getCountryCode(callsign);
   if (!cc) return null;
   return (
-    <img
-      src={getFlagUrl(cc)}
-      alt={cc.toUpperCase()}
-      className="inline-block w-5 h-auto rounded-[2px] shadow-sm shadow-black/30"
-      loading="lazy"
+    <span
+      className="text-base leading-none select-none"
+      title={cc.toUpperCase()}
       data-testid={`flag-${cc}`}
-    />
+      aria-label={cc.toUpperCase()}
+    >
+      {getFlagEmoji(cc)}
+    </span>
   );
 }
 
