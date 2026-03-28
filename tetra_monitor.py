@@ -22,7 +22,7 @@ except ImportError:
 
 JOURNAL_CMD = ["journalctl", "-f", "-o", "json"]
 MAX_HISTORY = 50
-RADIOID_API = "https://database.radioid.net/api/dmr/user/?id="
+RADIOID_API = "https://radioid.net/api/dmr/user/?id="
 
 def emit(event_type, payload):
     """Send a JSON event to stdout for the Node.js server to pick up."""
@@ -52,7 +52,7 @@ class TetraMonitor:
             self.callsign_cache[issi] = ""
             return ""
         try:
-            response = requests.get(f"{RADIOID_API}{issi}", timeout=1.0)
+            response = requests.get(f"{RADIOID_API}{issi}", timeout=4.0)
             if response.status_code == 200:
                 data = response.json()
                 call = ""
