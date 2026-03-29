@@ -7,8 +7,46 @@ import Dashboard from "@/pages/Dashboard";
 import Calculator from "@/pages/Calculator";
 import LogLive from "@/pages/LogLive";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon, Globe, ScrollText } from "lucide-react";
+import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon } from "lucide-react";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
+import { useState, useEffect } from "react";
+
+const THEME_STORAGE_KEY = "tetra_dashboard_theme";
+
+function getStoredTheme(): "dark" | "light" {
+  try {
+    const stored = localStorage.getItem(THEME_STORAGE_KEY);
+    if (stored === "light" || stored === "dark") return stored;
+  } catch {}
+  return "dark";
+}
+
+function ThemeToggle() {
+  const [theme, setTheme] = useState<"dark" | "light">(getStoredTheme);
+
+  useEffect(() => {
+    const html = document.documentElement;
+    if (theme === "light") {
+      html.classList.add("light");
+    } else {
+      html.classList.remove("light");
+    }
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch {}
+  }, [theme]);
+
+  return (
+    <button
+      onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
+      className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 hover:text-foreground transition-colors"
+      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      data-testid="button-theme-toggle"
+    >
+      {theme === "dark" ? <Sun className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
+    </button>
+  );
+}
 
 function LangSelector() {
   const { lang, setLang } = useI18n();
@@ -70,8 +108,9 @@ function NavBar() {
         <ScrollText className="w-3.5 h-3.5" />
         {t("log_live")}
       </Link>
-      <div className="ml-auto">
+      <div className="ml-auto flex items-center gap-1">
         <LangSelector />
+        <ThemeToggle />
       </div>
     </nav>
   );

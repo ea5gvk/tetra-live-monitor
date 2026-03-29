@@ -4,7 +4,7 @@
 A real-time TETRA radio network monitoring dashboard. The app displays active terminals (radios), their selected talk groups, status, and call history — similar to the original Python terminal UI but as a modern web application.
 
 ## Architecture
-- **Frontend**: React + Vite + Tailwind CSS — Terminal-style dark UI
+- **Frontend**: React + Vite + Tailwind CSS — Terminal-style UI with dark/light theme toggle
 - **Backend**: Node.js Express serves the frontend and relays WebSocket data
 - **Data Source**: Python script (`tetra_monitor.py`) processes TETRA logs and outputs JSON events
 - **Communication**: Python → stdout/JSON → Node.js → WebSocket → Browser

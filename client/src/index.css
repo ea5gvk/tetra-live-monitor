@@ -40,6 +40,71 @@
   --radius: 0.25rem;               /* Sharper corners for industrial look */
 }
 
+/* ── Light theme overrides ──────────────────────────────────────── */
+html.light {
+  --background: 210 20% 96%;
+  --foreground: 220 25% 12%;
+
+  --card: 0 0% 100%;
+  --card-foreground: 220 25% 12%;
+
+  --popover: 0 0% 100%;
+  --popover-foreground: 220 25% 12%;
+
+  --primary: 170 65% 32%;
+  --primary-foreground: 0 0% 100%;
+
+  --secondary: 215 20% 88%;
+  --secondary-foreground: 220 20% 20%;
+
+  --muted: 215 20% 88%;
+  --muted-foreground: 215 20% 42%;
+
+  --accent: 35 80% 44%;
+  --accent-foreground: 0 0% 100%;
+
+  --destructive: 0 70% 50%;
+  --destructive-foreground: 0 0% 100%;
+
+  --border: 215 20% 76%;
+  --input: 215 20% 84%;
+  --ring: 170 65% 32%;
+}
+
+html.light .glass-panel {
+  background: hsl(0 0% 100% / 0.88);
+  backdrop-filter: blur(12px);
+  border: 1px solid hsl(215 20% 78%);
+  box-shadow: 0 4px 20px hsl(220 25% 40% / 0.10);
+}
+
+html.light ::-webkit-scrollbar-track {
+  background: hsl(215 20% 90%);
+}
+html.light ::-webkit-scrollbar-thumb {
+  background: hsl(170 65% 32% / 0.35);
+}
+html.light ::-webkit-scrollbar-thumb:hover {
+  background: hsl(170 65% 32% / 0.55);
+}
+
+/* Fix hardcoded dark-only colours in light mode */
+html.light .border-white\/5  { border-color: hsl(215 20% 80%); }
+html.light .border-white\/10 { border-color: hsl(215 20% 76%); }
+html.light .border-t.border-white\/5 { border-top-color: hsl(215 20% 80%); }
+html.light .border-b.border-white\/5 { border-bottom-color: hsl(215 20% 80%); }
+html.light .divide-white\/\[0\.03\] > * + * { border-color: hsl(215 20% 88%); }
+
+html.light .bg-black\/30 { background: hsl(215 20% 88%); }
+html.light .bg-black\/40 { background: hsl(215 20% 86%); }
+html.light .bg-white\/5  { background: hsl(215 20% 91%); }
+html.light .bg-white\/10 { background: hsl(215 20% 88%); }
+html.light .hover\:bg-white\/5:hover  { background: hsl(215 20% 91%); }
+html.light .hover\:bg-white\/10:hover { background: hsl(215 20% 86%); }
+
+html.light .shadow-sm.shadow-black\/30 { box-shadow: 0 1px 3px hsl(220 25% 40% / 0.25); }
+html.light .border-white\/5.bg-violet-500\/5 { border-color: hsl(215 20% 80%); }
+
 @layer base {
   * {
     @apply border-border;
