@@ -1262,7 +1262,7 @@
     }
   };
 
-  const STORAGE_KEYS = { lang: "tetra_freq_lang", theme: "tetra_freq_theme", configPath: "tetra_calc_config_path" };
+  const STORAGE_KEYS = { lang: "tetra_freq_lang", theme: "tetra_freq_theme", configPath: "tetra_calc_config_path", serviceName: "tetra_calc_service_name" };
   const state = {
     lang: (localStorage.getItem(STORAGE_KEYS.lang) || "en"),
     theme: (localStorage.getItem(STORAGE_KEYS.theme) || ((window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark")),
@@ -2240,12 +2240,18 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   updateDuplexOptions();
   applyI18n();
 
-  // Restore saved config path (or keep default)
+  // Restore saved config path and service name (or keep defaults)
   (function(){
-    const saved = localStorage.getItem(STORAGE_KEYS.configPath);
-    if (saved) el("configPathVal").value = saved;
+    const savedPath = localStorage.getItem(STORAGE_KEYS.configPath);
+    if (savedPath) el("configPathVal").value = savedPath;
     el("configPathVal").addEventListener("input", function(){
       localStorage.setItem(STORAGE_KEYS.configPath, this.value);
+    });
+
+    const savedService = localStorage.getItem(STORAGE_KEYS.serviceName);
+    if (savedService) el("serviceNameVal").value = savedService;
+    el("serviceNameVal").addEventListener("input", function(){
+      localStorage.setItem(STORAGE_KEYS.serviceName, this.value);
     });
   })();
 })();
