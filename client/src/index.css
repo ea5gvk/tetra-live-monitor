@@ -42,40 +42,40 @@
 
 /* ── Light theme overrides ──────────────────────────────────────── */
 html.light {
-  --background: 210 20% 96%;
-  --foreground: 220 25% 12%;
+  --background: 215 18% 88%;
+  --foreground: 220 15% 28%;
 
-  --card: 0 0% 100%;
-  --card-foreground: 220 25% 12%;
+  --card: 215 15% 94%;
+  --card-foreground: 220 15% 28%;
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 220 25% 12%;
+  --popover: 215 15% 94%;
+  --popover-foreground: 220 15% 28%;
 
-  --primary: 170 65% 32%;
+  --primary: 170 55% 34%;
   --primary-foreground: 0 0% 100%;
 
-  --secondary: 215 20% 88%;
-  --secondary-foreground: 220 20% 20%;
+  --secondary: 215 15% 82%;
+  --secondary-foreground: 220 15% 30%;
 
-  --muted: 215 20% 88%;
-  --muted-foreground: 215 20% 42%;
+  --muted: 215 15% 82%;
+  --muted-foreground: 215 12% 50%;
 
-  --accent: 35 80% 44%;
+  --accent: 35 70% 46%;
   --accent-foreground: 0 0% 100%;
 
-  --destructive: 0 70% 50%;
+  --destructive: 0 60% 52%;
   --destructive-foreground: 0 0% 100%;
 
-  --border: 215 20% 76%;
-  --input: 215 20% 84%;
-  --ring: 170 65% 32%;
+  --border: 215 15% 74%;
+  --input: 215 15% 80%;
+  --ring: 170 55% 34%;
 }
 
 html.light .glass-panel {
-  background: hsl(0 0% 100% / 0.88);
+  background: hsl(215 15% 92% / 0.90);
   backdrop-filter: blur(12px);
-  border: 1px solid hsl(215 20% 78%);
-  box-shadow: 0 4px 20px hsl(220 25% 40% / 0.10);
+  border: 1px solid hsl(215 15% 74%);
+  box-shadow: 0 4px 20px hsl(220 15% 40% / 0.08);
 }
 
 html.light ::-webkit-scrollbar-track {
@@ -89,21 +89,21 @@ html.light ::-webkit-scrollbar-thumb:hover {
 }
 
 /* Fix hardcoded dark-only colours in light mode */
-html.light .border-white\/5  { border-color: hsl(215 20% 80%); }
-html.light .border-white\/10 { border-color: hsl(215 20% 76%); }
-html.light .border-t.border-white\/5 { border-top-color: hsl(215 20% 80%); }
-html.light .border-b.border-white\/5 { border-bottom-color: hsl(215 20% 80%); }
-html.light .divide-white\/\[0\.03\] > * + * { border-color: hsl(215 20% 88%); }
+html.light .border-white\/5  { border-color: hsl(215 15% 74%); }
+html.light .border-white\/10 { border-color: hsl(215 15% 70%); }
+html.light .border-t.border-white\/5 { border-top-color: hsl(215 15% 74%); }
+html.light .border-b.border-white\/5 { border-bottom-color: hsl(215 15% 74%); }
+html.light .divide-white\/\[0\.03\] > * + * { border-color: hsl(215 15% 82%); }
 
-html.light .bg-black\/30 { background: hsl(215 20% 88%); }
-html.light .bg-black\/40 { background: hsl(215 20% 86%); }
-html.light .bg-white\/5  { background: hsl(215 20% 91%); }
-html.light .bg-white\/10 { background: hsl(215 20% 88%); }
-html.light .hover\:bg-white\/5:hover  { background: hsl(215 20% 91%); }
-html.light .hover\:bg-white\/10:hover { background: hsl(215 20% 86%); }
+html.light .bg-black\/30 { background: hsl(215 15% 82%); }
+html.light .bg-black\/40 { background: hsl(215 15% 80%); }
+html.light .bg-white\/5  { background: hsl(215 15% 86%); }
+html.light .bg-white\/10 { background: hsl(215 15% 83%); }
+html.light .hover\:bg-white\/5:hover  { background: hsl(215 15% 85%); }
+html.light .hover\:bg-white\/10:hover { background: hsl(215 15% 81%); }
 
-html.light .shadow-sm.shadow-black\/30 { box-shadow: 0 1px 3px hsl(220 25% 40% / 0.25); }
-html.light .border-white\/5.bg-violet-500\/5 { border-color: hsl(215 20% 80%); }
+html.light .shadow-sm.shadow-black\/30 { box-shadow: 0 1px 3px hsl(220 15% 35% / 0.18); }
+html.light .border-white\/5.bg-violet-500\/5 { border-color: hsl(215 15% 74%); }
 
 @layer base {
   * {
