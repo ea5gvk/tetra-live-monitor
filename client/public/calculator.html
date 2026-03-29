@@ -1262,7 +1262,7 @@
     }
   };
 
-  const STORAGE_KEYS = { lang: "tetra_freq_lang", theme: "tetra_freq_theme" };
+  const STORAGE_KEYS = { lang: "tetra_freq_lang", theme: "tetra_freq_theme", configPath: "tetra_calc_config_path" };
   const state = {
     lang: (localStorage.getItem(STORAGE_KEYS.lang) || "en"),
     theme: (localStorage.getItem(STORAGE_KEYS.theme) || ((window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark")),
@@ -2239,6 +2239,15 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   updateBase();
   updateDuplexOptions();
   applyI18n();
+
+  // Restore saved config path (or keep default)
+  (function(){
+    const saved = localStorage.getItem(STORAGE_KEYS.configPath);
+    if (saved) el("configPathVal").value = saved;
+    el("configPathVal").addEventListener("input", function(){
+      localStorage.setItem(STORAGE_KEYS.configPath, this.value);
+    });
+  })();
 })();
 </script>
 </body>
