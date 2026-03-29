@@ -105,6 +105,13 @@ html.light .hover\:bg-white\/10:hover { background: hsl(215 15% 81%); }
 html.light .shadow-sm.shadow-black\/30 { box-shadow: 0 1px 3px hsl(220 15% 35% / 0.18); }
 html.light .border-white\/5.bg-violet-500\/5 { border-color: hsl(215 15% 74%); }
 
+/* Log Live panel: darken pastel log colours for light backgrounds */
+html.light [data-testid="log-live-container"] .text-green-300\/90 { color: hsl(142 60% 28%); }
+html.light [data-testid="log-live-container"] .text-red-400       { color: hsl(0 72% 38%); }
+html.light [data-testid="log-live-container"] .text-yellow-400    { color: hsl(38 85% 30%); }
+html.light [data-testid="log-live-container"] .text-blue-300\/70  { color: hsl(215 65% 38%); }
+html.light [data-testid="log-live-container"] .text-gray-500      { color: hsl(220 12% 42%); }
+
 @layer base {
   * {
     @apply border-border;
