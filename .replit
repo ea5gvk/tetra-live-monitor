@@ -40,5 +40,3 @@ waitForPort = 5000
 
 [userenv]
 
-[userenv.shared]
-GITHUB_TOKEN = "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"
