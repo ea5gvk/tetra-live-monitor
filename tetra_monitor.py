@@ -30,6 +30,71 @@ def emit(event_type, payload):
     sys.stdout.write(msg + "\n")
     sys.stdout.flush()
 
+
+def _unpack_gsm7(data: bytes) -> str:
+    """Unpack 7-bit GSM packed bytes into a string."""
+    bits = 0
+    num_bits = 0
+    result = []
+    for byte in data:
+        bits |= (byte << num_bits)
+        num_bits += 8
+        while num_bits >= 7:
+            result.append(bits & 0x7F)
+            bits >>= 7
+            num_bits -= 7
+    return ''.join(chr(c) for c in result if c > 0)
+
+
+def _try_decode_sds_text(byte_list: list) -> str | None:
+    """
+    Best-effort decode of TETRA SDS Type-4 payload bytes into readable text.
+    Tries ISO-8859-1 and 7-bit GSM packed with various header skip lengths.
+    Returns decoded text string or None if no readable content found.
+    """
+    if not byte_list:
+        return None
+    raw = bytes(byte_list)
+
+    def is_readable(s: str, min_ratio: float = 0.65) -> bool:
+        if not s or len(s) == 0:
+            return False
+        printable = sum(1 for c in s if c.isprintable() and ord(c) >= 32)
+        return printable / len(s) >= min_ratio and printable >= 3
+
+    def clean_text(s: str) -> str:
+        """Replace newlines with spaces, keep other printable chars."""
+        return ''.join(' ' if c in ('\n', '\r') else c for c in s if c in ('\n', '\r') or (c.isprintable() and ord(c) >= 32))
+
+    # Try ISO-8859-1 decode with 0..4 leading bytes skipped (possible SDS-TL protocol headers)
+    for skip in range(min(5, len(raw))):
+        candidate = raw[skip:]
+        if not candidate:
+            continue
+        try:
+            decoded = candidate.decode('iso-8859-1')
+            cleaned = clean_text(decoded)
+            if is_readable(decoded) and cleaned.strip():
+                return cleaned.strip()
+        except Exception:
+            pass
+
+    # Try 7-bit GSM packed with 0..4 leading bytes skipped
+    for skip in range(min(5, len(raw))):
+        candidate = raw[skip:]
+        if not candidate:
+            continue
+        try:
+            decoded = _unpack_gsm7(candidate)
+            cleaned = clean_text(decoded)
+            if is_readable(decoded) and cleaned.strip():
+                return cleaned.strip()
+        except Exception:
+            pass
+
+    return None
+
+
 class TetraMonitor:
     def __init__(self):
         self.terminals = {}
@@ -434,21 +499,30 @@ class TetraMonitor:
 
             # 8. SDS messages
 
-            # --- Content lines (decoded by SDS layer, stored for enriching next BrewEntity entry) ---
+            # --- Content lines stored for enriching next BrewEntity SDS entry ---
 
-            # Text SDS: "SDS: text from ISSI X to ISSI Y: "msg""
-            #           "SDS_TL: ... from X ... "msg""
-            sds_text_line = re.search(
-                r"SDS[_\-]?(?:TL)?[:\s]+.*?from\s+(?:ISSI\s+)?(\d{4,}).*?[\"'](.+?)[\"']",
-                msg, re.IGNORECASE
+            # D-SDS-DATA: downlink SDS from network → radio, logged by bluestation CMCE layer.
+            # Format: "-> D-SDS-DATA DSdsData { calling_party_address_ssi: Some(SSSI), ...,
+            #           user_defined_data: Type4(N, [b0, b1, ...]) }"
+            # The calling_party_address_ssi is the SENDER; bytes may encode text.
+            dsds_match = re.search(
+                r"D-SDS-DATA\s+DSdsData\s*\{.*?calling_party_address_ssi:\s*Some\((\d+)\)"
+                r".*?user_defined_data:\s*Type4\(\d+,\s*\[([^\]]+)\]\)",
+                msg, re.DOTALL
             )
-            if sds_text_line:
-                src_i = sds_text_line.group(1)
-                text_val = sds_text_line.group(2).strip()
-                self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+            if dsds_match:
+                src_i = dsds_match.group(1)
+                try:
+                    byte_list = [int(b.strip()) for b in dsds_match.group(2).split(",") if b.strip()]
+                    text_val = _try_decode_sds_text(byte_list)
+                    if text_val:
+                        self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+                except Exception:
+                    pass
                 return
 
             # LIP / GPS: "SDS: LIP from ISSI X: lat=Y lon=Z [speed=N] [heading=N]"
+            # (used in demo mode and some custom TETRA implementations)
             sds_lip_line = re.search(
                 r"(?:SDS[:\s]+LIP|LIP)[:\s].*?(?:from\s+(?:ISSI\s+)?)?(\d{4,}).*?"
                 r"lat=([\d.+\-]+).*?lon=([\d.+\-]+)"
@@ -700,12 +774,25 @@ def run_demo_mode(mon):
                         "Need assistance", "All clear", "Position confirmed",
                     ]
                     text_msg = random.choice(demo_texts)
+                    # Encode text as ISO-8859-1 bytes with a 4-byte SDS-TL header (0x82, 0x04, 0x10, 0x01)
+                    sds_header = [0x82, 0x04, 0x10, 0x01]
+                    text_bytes = sds_header + list(text_msg.encode("iso-8859-1"))
+                    bytes_str = ", ".join(str(b) for b in text_bytes)
+                    bit_count = len(text_bytes) * 8
+                    # Emit D-SDS-DATA with calling_party_address_ssi = sender (src_t for demo)
                     content_line = json.dumps({
-                        "MESSAGE": f"SDS: text from ISSI {src_t['issi']} to ISSI {dst_t['issi']}: \"{text_msg}\"",
+                        "MESSAGE": (
+                            f"DEBUG [entities/cmce] sds_bs.rs:288:      "
+                            f"-> D-SDS-DATA DSdsData {{ calling_party_type_identifier: Ssi, "
+                            f"calling_party_address_ssi: Some({src_t['issi']}), "
+                            f"calling_party_extension: None, "
+                            f"user_defined_data: Type4({bit_count}, [{bytes_str}]), "
+                            f"external_subscriber_number: None, dm_ms_address: None }}"
+                        ),
                         "__REALTIME_TIMESTAMP": ts_us
                     })
                     mon.process_line(content_line)
-                    size = len(text_msg) * 8
+                    size = bit_count
                     if direction == "outgoing":
                         brew_line = json.dumps({
                             "MESSAGE": f"BrewEntity: sending SDS uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} type=3 {size} bits",
@@ -713,7 +800,7 @@ def run_demo_mode(mon):
                         })
                     else:
                         brew_line = json.dumps({
-                            "MESSAGE": f"BrewEntity: SDS transfer uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} {len(text_msg)} bytes",
+                            "MESSAGE": f"BrewEntity: SDS transfer uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} {len(text_bytes)} bytes",
                             "__REALTIME_TIMESTAMP": ts_us
                         })
                     mon.process_line(brew_line)
