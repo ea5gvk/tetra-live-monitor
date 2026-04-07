@@ -501,6 +501,26 @@ class TetraMonitor:
 
             # --- Content lines stored for enriching next BrewEntity SDS entry ---
 
+            # CmceSdsData: logged by CMCE layer for BOTH outgoing (radio→Brew) and incoming (Brew→radio).
+            # Format: "CmceSdsData(CmceSdsData { source_issi: X, dest_issi: Y, user_defined_data: Type4(N, [bytes]) })"
+            # source_issi is the SENDER — matches BrewEntity src= field for correlation.
+            # This is the most reliable source for SDS text content (covers outgoing SDS from radio).
+            cmce_sds = re.search(
+                r"CmceSdsData\s*\{\s*source_issi:\s*(\d+),\s*dest_issi:\s*(\d+),\s*"
+                r"user_defined_data:\s*Type4\(\d+,\s*\[([^\]]+)\]\)",
+                msg
+            )
+            if cmce_sds:
+                src_i = cmce_sds.group(1)
+                try:
+                    byte_list = [int(b.strip()) for b in cmce_sds.group(3).split(",") if b.strip()]
+                    text_val = _try_decode_sds_text(byte_list)
+                    if text_val:
+                        self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+                except Exception:
+                    pass
+                return
+
             # D-SDS-DATA: downlink SDS from network → radio, logged by bluestation CMCE layer.
             # Format: "-> D-SDS-DATA DSdsData { calling_party_address_ssi: Some(SSSI), ...,
             #           user_defined_data: Type4(N, [b0, b1, ...]) }"
