@@ -67,10 +67,14 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 SDS (Short Data Service) messages are detected from TETRA logs and displayed in a dedicated panel at the bottom of the dashboard:
 - **Outgoing** (radio → network): `BrewEntity: sending SDS uuid=... src=X dst=Y type=N N bits`
 - **Incoming** (network → radio): `BrewEntity: SDS transfer uuid=... src=X dst=Y N bytes`
-- Panel shows: timestamp, direction badge (OUT/IN), source ISSI, destination ISSI, SDS type, and message size
+- **Text SDS content**: `SDS: text from ISSI X to ISSI Y: "message"` or `SDS_TL:` variants
+- **LIP/GPS content**: `SDS: LIP from ISSI X: lat=Y lon=Z [speed=N] [heading=N]`
+- Panel shows: timestamp, direction badge (OUT/IN), source ISSI, destination ISSI, SDS type, message size
+- When present: text content (violet, with speech icon) and GPS coordinates (cyan, with map link to Google Maps)
 - Up to 50 SDS messages kept in history
 - Displayed in violet/purple color scheme to distinguish from voice calls
 - State tracked in server `currentState.sdsMessages` so new connections receive full history
+- Content lines are correlated with BrewEntity SDS entries via `sds_content_pending` dict (5s window)
 
 ## Demo Mode
 When `journalctl` is not available (like in Replit), the Python script runs in demo mode with simulated TETRA traffic using realistic callsigns and talk groups. ~35% of demo cycles simulate two concurrent calls on different TGs with different time slots. ~20% of demo cycles also simulate an SDS message (outgoing or incoming).

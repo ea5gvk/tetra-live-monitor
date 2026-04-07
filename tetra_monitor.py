@@ -42,6 +42,7 @@ class TetraMonitor:
         self.event_counter = 0
         self.sds_report_uuids = set()      # UUIDs of delivery reports to suppress
         self.sds_pending_ack = {}          # (dst, src) -> timestamp, for delivery-report filtering
+        self.sds_content_pending = {}      # src_issi -> {type, content, ts} for text/LIP correlation
 
     def get_callsign(self, issi):
         if not issi or int(issi) < 1000:
@@ -433,6 +434,40 @@ class TetraMonitor:
 
             # 8. SDS messages
 
+            # --- Content lines (decoded by SDS layer, stored for enriching next BrewEntity entry) ---
+
+            # Text SDS: "SDS: text from ISSI X to ISSI Y: "msg""
+            #           "SDS_TL: ... from X ... "msg""
+            sds_text_line = re.search(
+                r"SDS[_\-]?(?:TL)?[:\s]+.*?from\s+(?:ISSI\s+)?(\d{4,}).*?[\"'](.+?)[\"']",
+                msg, re.IGNORECASE
+            )
+            if sds_text_line:
+                src_i = sds_text_line.group(1)
+                text_val = sds_text_line.group(2).strip()
+                self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+                return
+
+            # LIP / GPS: "SDS: LIP from ISSI X: lat=Y lon=Z [speed=N] [heading=N]"
+            sds_lip_line = re.search(
+                r"(?:SDS[:\s]+LIP|LIP)[:\s].*?(?:from\s+(?:ISSI\s+)?)?(\d{4,}).*?"
+                r"lat=([\d.+\-]+).*?lon=([\d.+\-]+)"
+                r"(?:.*?speed=([\d.]+))?(?:.*?heading=([\d.]+))?",
+                msg, re.IGNORECASE
+            )
+            if sds_lip_line:
+                src_i = sds_lip_line.group(1)
+                lip_data = {
+                    "lat": float(sds_lip_line.group(2)),
+                    "lon": float(sds_lip_line.group(3)),
+                }
+                if sds_lip_line.group(4) is not None:
+                    lip_data["speed"] = float(sds_lip_line.group(4))
+                if sds_lip_line.group(5) is not None:
+                    lip_data["heading"] = float(sds_lip_line.group(5))
+                self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
+                return
+
             # Delivery report UUID registration: BrewEntity: SDS_REPORT uuid=... status=N -> Brew
             # Secondary filter — UUID arrives in any order relative to SDS transfer
             sds_report = re.search(
@@ -473,6 +508,17 @@ class TetraMonitor:
                     "sdsType": int(sds_type),
                     "size": int(size),
                     "sizeUnit": "bits",
+                }
+                # Attach pending text/LIP content if available for this src ISSI
+                pending = self.sds_content_pending.pop(src, None)
+                if pending and now - pending["ts"] < 5.0:
+                    if pending["type"] == "text":
+                        entry["textContent"] = pending["content"]
+                    elif pending["type"] == "lip":
+                        entry["lipData"] = pending["content"]
+                # Evict stale pending content
+                self.sds_content_pending = {
+                    k: v for k, v in self.sds_content_pending.items() if now - v["ts"] < 10.0
                 }
                 self.sds_messages.insert(0, entry)
                 self.sds_messages = self.sds_messages[:MAX_HISTORY]
@@ -515,6 +561,17 @@ class TetraMonitor:
                     "sdsType": 3,
                     "size": size_int,
                     "sizeUnit": "bytes",
+                }
+                # Attach pending text/LIP content if available for this src ISSI
+                now = time.time()
+                pending = self.sds_content_pending.pop(src, None)
+                if pending and now - pending["ts"] < 5.0:
+                    if pending["type"] == "text":
+                        entry["textContent"] = pending["content"]
+                    elif pending["type"] == "lip":
+                        entry["lipData"] = pending["content"]
+                self.sds_content_pending = {
+                    k: v for k, v in self.sds_content_pending.items() if now - v["ts"] < 10.0
                 }
                 self.sds_messages.insert(0, entry)
                 self.sds_messages = self.sds_messages[:MAX_HISTORY]
@@ -630,19 +687,75 @@ def run_demo_mode(mon):
             if len(sds_terminals) >= 2:
                 src_t, dst_t = random.sample(sds_terminals, 2)
                 direction = random.choice(["outgoing", "incoming"])
-                if direction == "outgoing":
-                    size = random.choice([32, 64, 128, 256])
-                    sds_line = json.dumps({
-                        "MESSAGE": f"BrewEntity: sending SDS uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} type=3 {size} bits",
-                        "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
+                content_roll = random.random()
+                ts_us = str(int(time.time() * 1000000))
+
+                # ~40% text SDS, ~30% GPS/LIP, ~30% raw data
+                if content_roll < 0.40:
+                    demo_texts = [
+                        "73 de EA5GVK", "En camino al repetidor", "QTH Valencia",
+                        "Frecuencia OK", "Llegando en 10 min", "Todo correcto",
+                        "Hello from Madrid", "QSL 73", "On my way",
+                        "Radar check OK", "Saliendo de la base", "At destination",
+                        "Need assistance", "All clear", "Position confirmed",
+                    ]
+                    text_msg = random.choice(demo_texts)
+                    content_line = json.dumps({
+                        "MESSAGE": f"SDS: text from ISSI {src_t['issi']} to ISSI {dst_t['issi']}: \"{text_msg}\"",
+                        "__REALTIME_TIMESTAMP": ts_us
                     })
+                    mon.process_line(content_line)
+                    size = len(text_msg) * 8
+                    if direction == "outgoing":
+                        brew_line = json.dumps({
+                            "MESSAGE": f"BrewEntity: sending SDS uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} type=3 {size} bits",
+                            "__REALTIME_TIMESTAMP": ts_us
+                        })
+                    else:
+                        brew_line = json.dumps({
+                            "MESSAGE": f"BrewEntity: SDS transfer uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} {len(text_msg)} bytes",
+                            "__REALTIME_TIMESTAMP": ts_us
+                        })
+                    mon.process_line(brew_line)
+
+                elif content_roll < 0.70:
+                    # GPS / LIP
+                    lat = round(random.uniform(36.0, 43.5), 6)
+                    lon = round(random.uniform(-9.0, 4.0), 6)
+                    speed = random.randint(0, 120)
+                    heading = random.randint(0, 359)
+                    lip_line = json.dumps({
+                        "MESSAGE": f"SDS: LIP from ISSI {src_t['issi']}: lat={lat} lon={lon} speed={speed} heading={heading}",
+                        "__REALTIME_TIMESTAMP": ts_us
+                    })
+                    mon.process_line(lip_line)
+                    if direction == "outgoing":
+                        brew_line = json.dumps({
+                            "MESSAGE": f"BrewEntity: sending SDS uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} type=10 32 bits",
+                            "__REALTIME_TIMESTAMP": ts_us
+                        })
+                    else:
+                        brew_line = json.dumps({
+                            "MESSAGE": f"BrewEntity: SDS transfer uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} 17 bytes",
+                            "__REALTIME_TIMESTAMP": ts_us
+                        })
+                    mon.process_line(brew_line)
+
                 else:
-                    size = random.choice([10, 20, 40, 82])
-                    sds_line = json.dumps({
-                        "MESSAGE": f"BrewEntity: SDS transfer uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} {size} bytes",
-                        "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
-                    })
-                mon.process_line(sds_line)
+                    # Raw data (no content)
+                    if direction == "outgoing":
+                        size = random.choice([32, 64, 128, 256])
+                        sds_line = json.dumps({
+                            "MESSAGE": f"BrewEntity: sending SDS uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} type=3 {size} bits",
+                            "__REALTIME_TIMESTAMP": ts_us
+                        })
+                    else:
+                        size = random.choice([10, 20, 40, 82])
+                        sds_line = json.dumps({
+                            "MESSAGE": f"BrewEntity: SDS transfer uuid=demo-{int(time.time())} src={src_t['issi']} dst={dst_t['issi']} {size} bytes",
+                            "__REALTIME_TIMESTAMP": ts_us
+                        })
+                    mon.process_line(sds_line)
 
         # ~10% chance of an SDS status message each cycle
         if random.random() < 0.10:

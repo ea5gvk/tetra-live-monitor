@@ -1,6 +1,6 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef } from "react";
-import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown } from "lucide-react";
+import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation } from "lucide-react";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
 import { useI18n } from "@/lib/i18n";
 import tetraLogo from "@assets/tetra_1771538916537.png";
@@ -487,56 +487,94 @@ function SdsPanel({ messages }: { messages: SdsMessage[] }) {
           messages.map((msg) => {
             const isStatus = msg.messageType === "status";
             const isOut = msg.direction === "outgoing";
+            const hasContent = !!(msg.textContent || msg.lipData);
             const rowBg = isStatus
               ? "bg-amber-500/5"
               : isOut ? "bg-cyan-500/5" : "bg-emerald-500/5";
             return (
               <div
                 key={msg.id}
-                className={`flex items-center gap-1.5 py-0.5 px-1.5 rounded flex-wrap ${rowBg}`}
+                className={`flex flex-col py-0.5 px-1.5 rounded ${rowBg} ${hasContent ? "pb-1" : ""}`}
                 data-testid={`sds-entry-${msg.id}`}
               >
-                <span className="text-muted-foreground shrink-0">[{msg.timestamp}]</span>
-                {isStatus ? (
-                  <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold rounded shrink-0 bg-amber-500/20 text-amber-400 border border-amber-500/30">
-                    <MessageSquare className="w-2.5 h-2.5" />
-                    {t("sds_status")}
-                  </span>
-                ) : (
-                  <span
-                    className={`inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold rounded shrink-0 ${
-                      isOut
-                        ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
-                        : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
-                    }`}
-                  >
-                    {isOut ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
-                    {isOut ? t("sds_out") : t("sds_in")}
-                  </span>
+                {/* Main info row */}
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  <span className="text-muted-foreground shrink-0">[{msg.timestamp}]</span>
+                  {isStatus ? (
+                    <span className="inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold rounded shrink-0 bg-amber-500/20 text-amber-400 border border-amber-500/30">
+                      <MessageSquare className="w-2.5 h-2.5" />
+                      {t("sds_status")}
+                    </span>
+                  ) : (
+                    <span
+                      className={`inline-flex items-center gap-0.5 px-1 py-0.5 text-[9px] font-bold rounded shrink-0 ${
+                        isOut
+                          ? "bg-cyan-500/20 text-cyan-400 border border-cyan-500/30"
+                          : "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30"
+                      }`}
+                    >
+                      {isOut ? <ArrowUp className="w-2.5 h-2.5" /> : <ArrowDown className="w-2.5 h-2.5" />}
+                      {isOut ? t("sds_out") : t("sds_in")}
+                    </span>
+                  )}
+                  <span className="text-primary shrink-0">{msg.srcIssi}</span>
+                  {msg.srcCallsign && (
+                    <span className="inline-flex items-center gap-1 shrink-0">
+                      <CountryFlag callsign={msg.srcCallsign} />
+                      <span className="text-foreground/70">({msg.srcCallsign})</span>
+                    </span>
+                  )}
+                  <span className="text-muted-foreground/60 shrink-0">{"→"}</span>
+                  <span className="text-amber-400 shrink-0">{msg.dstIssi}</span>
+                  {msg.dstCallsign && (
+                    <span className="inline-flex items-center gap-1 shrink-0">
+                      <CountryFlag callsign={msg.dstCallsign} />
+                      <span className="text-foreground/70">({msg.dstCallsign})</span>
+                    </span>
+                  )}
+                  {isStatus && msg.statusCode ? (
+                    <span className="ml-auto text-amber-300/80 shrink-0 text-[9px] font-mono">
+                      {msg.statusCode}
+                    </span>
+                  ) : (
+                    <span className="ml-auto text-muted-foreground/50 shrink-0 text-[9px]">
+                      T{msg.sdsType} · {msg.size}{msg.sizeUnit === "bits" ? "b" : "B"}
+                    </span>
+                  )}
+                </div>
+
+                {/* Text content line */}
+                {msg.textContent && (
+                  <div className="flex items-start gap-1 mt-0.5 pl-1">
+                    <MessageSquare className="w-2.5 h-2.5 mt-0.5 shrink-0 text-violet-400" />
+                    <span className="text-[10px] text-violet-300 break-all leading-tight">{msg.textContent}</span>
+                  </div>
                 )}
-                <span className="text-primary shrink-0">{msg.srcIssi}</span>
-                {msg.srcCallsign && (
-                  <span className="inline-flex items-center gap-1 shrink-0">
-                    <CountryFlag callsign={msg.srcCallsign} />
-                    <span className="text-foreground/70">({msg.srcCallsign})</span>
-                  </span>
-                )}
-                <span className="text-muted-foreground/60 shrink-0">{"→"}</span>
-                <span className="text-amber-400 shrink-0">{msg.dstIssi}</span>
-                {msg.dstCallsign && (
-                  <span className="inline-flex items-center gap-1 shrink-0">
-                    <CountryFlag callsign={msg.dstCallsign} />
-                    <span className="text-foreground/70">({msg.dstCallsign})</span>
-                  </span>
-                )}
-                {isStatus && msg.statusCode ? (
-                  <span className="ml-auto text-amber-300/80 shrink-0 text-[9px] font-mono">
-                    {msg.statusCode}
-                  </span>
-                ) : (
-                  <span className="ml-auto text-muted-foreground/50 shrink-0 text-[9px]">
-                    T{msg.sdsType} · {msg.size}{msg.sizeUnit === "bits" ? "b" : "B"}
-                  </span>
+
+                {/* GPS / LIP line */}
+                {msg.lipData && (
+                  <div className="flex items-center gap-1 mt-0.5 pl-1 flex-wrap">
+                    <MapPin className="w-2.5 h-2.5 shrink-0 text-cyan-400" />
+                    <span className="text-[10px] text-cyan-300 font-mono">
+                      {msg.lipData.lat.toFixed(5)}°, {msg.lipData.lon.toFixed(5)}°
+                      {msg.lipData.speed !== undefined && (
+                        <span className="ml-1 text-muted-foreground/70">
+                          <Navigation className="w-2 h-2 inline mr-0.5" />
+                          {msg.lipData.speed} km/h
+                          {msg.lipData.heading !== undefined && ` · ${msg.lipData.heading}°`}
+                        </span>
+                      )}
+                    </span>
+                    <a
+                      href={`https://maps.google.com/?q=${msg.lipData.lat},${msg.lipData.lon}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-[9px] text-cyan-500 hover:text-cyan-300 underline ml-1"
+                      data-testid={`sds-gps-link-${msg.id}`}
+                    >
+                      Maps ↗
+                    </a>
+                  </div>
                 )}
               </div>
             );

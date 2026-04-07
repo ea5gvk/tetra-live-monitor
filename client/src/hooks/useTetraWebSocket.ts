@@ -26,6 +26,13 @@ export interface CallLogEntry {
   timeSlot?: number | null;
 }
 
+export interface SdsLipData {
+  lat: number;
+  lon: number;
+  speed?: number;
+  heading?: number;
+}
+
 export interface SdsMessage {
   id: string;
   timestamp: string;
@@ -39,6 +46,8 @@ export interface SdsMessage {
   sdsType: number;
   size: number;
   sizeUnit: "bits" | "bytes";
+  textContent?: string;
+  lipData?: SdsLipData;
 }
 
 export interface TetraState {
