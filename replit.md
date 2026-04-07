@@ -80,12 +80,6 @@ SDS (Short Data Service) messages are detected from TETRA logs and displayed in 
 ## Demo Mode
 When `journalctl` is not available (like in Replit), the Python script runs in demo mode with simulated TETRA traffic using realistic callsigns and talk groups. ~35% of demo cycles simulate two concurrent calls on different TGs with different time slots. ~20% of demo cycles also simulate an SDS message (outgoing or incoming).
 
-## TG Selection & Scan Mode
-- **Home TG preservation**: When a terminal is in scan mode (multiple groups), the `selected` TG shows the home TG (not the TG of incoming calls). The `selected` field only updates from explicit affiliate/attach events, never from call events when already assigned.
-- **Groups sort**: Scan groups are sorted numerically (9, 91, 214, 21433) — not lexicographically ("214", "21433", "9", "91").
-- **Home TG in scanlist**: When bluestation sends a scan affiliate without the home TG (e.g., `groups=[91, 214, 21433]`), the Python monitor automatically re-adds the home TG to the groups list so it appears correctly in the SCANLIST column.
-- **SCANLIST display**: The currently-selected (home) TG is shown in brackets `[9]`, scanned TGs are shown dimmed.
-
 ## Concurrent Calls
 - `_clear_activity(tg=X)` only clears terminals on the specified TG, allowing multiple simultaneous calls
 - `_update_time_slot()` scopes TS propagation to terminals on the same TG as the active call
