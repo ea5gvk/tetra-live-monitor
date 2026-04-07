@@ -271,10 +271,13 @@ class TetraMonitor:
                         "activity_tg": None,
                     }
                 else:
-                    self.terminals[s_issi]["selected"] = f"TG {d_gssi}"
+                    # Only update selected if not yet assigned (preserve home TG when scanning)
+                    if self.terminals[s_issi]["selected"] == "---":
+                        self.terminals[s_issi]["selected"] = f"TG {d_gssi}"
                     self.terminals[s_issi]["last_seen"] = timestamp
                     if d_gssi not in self.terminals[s_issi]["groups"]:
                         self.terminals[s_issi]["groups"].append(d_gssi)
+                        self.terminals[s_issi]["groups"].sort(key=lambda x: int(x) if x.isdigit() else float('inf'))
 
                 call = self.get_callsign(s_issi)
                 display_name = f"{s_issi} ({call})" if call else s_issi
@@ -395,7 +398,7 @@ class TetraMonitor:
                         if self.terminals[ssi]["selected"] == "---":
                             self.terminals[ssi]["selected"] = f"TG {gssi}"
 
-                self.terminals[ssi]["groups"].sort()
+                self.terminals[ssi]["groups"].sort(key=lambda x: int(x) if x.isdigit() else float('inf'))
                 emit("update_terminal", self._terminal_to_dict(ssi))
                 return
 
@@ -417,11 +420,18 @@ class TetraMonitor:
                         "activity_tg": None,
                     }
 
-                self.terminals[ssi]["groups"] = sorted(new_groups)
+                # Preserve the home TG (currently selected) when updating scan groups
+                current_selected = self.terminals[ssi].get("selected", "---")
+                home_tg = current_selected.replace("TG ", "") if current_selected not in ("---", "") else None
+                if home_tg and home_tg not in new_groups:
+                    new_groups = [home_tg] + new_groups
+
+                self.terminals[ssi]["groups"] = sorted(new_groups, key=lambda x: int(x) if x.isdigit() else float('inf'))
                 self.terminals[ssi]["status"] = "Online"
                 self.terminals[ssi]["is_local"] = True
                 self.terminals[ssi]["last_seen"] = timestamp
-                if new_groups:
+                # Only update selected if not yet assigned
+                if current_selected == "---" and new_groups:
                     self.terminals[ssi]["selected"] = f"TG {new_groups[0]}"
 
                 emit("update_terminal", self._terminal_to_dict(ssi))
@@ -468,7 +478,7 @@ class TetraMonitor:
                     self.terminals[ssi]["status"] = "Online"
 
                 self.terminals[ssi]["last_seen"] = timestamp
-                self.terminals[ssi]["groups"].sort()
+                self.terminals[ssi]["groups"].sort(key=lambda x: int(x) if x.isdigit() else float('inf'))
                 emit("update_terminal", self._terminal_to_dict(ssi))
                 return
 
