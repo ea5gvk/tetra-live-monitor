@@ -108,6 +108,7 @@ class TetraMonitor:
         self.sds_report_uuids = set()      # UUIDs of delivery reports to suppress
         self.sds_pending_ack = {}          # (dst, src) -> timestamp, for delivery-report filtering
         self.sds_content_pending = {}      # src_issi -> {type, content, ts} for text/LIP correlation
+        self.sds_entry_ts = {}             # entry_id -> float ts; used for retroactive text attachment
 
     def get_callsign(self, issi):
         if not issi or int(issi) < 1000:
@@ -138,6 +139,32 @@ class TetraMonitor:
     def _next_id(self):
         self.event_counter += 1
         return str(self.event_counter)
+
+    def _attach_content_to_pending_entry(self, src_issi: str, ctype: str, cvalue) -> bool:
+        """
+        Retroactively attach text/LIP content to the most recent SDS entry for this
+        src_issi that has no content yet and was created within the last 8 seconds.
+        Called when D-SDS-DATA arrives AFTER BrewEntity (downlink/incoming order).
+        If found, also removes the src_issi key from sds_content_pending so the
+        next BrewEntity for this src won't incorrectly claim stale content.
+        Returns True if an entry was updated.
+        """
+        now = time.time()
+        for entry in self.sds_messages[:20]:
+            created = self.sds_entry_ts.get(entry.get("id", ""), 0)
+            if now - created > 8.0:
+                break
+            if (entry.get("srcIssi") == src_issi
+                    and not entry.get("textContent")
+                    and not entry.get("lipData")):
+                if ctype == "text":
+                    entry["textContent"] = cvalue
+                elif ctype == "lip":
+                    entry["lipData"] = cvalue
+                self.sds_content_pending.pop(src_issi, None)
+                emit("sds_message", entry)
+                return True
+        return False
 
     def _terminal_to_dict(self, tid):
         t = self.terminals[tid]
@@ -517,6 +544,7 @@ class TetraMonitor:
                     text_val = _try_decode_sds_text(byte_list)
                     if text_val:
                         self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+                        self._attach_content_to_pending_entry(src_i, "text", text_val)
                 except Exception:
                     pass
                 return
@@ -537,6 +565,7 @@ class TetraMonitor:
                     text_val = _try_decode_sds_text(byte_list)
                     if text_val:
                         self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+                        self._attach_content_to_pending_entry(src_i, "text", text_val)
                 except Exception:
                     pass
                 return
@@ -560,6 +589,7 @@ class TetraMonitor:
                 if sds_lip_line.group(5) is not None:
                     lip_data["heading"] = float(sds_lip_line.group(5))
                 self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
+                self._attach_content_to_pending_entry(src_i, "lip", lip_data)
                 return
 
             # Delivery report UUID registration: BrewEntity: SDS_REPORT uuid=... status=N -> Brew
@@ -616,6 +646,8 @@ class TetraMonitor:
                 }
                 self.sds_messages.insert(0, entry)
                 self.sds_messages = self.sds_messages[:MAX_HISTORY]
+                self.sds_entry_ts[entry["id"]] = now
+                self.sds_entry_ts = {k: v for k, v in self.sds_entry_ts.items() if now - v < 30}
                 emit("sds_message", entry)
                 return
 
@@ -669,6 +701,8 @@ class TetraMonitor:
                 }
                 self.sds_messages.insert(0, entry)
                 self.sds_messages = self.sds_messages[:MAX_HISTORY]
+                self.sds_entry_ts[entry["id"]] = now
+                self.sds_entry_ts = {k: v for k, v in self.sds_entry_ts.items() if now - v < 30}
                 emit("sds_message", entry)
                 return
 
