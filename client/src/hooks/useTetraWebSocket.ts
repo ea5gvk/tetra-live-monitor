@@ -121,7 +121,15 @@ export function useTetraWebSocket(): TetraState {
 
           case "sds_message": {
             const sds = msg.payload as SdsMessage;
-            setSdsMessages(prev => [sds, ...prev].slice(0, 50));
+            setSdsMessages(prev => {
+              const idx = prev.findIndex(m => m.id === sds.id);
+              if (idx >= 0) {
+                const updated = [...prev];
+                updated[idx] = sds;
+                return updated;
+              }
+              return [sds, ...prev].slice(0, 50);
+            });
             break;
           }
 

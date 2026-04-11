@@ -814,9 +814,14 @@ export async function registerRoutes(
       case 'sds_message': {
         const sds = event.payload;
         if (sds) {
-          currentState.sdsMessages.unshift(sds);
-          if (currentState.sdsMessages.length > MAX_HISTORY)
-            currentState.sdsMessages = currentState.sdsMessages.slice(0, MAX_HISTORY);
+          const existingIdx = currentState.sdsMessages.findIndex((m: any) => m.id === sds.id);
+          if (existingIdx >= 0) {
+            currentState.sdsMessages[existingIdx] = sds;
+          } else {
+            currentState.sdsMessages.unshift(sds);
+            if (currentState.sdsMessages.length > MAX_HISTORY)
+              currentState.sdsMessages = currentState.sdsMessages.slice(0, MAX_HISTORY);
+          }
         }
         break;
       }
