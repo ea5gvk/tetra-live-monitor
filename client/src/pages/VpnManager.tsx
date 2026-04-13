@@ -180,6 +180,12 @@ export default function VpnManager() {
     if (r.ok) setTimeout(fetchStatus, 2000);
   };
 
+  const doUninstall = async (pw: string) => {
+    const r = await apiCall("/api/vpn/uninstall", "POST", { password: pw });
+    showMsg(r.message || (r.ok ? t("vpn_uninstall") : "Error"), r.ok);
+    if (r.ok) setTimeout(fetchStatus, 6000);
+  };
+
   const doAddClient = async (pw: string) => {
     const r = await apiCall("/api/vpn/clients", "POST", { password: pw, name: newClientName });
     showMsg(r.message || (r.ok ? t("vpn_add") : "Error"), r.ok);
@@ -321,6 +327,15 @@ export default function VpnManager() {
             >
               {t("vpn_refresh")}
             </button>
+            {isInstalled && (
+              <button
+                onClick={() => withPassword(t("vpn_confirm_uninstall"), doUninstall)}
+                className="ml-auto px-3 py-1.5 text-xs font-bold rounded bg-red-900/30 text-red-500 border border-red-800/40 hover:bg-red-900/50 transition-colors"
+                data-testid="button-vpn-uninstall"
+              >
+                {t("vpn_uninstall")}
+              </button>
+            )}
           </div>
         </div>
       </div>

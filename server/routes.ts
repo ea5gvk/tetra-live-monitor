@@ -286,6 +286,17 @@ export async function registerRoutes(
     catch (e: any) { res.status(500).json({ message: e.message }); }
   });
 
+  app.post("/api/vpn/uninstall", (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
+    try { try { execSync("sudo wg-quick down wg0 2>&1", { timeout: 10000 }); } catch {} } catch {}
+    try { execSync("sudo rm -f /etc/wireguard/wg0.conf", { timeout: 5000 }); } catch {}
+    const vpnDataPath = path.join(process.cwd(), "vpn-data.json");
+    try { if (fs.existsSync(vpnDataPath)) fs.unlinkSync(vpnDataPath); } catch {}
+    res.json({ message: "WireGuard desinstalado. Eliminando paquetes en segundo plano..." });
+    exec("sudo apt-get remove -y wireguard wireguard-tools wireguard-dkms 2>&1", () => {});
+  });
+
   app.get("/api/vpn/clients", (_req, res) => {
     const data = readVpnData();
     res.json((data?.clients || []).map(({ name, address, publicKey, createdAt }) => ({ name, address, publicKey, createdAt })));

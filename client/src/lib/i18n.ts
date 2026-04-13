@@ -118,6 +118,8 @@ const translations: Record<Language, Record<string, string>> = {
     "vpn_client_one": "client",
     "vpn_client_other": "clients",
     "vpn_update": "Update",
+    "vpn_uninstall": "Uninstall WireGuard",
+    "vpn_confirm_uninstall": "Uninstall WireGuard? This will remove the config and all client data.",
   },
   es: {
     "live_monitor": "LIVE MONITOR",
@@ -223,6 +225,8 @@ const translations: Record<Language, Record<string, string>> = {
     "vpn_client_one": "cliente",
     "vpn_client_other": "clientes",
     "vpn_update": "Actualizar",
+    "vpn_uninstall": "Desinstalar WireGuard",
+    "vpn_confirm_uninstall": "¿Desinstalar WireGuard? Se eliminará la configuración y todos los datos de clientes.",
   },
   zh: {
     "live_monitor": "\u5b9e\u65f6\u76d1\u63a7",
@@ -328,6 +332,8 @@ const translations: Record<Language, Record<string, string>> = {
     "vpn_client_one": "客户端",
     "vpn_client_other": "客户端",
     "vpn_update": "更新",
+    "vpn_uninstall": "卸载 WireGuard",
+    "vpn_confirm_uninstall": "卸载 WireGuard？这将删除配置和所有客户端数据。",
   },
   pt: {
     "live_monitor": "MONITOR AO VIVO",
@@ -433,6 +439,8 @@ const translations: Record<Language, Record<string, string>> = {
     "vpn_client_one": "cliente",
     "vpn_client_other": "clientes",
     "vpn_update": "Atualizar",
+    "vpn_uninstall": "Desinstalar WireGuard",
+    "vpn_confirm_uninstall": "Desinstalar WireGuard? Isso removerá a configuração e todos os dados dos clientes.",
   },
   de: {
     "live_monitor": "LIVE-MONITOR",
@@ -538,6 +546,8 @@ const translations: Record<Language, Record<string, string>> = {
     "vpn_client_one": "Client",
     "vpn_client_other": "Clients",
     "vpn_update": "Aktualisieren",
+    "vpn_uninstall": "WireGuard deinstallieren",
+    "vpn_confirm_uninstall": "WireGuard deinstallieren? Konfiguration und alle Client-Daten werden entfernt.",
   },
   fr: {
     "live_monitor": "MONITEUR EN DIRECT",
@@ -643,6 +653,8 @@ const translations: Record<Language, Record<string, string>> = {
     "vpn_client_one": "client",
     "vpn_client_other": "clients",
     "vpn_update": "Mettre à jour",
+    "vpn_uninstall": "Désinstaller WireGuard",
+    "vpn_confirm_uninstall": "Désinstaller WireGuard ? Cela supprimera la configuration et toutes les données clients.",
   },
   it: {
     "live_monitor": "MONITOR DAL VIVO",
@@ -748,6 +760,8 @@ const translations: Record<Language, Record<string, string>> = {
     "vpn_client_one": "client",
     "vpn_client_other": "client",
     "vpn_update": "Aggiorna",
+    "vpn_uninstall": "Disinstalla WireGuard",
+    "vpn_confirm_uninstall": "Disinstallare WireGuard? Verranno rimossi la configurazione e tutti i dati dei client.",
   },
 };
 
