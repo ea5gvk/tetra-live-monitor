@@ -10,6 +10,54 @@ import * as os from "os";
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
 
+let cachedPublicIp: string | null = null;
+let publicIpLastFetch = 0;
+
+async function fetchPublicIp(): Promise<string | null> {
+  const now = Date.now();
+  if (cachedPublicIp && now - publicIpLastFetch < 5 * 60 * 1000) return cachedPublicIp;
+  try {
+    const res = await fetch("https://api4.my-ip.io/v2/ip.json", { signal: AbortSignal.timeout(4000) });
+    const data = await res.json() as { ip?: string };
+    if (data.ip) { cachedPublicIp = data.ip; publicIpLastFetch = now; }
+    return cachedPublicIp;
+  } catch {
+    return cachedPublicIp;
+  }
+}
+
+function getLocalIp(): string | null {
+  try {
+    const nets = os.networkInterfaces();
+    for (const addrs of Object.values(nets)) {
+      if (!addrs) continue;
+      for (const addr of addrs) {
+        if (addr.family === "IPv4" && !addr.internal) return addr.address;
+      }
+    }
+  } catch {}
+  return null;
+}
+
+function getVoltage(): number | null {
+  try {
+    const out = execSync("vcgencmd measure_volts 2>/dev/null", { timeout: 2000 }).toString().trim();
+    const m = out.match(/volt=([\d.]+)V/);
+    if (m) return parseFloat(m[1]);
+  } catch {}
+  try {
+    const dirs = fs.readdirSync("/sys/class/power_supply");
+    for (const d of dirs) {
+      const vPath = `/sys/class/power_supply/${d}/voltage_now`;
+      if (fs.existsSync(vPath)) {
+        const raw = fs.readFileSync(vPath, "utf-8").trim();
+        return Math.round(parseInt(raw) / 1000) / 1000;
+      }
+    }
+  } catch {}
+  return null;
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -23,7 +71,7 @@ export async function registerRoutes(
     });
   });
 
-  app.get(api.system.stats.path, (_req, res) => {
+  app.get(api.system.stats.path, async (_req, res) => {
     let cpuTemp: number | null = null;
     let cpuLoad: number | null = null;
 
@@ -53,11 +101,17 @@ export async function registerRoutes(
     } catch {}
 
     const memUsed = memTotal > 0 ? Math.round(((memTotal - memAvailable) / memTotal) * 100) : null;
+    const localIp = getLocalIp();
+    const publicIp = await fetchPublicIp();
+    const voltage = getVoltage();
 
     res.json({
       cpuTemp,
       cpuLoad,
       memUsed,
+      localIp,
+      publicIp,
+      voltage,
     });
   });
 

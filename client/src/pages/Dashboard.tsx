@@ -1,6 +1,6 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef } from "react";
-import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation } from "lucide-react";
+import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network } from "lucide-react";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
 import { useI18n } from "@/lib/i18n";
 import tetraLogo from "@assets/tetra_1771538916537.png";
@@ -257,8 +257,15 @@ function CallHistory({ entries, title, isLocal }: {
 
 function PiStats() {
   const { t } = useI18n();
-  const [stats, setStats] = useState<{ cpuTemp: number | null; cpuLoad: number | null; memUsed: number | null }>({
-    cpuTemp: null, cpuLoad: null, memUsed: null
+  const [stats, setStats] = useState<{
+    cpuTemp: number | null;
+    cpuLoad: number | null;
+    memUsed: number | null;
+    localIp: string | null;
+    publicIp: string | null;
+    voltage: number | null;
+  }>({
+    cpuTemp: null, cpuLoad: null, memUsed: null, localIp: null, publicIp: null, voltage: null
   });
 
   useEffect(() => {
@@ -286,8 +293,12 @@ function PiStats() {
     ? stats.memUsed >= 85 ? "text-red-400" : stats.memUsed >= 60 ? "text-amber-400" : "text-emerald-400"
     : "text-muted-foreground";
 
+  const voltageColor = stats.voltage !== null
+    ? stats.voltage < 4.8 ? "text-red-400" : stats.voltage < 4.9 ? "text-amber-400" : "text-emerald-400"
+    : "text-muted-foreground";
+
   return (
-    <div className="flex items-center gap-3" data-testid="pi-stats">
+    <div className="flex items-center gap-3 flex-wrap" data-testid="pi-stats">
       <span className={`inline-flex items-center gap-1 text-xs font-mono ${loadColor}`} title={t("cpu_load")} data-testid="stat-cpu-load">
         <Cpu className="w-3.5 h-3.5" />
         {stats.cpuLoad !== null ? `${stats.cpuLoad}%` : "--"}
@@ -300,6 +311,24 @@ function PiStats() {
         <MemoryStick className="w-3.5 h-3.5" />
         {stats.memUsed !== null ? `${stats.memUsed}%` : "--"}
       </span>
+      {stats.voltage !== null && (
+        <span className={`inline-flex items-center gap-1 text-xs font-mono ${voltageColor}`} title={t("voltage")} data-testid="stat-voltage">
+          <Zap className="w-3.5 h-3.5" />
+          {stats.voltage.toFixed(2)}V
+        </span>
+      )}
+      {stats.localIp && (
+        <span className="inline-flex items-center gap-1 text-xs font-mono text-sky-400" title={t("local_ip")} data-testid="stat-local-ip">
+          <Network className="w-3.5 h-3.5" />
+          {stats.localIp}
+        </span>
+      )}
+      {stats.publicIp && (
+        <span className="inline-flex items-center gap-1 text-xs font-mono text-violet-400" title={t("public_ip")} data-testid="stat-public-ip">
+          <Globe className="w-3.5 h-3.5" />
+          {stats.publicIp}
+        </span>
+      )}
     </div>
   );
 }
