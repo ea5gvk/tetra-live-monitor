@@ -185,21 +185,94 @@ Para configurar la contraseña, edita el archivo `config.json` en la raíz del p
 
 Puedes cambiar la contraseña en cualquier momento editando ese archivo. No es necesario reiniciar la aplicación, el cambio se aplica inmediatamente.
 
-**Nota:** Para que los comandos de apagado y reinicio funcionen, el usuario que ejecuta la aplicación debe tener permisos de `sudo` sin contraseña para `shutdown` y `reboot`. Puedes configurarlo añadiendo esta línea a `/etc/sudoers` (con `sudo visudo`):
+**Nota:** Para que los comandos de apagado y reinicio funcionen, el usuario que ejecuta la aplicación debe tener permisos de `sudo` sin contraseña. Añade esta línea a `/etc/sudoers` (con `sudo visudo`):
 
 ```
-tu_usuario ALL=(ALL) NOPASSWD: /sbin/shutdown, /sbin/reboot
+tu_usuario ALL=(ALL) NOPASSWD: /sbin/shutdown, /sbin/reboot, /bin/systemctl
 ```
+
+---
+
+### 6. Gestor de VPN WireGuard
+
+El dashboard incluye una pestaña **VPN** que permite configurar un servidor WireGuard directamente desde el navegador. Soporta 7 idiomas (ES, EN, ZH, PT, DE, FR, IT).
+
+#### 6.1 Instalar WireGuard en la Raspberry Pi
+
+Desde la pestaña **VPN** del dashboard, pulsa **"Instalar WireGuard"** e introduce la contraseña del sistema. También puedes hacerlo manualmente:
+
+```bash
+sudo apt install -y wireguard
+```
+
+#### 6.2 Permisos sudo necesarios
+
+Para que el dashboard pueda gestionar WireGuard, añade a `/etc/sudoers` (con `sudo visudo`):
+
+```
+tu_usuario ALL=(ALL) NOPASSWD: /usr/bin/wg, /usr/bin/wg-quick, /sbin/shutdown, /sbin/reboot, /bin/systemctl, /usr/bin/apt-get
+```
+
+#### 6.3 Configurar el servidor VPN desde el dashboard
+
+1. Ve a la pestaña **VPN**
+2. Despliega el panel **CONFIGURACIÓN DEL SERVIDOR**
+3. Rellena los campos:
+   - **IP WireGuard del Servidor**: dirección IP de la interfaz VPN (por defecto `10.8.0.1/24`)
+   - **Puerto de escucha**: puerto UDP de WireGuard (por defecto `51820`)
+   - **DNS para clientes**: servidor DNS que usarán los clientes (por defecto `8.8.8.8`)
+4. Pulsa **"Configurar Servidor"** e introduce la contraseña del sistema
+5. Una vez configurado, pulsa **"Conectar"** para activar la interfaz `wg0`
+
+#### 6.4 Añadir clientes (móvil, tablet, PC)
+
+1. En el panel **CLIENTES VPN**, escribe un nombre para el cliente (ej: `movil`, `tablet`)
+2. Pulsa **"Añadir"** e introduce la contraseña
+3. El cliente aparecerá en la lista con su IP asignada automáticamente (`10.8.0.2`, `10.8.0.3`, ...)
+4. Pulsa el botón **QR** del cliente para ver el código QR de configuración
+
+#### 6.5 Conectar el móvil
+
+1. Instala la app **WireGuard** en tu móvil ([Android](https://play.google.com/store/apps/details?id=com.wireguard.android) / [iOS](https://apps.apple.com/app/wireguard/id1441195209))
+2. En la app: **Añadir túnel → Escanear desde código QR**
+3. Escanea el QR mostrado en el dashboard
+4. Activa el túnel en la app
+
+#### 6.6 Reenvío de puertos en el router
+
+Para acceso remoto (fuera de tu red local), debes abrir el puerto UDP en tu router:
+
+- **Puerto**: `51820` (o el que hayas configurado)
+- **Protocolo**: UDP
+- **Destino**: IP local de la Raspberry Pi
+
+#### 6.7 Resumen de funcionamiento
+
+```
+Móvil (app WireGuard)
+       │ UDP 51820
+       ▼
+   Router (reenvío de puertos)
+       │
+       ▼
+Raspberry Pi (wg0: 10.8.0.1)
+       │
+       ▼
+   Red local TETRA / bluestation
+```
+
+Los datos de los clientes (claves, IPs asignadas) se guardan en `vpn-data.json` en la raíz del proyecto.
 
 ---
 
 ### Resumen de puertos
 
-| Servicio | Puerto |
-|----------|--------|
-| Aplicación web | 5000 |
-| Nginx (opcional) | 80 / 443 |
-| WebSocket | mismo que la app (5000) |
+| Servicio | Puerto | Protocolo |
+|----------|--------|-----------|
+| Aplicación web | 5000 | TCP |
+| Nginx (opcional) | 80 / 443 | TCP |
+| WebSocket | mismo que la app (5000) | TCP |
+| WireGuard VPN | 51820 | UDP |
 
 ---
 ---
@@ -385,18 +458,91 @@ To set the password, edit the `config.json` file in the project root:
 
 You can change the password at any time by editing this file. No application restart is needed — the change takes effect immediately.
 
-**Note:** For the shutdown and reboot commands to work, the user running the application must have passwordless `sudo` permissions for `shutdown` and `reboot`. You can configure this by adding the following line to `/etc/sudoers` (using `sudo visudo`):
+**Note:** For the shutdown and reboot commands to work, the user running the application must have passwordless `sudo` permissions. Add this line to `/etc/sudoers` (using `sudo visudo`):
 
 ```
-your_user ALL=(ALL) NOPASSWD: /sbin/shutdown, /sbin/reboot
+your_user ALL=(ALL) NOPASSWD: /sbin/shutdown, /sbin/reboot, /bin/systemctl
 ```
+
+---
+
+### 6. WireGuard VPN Manager
+
+The dashboard includes a **VPN** tab that lets you set up and manage a WireGuard server directly from the browser. Supports 7 languages (ES, EN, ZH, PT, DE, FR, IT).
+
+#### 6.1 Install WireGuard on the Raspberry Pi
+
+From the **VPN** tab in the dashboard, click **"Install WireGuard"** and enter the system password. You can also install it manually:
+
+```bash
+sudo apt install -y wireguard
+```
+
+#### 6.2 Required sudo permissions
+
+For the dashboard to manage WireGuard, add the following to `/etc/sudoers` (using `sudo visudo`):
+
+```
+your_user ALL=(ALL) NOPASSWD: /usr/bin/wg, /usr/bin/wg-quick, /sbin/shutdown, /sbin/reboot, /bin/systemctl, /usr/bin/apt-get
+```
+
+#### 6.3 Configure the VPN server from the dashboard
+
+1. Go to the **VPN** tab
+2. Expand the **SERVER CONFIGURATION** panel
+3. Fill in the fields:
+   - **Server WireGuard IP**: IP address of the VPN interface (default: `10.8.0.1/24`)
+   - **Listen Port**: UDP port for WireGuard (default: `51820`)
+   - **DNS for clients**: DNS server that clients will use (default: `8.8.8.8`)
+4. Click **"Setup Server"** and enter the system password
+5. Once configured, click **"Connect"** to bring up the `wg0` interface
+
+#### 6.4 Add clients (mobile, tablet, PC)
+
+1. In the **VPN CLIENTS** panel, type a name for the client (e.g. `mobile`, `tablet`)
+2. Click **"Add"** and enter the system password
+3. The client will appear in the list with an automatically assigned IP (`10.8.0.2`, `10.8.0.3`, ...)
+4. Click the **QR** button to display the configuration QR code
+
+#### 6.5 Connect your mobile device
+
+1. Install the **WireGuard** app on your mobile ([Android](https://play.google.com/store/apps/details?id=com.wireguard.android) / [iOS](https://apps.apple.com/app/wireguard/id1441195209))
+2. In the app: **Add tunnel → Scan from QR code**
+3. Scan the QR code displayed in the dashboard
+4. Activate the tunnel in the app
+
+#### 6.6 Port forwarding on your router
+
+For remote access (outside your local network), you need to forward the UDP port on your router:
+
+- **Port**: `51820` (or whichever you configured)
+- **Protocol**: UDP
+- **Destination**: Local IP address of the Raspberry Pi
+
+#### 6.7 How it works
+
+```
+Mobile (WireGuard app)
+       │ UDP 51820
+       ▼
+   Router (port forwarding)
+       │
+       ▼
+Raspberry Pi (wg0: 10.8.0.1)
+       │
+       ▼
+   Local TETRA network / bluestation
+```
+
+Client data (keys, assigned IPs) is stored in `vpn-data.json` at the project root.
 
 ---
 
 ### Port summary
 
-| Service | Port |
-|---------|------|
-| Web application | 5000 |
-| Nginx (optional) | 80 / 443 |
-| WebSocket | same as app (5000) |
+| Service | Port | Protocol |
+|---------|------|----------|
+| Web application | 5000 | TCP |
+| Nginx (optional) | 80 / 443 | TCP |
+| WebSocket | same as app (5000) | TCP |
+| WireGuard VPN | 51820 | UDP |
