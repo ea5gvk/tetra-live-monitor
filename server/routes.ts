@@ -40,18 +40,24 @@ function getLocalIp(): string | null {
 }
 
 function getVoltage(): number | null {
+  // Read supply voltage from kernel power supply subsystem (values in µV).
+  // vcgencmd measure_volts (no args) returns CORE voltage (~0.8V), NOT supply voltage.
+  // We only accept readings > 1V to avoid picking up core/IO voltage nodes.
+  const preferredSources = ["rpi_supply", "ac", "usb", "BAT0", "BAT1"];
   try {
-    const out = execSync("vcgencmd measure_volts 2>/dev/null", { timeout: 2000 }).toString().trim();
-    const m = out.match(/volt=([\d.]+)V/);
-    if (m) return parseFloat(m[1]);
-  } catch {}
-  try {
+    for (const src of preferredSources) {
+      const vPath = `/sys/class/power_supply/${src}/voltage_now`;
+      if (fs.existsSync(vPath)) {
+        const volts = parseInt(fs.readFileSync(vPath, "utf-8").trim()) / 1_000_000;
+        if (volts > 1) return Math.round(volts * 100) / 100;
+      }
+    }
     const dirs = fs.readdirSync("/sys/class/power_supply");
     for (const d of dirs) {
       const vPath = `/sys/class/power_supply/${d}/voltage_now`;
       if (fs.existsSync(vPath)) {
-        const raw = fs.readFileSync(vPath, "utf-8").trim();
-        return Math.round(parseInt(raw) / 1000) / 1000;
+        const volts = parseInt(fs.readFileSync(vPath, "utf-8").trim()) / 1_000_000;
+        if (volts > 1) return Math.round(volts * 100) / 100;
       }
     }
   } catch {}
