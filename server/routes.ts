@@ -40,9 +40,17 @@ function getLocalIp(): string | null {
 }
 
 function getVoltage(): number | null {
-  // Read supply voltage from kernel power supply subsystem (values in µV).
-  // vcgencmd measure_volts (no args) returns CORE voltage (~0.8V), NOT supply voltage.
-  // We only accept readings > 1V to avoid picking up core/IO voltage nodes.
+  // 1) Pi 5 PMIC: vcgencmd pmic_read_adc EXT5V_V → "EXT5V_V 5.0670V"
+  try {
+    const out = execSync("vcgencmd pmic_read_adc EXT5V_V 2>/dev/null", { timeout: 2000 }).toString().trim();
+    const m = out.match(/([\d.]+)V/);
+    if (m) {
+      const v = parseFloat(m[1]);
+      if (v > 1) return Math.round(v * 100) / 100;
+    }
+  } catch {}
+
+  // 2) Kernel power supply subsystem (values in µV, only accept > 1V supply rails)
   const preferredSources = ["rpi_supply", "ac", "usb", "BAT0", "BAT1"];
   try {
     for (const src of preferredSources) {
@@ -61,6 +69,7 @@ function getVoltage(): number | null {
       }
     }
   } catch {}
+
   return null;
 }
 
