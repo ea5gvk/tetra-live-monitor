@@ -186,6 +186,163 @@ export async function registerRoutes(
     }, 500);
   });
 
+  // ─── VPN / WireGuard ────────────────────────────────────────────────────
+  const VPN_DATA_PATH = path.join(process.cwd(), "vpn-data.json");
+
+  interface VpnClient { name: string; privateKey: string; publicKey: string; address: string; createdAt: string; }
+  interface VpnData { serverPrivateKey: string; serverPublicKey: string; serverAddress: string; serverPort: number; clientDns: string; clients: VpnClient[]; }
+
+  function readVpnData(): VpnData | null { try { return JSON.parse(fs.readFileSync(VPN_DATA_PATH, "utf-8")); } catch { return null; } }
+  function writeVpnData(data: VpnData): void { fs.writeFileSync(VPN_DATA_PATH, JSON.stringify(data, null, 2)); }
+
+  function buildServerConf(data: VpnData): string {
+    let out = `[Interface]\nPrivateKey = ${data.serverPrivateKey}\nAddress = ${data.serverAddress}\nListenPort = ${data.serverPort}\nPostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT; iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE\nPostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT; iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE\n`;
+    for (const c of data.clients) { out += `\n# ${c.name}\n[Peer]\nPublicKey = ${c.publicKey}\nAllowedIPs = ${c.address}\n`; }
+    return out;
+  }
+
+  function buildClientConf(data: VpnData, client: VpnClient, pubIp: string): string {
+    return `[Interface]\nPrivateKey = ${client.privateKey}\nAddress = ${client.address}\nDNS = ${data.clientDns}\n\n[Peer]\nPublicKey = ${data.serverPublicKey}\nEndpoint = ${pubIp}:${data.serverPort}\nAllowedIPs = 0.0.0.0/0\nPersistentKeepalive = 25\n`;
+  }
+
+  function genWgKeys(): { privateKey: string; publicKey: string } | null {
+    try {
+      const WG = "/usr/bin/wg";
+      const privateKey = execSync(`${WG} genkey 2>/dev/null`, { timeout: 5000 }).toString().trim();
+      const publicKey = execSync(`echo "${privateKey}" | ${WG} pubkey 2>/dev/null`, { timeout: 5000 }).toString().trim();
+      return { privateKey, publicKey };
+    } catch { return null; }
+  }
+
+  function parseWgShow(out: string): any {
+    const result: any = { interface: "", listenPort: null, publicKey: "", peers: [] };
+    let peer: any = null;
+    for (const raw of out.split("\n")) {
+      const t = raw.trim();
+      const val = (prefix: string) => t.startsWith(prefix) ? t.slice(prefix.length).trim() : null;
+      if (val("interface:") !== null) result.interface = val("interface:");
+      else if (val("listening port:") !== null) result.listenPort = parseInt(val("listening port:") || "0");
+      else if (val("public key:") !== null) result.publicKey = val("public key:");
+      else if (val("peer:") !== null) { peer = { publicKey: val("peer:"), endpoint: null, allowedIps: "", latestHandshake: null, transfer: null }; result.peers.push(peer); }
+      else if (peer) {
+        if (val("endpoint:") !== null) peer.endpoint = val("endpoint:");
+        else if (val("allowed ips:") !== null) peer.allowedIps = val("allowed ips:");
+        else if (val("latest handshake:") !== null) peer.latestHandshake = val("latest handshake:");
+        else if (val("transfer:") !== null) peer.transfer = val("transfer:");
+      }
+    }
+    return result;
+  }
+
+  app.get("/api/vpn/status", (_req, res) => {
+    let installed = false;
+    try { execSync("which wg 2>/dev/null", { timeout: 2000 }); installed = true; } catch {}
+    let active = false; let wgInfo: any = null;
+    if (installed) {
+      try {
+        const out = execSync("sudo wg show wg0 2>/dev/null", { timeout: 4000 }).toString();
+        if (out.trim()) { active = true; wgInfo = parseWgShow(out); }
+      } catch {}
+    }
+    const data = readVpnData();
+    res.json({ installed, active, wgInfo, configured: !!data, serverPublicKey: data?.serverPublicKey || null, serverAddress: data?.serverAddress || null, serverPort: data?.serverPort || null, clientDns: data?.clientDns || null });
+  });
+
+  app.post("/api/vpn/install", (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
+    res.json({ message: "Instalando WireGuard..." });
+    exec("sudo apt-get install -y wireguard wireguard-tools iptables 2>&1", () => {});
+  });
+
+  app.post("/api/vpn/setup", (req, res) => {
+    const { password, serverAddress, serverPort, clientDns } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
+    const keys = genWgKeys();
+    if (!keys) return res.status(500).json({ message: "Error generando claves. ¿WireGuard instalado?" });
+    const existing = readVpnData();
+    const data: VpnData = { serverPrivateKey: keys.privateKey, serverPublicKey: keys.publicKey, serverAddress: serverAddress || "10.8.0.1/24", serverPort: parseInt(serverPort) || 51820, clientDns: clientDns || "8.8.8.8", clients: existing?.clients || [] };
+    writeVpnData(data);
+    const tmp = `/tmp/wg0_${Date.now()}.conf`;
+    try {
+      fs.writeFileSync(tmp, buildServerConf(data));
+      execSync(`sudo mkdir -p /etc/wireguard && sudo cp ${tmp} /etc/wireguard/wg0.conf && sudo chmod 600 /etc/wireguard/wg0.conf`, { timeout: 10000 });
+      try { fs.unlinkSync(tmp); } catch {}
+    } catch (e: any) { return res.status(500).json({ message: e.message }); }
+    res.json({ message: "Servidor configurado", publicKey: keys.publicKey });
+  });
+
+  app.post("/api/vpn/connect", (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
+    try { execSync("sudo wg-quick up wg0 2>&1", { timeout: 15000 }); res.json({ message: "WireGuard activo" }); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.post("/api/vpn/disconnect", (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
+    try { execSync("sudo wg-quick down wg0 2>&1", { timeout: 10000 }); res.json({ message: "WireGuard detenido" }); }
+    catch (e: any) { res.status(500).json({ message: e.message }); }
+  });
+
+  app.get("/api/vpn/clients", (_req, res) => {
+    const data = readVpnData();
+    res.json((data?.clients || []).map(({ name, address, publicKey, createdAt }) => ({ name, address, publicKey, createdAt })));
+  });
+
+  app.post("/api/vpn/clients", (req, res) => {
+    const { password, name } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
+    const data = readVpnData();
+    if (!data) return res.status(400).json({ message: "Servidor no configurado aún" });
+    if (!name || !/^[a-zA-Z0-9_-]+$/.test(name)) return res.status(400).json({ message: "Nombre inválido (solo letras, números, _ -)" });
+    if (data.clients.find(c => c.name === name)) return res.status(400).json({ message: "Ya existe un cliente con ese nombre" });
+    const keys = genWgKeys();
+    if (!keys) return res.status(500).json({ message: "Error generando claves" });
+    const parts = data.serverAddress.split("/")[0].split(".");
+    const clientAddr = `${parts[0]}.${parts[1]}.${parts[2]}.${data.clients.length + 2}/32`;
+    const client: VpnClient = { name, privateKey: keys.privateKey, publicKey: keys.publicKey, address: clientAddr, createdAt: new Date().toISOString() };
+    data.clients.push(client);
+    writeVpnData(data);
+    const tmp = `/tmp/wg0_${Date.now()}.conf`;
+    try {
+      fs.writeFileSync(tmp, buildServerConf(data));
+      execSync(`sudo cp ${tmp} /etc/wireguard/wg0.conf && sudo chmod 600 /etc/wireguard/wg0.conf`, { timeout: 10000 });
+      try { fs.unlinkSync(tmp); } catch {}
+      try { execSync(`sudo wg set wg0 peer ${keys.publicKey} allowed-ips ${clientAddr} 2>/dev/null`, { timeout: 5000 }); } catch {}
+    } catch {}
+    res.json({ name: client.name, address: client.address, publicKey: client.publicKey, createdAt: client.createdAt });
+  });
+
+  app.get("/api/vpn/clients/:name/config", (req, res) => {
+    const data = readVpnData();
+    if (!data) return res.status(404).json({ message: "No configurado" });
+    const client = data.clients.find(c => c.name === req.params.name);
+    if (!client) return res.status(404).json({ message: "Cliente no encontrado" });
+    res.json({ config: buildClientConf(data, client, cachedPublicIp || "TU_IP_PUBLICA") });
+  });
+
+  app.delete("/api/vpn/clients/:name", (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
+    const data = readVpnData();
+    if (!data) return res.status(404).json({ message: "No configurado" });
+    const client = data.clients.find(c => c.name === req.params.name);
+    if (!client) return res.status(404).json({ message: "No encontrado" });
+    try { execSync(`sudo wg set wg0 peer ${client.publicKey} remove 2>/dev/null || true`, { timeout: 5000 }); } catch {}
+    data.clients = data.clients.filter(c => c.name !== req.params.name);
+    writeVpnData(data);
+    const tmp = `/tmp/wg0_${Date.now()}.conf`;
+    try {
+      fs.writeFileSync(tmp, buildServerConf(data));
+      execSync(`sudo cp ${tmp} /etc/wireguard/wg0.conf && sudo chmod 600 /etc/wireguard/wg0.conf`, { timeout: 10000 });
+      try { fs.unlinkSync(tmp); } catch {}
+    } catch {}
+    res.json({ message: "Cliente eliminado" });
+  });
+  // ─────────────────────────────────────────────────────────────────────────
+
   app.get('/api/system/read-config', (req, res) => {
     const configPath = typeof req.query.path === 'string' ? req.query.path : '';
     if (!configPath) return res.status(400).json({ message: 'Ruta no especificada' });

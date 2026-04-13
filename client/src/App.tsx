@@ -6,8 +6,9 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/Dashboard";
 import Calculator from "@/pages/Calculator";
 import LogLive from "@/pages/LogLive";
+import VpnManager from "@/pages/VpnManager";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon } from "lucide-react";
+import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, ShieldCheck } from "lucide-react";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 import { useState, useEffect } from "react";
 
@@ -108,6 +109,18 @@ function NavBar() {
         <ScrollText className="w-3.5 h-3.5" />
         {t("log_live")}
       </Link>
+      <Link
+        href="/vpn"
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-t transition-colors ${
+          location === "/vpn"
+            ? "bg-primary/10 text-primary border border-primary/20 border-b-0"
+            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+        }`}
+        data-testid="nav-link-vpn"
+      >
+        <ShieldCheck className="w-3.5 h-3.5" />
+        VPN
+      </Link>
       <div className="ml-auto flex items-center gap-1">
         <LangSelector />
         <ThemeToggle />
@@ -125,6 +138,7 @@ function Router() {
           <Route path="/" component={Dashboard} />
           <Route path="/calculator" component={Calculator} />
           <Route path="/log-live" component={LogLive} />
+          <Route path="/vpn" component={VpnManager} />
           <Route component={NotFound} />
         </Switch>
       </div>
