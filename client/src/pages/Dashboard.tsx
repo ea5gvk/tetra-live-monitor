@@ -311,12 +311,10 @@ function PiStats() {
         <MemoryStick className="w-3.5 h-3.5" />
         {stats.memUsed !== null ? `${stats.memUsed}%` : "--"}
       </span>
-      {stats.voltage !== null && (
-        <span className={`inline-flex items-center gap-1 text-xs font-mono ${voltageColor}`} title={t("voltage")} data-testid="stat-voltage">
-          <Zap className="w-3.5 h-3.5" />
-          {stats.voltage.toFixed(2)}V
-        </span>
-      )}
+      <span className={`inline-flex items-center gap-1 text-xs font-mono ${voltageColor}`} title={t("voltage")} data-testid="stat-voltage">
+        <Zap className="w-3.5 h-3.5" />
+        {stats.voltage !== null ? `${stats.voltage.toFixed(2)}V` : "--"}
+      </span>
       {stats.localIp && (
         <span className="inline-flex items-center gap-1 text-xs font-mono text-sky-400" title={t("local_ip")} data-testid="stat-local-ip">
           <Network className="w-3.5 h-3.5" />
