@@ -885,21 +885,19 @@ export async function registerRoutes(
             // Skip empty lines and already-commented lines
             if (!line.trim() || line.trim().startsWith('#')) continue;
             if (line.match(/^\s*[\w][\w]*\s*=/)) {
-              const keyName = line.match(/^\s*([\w]+)\s*=/)?.[1];
-              if (keyName === 'tls') {
-                // tls is never commented — always written as true/false
-                lines[i] = `tls = ${tlsValue}`;
-              } else {
-                lines[i] = `#${line}`;
-              }
+              lines[i] = `#${line}`;
             }
           }
         }
-        // If already commented: still keep tls value updated
+        // If already commented: keep tls value updated but commented
         if (brewHeaderIdx !== -1 && !brewIsActive) {
           const brewEnd = getBrewEnd(brewHeaderIdx);
           for (let i = brewHeaderIdx + 1; i < brewEnd; i++) {
-            if (lines[i].match(/^\s*tls\s*=/)) { lines[i] = `tls = ${tlsValue}`; break; }
+            // Match both active (tls = ...) and already-commented (#tls = ...) forms
+            if (lines[i].match(/^\s*#?\s*tls\s*=/)) {
+              lines[i] = `#tls = ${tlsValue}`;
+              break;
+            }
           }
         }
       }
