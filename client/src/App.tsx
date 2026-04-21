@@ -136,7 +136,7 @@ function NavBar() {
       </Link>
       <div className="ml-auto flex items-center gap-2">
         <span
-          className="text-[11px] font-black tracking-widest px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 select-none"
+          className="text-[11px] font-black tracking-widest px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 select-none"
           data-testid="text-callsign"
         >
           @EA5GVK
