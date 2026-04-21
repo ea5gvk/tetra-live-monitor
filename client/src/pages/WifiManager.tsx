@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { Wifi, WifiOff, RefreshCw, Eye, EyeOff, X, Lock, Unlock, Signal } from "lucide-react";
+import { Wifi, WifiOff, RefreshCw, Eye, EyeOff, X, Lock, Unlock, Signal, ShieldOff } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 interface WifiNetwork {
@@ -13,7 +13,6 @@ interface WifiNetwork {
 interface SavedNetwork {
   name: string;
   type: string;
-  timestamp?: string;
 }
 
 interface WifiStatus {
@@ -24,90 +23,6 @@ interface WifiStatus {
   security?: string;
   interface?: string;
   demo?: boolean;
-}
-
-interface PasswordModalProps {
-  title: string;
-  onConfirm: (password: string) => void;
-  onCancel: () => void;
-  wifiPassword?: boolean;
-  wifiPasswordValue?: string;
-  onWifiPasswordChange?: (v: string) => void;
-}
-
-function PasswordModal({ title, onConfirm, onCancel, wifiPassword, wifiPasswordValue = "", onWifiPasswordChange }: PasswordModalProps) {
-  const { t } = useI18n();
-  const [sysPass, setSysPass] = useState("");
-  const [showSys, setShowSys] = useState(false);
-  const [showWifi, setShowWifi] = useState(false);
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="bg-card border border-border rounded-lg p-5 w-80 space-y-4 shadow-2xl">
-        <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-primary tracking-widest">{title}</span>
-          <button onClick={onCancel} className="text-muted-foreground hover:text-foreground">
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-        {wifiPassword && (
-          <div className="relative">
-            <input
-              type={showWifi ? "text" : "password"}
-              placeholder={t("wifi_enter_password")}
-              value={wifiPasswordValue}
-              onChange={e => onWifiPasswordChange?.(e.target.value)}
-              className="w-full bg-black/30 border border-border rounded px-3 py-2 text-xs text-foreground placeholder-muted-foreground pr-8 outline-none focus:border-primary/50"
-              data-testid="input-wifi-password"
-            />
-            <button
-              type="button"
-              onClick={() => setShowWifi(v => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-            >
-              {showWifi ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-            </button>
-          </div>
-        )}
-        <div className="relative">
-          <input
-            type={showSys ? "text" : "password"}
-            placeholder={t("password")}
-            value={sysPass}
-            onChange={e => setSysPass(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && sysPass && onConfirm(sysPass)}
-            autoFocus
-            className="w-full bg-black/30 border border-border rounded px-3 py-2 text-xs text-foreground placeholder-muted-foreground pr-8 outline-none focus:border-primary/50"
-            data-testid="input-system-password"
-          />
-          <button
-            type="button"
-            onClick={() => setShowSys(v => !v)}
-            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          >
-            {showSys ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
-          </button>
-        </div>
-        <div className="flex gap-2">
-          <button
-            onClick={onCancel}
-            className="flex-1 px-3 py-1.5 text-xs font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 transition-colors"
-            data-testid="button-cancel"
-          >
-            {t("vpn_cancel")}
-          </button>
-          <button
-            onClick={() => sysPass && onConfirm(sysPass)}
-            disabled={!sysPass}
-            className="flex-1 px-3 py-1.5 text-xs font-bold rounded bg-primary/20 text-primary border border-primary/30 hover:bg-primary/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-            data-testid="button-confirm"
-          >
-            {t("vpn_confirm")}
-          </button>
-        </div>
-      </div>
-    </div>
-  );
 }
 
 function SignalBars({ signal }: { signal: number }) {
@@ -121,6 +36,130 @@ function SignalBars({ signal }: { signal: number }) {
   );
 }
 
+function UnlockModal({ onConfirm, onCancel }: { onConfirm: (p: string) => void; onCancel: () => void }) {
+  const { t } = useI18n();
+  const [pass, setPass] = useState("");
+  const [show, setShow] = useState(false);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-lg p-5 w-72 space-y-4 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Unlock className="w-4 h-4 text-sky-400" />
+            <span className="text-xs font-bold text-primary tracking-widest">{t("wifi_unlock")}</span>
+          </div>
+          <button onClick={onCancel} className="text-muted-foreground hover:text-foreground">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        <p className="text-[10px] text-muted-foreground">{t("wifi_unlock_hint")}</p>
+        <div className="relative">
+          <input
+            type={show ? "text" : "password"}
+            placeholder={t("password")}
+            value={pass}
+            onChange={e => setPass(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && pass && onConfirm(pass)}
+            autoFocus
+            className="w-full bg-black/30 border border-border rounded px-3 py-2 text-xs text-foreground placeholder-muted-foreground pr-8 outline-none focus:border-primary/50"
+            data-testid="input-unlock-password"
+          />
+          <button
+            type="button"
+            onClick={() => setShow(v => !v)}
+            className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+          >
+            {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+          </button>
+        </div>
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 px-3 py-1.5 text-xs font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 transition-colors"
+            data-testid="button-unlock-cancel"
+          >
+            {t("vpn_cancel")}
+          </button>
+          <button
+            onClick={() => pass && onConfirm(pass)}
+            disabled={!pass}
+            className="flex-1 px-3 py-1.5 text-xs font-bold rounded bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+            data-testid="button-unlock-confirm"
+          >
+            {t("vpn_confirm")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function WifiPasswordModal({
+  ssid,
+  hasPassword,
+  onConfirm,
+  onCancel,
+}: {
+  ssid: string;
+  hasPassword: boolean;
+  onConfirm: (wifiPass: string) => void;
+  onCancel: () => void;
+}) {
+  const { t } = useI18n();
+  const [wifiPass, setWifiPass] = useState("");
+  const [show, setShow] = useState(false);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
+      <div className="bg-card border border-border rounded-lg p-5 w-72 space-y-4 shadow-2xl">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-primary tracking-widest truncate">{ssid}</span>
+          <button onClick={onCancel} className="text-muted-foreground hover:text-foreground shrink-0 ml-2">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        {hasPassword && (
+          <div className="relative">
+            <input
+              type={show ? "text" : "password"}
+              placeholder={t("wifi_password")}
+              value={wifiPass}
+              onChange={e => setWifiPass(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && onConfirm(wifiPass)}
+              autoFocus
+              className="w-full bg-black/30 border border-border rounded px-3 py-2 text-xs text-foreground placeholder-muted-foreground pr-8 outline-none focus:border-primary/50"
+              data-testid="input-wifi-network-password"
+            />
+            <button
+              type="button"
+              onClick={() => setShow(v => !v)}
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
+            >
+              {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </div>
+        )}
+        <div className="flex gap-2">
+          <button
+            onClick={onCancel}
+            className="flex-1 px-3 py-1.5 text-xs font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 transition-colors"
+          >
+            {t("vpn_cancel")}
+          </button>
+          <button
+            onClick={() => onConfirm(wifiPass)}
+            className="flex-1 px-3 py-1.5 text-xs font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors"
+            data-testid="button-wifi-connect-ok"
+          >
+            {t("wifi_connect")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function WifiManager() {
   const { t } = useI18n();
 
@@ -130,14 +169,14 @@ export default function WifiManager() {
   const [scanning, setScanning] = useState(false);
   const [loadingStatus, setLoadingStatus] = useState(false);
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
-  const [modal, setModal] = useState<{
-    title: string;
-    action: (sysPass: string) => void;
-    wifiPassword?: boolean;
-  } | null>(null);
-  const [wifiPass, setWifiPass] = useState("");
+
+  // Lock / unlock
+  const [unlockedPassword, setUnlockedPassword] = useState<string>("");
+  const [showUnlockModal, setShowUnlockModal] = useState(false);
+  const isUnlocked = unlockedPassword.length > 0;
+
+  // Connect flow
   const [connectTarget, setConnectTarget] = useState<WifiNetwork | null>(null);
-  const [showConnectForm, setShowConnectForm] = useState<string | null>(null);
 
   const showMsg = (text: string, ok: boolean) => {
     setMsg({ text, ok });
@@ -158,7 +197,7 @@ export default function WifiManager() {
   const fetchStatus = useCallback(async () => {
     setLoadingStatus(true);
     const r = await apiCall("/api/wifi/status");
-    if (r.status !== undefined || r.connected !== undefined) setStatus(r);
+    if (r.connected !== undefined) setStatus(r);
     setLoadingStatus(false);
   }, []);
 
@@ -172,6 +211,18 @@ export default function WifiManager() {
     fetchSaved();
   }, [fetchStatus, fetchSaved]);
 
+  const handleUnlock = async (password: string) => {
+    // Validate password by attempting a harmless authenticated call
+    const r = await apiCall("/api/wifi/check-password", "POST", { password });
+    if (r.ok) {
+      setUnlockedPassword(password);
+      setShowUnlockModal(false);
+      showMsg(t("wifi_unlocked"), true);
+    } else {
+      showMsg(r.message || t("wifi_wrong_password"), false);
+    }
+  };
+
   const doScan = async () => {
     setScanning(true);
     setNetworks([]);
@@ -181,30 +232,23 @@ export default function WifiManager() {
     setScanning(false);
   };
 
-  const doConnect = async (ssid: string, wifiPassword: string, sysPass: string) => {
-    const r = await apiCall("/api/wifi/connect", "POST", { ssid, wifiPassword, password: sysPass });
-    showMsg(r.message || (r.ok ? t("wifi_connect") : "Error"), r.ok);
-    if (r.ok) {
-      setShowConnectForm(null);
-      setWifiPass("");
-      setTimeout(() => { fetchStatus(); fetchSaved(); }, 3000);
-    }
+  const doConnect = async (ssid: string, wifiPassword: string) => {
+    setConnectTarget(null);
+    const r = await apiCall("/api/wifi/connect", "POST", { ssid, wifiPassword, password: unlockedPassword });
+    showMsg(r.message || (r.ok ? t("wifi_connect") : "Error"), r.ok ?? false);
+    if (r.ok) setTimeout(() => { fetchStatus(); fetchSaved(); }, 3000);
   };
 
-  const doDisconnect = async (sysPass: string) => {
-    const r = await apiCall("/api/wifi/disconnect", "POST", { password: sysPass });
-    showMsg(r.message || (r.ok ? t("wifi_disconnect") : "Error"), r.ok);
+  const doDisconnect = async () => {
+    const r = await apiCall("/api/wifi/disconnect", "POST", { password: unlockedPassword });
+    showMsg(r.message || (r.ok ? t("wifi_disconnect") : "Error"), r.ok ?? false);
     if (r.ok) setTimeout(fetchStatus, 2000);
   };
 
-  const doForget = async (name: string, sysPass: string) => {
-    const r = await apiCall("/api/wifi/forget", "POST", { name, password: sysPass });
-    showMsg(r.message || (r.ok ? t("wifi_forget") : "Error"), r.ok);
+  const doForget = async (name: string) => {
+    const r = await apiCall("/api/wifi/forget", "POST", { name, password: unlockedPassword });
+    showMsg(r.message || (r.ok ? t("wifi_forget") : "Error"), r.ok ?? false);
     if (r.ok) { fetchSaved(); setTimeout(fetchStatus, 1000); }
-  };
-
-  const withPassword = (title: string, action: (p: string) => void, withWifi = false) => {
-    setModal({ title, action, wifiPassword: withWifi });
   };
 
   const panelCls = "bg-card/60 border border-border/60 rounded-lg overflow-hidden";
@@ -213,16 +257,54 @@ export default function WifiManager() {
 
   return (
     <div className="flex-1 p-3 space-y-3 max-w-4xl mx-auto w-full">
-      {modal && (
-        <PasswordModal
-          title={modal.title}
-          wifiPassword={modal.wifiPassword}
-          wifiPasswordValue={wifiPass}
-          onWifiPasswordChange={setWifiPass}
-          onConfirm={p => { modal.action(p); setModal(null); }}
-          onCancel={() => { setModal(null); setWifiPass(""); }}
+      {showUnlockModal && (
+        <UnlockModal
+          onConfirm={handleUnlock}
+          onCancel={() => setShowUnlockModal(false)}
         />
       )}
+      {connectTarget && (
+        <WifiPasswordModal
+          ssid={connectTarget.ssid}
+          hasPassword={connectTarget.security !== "--" && connectTarget.security !== ""}
+          onConfirm={wp => doConnect(connectTarget.ssid, wp)}
+          onCancel={() => setConnectTarget(null)}
+        />
+      )}
+
+      {/* Lock / unlock bar */}
+      <div className={`flex items-center gap-3 px-4 py-2 rounded-lg border ${
+        isUnlocked
+          ? "bg-emerald-500/8 border-emerald-500/25 text-emerald-400"
+          : "bg-amber-500/8 border-amber-500/25 text-amber-400"
+      }`}>
+        {isUnlocked
+          ? <Unlock className="w-3.5 h-3.5 shrink-0" />
+          : <Lock className="w-3.5 h-3.5 shrink-0" />
+        }
+        <span className="text-[10px] font-bold tracking-wider flex-1">
+          {isUnlocked ? t("wifi_mode_unlocked") : t("wifi_mode_locked")}
+        </span>
+        {isUnlocked ? (
+          <button
+            onClick={() => { setUnlockedPassword(""); showMsg(t("wifi_locked_again"), true); }}
+            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-red-900/20 text-red-400 border border-red-800/30 hover:bg-red-900/40 transition-colors"
+            data-testid="button-wifi-lock"
+          >
+            <ShieldOff className="w-3 h-3" />
+            {t("wifi_lock")}
+          </button>
+        ) : (
+          <button
+            onClick={() => setShowUnlockModal(true)}
+            className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30 transition-colors"
+            data-testid="button-wifi-unlock"
+          >
+            <Unlock className="w-3 h-3" />
+            {t("wifi_unlock_btn")}
+          </button>
+        )}
+      </div>
 
       {msg && (
         <div className={`px-4 py-2 rounded text-xs font-bold border ${
@@ -293,9 +375,9 @@ export default function WifiManager() {
             </div>
           )}
           <div className="flex gap-2 pt-1">
-            {status?.connected && !status?.demo && (
+            {isUnlocked && status?.connected && !status?.demo && (
               <button
-                onClick={() => withPassword(t("wifi_confirm_disconnect"), doDisconnect)}
+                onClick={doDisconnect}
                 className="px-3 py-1.5 text-xs font-bold rounded bg-red-900/20 text-red-400 border border-red-800/30 hover:bg-red-900/40 transition-colors"
                 data-testid="button-wifi-disconnect"
               >
@@ -358,50 +440,14 @@ export default function WifiManager() {
                         {net.freq && <span className="text-[10px] text-muted-foreground">{net.freq}</span>}
                       </div>
                     </div>
-                    {!net.active && net.ssid && (
-                      <div>
-                        {showConnectForm === net.ssid ? (
-                          <div className="flex items-center gap-2">
-                            {(net.security && net.security !== "--") && (
-                              <input
-                                type="password"
-                                placeholder={t("wifi_password")}
-                                value={wifiPass}
-                                onChange={e => setWifiPass(e.target.value)}
-                                className="w-28 bg-black/30 border border-border rounded px-2 py-1 text-[10px] text-foreground outline-none focus:border-primary/50"
-                                data-testid={`input-wifi-pass-${net.ssid}`}
-                              />
-                            )}
-                            <button
-                              onClick={() => {
-                                const ssid = net.ssid;
-                                const wp = wifiPass;
-                                withPassword(t("wifi_confirm_connect"), (sysPass) => {
-                                  doConnect(ssid, wp, sysPass);
-                                });
-                              }}
-                              className="px-2 py-1 text-[10px] font-bold rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 hover:bg-emerald-500/30 transition-colors"
-                              data-testid={`button-wifi-connect-confirm-${net.ssid}`}
-                            >
-                              {t("vpn_confirm")}
-                            </button>
-                            <button
-                              onClick={() => { setShowConnectForm(null); setWifiPass(""); }}
-                              className="px-2 py-1 text-[10px] font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 transition-colors"
-                            >
-                              <X className="w-3 h-3" />
-                            </button>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => { setShowConnectForm(net.ssid); setWifiPass(""); }}
-                            className="px-3 py-1 text-[10px] font-bold rounded bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30 transition-colors"
-                            data-testid={`button-wifi-connect-${net.ssid}`}
-                          >
-                            {t("wifi_connect")}
-                          </button>
-                        )}
-                      </div>
+                    {isUnlocked && !net.active && net.ssid && (
+                      <button
+                        onClick={() => setConnectTarget(net)}
+                        className="px-3 py-1 text-[10px] font-bold rounded bg-sky-500/20 text-sky-400 border border-sky-500/30 hover:bg-sky-500/30 transition-colors shrink-0"
+                        data-testid={`button-wifi-connect-${net.ssid}`}
+                      >
+                        {t("wifi_connect")}
+                      </button>
                     )}
                   </div>
                 </div>
@@ -435,13 +481,15 @@ export default function WifiManager() {
                     <div className="text-xs font-bold text-foreground truncate">{net.name}</div>
                     <div className="text-[10px] text-muted-foreground">{net.type}</div>
                   </div>
-                  <button
-                    onClick={() => withPassword(t("wifi_confirm_forget"), (p) => doForget(net.name, p))}
-                    className="px-3 py-1 text-[10px] font-bold rounded bg-red-900/20 text-red-400 border border-red-800/30 hover:bg-red-900/40 transition-colors"
-                    data-testid={`button-wifi-forget-${net.name}`}
-                  >
-                    {t("wifi_forget")}
-                  </button>
+                  {isUnlocked && (
+                    <button
+                      onClick={() => doForget(net.name)}
+                      className="px-3 py-1 text-[10px] font-bold rounded bg-red-900/20 text-red-400 border border-red-800/30 hover:bg-red-900/40 transition-colors shrink-0"
+                      data-testid={`button-wifi-forget-${net.name}`}
+                    >
+                      {t("wifi_forget")}
+                    </button>
+                  )}
                 </div>
               ))
             )}

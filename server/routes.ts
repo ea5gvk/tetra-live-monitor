@@ -358,6 +358,12 @@ export async function registerRoutes(
     try { execSync("which nmcli", { timeout: 2000 }); return true; } catch { return false; }
   }
 
+  app.post("/api/wifi/check-password", (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.json({ ok: false, message: "Contraseña incorrecta" });
+    res.json({ ok: true });
+  });
+
   app.get("/api/wifi/status", (_req, res) => {
     if (!nmcliAvailable()) return res.json({ connected: false, demo: true });
     try {
