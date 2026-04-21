@@ -352,6 +352,112 @@ export async function registerRoutes(
     } catch {}
     res.json({ message: "Cliente eliminado" });
   });
+  // ─── WIFI MANAGER ──────────────────────────────────────────────────────────
+
+  function nmcliAvailable(): boolean {
+    try { execSync("which nmcli", { timeout: 2000 }); return true; } catch { return false; }
+  }
+
+  app.get("/api/wifi/status", (_req, res) => {
+    if (!nmcliAvailable()) return res.json({ connected: false, demo: true });
+    try {
+      // Get active wifi connection
+      const active = execSync("nmcli -t -f NAME,TYPE,DEVICE connection show --active 2>/dev/null", { timeout: 5000 }).toString().trim();
+      let ssid = ""; let iface = "";
+      for (const line of active.split("\n")) {
+        const parts = line.split(":");
+        if (parts[1] === "802-11-wireless") { ssid = parts[0]; iface = parts[2] || "wlan0"; break; }
+      }
+      if (!ssid) return res.json({ connected: false });
+      // Get signal + security
+      const devOut = execSync(`nmcli -t -f ACTIVE,SSID,SIGNAL,SECURITY device wifi list 2>/dev/null`, { timeout: 5000 }).toString().trim();
+      let signal = 0; let security = "";
+      for (const line of devOut.split("\n")) {
+        const p = line.split(":");
+        if (p[0] === "yes") { signal = parseInt(p[2]) || 0; security = p[3] || ""; break; }
+      }
+      // Get IP
+      let ip = "";
+      try {
+        const ipOut = execSync(`ip -4 addr show ${iface} 2>/dev/null`, { timeout: 3000 }).toString();
+        const m = ipOut.match(/inet (\d+\.\d+\.\d+\.\d+)/);
+        if (m) ip = m[1];
+      } catch {}
+      res.json({ connected: true, ssid, signal, security: security || "WPA2", interface: iface, ip });
+    } catch { res.json({ connected: false }); }
+  });
+
+  app.get("/api/wifi/scan", (_req, res) => {
+    if (!nmcliAvailable()) return res.json({ networks: [] });
+    try {
+      const out = execSync("nmcli -t -f ACTIVE,SSID,SIGNAL,SECURITY,FREQ dev wifi list --rescan yes 2>/dev/null", { timeout: 20000 }).toString().trim();
+      const seen = new Set<string>();
+      const networks = out.split("\n").map(line => {
+        const p = line.split(":");
+        return { active: p[0] === "yes", ssid: p[1] || "", signal: parseInt(p[2]) || 0, security: p[3] || "--", freq: p[4] || "" };
+      }).filter(n => {
+        if (!n.ssid || seen.has(n.ssid)) return false;
+        seen.add(n.ssid); return true;
+      }).sort((a, b) => b.signal - a.signal);
+      res.json({ networks });
+    } catch { res.json({ networks: [] }); }
+  });
+
+  app.get("/api/wifi/saved", (_req, res) => {
+    if (!nmcliAvailable()) return res.json({ networks: [] });
+    try {
+      const out = execSync("nmcli -t -f NAME,TYPE connection show 2>/dev/null", { timeout: 5000 }).toString().trim();
+      const networks = out.split("\n")
+        .map(line => { const p = line.split(":"); return { name: p[0], type: p[1] || "" }; })
+        .filter(n => n.type === "802-11-wireless" && n.name);
+      res.json({ networks });
+    } catch { res.json({ networks: [] }); }
+  });
+
+  app.post("/api/wifi/connect", (req, res) => {
+    const { ssid, wifiPassword, password } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
+    if (!ssid) return res.status(400).json({ message: "SSID requerido" });
+    if (!nmcliAvailable()) return res.status(503).json({ message: "nmcli no disponible (modo demo)" });
+    try {
+      const safeSsid = ssid.replace(/"/g, '\\"');
+      const cmd = wifiPassword
+        ? `sudo nmcli dev wifi connect "${safeSsid}" password "${wifiPassword.replace(/"/g, '\\"')}" ifname wlan0`
+        : `sudo nmcli dev wifi connect "${safeSsid}" ifname wlan0`;
+      execSync(cmd, { timeout: 30000 });
+      res.json({ ok: true, message: `Conectado a ${ssid}` });
+    } catch (e: any) {
+      const msg = e?.stderr?.toString() || e?.stdout?.toString() || "Error al conectar";
+      res.status(500).json({ ok: false, message: msg.split("\n")[0] });
+    }
+  });
+
+  app.post("/api/wifi/disconnect", (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
+    if (!nmcliAvailable()) return res.status(503).json({ message: "nmcli no disponible (modo demo)" });
+    try {
+      execSync("sudo nmcli device disconnect wlan0", { timeout: 10000 });
+      res.json({ ok: true, message: "Desconectado del WiFi" });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, message: "Error al desconectar" });
+    }
+  });
+
+  app.post("/api/wifi/forget", (req, res) => {
+    const { name, password } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
+    if (!name) return res.status(400).json({ message: "Nombre requerido" });
+    if (!nmcliAvailable()) return res.status(503).json({ message: "nmcli no disponible (modo demo)" });
+    try {
+      const safeName = name.replace(/"/g, '\\"');
+      execSync(`sudo nmcli connection delete id "${safeName}"`, { timeout: 10000 });
+      res.json({ ok: true, message: `Red '${name}' olvidada` });
+    } catch (e: any) {
+      res.status(500).json({ ok: false, message: "Error al olvidar red" });
+    }
+  });
+
   // ─────────────────────────────────────────────────────────────────────────
 
   app.get('/api/system/read-config', (req, res) => {

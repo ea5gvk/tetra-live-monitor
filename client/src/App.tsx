@@ -7,8 +7,9 @@ import Dashboard from "@/pages/Dashboard";
 import Calculator from "@/pages/Calculator";
 import LogLive from "@/pages/LogLive";
 import VpnManager from "@/pages/VpnManager";
+import WifiManager from "@/pages/WifiManager";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, ShieldCheck } from "lucide-react";
+import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, ShieldCheck, Wifi } from "lucide-react";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 import { useState, useEffect } from "react";
 
@@ -121,7 +122,25 @@ function NavBar() {
         <ShieldCheck className="w-3.5 h-3.5" />
         VPN
       </Link>
-      <div className="ml-auto flex items-center gap-1">
+      <Link
+        href="/wifi"
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-t transition-colors ${
+          location === "/wifi"
+            ? "bg-primary/10 text-primary border border-primary/20 border-b-0"
+            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+        }`}
+        data-testid="nav-link-wifi"
+      >
+        <Wifi className="w-3.5 h-3.5" />
+        {t("wifi_manager")}
+      </Link>
+      <div className="ml-auto flex items-center gap-2">
+        <span
+          className="text-[11px] font-black tracking-widest px-2 py-0.5 rounded bg-amber-500/15 text-amber-400 border border-amber-500/30 select-none"
+          data-testid="text-callsign"
+        >
+          @EA5GVK
+        </span>
         <LangSelector />
         <ThemeToggle />
       </div>
@@ -139,6 +158,7 @@ function Router() {
           <Route path="/calculator" component={Calculator} />
           <Route path="/log-live" component={LogLive} />
           <Route path="/vpn" component={VpnManager} />
+          <Route path="/wifi" component={WifiManager} />
           <Route component={NotFound} />
         </Switch>
       </div>
