@@ -422,6 +422,73 @@ export async function registerRoutes(
     });
   });
 
+  // ─── Bluestation update endpoints ───────────────────────────────────────────
+
+  app.get("/api/bluestation/check", (req, res) => {
+    const dir = (req.query.dir as string) || "/root/tetra-bluestation";
+    const cleanDir = dir.replace(/[;&|`$]/g, "");
+    if (!fs.existsSync(cleanDir)) return res.json({ demo: false, dirNotFound: true });
+    try {
+      execSync("which git", { timeout: 2000 });
+    } catch {
+      return res.json({ demo: true });
+    }
+    try {
+      const localHash = execSync(`git -C "${cleanDir}" rev-parse HEAD 2>/dev/null`, { timeout: 5000 }).toString().trim();
+      const raw = execSync(
+        `curl -sf -H "User-Agent: tetra-live-monitor" "https://api.github.com/repos/MidnightBlueLabs/tetra-bluestation/commits/main"`,
+        { timeout: 12000 }
+      ).toString();
+      const data = JSON.parse(raw);
+      const remoteHash: string = data.sha || "";
+      const remoteMessage: string = (data.commit?.message || "").split("\n")[0];
+      const remoteDate: string = data.commit?.author?.date || "";
+      const remoteAuthor: string = data.commit?.author?.name || "";
+      res.json({
+        upToDate: localHash === remoteHash,
+        localHash: localHash.substring(0, 8),
+        remoteHash: remoteHash.substring(0, 8),
+        remoteMessage,
+        remoteDate,
+        remoteAuthor,
+        demo: false,
+        dirNotFound: false,
+      });
+    } catch (err) {
+      res.json({ demo: true, error: String(err) });
+    }
+  });
+
+  app.post("/api/bluestation/apply", (req, res) => {
+    const { password, dir = "/root/tetra-bluestation", serviceName = "tmo.service" } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ message: "Contraseña incorrecta" });
+    }
+    const cleanDir = (dir as string).replace(/[;&|`$]/g, "");
+    const cleanService = (serviceName as string).replace(/[;&|`$\s]/g, "");
+    if (!fs.existsSync(cleanDir)) {
+      return res.status(400).json({ message: "bluestation_dir_not_found" });
+    }
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("Cache-Control", "no-cache");
+    res.flushHeaders();
+
+    const restartCmd = cleanService ? ` && sudo systemctl restart ${cleanService}` : "";
+    const cmd = `cd "${cleanDir}" && git pull && cargo build --release${restartCmd}`;
+    const child = spawn("bash", ["-c", cmd], { cwd: cleanDir });
+    child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
+    child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
+    child.on("close", (code: number) => {
+      res.write(`\n[Exit: ${code}]\n`);
+      res.end();
+    });
+    child.on("error", (err: Error) => {
+      res.write(`\n[Error: ${err.message}]\n`);
+      res.end();
+    });
+  });
+
   // ─── WiFi endpoints ─────────────────────────────────────────────────────────
 
   app.post("/api/wifi/check-password", (req, res) => {
