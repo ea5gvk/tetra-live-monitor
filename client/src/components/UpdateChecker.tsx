@@ -85,14 +85,27 @@ export function UpdateChecker() {
       }
       const reader = response.body!.getReader();
       const decoder = new TextDecoder();
-      while (true) {
-        const { value, done: streamDone } = await reader.read();
-        if (streamDone) break;
-        setOutput(prev => prev + decoder.decode(value, { stream: true }));
+      let accumulated = "";
+      try {
+        while (true) {
+          const { value, done: streamDone } = await reader.read();
+          if (streamDone) break;
+          const chunk = decoder.decode(value, { stream: true });
+          accumulated += chunk;
+          setOutput(prev => prev + chunk);
+        }
+      } catch {
+        // pm2 restart kills the server mid-stream — treat as success if output was received
+        if (accumulated.length > 50) {
+          setDone(true);
+          setApplying(false);
+          return;
+        }
+        throw new Error("stream_error");
       }
       setDone(true);
       setApplying(false);
-    } catch (err) {
+    } catch {
       setApplyError(t("update_error"));
       setApplying(false);
     }
