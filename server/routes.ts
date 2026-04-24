@@ -741,9 +741,12 @@ ${restartLine}
         for (const rawLine of lines) {
           if (ssiDone) break;
           const t = rawLine.trim();
-          const secM = t.match(/^\[([^\]]+)\]/);
-          if (secM) { ssiInCellInfo = secM[1] === "cell_info"; inSsiBlock = false; continue; }
+          // Only detect section headers when NOT inside a multi-line value block.
+          // Without this guard, lines like "[0, 7]," inside local_ssi_ranges
+          // would be mistakenly parsed as TOML section headers.
           if (!inSsiBlock) {
+            const secM = t.match(/^\[([^\]]+)\]/);
+            if (secM) { ssiInCellInfo = secM[1] === "cell_info"; continue; }
             if (!ssiInCellInfo) continue;
             const activeM = t.match(/^local_ssi_ranges\s*=\s*(.*)/);
             const commentedM = t.match(/^#\s*local_ssi_ranges\s*=\s*(.*)/);
