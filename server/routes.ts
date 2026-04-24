@@ -408,8 +408,42 @@ export async function registerRoutes(
     res.setHeader("Cache-Control", "no-cache");
     res.flushHeaders();
 
-    const cmd = `cd ${UPDATE_DIR} && git pull && npm install && npm run build && pm2 restart tetra-monitor`;
-    const child = spawn("bash", ["-c", cmd], { cwd: UPDATE_DIR });
+    const dashScript = `
+set -e
+cd "${UPDATE_DIR}"
+echo "=== git pull ==="
+if PULL_OUT=$(git pull 2>&1); then
+  echo "$PULL_OUT"
+else
+  PULL_EXIT=$?
+  echo "$PULL_OUT"
+  if echo "$PULL_OUT" | grep -q "would be overwritten by merge"; then
+    FILES=$(echo "$PULL_OUT" | awk '/following files would be overwritten/{p=1;next}/Please commit/{p=0}p' | sed 's/^[[:space:]]*//' | sed '/^[[:space:]]*$/d')
+    echo ""
+    echo "=== Local conflicts detected — resetting automatically... ==="
+    while IFS= read -r f; do
+      if [ -n "$f" ]; then
+        echo "  git checkout -- \$f"
+        git checkout -- "\$f"
+      fi
+    done <<< "$FILES"
+    echo "=== Retrying git pull... ==="
+    git pull
+  else
+    exit $PULL_EXIT
+  fi
+fi
+echo ""
+echo "=== npm install ==="
+npm install
+echo ""
+echo "=== npm run build ==="
+npm run build
+echo ""
+echo "=== pm2 restart tetra-monitor ==="
+pm2 restart tetra-monitor
+`;
+    const child = spawn("bash", ["-c", dashScript], { cwd: UPDATE_DIR });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
     child.on("close", (code: number) => {
@@ -474,9 +508,43 @@ export async function registerRoutes(
     res.setHeader("Cache-Control", "no-cache");
     res.flushHeaders();
 
-    const restartCmd = cleanService ? ` && sudo systemctl restart ${cleanService}` : "";
-    const cmd = `cd "${cleanDir}" && git pull && cargo build --release${restartCmd}`;
-    const child = spawn("bash", ["-c", cmd], { cwd: cleanDir });
+    const restartLine = cleanService
+      ? `echo "=== Restarting ${cleanService}... ===" && sudo systemctl restart ${cleanService}`
+      : `echo "No service configured to restart."`;
+
+    // Script: try git pull; if conflict, auto-checkout the affected files and retry
+    const script = `
+set -e
+cd "${cleanDir}"
+echo "=== git pull ==="
+if PULL_OUT=$(git pull 2>&1); then
+  echo "$PULL_OUT"
+else
+  PULL_EXIT=$?
+  echo "$PULL_OUT"
+  if echo "$PULL_OUT" | grep -q "would be overwritten by merge"; then
+    FILES=$(echo "$PULL_OUT" | awk '/following files would be overwritten/{p=1;next}/Please commit/{p=0}p' | sed 's/^[[:space:]]*//' | sed '/^[[:space:]]*$/d')
+    echo ""
+    echo "=== Local conflicts detected — resetting automatically... ==="
+    while IFS= read -r f; do
+      if [ -n "$f" ]; then
+        echo "  git checkout -- \$f"
+        git checkout -- "\$f"
+      fi
+    done <<< "$FILES"
+    echo "=== Retrying git pull... ==="
+    git pull
+  else
+    exit $PULL_EXIT
+  fi
+fi
+echo ""
+echo "=== cargo build --release ==="
+cargo build --release
+echo ""
+${restartLine}
+`;
+    const child = spawn("bash", ["-c", script], { cwd: cleanDir });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
     child.on("close", (code: number) => {
