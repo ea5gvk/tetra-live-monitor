@@ -11,6 +11,7 @@ import WifiManager from "@/pages/WifiManager";
 import NotFound from "@/pages/not-found";
 import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, ShieldCheck, Wifi } from "lucide-react";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
+import { UpdateChecker } from "@/components/UpdateChecker";
 import { useState, useEffect } from "react";
 
 const THEME_STORAGE_KEY = "tetra_dashboard_theme";
@@ -135,6 +136,7 @@ function NavBar() {
         {t("wifi_manager")}
       </Link>
       <div className="ml-auto flex items-center gap-2">
+        <UpdateChecker />
         <span
           className="text-[11px] font-black tracking-widest px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 select-none"
           data-testid="text-callsign"

@@ -358,6 +358,72 @@ export async function registerRoutes(
     try { execSync("which nmcli", { timeout: 2000 }); return true; } catch { return false; }
   }
 
+  // ─── Update endpoints ──────────────────────────────────────────────────────
+
+  const UPDATE_DIR = fs.existsSync("/opt/tetra-live-monitor") ? "/opt/tetra-live-monitor" : null;
+
+  app.get("/api/update/check", (_req, res) => {
+    if (!UPDATE_DIR) return res.json({ demo: true });
+    try {
+      execSync("which git", { timeout: 2000 });
+    } catch {
+      return res.json({ demo: true });
+    }
+    try {
+      const localHash = execSync(`git -C ${UPDATE_DIR} rev-parse HEAD`, { timeout: 5000 }).toString().trim();
+      // Fetch latest commit from GitHub API
+      const raw = execSync(
+        `curl -sf -H "User-Agent: tetra-live-monitor" "https://api.github.com/repos/ea5gvk/tetra-live-monitor/commits/main"`,
+        { timeout: 12000 }
+      ).toString();
+      const data = JSON.parse(raw);
+      const remoteHash: string = data.sha || "";
+      const remoteMessage: string = (data.commit?.message || "").split("\n")[0];
+      const remoteDate: string = data.commit?.author?.date || "";
+      const remoteAuthor: string = data.commit?.author?.name || "";
+      res.json({
+        upToDate: localHash === remoteHash,
+        localHash: localHash.substring(0, 8),
+        remoteHash: remoteHash.substring(0, 8),
+        remoteMessage,
+        remoteDate,
+        remoteAuthor,
+        demo: false,
+      });
+    } catch (err) {
+      res.json({ demo: true, error: String(err) });
+    }
+  });
+
+  app.post("/api/update/apply", (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ message: "Contraseña incorrecta" });
+    }
+    if (!UPDATE_DIR) {
+      return res.status(400).json({ message: "update_demo_mode" });
+    }
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("Cache-Control", "no-cache");
+    res.flushHeaders();
+
+    const cmd = `cd ${UPDATE_DIR} && git pull && npm install && npm run build && pm2 restart tetra-monitor`;
+    const child = spawn("bash", ["-c", cmd], { cwd: UPDATE_DIR });
+    child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
+    child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
+    child.on("close", (code: number) => {
+      res.write(`\n[Exit: ${code}]\n`);
+      res.end();
+    });
+    child.on("error", (err: Error) => {
+      res.write(`\n[Error: ${err.message}]\n`);
+      res.end();
+    });
+  });
+
+  // ─── WiFi endpoints ─────────────────────────────────────────────────────────
+
   app.post("/api/wifi/check-password", (req, res) => {
     const { password } = req.body || {};
     if (!password || password !== getSystemPassword()) return res.json({ ok: false, message: "Contraseña incorrecta" });

@@ -18,6 +18,7 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 - `client/public/calculator.html` — Standalone TETRA frequency calculator (ETSI TS 100 392-15)
 - `client/src/lib/i18n.ts` — Internationalization system (7 languages)
 - `client/src/hooks/useTetraWebSocket.ts` — WebSocket connection hook
+- `client/src/components/UpdateChecker.tsx` — Navbar update button + modal (GitHub check + streaming apply)
 - `shared/schema.ts` — Shared TypeScript types
 
 ## Internationalization (i18n)
@@ -62,6 +63,36 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 - Configurable service name: click the gear icon to change the service (default: `tmo.service`), stored in localStorage key `tetra_log_service`
 - Features: service selector, clear button, line counter, max 5000 lines buffer
 - When `journalctl` is not available (Replit), shows a demo message explaining it works on Raspberry Pi
+
+## Callsign Badge
+- `@EA5GVK` badge visible en la barra de navegación, a la derecha del selector de idioma
+- Color ámbar/dorado (`text-amber-400`, `bg-amber-500/15`, borde `border-amber-500/30`)
+- Estilo: negrita, tracking-widest, no seleccionable
+
+## WiFi Manager
+- Nueva pestaña "WIFI" en la barra de navegación (después de VPN)
+- Página: `client/src/pages/WifiManager.tsx`
+- **ESTADO WIFI**: muestra si hay conexión, SSID, IP, señal, interfaz, seguridad
+- **REDES DISPONIBLES**: botón Escanear → lista ordenada por señal con barras de señal, seguridad, botón Conectar (pide contraseña WiFi + contraseña del sistema)
+- **REDES GUARDADAS**: lista de redes guardadas con botón Olvidar (requiere contraseña del sistema)
+- Backend usa `nmcli` (NetworkManager CLI) disponible en Raspberry Pi OS Bookworm
+- Modo demo cuando `nmcli` no está disponible (Replit)
+- Traducciones `wifi_*` en los 7 idiomas
+- API endpoints: `GET /api/wifi/status`, `GET /api/wifi/scan`, `GET /api/wifi/saved`, `POST /api/wifi/connect`, `POST /api/wifi/disconnect`, `POST /api/wifi/forget`
+- Las operaciones de escritura requieren la contraseña del sistema (misma que restart/shutdown/VPN)
+
+## VPN Manager (WireGuard)
+- New tab "VPN" in the nav bar (next to LOG LIVE)
+- Page: `client/src/pages/VpnManager.tsx`
+- **VPN STATUS panel**: Shows if WireGuard is installed (YES/NO), if the wg0 interface is active (UP/DOWN), connected peers and their handshake/transfer stats
+- **SERVER CONFIGURATION panel**: Fields to configure server WireGuard IP, listen port (default 51820), DNS for clients (default 8.8.8.8). Collapsible. Requires system password to setup.
+- **CLIENTS panel**: List of configured VPN clients. Add a new client (name → generates key pair → assigns next IP). Each client has a QR code button (opens modal with QR + config text to scan with WireGuard mobile app) and a delete button.
+- **Data stored**: `vpn-data.json` in project root (server keys + client list with private/public keys and addresses)
+- **WireGuard config**: Written to `/etc/wireguard/wg0.conf` via sudo. Clients get sequential IPs (10.8.0.2, 10.8.0.3, …)
+- **API endpoints**: `GET /api/vpn/status`, `POST /api/vpn/install`, `POST /api/vpn/setup`, `POST /api/vpn/connect`, `POST /api/vpn/disconnect`, `GET /api/vpn/clients`, `POST /api/vpn/clients`, `GET /api/vpn/clients/:name/config`, `DELETE /api/vpn/clients/:name`
+- All mutating operations require the system password (same as restart/shutdown)
+- Client config includes QR code (via react-qr-code) scannable with the WireGuard mobile app
+- **Requirements**: Port 51820 UDP must be forwarded in the router to the Pi's local IP
 
 ## SDS Messages
 SDS (Short Data Service) messages are detected from TETRA logs and displayed in a dedicated panel at the bottom of the dashboard:
