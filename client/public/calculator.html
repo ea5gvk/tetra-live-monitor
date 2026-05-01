@@ -1360,6 +1360,107 @@
       apply_success: "\u2705 Konfiguration anvendt. Genstarter TMO...",
       apply_error: "\u26a0\ufe0f Fejl: {msg}",
       apply_sending: "Anvender \u00e6ndringer..."
+    },
+    nl: {
+      title: "TETRA Frequentiecalculator",
+      subtitle: "ETSI TS 100 392-15: bandbase/referentie, duplex spacing-mapping, 25 kHz raster + offset.",
+      theme_dark: "Donker",
+      theme_light: "Licht",
+      input: "Invoer",
+      output: "Resultaat",
+      freq_band: "Frequentieband",
+      band_hint: "Banden 3/4/8 volgen ETSI Table 1 base/referentie: 300/400/800 MHz.",
+      base_ref: "Base/referentiefrequentie",
+      base_hint: "Gebruikt voor: base + main_carrier\u00d725k + freq_offset.",
+      tx_label: "TX (Downlink / BS Tx)",
+      tx_hint: "Plak hele Hz of decimalen in MHz.",
+      rx_label: "RX (Uplink / MS Tx) (optioneel)",
+      rx_hint: "Indien opgegeven berekent het programma duplex_spacing + reverse_operation uit |TX-RX|.",
+      offset_label: "freq_offset selectie",
+      offset_auto: "Automatisch (beste match)",
+      offset_hint: "Offset wordt toegepast na main_carrier. Een vaste offset werkt TX bij naar base + main_carrier\u00d725k + offset (en herberekent).",
+      duplex_label: "duplex_spacing (ETSI Table 2 code)",
+      reverse_label: "reverse_operation",
+      reverse_false: "false (UL onder DL / normaal)",
+      reverse_true: "true (UL boven DL / omgekeerd)",
+      reverse_hint: "Indien RX opgegeven, wordt deze waarde overschreven door RX>TX.",
+      custom_label: "custom_duplex_spacing (alleen wanneer duplex_spacing=7 / 1112)",
+      custom_hint: "ETSI NOTE 3: 1112 betekent ongedefinieerde duplex spacing; moet op een andere manier bekend zijn.",
+      calc: "Berekenen",
+      swap: "TX/RX wisselen",
+      sample1: "Voorbeeld (amateurband: 438.025 / 433.025)",
+      out_tx: "tx_freq (Hz)",
+      out_rx: "rx_freq (Hz)",
+      out_main: "main_carrier",
+      out_offset: "freq_offset (Hz)",
+      out_duplex: "duplex_spacing",
+      out_reverse: "reverse_operation",
+      pill_base: "base",
+      pill_raster: "raster",
+      pill_offsets: "offset-set",
+      copy: "Configuratiefragment kopi\u00ebren",
+      note: "Als TX niet exact kan worden weergegeven met 25 kHz raster + toegestane offsets, toont het programma een waarschuwing en een benadering.",
+      status_need_tx: "Voer TX-frequentie in.",
+      status_reserved: "duplex_spacing={idx} (IE {code}) is gereserveerd voor base={baseHz} (ETSI NOTE 1). Kies een geldige code of voer RX direct in.",
+      status_need_custom: "Als duplex_spacing=7 (1112), voer custom_duplex_spacing in om RX te berekenen.",
+      status_custom_positive: "custom_duplex_spacing moet een positief getal zijn.",
+      warn_header: "\u26a0\ufe0f",
+      done: "\u2705 Klaar. |TX-RX| = {spacing} Hz",
+      warn_no_match: "|TX-RX|={spacing} Hz komt niet overeen met een vooraf gedefinieerde duplex spacing in ETSI Table 2 (base={baseHz}). Ingesteld op duplex_spacing=7 (1112) met custom_duplex_spacing={spacing}.",
+      warn_tx_approx: "TX kan niet exact worden weergegeven met 25 kHz raster + toegestane offsets; fout \u2248 {err} Hz",
+      warn_fixed_offset_mismatch: "Met vaste freq_offset={off} staat TX niet op 25 kHz raster: fout \u2248 {err} Hz (dichtstbijzijnde main_carrier gekozen).",
+      copied: "\u2705 Gekopieerd naar klembord.",
+      copied_fallback: "\u2705 Gekopieerd naar klembord (fallback).",
+      copy_fail: "\u26a0\ufe0f Kan niet automatisch kopi\u00ebren. Selecteer en kopieer handmatig.",
+      duplex_hint_ok: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
+      duplex_hint_reserved: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is gereserveerd (ETSI NOTE 1). Voer RX in of gebruik duplex_spacing=7 met custom spacing.",
+      duplex_hint_custom: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is niet gedefinieerd (ETSI NOTE 3 / 1112). Voer custom_duplex_spacing in om RX te berekenen.",
+      net_info_title: "\ud83c\udf10 Netwerkinformatie [net_info]",
+      mcc_label: "MCC (Mobiele Landcode)",
+      mcc_hint: "Landcode, bijv. 204=Nederland, 214=Spanje",
+      mnc_label: "MNC (Mobiele Netwerkcode)",
+      mnc_hint: "TETRA-netwerkcode. Zorg voor legaal gebruik.",
+      location_area_label: "location_area",
+      colour_code_label: "colour_code (0\u201363)",
+      system_code_label: "system_code (0\u201315)",
+      ssi_ranges_title: "\ud83d\udd12 Lokale SSI-bereiken",
+      ssi_ranges_enable: "local_ssi_ranges inschakelen",
+      ssi_ranges_hint: "Verkeer van lokale SSI-bereiken blijft in deze cel. Einde van bereik is exclusief. Overschrijft Brew-instellingen indien ingeschakeld.",
+      ssi_add_range: "+ Bereik toevoegen",
+      ssi_start: "SSI Begin",
+      ssi_end: "SSI Einde (exclusief)",
+      cell_params_title: "\ud83d\udccd Celparameters",
+      timezone_enable: "Tijdzone-uitzending inschakelen",
+      timezone_hint: "Zendt UTC-tijd en lokale offset eenmaal per super-hyperframe (~61 s) uit. Zomertijd wordt automatisch verwerkt.",
+      timezone_label: "Tijdzone (IANA)",
+      brew_title: "\ud83c\udf7a Homebrew-protocol [brew]",
+      brew_enable: "Brew-verbinding inschakelen",
+      brew_hint: "Schakel verbinding met een Homebrew/DMR+-repeater in. Schrijft de sectie [brew] naar config.toml.",
+      brew_host: "Host",
+      brew_port: "Poort",
+      brew_username: "Gebruikersnaam (SSID: DMR ID + 2-cijferig achtervoegsel)",
+      brew_password: "Wachtwoord",
+      brew_tls: "TLS (wss:// / https://)",
+      brew_reconnect: "reconnect_delay_secs",
+      brew_whitelist_enable: "SSI-whitelist inschakelen",
+      brew_whitelist_label: "whitelisted_ssis (kommagescheiden)",
+      brew_whitelist_hint: "Alleen de vermelde SSI's worden via Brew verzonden. Leeg laten om alles toe te staan.",
+      apply_title: "Toepassen op Raspberry Pi",
+      config_path_label: "Pad naar config.toml op de Raspberry Pi",
+      config_path_hint: "Volledig pad naar het TOML-configuratiebestand op uw Raspberry Pi.",
+      apply_password_label: "Systeemwachtwoord",
+      apply_password_hint: "Wachtwoord geconfigureerd in de config.json van de monitor.",
+      apply_btn: "WIJZIGINGEN TOEPASSEN & TMO HERSTARTEN",
+      load_btn: "LADEN UIT CONFIG.TOML",
+      service_name_label: "TMO-servicenaam",
+      service_name_hint: "Naam van de service die opnieuw wordt gestart na het toepassen van wijzigingen (bijv. tmo.service).",
+      apply_need_calc: "Bereken eerst de frequenties.",
+      apply_need_path: "Voer het pad naar het config.toml-bestand in.",
+      apply_need_service: "Voer de servicenaam in.",
+      apply_need_password: "Voer het systeemwachtwoord in.",
+      apply_success: "\u2705 Configuratie toegepast. TMO herstarten...",
+      apply_error: "\u26a0\ufe0f Fout: {msg}",
+      apply_sending: "Wijzigingen toepassen..."
     }
   };
 
@@ -1388,7 +1489,7 @@
   }
 
   function applyI18n(){
-    const langMap = { en: "en", es: "es", zh: "zh-Hant-TW", pt: "pt", de: "de", fr: "fr", it: "it", da: "da" };
+    const langMap = { en: "en", es: "es", zh: "zh-Hant-TW", pt: "pt", de: "de", fr: "fr", it: "it", da: "da", nl: "nl" };
     document.documentElement.lang = langMap[state.lang] || "en";
     document.querySelectorAll("[data-i18n]").forEach(node=>{
       const key = node.getAttribute("data-i18n");
@@ -1403,14 +1504,15 @@
       de: { tx: "z.B. 431.7375 oder 431737500", rx: "optional; aus Duplex-Abstand ableiten", cd: "z.B. 10 oder 10000000" },
       fr: { tx: "ex. 431.7375 ou 431737500", rx: "optionnel ; d\u00e9river du duplex spacing", cd: "ex. 10 ou 10000000" },
       it: { tx: "es. 431.7375 o 431737500", rx: "opzionale; derivare dal duplex spacing", cd: "es. 10 o 10000000" },
-      da: { tx: "f.eks. 431.7375 eller 431737500", rx: "valgfri; udled fra duplex spacing", cd: "f.eks. 10 eller 10000000" }
+      da: { tx: "f.eks. 431.7375 eller 431737500", rx: "valgfri; udled fra duplex spacing", cd: "f.eks. 10 eller 10000000" },
+      nl: { tx: "bijv. 431.7375 of 431737500", rx: "optioneel; afleiden uit duplex spacing", cd: "bijv. 10 of 10000000" }
     };
     const ph = placeholders[state.lang] || placeholders.en;
     document.getElementById("txVal").placeholder = ph.tx;
     document.getElementById("rxVal").placeholder = ph.rx;
     document.getElementById("customDuplexVal").placeholder = ph.cd;
 
-    const langLabels = { en: "EN", es: "ES", zh: "中文", pt: "PT", de: "DE", fr: "FR", it: "IT", da: "DA" };
+    const langLabels = { en: "EN", es: "ES", zh: "中文", pt: "PT", de: "DE", fr: "FR", it: "IT", da: "DA", nl: "NL" };
     document.getElementById("langLabel").textContent = langLabels[state.lang] || "EN";
     document.getElementById("themeLabel").textContent = (state.theme === "light") ? t("theme_light") : t("theme_dark");
 
@@ -1426,7 +1528,7 @@
   }
 
   function toggleLang(){
-    const cycle = { en: "es", es: "zh", zh: "pt", pt: "de", de: "fr", fr: "it", it: "da", da: "en" };
+    const cycle = { en: "es", es: "zh", zh: "pt", pt: "de", de: "fr", fr: "it", it: "da", da: "nl", nl: "en" };
     state.lang = cycle[state.lang] || "en";
     localStorage.setItem(STORAGE_KEYS.lang, state.lang);
     applyI18n();
