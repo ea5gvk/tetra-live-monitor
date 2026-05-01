@@ -597,6 +597,30 @@ class TetraMonitor:
                 emit("update_terminal", self._terminal_to_dict(ssi))
                 return
 
+            # 4c. SUBSCRIBER DEAFFILIATE (scan mode disabled — remove those specific groups)
+            # bluestation logs two forms:
+            #   "CMCE: subscriber deaffiliate issi=X groups=[A, B, C]"
+            #   "BrewEntity: deaffiliate issi=X → DEAFFILIATE groups=[A, B, C]"
+            deaff_match = re.search(
+                r"(?:subscriber deaffiliate|BrewEntity:\s+deaffiliate)\s+issi=(\d+)\s.*?groups=\[([^\]]*)\]",
+                msg, re.I
+            )
+            if deaff_match:
+                ssi = deaff_match.group(1)
+                groups_str = deaff_match.group(2).strip()
+                detach_groups = [g.strip() for g in groups_str.split(",") if g.strip()] if groups_str else []
+
+                if ssi in self.terminals and detach_groups:
+                    current = self.terminals[ssi]["groups"]
+                    for g in detach_groups:
+                        if g in current:
+                            current.remove(g)
+                    # Preserve selected TG if it is still in the remaining groups;
+                    # if the list is now empty, keep selected so the UI shows it.
+                    self.terminals[ssi]["last_seen"] = timestamp
+                    emit("update_terminal", self._terminal_to_dict(ssi))
+                return
+
             # 5. GROUP ATTACH/DETACH (UAttachDetachGroupIdentity)
             if "UAttachDetachGroupIdentity" in msg:
                 ssi = self._extract_ssi(msg)
