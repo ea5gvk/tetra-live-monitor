@@ -11,6 +11,8 @@ interface UpdateInfo {
   remoteDate?: string;
   remoteAuthor?: string;
   error?: string;
+  apiError?: string;
+  updateDir?: string;
 }
 
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
@@ -167,6 +169,21 @@ export function UpdateChecker() {
                 <div className="flex items-center gap-2 p-3 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
                   {t("update_demo_mode")}
+                </div>
+              ) : info.apiError ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2 p-3 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs">
+                    <AlertTriangle className="w-4 h-4 shrink-0" />
+                    <div>
+                      <div className="font-bold">No se pudo contactar GitHub API</div>
+                      <div className="text-[10px] text-amber-500/70 mt-0.5 break-all">{info.apiError}</div>
+                    </div>
+                  </div>
+                  {info.localHash && (
+                    <div className="text-[10px] font-mono text-muted-foreground">
+                      Dir: {info.updateDir} · local: {info.localHash}
+                    </div>
+                  )}
                 </div>
               ) : info.upToDate ? (
                 <div className="flex items-center gap-2 p-3 rounded bg-green-500/10 border border-green-500/30 text-green-400 text-xs">

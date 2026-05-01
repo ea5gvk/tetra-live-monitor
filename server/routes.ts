@@ -370,7 +370,16 @@ export async function registerRoutes(
 
   // ─── Update endpoints ──────────────────────────────────────────────────────
 
-  const UPDATE_DIR = fs.existsSync("/opt/tetra-live-monitor") ? "/opt/tetra-live-monitor" : null;
+  // Detect git repo root: prefer /opt/tetra-live-monitor, fall back to cwd
+  const UPDATE_DIR = (() => {
+    const candidates = ["/opt/tetra-live-monitor", process.cwd()];
+    for (const dir of candidates) {
+      try {
+        if (fs.existsSync(dir) && fs.existsSync(path.join(dir, ".git"))) return dir;
+      } catch {}
+    }
+    return null;
+  })();
 
   app.get("/api/update/check", (_req, res) => {
     if (!UPDATE_DIR) return res.json({ demo: true });
@@ -379,11 +388,16 @@ export async function registerRoutes(
     } catch {
       return res.json({ demo: true });
     }
+    let localHash = "";
     try {
-      const localHash = execSync(`git -C ${UPDATE_DIR} rev-parse HEAD`, { timeout: 5000 }).toString().trim();
-      // Fetch latest commit from GitHub API
+      localHash = execSync(`git -C "${UPDATE_DIR}" rev-parse HEAD`, { timeout: 5000 }).toString().trim();
+    } catch {
+      return res.json({ demo: true });
+    }
+    try {
+      const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
       const raw = execSync(
-        `curl -sf -H "User-Agent: tetra-live-monitor" "https://api.github.com/repos/ea5gvk/tetra-live-monitor/commits/main"`,
+        `curl -sf -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/ea5gvk/tetra-live-monitor/commits/main"`,
         { timeout: 12000 }
       ).toString();
       const data = JSON.parse(raw);
@@ -399,9 +413,21 @@ export async function registerRoutes(
         remoteDate,
         remoteAuthor,
         demo: false,
+        updateDir: UPDATE_DIR,
       });
     } catch (err) {
-      res.json({ demo: true, error: String(err) });
+      // GitHub API failed (network, rate limit, etc.) — show local hash, allow apply anyway
+      res.json({
+        demo: false,
+        upToDate: false,
+        localHash: localHash.substring(0, 8),
+        remoteHash: "??????",
+        remoteMessage: "No se pudo contactar GitHub API",
+        remoteDate: "",
+        remoteAuthor: "",
+        apiError: String(err).substring(0, 120),
+        updateDir: UPDATE_DIR,
+      });
     }
   });
 
@@ -450,8 +476,14 @@ echo ""
 echo "=== npm run build ==="
 npm run build
 echo ""
-echo "=== pm2 restart tetra-monitor ==="
-pm2 restart tetra-monitor
+echo "=== Reiniciando servicio ==="
+if command -v pm2 &>/dev/null && pm2 list 2>/dev/null | grep -q "tetra-monitor"; then
+  pm2 restart tetra-monitor
+elif sudo systemctl is-active --quiet tmo.service 2>/dev/null || sudo systemctl list-units --quiet tmo.service &>/dev/null; then
+  sudo systemctl restart tmo.service
+else
+  echo "WARN: no se encontro pm2 ni tmo.service — reinicia el servicio manualmente"
+fi
 `;
     const child = spawn("bash", ["-c", dashScript], { cwd: UPDATE_DIR });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
