@@ -16,14 +16,24 @@ let publicIpLastFetch = 0;
 async function fetchPublicIp(): Promise<string | null> {
   const now = Date.now();
   if (cachedPublicIp && now - publicIpLastFetch < 5 * 60 * 1000) return cachedPublicIp;
-  try {
-    const res = await fetch("https://api4.my-ip.io/v2/ip.json", { signal: AbortSignal.timeout(4000) });
-    const data = await res.json() as { ip?: string };
-    if (data.ip) { cachedPublicIp = data.ip; publicIpLastFetch = now; }
-    return cachedPublicIp;
-  } catch {
-    return cachedPublicIp;
+  const services = [
+    { url: "https://api.ipify.org?format=json", parse: (d: any) => d.ip },
+    { url: "https://api4.my-ip.io/v2/ip.json",  parse: (d: any) => d.ip },
+    { url: "https://ifconfig.co/json",            parse: (d: any) => d.ip },
+  ];
+  for (const svc of services) {
+    try {
+      const res = await fetch(svc.url, { signal: AbortSignal.timeout(4000) });
+      const data = await res.json();
+      const ip = svc.parse(data);
+      if (ip && typeof ip === "string") {
+        cachedPublicIp = ip;
+        publicIpLastFetch = now;
+        return cachedPublicIp;
+      }
+    } catch { /* try next */ }
   }
+  return cachedPublicIp;
 }
 
 function getLocalIp(): string | null {

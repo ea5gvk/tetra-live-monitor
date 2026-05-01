@@ -76,104 +76,97 @@ function NavBar() {
   const [location] = useLocation();
   const { t } = useI18n();
 
+  const navLinks = [
+    { href: "/",           label: "MONITOR",       shortLabel: "MON",    icon: <Radio className="w-3.5 h-3.5 flex-shrink-0" />,    testId: "nav-link-monitor" },
+    { href: "/calculator", label: t("calculator"),  shortLabel: "CALC",   icon: <CalcIcon className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-calculator" },
+    { href: "/log-live",   label: t("log_live"),    shortLabel: "LOG",    icon: <ScrollText className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-log-live" },
+    { href: "/gps-map",    label: t("gps_map"),     shortLabel: "GPS",    icon: <MapPin className="w-3.5 h-3.5 flex-shrink-0" />,   testId: "nav-link-gps-map" },
+    { href: "/vpn",        label: "VPN",            shortLabel: "VPN",    icon: <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-vpn" },
+    { href: "/wifi",       label: t("wifi_manager"),shortLabel: "WIFI",   icon: <Wifi className="w-3.5 h-3.5 flex-shrink-0" />,    testId: "nav-link-wifi" },
+  ];
+
   return (
-    <nav className="bg-card border-b border-border px-3 py-1 flex items-center gap-1" data-testid="nav-bar">
-      <Link
-        href="/"
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-t transition-colors ${
-          location === "/"
-            ? "bg-primary/10 text-primary border border-primary/20 border-b-0"
-            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-        }`}
-        data-testid="nav-link-monitor"
-      >
-        <Radio className="w-3.5 h-3.5" />
-        MONITOR
-      </Link>
-      <Link
-        href="/calculator"
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-t transition-colors ${
-          location === "/calculator"
-            ? "bg-primary/10 text-primary border border-primary/20 border-b-0"
-            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-        }`}
-        data-testid="nav-link-calculator"
-      >
-        <CalcIcon className="w-3.5 h-3.5" />
-        {t("calculator")}
-      </Link>
-      <Link
-        href="/log-live"
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-t transition-colors ${
-          location === "/log-live"
-            ? "bg-primary/10 text-primary border border-primary/20 border-b-0"
-            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-        }`}
-        data-testid="nav-link-log-live"
-      >
-        <ScrollText className="w-3.5 h-3.5" />
-        {t("log_live")}
-      </Link>
-      <Link
-        href="/gps-map"
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-t transition-colors ${
-          location === "/gps-map"
-            ? "bg-primary/10 text-primary border border-primary/20 border-b-0"
-            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-        }`}
-        data-testid="nav-link-gps-map"
-      >
-        <MapPin className="w-3.5 h-3.5" />
-        {t("gps_map")}
-      </Link>
-      <Link
-        href="/vpn"
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-t transition-colors ${
-          location === "/vpn"
-            ? "bg-primary/10 text-primary border border-primary/20 border-b-0"
-            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-        }`}
-        data-testid="nav-link-vpn"
-      >
-        <ShieldCheck className="w-3.5 h-3.5" />
-        VPN
-      </Link>
-      <Link
-        href="/wifi"
-        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-t transition-colors ${
-          location === "/wifi"
-            ? "bg-primary/10 text-primary border border-primary/20 border-b-0"
-            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
-        }`}
-        data-testid="nav-link-wifi"
-      >
-        <Wifi className="w-3.5 h-3.5" />
-        {t("wifi_manager")}
-      </Link>
-      <div className="ml-auto flex items-center gap-2">
+    <nav className="bg-card border-b border-border" data-testid="nav-bar">
+      {/* Main nav row */}
+      <div className="flex items-center min-h-[40px]">
+        {/* Scrollable tabs strip */}
+        <div className="flex-1 flex items-center overflow-x-auto scrollbar-none min-w-0 px-1">
+          {navLinks.map(link => {
+            const active = location === link.href;
+            return (
+              <Link
+                key={link.href}
+                href={link.href}
+                className={`inline-flex items-center gap-1 sm:gap-1.5 px-2 sm:px-3 py-2 text-[10px] sm:text-xs font-bold rounded-t whitespace-nowrap transition-colors flex-shrink-0 ${
+                  active
+                    ? "bg-primary/10 text-primary border border-primary/20 border-b-0"
+                    : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                }`}
+                data-testid={link.testId}
+              >
+                {link.icon}
+                <span className="hidden sm:inline">{link.label}</span>
+                <span className="sm:hidden">{link.shortLabel}</span>
+              </Link>
+            );
+          })}
+        </div>
+
+        {/* Right side utilities — visible on md+, hidden on mobile (shown in second row) */}
+        <div className="hidden md:flex items-center gap-1.5 px-2 flex-shrink-0">
+          <BluestationUpdater />
+          <UpdateChecker />
+          <a
+            href="https://www.paypal.com/donate?business=quini7620%40gmail.com&currency_code=EUR"
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Donar con PayPal"
+            data-testid="link-paypal-donate"
+            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold select-none transition-all
+              bg-[#003087] hover:bg-[#002060] text-white border border-[#0070ba]/60 hover:border-[#ffc439]
+              hover:shadow-[0_0_8px_2px_rgba(255,196,57,0.35)] active:scale-95"
+          >
+            <SiPaypal className="w-3 h-3 text-[#ffc439]" />
+            <span className="hidden lg:inline">Donate</span>
+          </a>
+          <span
+            className="text-[10px] font-black tracking-widest px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 select-none"
+            data-testid="text-callsign"
+          >
+            @EA5GVK
+          </span>
+          <LangSelector />
+          <ThemeToggle />
+        </div>
+
+        {/* Mobile right side — compact */}
+        <div className="flex md:hidden items-center gap-1 px-2 flex-shrink-0">
+          <LangSelector />
+          <ThemeToggle />
+        </div>
+      </div>
+
+      {/* Mobile second row: actions */}
+      <div className="flex md:hidden items-center gap-1.5 px-2 py-1 border-t border-border/40 flex-wrap">
         <BluestationUpdater />
         <UpdateChecker />
         <a
           href="https://www.paypal.com/donate?business=quini7620%40gmail.com&currency_code=EUR"
           target="_blank"
           rel="noopener noreferrer"
-          title="Donar con PayPal"
-          data-testid="link-paypal-donate"
-          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold select-none transition-all duration-150
-            bg-[#003087] hover:bg-[#002060] text-white border border-[#0070ba]/60 hover:border-[#ffc439]
-            hover:shadow-[0_0_8px_2px_rgba(255,196,57,0.35)] active:scale-95"
+          data-testid="link-paypal-donate-mobile"
+          className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold select-none
+            bg-[#003087] text-white border border-[#0070ba]/60"
         >
-          <SiPaypal className="w-3.5 h-3.5 text-[#ffc439]" />
-          <span>Donate</span>
+          <SiPaypal className="w-3 h-3 text-[#ffc439]" />
+          Donate
         </a>
         <span
-          className="text-[11px] font-black tracking-widest px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 select-none"
-          data-testid="text-callsign"
+          className="text-[9px] font-black tracking-widest px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 select-none"
+          data-testid="text-callsign-mobile"
         >
           @EA5GVK
         </span>
-        <LangSelector />
-        <ThemeToggle />
       </div>
     </nav>
   );
