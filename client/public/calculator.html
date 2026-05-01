@@ -1259,6 +1259,107 @@
       apply_success: "\u2705 Configurazione applicata. Riavvio di TMO...",
       apply_error: "\u26a0\ufe0f Errore: {msg}",
       apply_sending: "Applicazione delle modifiche..."
+    },
+    da: {
+      title: "TETRA Frekvensberegner",
+      subtitle: "ETSI TS 100 392-15: b\u00e5ndbasis/reference, duplex spacing-mapping, 25 kHz raster + offset.",
+      theme_dark: "M\u00f8rk",
+      theme_light: "Lys",
+      input: "Indgang",
+      output: "Resultat",
+      freq_band: "Frekvensb\u00e5nd",
+      band_hint: "B\u00e5nd 3/4/8 f\u00f8lger ETSI Table 1 base/reference: 300/400/800 MHz.",
+      base_ref: "Basis/referencefrekvens",
+      base_hint: "Bruges til: base + main_carrier\u00d725k + freq_offset.",
+      tx_label: "TX (Downlink / BS Tx)",
+      tx_hint: "Inds\u00e6t hele Hz eller decimaler i MHz.",
+      rx_label: "RX (Uplink / MS Tx) (valgfri)",
+      rx_hint: "Hvis angivet beregner v\u00e6rkt\u00f8jet duplex_spacing + reverse_operation fra |TX-RX|.",
+      offset_label: "freq_offset-valg",
+      offset_auto: "Automatisk (bedste match)",
+      offset_hint: "Offset anvendes efter main_carrier. Et fast offset opdaterer TX til base + main_carrier\u00d725k + offset (og genberegner).",
+      duplex_label: "duplex_spacing (ETSI Table 2 kode)",
+      reverse_label: "reverse_operation",
+      reverse_false: "false (UL under DL / normal)",
+      reverse_true: "true (UL over DL / omvendt)",
+      reverse_hint: "Hvis RX angives, overskrives denne v\u00e6rdi af RX>TX.",
+      custom_label: "custom_duplex_spacing (kun n\u00e5r duplex_spacing=7 / 1112)",
+      custom_hint: "ETSI NOTE 3: 1112 betyder udefineret duplex spacing; m\u00e5 kendes p\u00e5 anden vis.",
+      calc: "Beregn",
+      swap: "Byt TX/RX",
+      sample1: "Eksempel (amat\u00f8rb\u00e5nd: 438.025 / 433.025)",
+      out_tx: "tx_freq (Hz)",
+      out_rx: "rx_freq (Hz)",
+      out_main: "main_carrier",
+      out_offset: "freq_offset (Hz)",
+      out_duplex: "duplex_spacing",
+      out_reverse: "reverse_operation",
+      pill_base: "base",
+      pill_raster: "raster",
+      pill_offsets: "offset-s\u00e6t",
+      copy: "Kopier konfigurationsfragment",
+      note: "Hvis TX ikke kan repr\u00e6senteres pr\u00e6cist med 25 kHz raster + tilladte offsets, viser v\u00e6rkt\u00f8jet en advarsel og en approksimation.",
+      status_need_tx: "Angiv TX-frekvens.",
+      status_reserved: "duplex_spacing={idx} (IE {code}) er reserveret for base={baseHz} (ETSI NOTE 1). V\u00e6lg en gyldig kode eller angiv RX direkte.",
+      status_need_custom: "N\u00e5r duplex_spacing=7 (1112), angiv custom_duplex_spacing for at beregne RX.",
+      status_custom_positive: "custom_duplex_spacing skal v\u00e6re et positivt tal.",
+      warn_header: "\u26a0\ufe0f",
+      done: "\u2705 F\u00e6rdig. |TX-RX| = {spacing} Hz",
+      warn_no_match: "|TX-RX|={spacing} Hz matcher ikke noget foruddefineret duplex spacing i ETSI Table 2 (base={baseHz}). Sat duplex_spacing=7 (1112) med custom_duplex_spacing={spacing}.",
+      warn_tx_approx: "TX kan ikke repr\u00e6senteres pr\u00e6cist med 25 kHz raster + tilladte offsets; fejl \u2248 {err} Hz",
+      warn_fixed_offset_mismatch: "Med fast freq_offset={off} er TX ikke p\u00e5 25 kHz raster: fejl \u2248 {err} Hz (n\u00e6rmeste main_carrier valgt).",
+      copied: "\u2705 Kopieret til udklipsholder.",
+      copied_fallback: "\u2705 Kopieret til udklipsholder (fallback).",
+      copy_fail: "\u26a0\ufe0f Kan ikke kopiere automatisk. V\u00e6lg og kopier manuelt.",
+      duplex_hint_ok: "b\u00e5nd {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
+      duplex_hint_reserved: "b\u00e5nd {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) er reserveret (ETSI NOTE 1). Angiv RX eller brug duplex_spacing=7 med custom spacing.",
+      duplex_hint_custom: "b\u00e5nd {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) er ikke defineret (ETSI NOTE 3 / 1112). Angiv custom_duplex_spacing for at beregne RX.",
+      net_info_title: "\ud83c\udf10 Netv\u00e6rksoplysninger [net_info]",
+      mcc_label: "MCC (Mobilt Landekode)",
+      mcc_hint: "Landekode, f.eks. 238=Danmark, 214=Spanien",
+      mnc_label: "MNC (Mobilt Netv\u00e6rkskode)",
+      mnc_hint: "TETRA-netv\u00e6rkskode. S\u00f8rg for lovlig brug.",
+      location_area_label: "location_area",
+      colour_code_label: "colour_code (0\u201363)",
+      system_code_label: "system_code (0\u201315)",
+      ssi_ranges_title: "\ud83d\udd12 Lokale SSI-intervaller",
+      ssi_ranges_enable: "Aktiv\u00e9r local_ssi_ranges",
+      ssi_ranges_hint: "Trafik fra lokale SSI-intervaller forbliver i denne celle. Slut p\u00e5 interval er eksklusiv. Tilsides\u00e6tter Brew-indstillinger hvis aktiveret.",
+      ssi_add_range: "+ Tilf\u00f8j interval",
+      ssi_start: "SSI Start",
+      ssi_end: "SSI Slut (eksklusiv)",
+      cell_params_title: "\ud83d\udccd Celleparametre",
+      timezone_enable: "Aktiv\u00e9r tidszoneudsendings",
+      timezone_hint: "Udsender UTC-tid og lokalt offset \u00e9n gang pr. super-hyperramme (~61 s). Sommertid h\u00e5ndteres automatisk.",
+      timezone_label: "Tidszone (IANA)",
+      brew_title: "\ud83c\udf7a Homebrew-protokol [brew]",
+      brew_enable: "Aktiv\u00e9r Brew-forbindelse",
+      brew_hint: "Aktiv\u00e9r forbindelsen til en Homebrew/DMR+-repeater. Skriver [brew]-sektionen i config.toml.",
+      brew_host: "V\u00e6rt",
+      brew_port: "Port",
+      brew_username: "Brugernavn (SSID: DMR ID + 2-cifret suffiks)",
+      brew_password: "Adgangskode",
+      brew_tls: "TLS (wss:// / https://)",
+      brew_reconnect: "reconnect_delay_secs",
+      brew_whitelist_enable: "Aktiv\u00e9r SSI-hvidliste",
+      brew_whitelist_label: "whitelisted_ssis (kommasepareret)",
+      brew_whitelist_hint: "Kun de angivne SSI'er sendes via Brew. Lad v\u00e6re blank for at tillade alle.",
+      apply_title: "Anvend p\u00e5 Raspberry Pi",
+      config_path_label: "Sti til config.toml p\u00e5 Raspberry Pi",
+      config_path_hint: "Fuld sti til TOML-konfigurationsfilen p\u00e5 din Raspberry Pi.",
+      apply_password_label: "Systemadgangskode",
+      apply_password_hint: "Adgangskoden konfigureret i monitorens config.json.",
+      apply_btn: "ANVEND \u00c6NDRINGER & GENSTART TMO",
+      load_btn: "INDL\u00c6S FRA CONFIG.TOML",
+      service_name_label: "TMO-tjenestenavn",
+      service_name_hint: "Navn p\u00e5 tjeneste der genstartes efter at have anvendt \u00e6ndringer (f.eks. tmo.service).",
+      apply_need_calc: "Beregn frekvenserne f\u00f8rst.",
+      apply_need_path: "Angiv stien til config.toml-filen.",
+      apply_need_service: "Angiv tjenestenavnet.",
+      apply_need_password: "Angiv systemadgangskoden.",
+      apply_success: "\u2705 Konfiguration anvendt. Genstarter TMO...",
+      apply_error: "\u26a0\ufe0f Fejl: {msg}",
+      apply_sending: "Anvender \u00e6ndringer..."
     }
   };
 
@@ -1287,7 +1388,7 @@
   }
 
   function applyI18n(){
-    const langMap = { en: "en", es: "es", zh: "zh-Hant-TW", pt: "pt", de: "de", fr: "fr", it: "it" };
+    const langMap = { en: "en", es: "es", zh: "zh-Hant-TW", pt: "pt", de: "de", fr: "fr", it: "it", da: "da" };
     document.documentElement.lang = langMap[state.lang] || "en";
     document.querySelectorAll("[data-i18n]").forEach(node=>{
       const key = node.getAttribute("data-i18n");
@@ -1301,14 +1402,15 @@
       pt: { tx: "ex. 431.7375 ou 431737500", rx: "opcional; calcular com duplex spacing", cd: "ex. 10 ou 10000000" },
       de: { tx: "z.B. 431.7375 oder 431737500", rx: "optional; aus Duplex-Abstand ableiten", cd: "z.B. 10 oder 10000000" },
       fr: { tx: "ex. 431.7375 ou 431737500", rx: "optionnel ; d\u00e9river du duplex spacing", cd: "ex. 10 ou 10000000" },
-      it: { tx: "es. 431.7375 o 431737500", rx: "opzionale; derivare dal duplex spacing", cd: "es. 10 o 10000000" }
+      it: { tx: "es. 431.7375 o 431737500", rx: "opzionale; derivare dal duplex spacing", cd: "es. 10 o 10000000" },
+      da: { tx: "f.eks. 431.7375 eller 431737500", rx: "valgfri; udled fra duplex spacing", cd: "f.eks. 10 eller 10000000" }
     };
     const ph = placeholders[state.lang] || placeholders.en;
     document.getElementById("txVal").placeholder = ph.tx;
     document.getElementById("rxVal").placeholder = ph.rx;
     document.getElementById("customDuplexVal").placeholder = ph.cd;
 
-    const langLabels = { en: "EN", es: "ES", zh: "中文", pt: "PT", de: "DE", fr: "FR", it: "IT" };
+    const langLabels = { en: "EN", es: "ES", zh: "中文", pt: "PT", de: "DE", fr: "FR", it: "IT", da: "DA" };
     document.getElementById("langLabel").textContent = langLabels[state.lang] || "EN";
     document.getElementById("themeLabel").textContent = (state.theme === "light") ? t("theme_light") : t("theme_dark");
 
@@ -1324,7 +1426,7 @@
   }
 
   function toggleLang(){
-    const cycle = { en: "es", es: "zh", zh: "pt", pt: "de", de: "fr", fr: "it", it: "en" };
+    const cycle = { en: "es", es: "zh", zh: "pt", pt: "de", de: "fr", fr: "it", it: "da", da: "en" };
     state.lang = cycle[state.lang] || "en";
     localStorage.setItem(STORAGE_KEYS.lang, state.lang);
     applyI18n();
