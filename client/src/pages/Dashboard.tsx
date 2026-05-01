@@ -216,7 +216,7 @@ function TerminalRow({ t: terminal, tgName }: { t: Terminal; tgName: (id: string
     const name = tgName(g);
     const flag = getTgFlag(name, g);
     if (g === selectedNum) {
-      return <span key={g} className="text-primary font-bold" title={(name || flag) ? `${flag ? flag+" " : ""}${name}` : undefined}>[{g}{(name||flag) ? <> {flag}{flag ? " " : ""}{name}</> : ""}]</span>;
+      return <span key={g} className="text-primary font-bold" title={(name || flag) ? `${flag ? flag+" " : ""}${name}` : undefined}>[{g}{(name||flag) ? <>{flag?<span className="text-sm"> {flag}</span>:null}{flag&&name?" ":""}{name}</>: ""}]</span>;
     }
     return <span key={g} className="text-muted-foreground" title={name ? `${flag ? flag + " " : ""}${name}` : undefined}>{g}</span>;
   });
@@ -243,7 +243,7 @@ function TerminalRow({ t: terminal, tgName }: { t: Terminal; tgName: (id: string
       </td>
       <td className="px-2 sm:px-3 py-1.5">
         <span className="text-amber-400 font-semibold font-mono text-xs sm:text-sm">{terminal.selectedTg}</span>
-        {(() => { const n=tgName(selectedNum); const f=getTgFlag(n,selectedNum); return (n||f) ? <span className="text-amber-300/80 text-xs font-normal ml-1.5 hidden sm:inline">{f}{f?" ":""}{n}</span> : null; })()}
+        {(() => { const n=tgName(selectedNum); const f=getTgFlag(n,selectedNum); return (n||f) ? <span className="text-amber-300/80 text-xs font-normal ml-1.5 hidden sm:inline">{f?<span className="text-sm">{f}</span>:null}{f&&n?" ":""}{n}</span> : null; })()}
       </td>
       <td className="px-2 sm:px-3 py-1.5 hidden sm:table-cell">
         <StatusDot status={terminal.status} />
@@ -419,7 +419,7 @@ function CallHistory({ entries, title, isLocal }: {
               ) : null}
               <span className="text-muted-foreground/60"> {">"} </span>
               <span className="text-amber-400 font-semibold">TG {entry.targetTg}</span>
-              {(() => { const n=tgName(entry.targetTg); const f=getTgFlag(n,entry.targetTg); return (n||f) ? <span className="text-amber-300/70 text-xs ml-1.5">{f}{f?" ":""}{n}</span> : null; })()}
+              {(() => { const n=tgName(entry.targetTg); const f=getTgFlag(n,entry.targetTg); return (n||f) ? <span className="text-amber-300/70 text-xs ml-1.5">{f?<span className="text-sm">{f}</span>:null}{f&&n?" ":""}{n}</span> : null; })()}
               {entry.timeSlot != null ? (
                 <span className="text-cyan-400/80 text-[10px] ml-1">TS{entry.timeSlot}</span>
               ) : null}
