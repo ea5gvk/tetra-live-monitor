@@ -368,6 +368,51 @@ export async function registerRoutes(
     try { execSync("which nmcli", { timeout: 2000 }); return true; } catch { return false; }
   }
 
+  // ─── Talkgroup names proxy ─────────────────────────────────────────────────
+  const tgCache: Record<string, { ts: number; data: Record<string, string> }> = {};
+  const TG_CACHE_TTL = 60 * 60 * 1000;
+
+  app.get("/api/talkgroups", (_req, res) => {
+    const source = (_req.query.source as string) || "bm";
+    if (!["bm", "adn"].includes(source)) return res.status(400).json({ message: "Invalid source" });
+    if (tgCache[source] && Date.now() - tgCache[source].ts < TG_CACHE_TTL) {
+      return res.json({ source, data: tgCache[source].data, cached: true, count: Object.keys(tgCache[source].data).length });
+    }
+    try {
+      const url = source === "bm"
+        ? "https://api.brandmeister.network/v2/talkgroup"
+        : "https://servers.adn.systems/talkgroup_ids.json";
+      const raw = execSync(`curl -sf --max-time 30 -H "Accept: application/json" "${url}"`, { timeout: 35000 }).toString();
+      const json = JSON.parse(raw);
+      const data: Record<string, string> = {};
+      if (source === "bm") {
+        const entries: any[] = Array.isArray(json) ? json : Object.values(json);
+        for (const item of entries) {
+          const id = String(item.talkgroup_id ?? item.id ?? item.ID ?? "").trim();
+          const name = String(item.name ?? item.Name ?? item.description ?? item.Description ?? "").trim();
+          if (id && name) data[id] = name;
+        }
+      } else {
+        if (Array.isArray(json)) {
+          for (const item of json) {
+            const id = String(item.id ?? item.ID ?? "").trim();
+            const name = String(item.name ?? item.Name ?? "").trim();
+            if (id && name) data[id] = name;
+          }
+        } else {
+          for (const [k, v] of Object.entries(json)) {
+            const name = typeof v === "string" ? v : (typeof v === "object" && v !== null ? String((v as any).name ?? k) : String(v));
+            data[k] = name.trim();
+          }
+        }
+      }
+      tgCache[source] = { ts: Date.now(), data };
+      res.json({ source, data, cached: false, count: Object.keys(data).length });
+    } catch (err) {
+      res.status(502).json({ message: `Failed to fetch from ${source}: ${String(err).substring(0, 120)}` });
+    }
+  });
+
   // ─── Update endpoints ──────────────────────────────────────────────────────
 
   // Detect git repo root: prefer /opt/tetra-live-monitor, fall back to cwd

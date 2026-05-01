@@ -14,6 +14,22 @@ function Clock() {
   return <span data-testid="text-clock">{time}</span>;
 }
 
+function useTgNames(): (id: string | number) => string {
+  const [names, setNames] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem("tetra_tg_names") || "{}"); } catch { return {}; }
+  });
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === "tetra_tg_names") {
+        try { setNames(JSON.parse(e.newValue || "{}")); } catch { setNames({}); }
+      }
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+  return (id: string | number) => names[String(id)] || "";
+}
+
 function ActivityBadge({ activity, timeSlot }: { activity?: "TX" | "RX" | null; timeSlot?: number | null }) {
   if (!activity) return null;
   const tsLabel = timeSlot != null ? ` TS${timeSlot}` : "";
@@ -71,7 +87,7 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
-function TerminalRow({ t: terminal }: { t: Terminal }) {
+function TerminalRow({ t: terminal, tgName }: { t: Terminal; tgName: (id: string | number) => string }) {
   const selectedNum = terminal.selectedTg.replace("TG ", "");
   const rowBg = terminal.activity === "TX"
     ? "bg-red-500/10 border-l-2 border-l-red-500"
@@ -80,10 +96,11 @@ function TerminalRow({ t: terminal }: { t: Terminal }) {
     : "border-l-2 border-l-transparent";
 
   const scanItems = terminal.groups.map((g) => {
+    const name = tgName(g);
     if (g === selectedNum) {
-      return <span key={g} className="text-primary font-bold">[{g}]</span>;
+      return <span key={g} className="text-primary font-bold" title={name || undefined}>[{g}{name ? ` ${name}` : ""}]</span>;
     }
-    return <span key={g} className="text-muted-foreground">{g}</span>;
+    return <span key={g} className="text-muted-foreground" title={name || undefined}>{g}</span>;
   });
 
   return (
@@ -108,6 +125,9 @@ function TerminalRow({ t: terminal }: { t: Terminal }) {
       </td>
       <td className="px-2 sm:px-3 py-1.5">
         <span className="text-amber-400 font-semibold font-mono text-xs sm:text-sm">{terminal.selectedTg}</span>
+        {tgName(selectedNum) && (
+          <span className="text-amber-300/70 text-[10px] font-normal ml-1 hidden sm:inline">{tgName(selectedNum)}</span>
+        )}
       </td>
       <td className="px-2 sm:px-3 py-1.5 hidden sm:table-cell">
         <StatusDot status={terminal.status} />
@@ -137,6 +157,7 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
   isLocal: boolean;
 }) {
   const { t } = useI18n();
+  const tgName = useTgNames();
   // Stable insertion-order: assign each terminal a fixed position when first seen
   const insertionOrder = useRef<Map<string, number>>(new Map());
   const insertionCounter = useRef(0);
@@ -226,7 +247,7 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
                 </td>
               </tr>
             ) : (
-              sorted.map(terminal => <TerminalRow key={terminal.id} t={terminal} />)
+              sorted.map(terminal => <TerminalRow key={terminal.id} t={terminal} tgName={tgName} />)
             )}
           </tbody>
         </table>
@@ -241,6 +262,7 @@ function CallHistory({ entries, title, isLocal }: {
   isLocal: boolean;
 }) {
   const { t } = useI18n();
+  const tgName = useTgNames();
   const scrollRef = useRef<HTMLDivElement>(null);
 
   return (
@@ -281,6 +303,9 @@ function CallHistory({ entries, title, isLocal }: {
               ) : null}
               <span className="text-muted-foreground/60"> {">"} </span>
               <span className="text-amber-400 font-semibold">TG {entry.targetTg}</span>
+              {tgName(entry.targetTg) && (
+                <span className="text-amber-300/60 text-[10px] ml-1">{tgName(entry.targetTg)}</span>
+              )}
               {entry.timeSlot != null ? (
                 <span className="text-cyan-400/80 text-[10px] ml-1">TS{entry.timeSlot}</span>
               ) : null}
@@ -651,6 +676,7 @@ function SdsPanel({ messages }: { messages: SdsMessage[] }) {
 
 export default function Dashboard() {
   const { t } = useI18n();
+  const tgName = useTgNames();
   const { terminals, localHistory, externalHistory, sdsMessages, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 

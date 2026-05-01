@@ -176,6 +176,9 @@
     .checkbox-row input[type="checkbox"]{width:16px; height:16px; flex:none; margin:0; cursor:pointer; accent-color:var(--accent);}
     .checkbox-row label{margin:0; cursor:pointer; color:var(--text); font-size:13px; font-weight:600;}
     .subsection{margin-top:12px; padding-top:12px; border-top:1px solid var(--line);}
+    .tg-src-btn{background:var(--panel); border:1px solid var(--line); color:var(--muted); font-size:13px; font-weight:700; padding:6px 18px; border-radius:8px; cursor:pointer; font-family:var(--mono); letter-spacing:.05em; transition:all .15s;}
+    .tg-src-btn.tg-src-active{background:var(--accent); border-color:var(--accent); color:#fff;}
+    .tg-src-btn:hover:not(.tg-src-active){border-color:var(--accent); color:var(--accent);}
   </style>
 </head>
 <header>
@@ -513,6 +516,22 @@
   </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
+      <h2 data-i18n="tg_names_title">📡 Talkgroup Names</h2>
+      <div class="hint" data-i18n="tg_names_hint">Fetch TG names from Brandmeister or ADN Systems and display them next to TG numbers in the dashboard monitor.</div>
+      <div style="margin-top:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+        <div style="display:flex; gap:6px; align-items:center;">
+          <span style="font-size:12px; color:var(--muted); font-weight:600;" data-i18n="tg_source_label">Source:</span>
+          <button id="tgBtnBm" class="tg-src-btn tg-src-active" onclick="selectTgSource('bm')">BM</button>
+          <button id="tgBtnAdn" class="tg-src-btn" onclick="selectTgSource('adn')">ADN</button>
+        </div>
+        <button id="tgLoadBtn" class="btn-secondary" data-i18n="tg_load_btn" onclick="loadTgNames()">LOAD NAMES</button>
+        <button id="tgClearBtn" class="btn-secondary" style="border-color:#e74c3c; color:#e74c3c;" data-i18n="tg_clear_btn" onclick="clearTgNames()">CLEAR</button>
+      </div>
+      <div id="tgStatus" class="footer-note" style="margin-top:10px;"></div>
+    </section>
+  </div>
+  <div style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
       <h2 data-i18n="apply_title">Apply to Raspberry Pi</h2>
 
       <div class="row">
@@ -637,6 +656,12 @@
       brew_whitelist_enable: "Enable whitelisted_ssis",
       brew_whitelist_label: "whitelisted_ssis (comma-separated)",
       brew_whitelist_hint: "Only listed SSIs will be transmitted over Brew. Leave empty to allow all.",
+      tg_names_title: "📡 Talkgroup Names",
+      tg_names_hint: "Fetch TG names from Brandmeister or ADN Systems and display them next to TG numbers in the dashboard monitor.",
+      tg_source_label: "Source:",
+      tg_load_btn: "LOAD NAMES",
+      tg_clear_btn: "CLEAR",
+      tg_loading: "Loading...",
       apply_title: "Apply to Raspberry Pi",
       config_path_label: "config.toml file path on Raspberry Pi",
       config_path_hint: "Full path to the TOML configuration file on your Raspberry Pi.",
@@ -738,6 +763,12 @@
       brew_whitelist_enable: "啟用白名單 SSI",
       brew_whitelist_label: "whitelisted_ssis（逗號分隔）",
       brew_whitelist_hint: "只有列出的 SSI 才會通過 Brew 傳輸。留空表示允許所有。",
+      tg_names_title: "📡 群組名稱",
+      tg_names_hint: "從 Brandmeister 或 ADN Systems 擷取 TG 名稱，並在監控面板中顯示於 TG 號碼旁。",
+      tg_source_label: "來源：",
+      tg_load_btn: "載入名稱",
+      tg_clear_btn: "清除",
+      tg_loading: "載入中...",
       apply_title: "套用到 Raspberry Pi",
       config_path_label: "Raspberry Pi 上的 config.toml 檔案路徑",
       config_path_hint: "Raspberry Pi 上 TOML 設定檔的完整路徑。",
@@ -839,6 +870,12 @@
       brew_whitelist_enable: "Activar lista blanca de SSIs",
       brew_whitelist_label: "whitelisted_ssis (separados por coma)",
       brew_whitelist_hint: "Solo los SSIs listados se transmitirán por Brew. Dejar vacío para permitir todos.",
+      tg_names_title: "📡 Nombres de Grupos de Conversación",
+      tg_names_hint: "Obtén nombres de TG desde Brandmeister o ADN Systems y muéstralos junto al número en el monitor.",
+      tg_source_label: "Fuente:",
+      tg_load_btn: "CARGAR NOMBRES",
+      tg_clear_btn: "BORRAR",
+      tg_loading: "Cargando...",
       apply_title: "Aplicar a Raspberry Pi",
       config_path_label: "Ruta del archivo config.toml en la Raspberry Pi",
       config_path_hint: "Ruta completa al archivo de configuración TOML en tu Raspberry Pi.",
@@ -940,6 +977,12 @@
       brew_whitelist_enable: "Ativar lista branca de SSIs",
       brew_whitelist_label: "whitelisted_ssis (separados por vírgula)",
       brew_whitelist_hint: "Apenas os SSIs listados serão transmitidos pelo Brew. Deixar vazio para permitir todos.",
+      tg_names_title: "📡 Nomes de Grupos de Conversa",
+      tg_names_hint: "Busque nomes de TG do Brandmeister ou ADN Systems e exiba-os ao lado do número no monitor.",
+      tg_source_label: "Fonte:",
+      tg_load_btn: "CARREGAR NOMES",
+      tg_clear_btn: "LIMPAR",
+      tg_loading: "Carregando...",
       apply_title: "Aplicar ao Raspberry Pi",
       config_path_label: "Caminho do arquivo config.toml no Raspberry Pi",
       config_path_hint: "Caminho completo para o arquivo de configura\u00e7\u00e3o TOML no seu Raspberry Pi.",
@@ -1041,6 +1084,12 @@
       brew_whitelist_enable: "Whitelist SSIs aktivieren",
       brew_whitelist_label: "whitelisted_ssis (kommagetrennt)",
       brew_whitelist_hint: "Nur aufgeführte SSIs werden über Brew übertragen. Leer lassen, um alle zu erlauben.",
+      tg_names_title: "📡 Gruppenruf-Namen",
+      tg_names_hint: "TG-Namen von Brandmeister oder ADN Systems abrufen und neben der Nummer im Monitor anzeigen.",
+      tg_source_label: "Quelle:",
+      tg_load_btn: "NAMEN LADEN",
+      tg_clear_btn: "LÖSCHEN",
+      tg_loading: "Laden...",
       apply_title: "Auf Raspberry Pi anwenden",
       config_path_label: "Pfad zur config.toml auf dem Raspberry Pi",
       config_path_hint: "Vollst\u00e4ndiger Pfad zur TOML-Konfigurationsdatei auf Ihrem Raspberry Pi.",
@@ -1142,6 +1191,12 @@
       brew_whitelist_enable: "Activer la liste blanche SSIs",
       brew_whitelist_label: "whitelisted_ssis (séparés par des virgules)",
       brew_whitelist_hint: "Seuls les SSIs listés seront transmis via Brew. Laisser vide pour tout autoriser.",
+      tg_names_title: "📡 Noms des Groupes d'Appel",
+      tg_names_hint: "Récupérez les noms des TG depuis Brandmeister ou ADN Systems et affichez-les à côté du numéro dans le moniteur.",
+      tg_source_label: "Source :",
+      tg_load_btn: "CHARGER LES NOMS",
+      tg_clear_btn: "EFFACER",
+      tg_loading: "Chargement...",
       apply_title: "Appliquer au Raspberry Pi",
       config_path_label: "Chemin du fichier config.toml sur le Raspberry Pi",
       config_path_hint: "Chemin complet vers le fichier de configuration TOML sur votre Raspberry Pi.",
@@ -1243,6 +1298,12 @@
       brew_whitelist_enable: "Abilita whitelist SSIs",
       brew_whitelist_label: "whitelisted_ssis (separati da virgola)",
       brew_whitelist_hint: "Solo i SSIs elencati saranno trasmessi via Brew. Lasciare vuoto per consentire tutti.",
+      tg_names_title: "📡 Nomi dei Gruppi di Conversazione",
+      tg_names_hint: "Recupera i nomi dei TG da Brandmeister o ADN Systems e mostrali accanto al numero nel monitor.",
+      tg_source_label: "Fonte:",
+      tg_load_btn: "CARICA NOMI",
+      tg_clear_btn: "CANCELLA",
+      tg_loading: "Caricamento...",
       apply_title: "Applica al Raspberry Pi",
       config_path_label: "Percorso del file config.toml sul Raspberry Pi",
       config_path_hint: "Percorso completo del file di configurazione TOML sul tuo Raspberry Pi.",
@@ -1344,6 +1405,12 @@
       brew_whitelist_enable: "Aktiv\u00e9r SSI-hvidliste",
       brew_whitelist_label: "whitelisted_ssis (kommasepareret)",
       brew_whitelist_hint: "Kun de angivne SSI'er sendes via Brew. Lad v\u00e6re blank for at tillade alle.",
+      tg_names_title: "📡 Talegruppe Navne",
+      tg_names_hint: "Hent TG-navne fra Brandmeister eller ADN Systems og vis dem ved siden af nummeret i monitoren.",
+      tg_source_label: "Kilde:",
+      tg_load_btn: "INDLÆS NAVNE",
+      tg_clear_btn: "RYDDE",
+      tg_loading: "Indlæser...",
       apply_title: "Anvend p\u00e5 Raspberry Pi",
       config_path_label: "Sti til config.toml p\u00e5 Raspberry Pi",
       config_path_hint: "Fuld sti til TOML-konfigurationsfilen p\u00e5 din Raspberry Pi.",
@@ -1445,6 +1512,12 @@
       brew_whitelist_enable: "SSI-whitelist inschakelen",
       brew_whitelist_label: "whitelisted_ssis (kommagescheiden)",
       brew_whitelist_hint: "Alleen de vermelde SSI's worden via Brew verzonden. Leeg laten om alles toe te staan.",
+      tg_names_title: "📡 Gespreksgroep Namen",
+      tg_names_hint: "Haal TG-namen op van Brandmeister of ADN Systems en toon ze naast het nummer in de monitor.",
+      tg_source_label: "Bron:",
+      tg_load_btn: "NAMEN LADEN",
+      tg_clear_btn: "WISSEN",
+      tg_loading: "Laden...",
       apply_title: "Toepassen op Raspberry Pi",
       config_path_label: "Pad naar config.toml op de Raspberry Pi",
       config_path_hint: "Volledig pad naar het TOML-configuratiebestand op uw Raspberry Pi.",
@@ -2303,6 +2376,61 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       statusEl.innerHTML = `<span class="bad">${escapeHtml(t("apply_error", { msg: "Connection error" }))}</span>`;
     }
   });
+
+  // ===== Talkgroup Names =====
+  let tgSource = localStorage.getItem("tetra_tg_source") || "bm";
+
+  function selectTgSource(src) {
+    tgSource = src;
+    localStorage.setItem("tetra_tg_source", src);
+    el("tgBtnBm").classList.toggle("tg-src-active", src === "bm");
+    el("tgBtnAdn").classList.toggle("tg-src-active", src === "adn");
+  }
+
+  async function loadTgNames() {
+    const btn = el("tgLoadBtn");
+    const status = el("tgStatus");
+    btn.disabled = true;
+    const lang = state.lang || "en";
+    const tr = I18N[lang] || I18N.en;
+    status.textContent = tr.tg_loading || "Loading...";
+    try {
+      const r = await fetch(`/api/talkgroups?source=${tgSource}`);
+      if (!r.ok) {
+        const err = await r.json().catch(() => ({ message: r.statusText }));
+        throw new Error(err.message || r.statusText);
+      }
+      const json = await r.json();
+      localStorage.setItem("tetra_tg_names", JSON.stringify(json.data));
+      localStorage.setItem("tetra_tg_source", tgSource);
+      const src = tgSource.toUpperCase();
+      const cached = json.cached ? " (cached)" : "";
+      status.innerHTML = `<span style="color:var(--ok,#2ecc71)">✅ ${json.count} TGs loaded from ${src}${cached}</span>`;
+    } catch(e) {
+      status.innerHTML = `<span style="color:#e74c3c">⚠️ ${escapeHtml(String(e.message || e))}</span>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  function clearTgNames() {
+    localStorage.removeItem("tetra_tg_names");
+    localStorage.removeItem("tetra_tg_source");
+    el("tgStatus").innerHTML = `<span style="color:var(--muted)">Cleared.</span>`;
+  }
+
+  // Init TG source buttons and show cached status
+  (function initTgNames() {
+    selectTgSource(tgSource);
+    const stored = localStorage.getItem("tetra_tg_names");
+    if (stored) {
+      try {
+        const count = Object.keys(JSON.parse(stored)).length;
+        const src = tgSource.toUpperCase();
+        el("tgStatus").innerHTML = `<span style="color:var(--ok,#2ecc71)">✅ ${count} TGs (${src}) — cached in browser</span>`;
+      } catch { localStorage.removeItem("tetra_tg_names"); }
+    }
+  })();
 
   // toggles
   wireToggle(el("langBtn"), toggleLang);
