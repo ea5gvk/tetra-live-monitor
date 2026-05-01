@@ -14,6 +14,72 @@ function Clock() {
   return <span data-testid="text-clock">{time}</span>;
 }
 
+const TG_FLAG_KEYWORDS: [string[], string][] = [
+  [["worldwide","world-wide","global","international","ww ","- ww","ww-"], "🌐"],
+  [["spain","spanish","españa","espana","spagna","spanien","espagne"], "🇪🇸"],
+  [["germany","german","deutsch","deutschland","allemagne","alemanha"], "🇩🇪"],
+  [["france","french","français","francais","frankreich","frankrijk"], "🇫🇷"],
+  [["italy","italian","italia","italiano","italie","italien","italië"], "🇮🇹"],
+  [["netherlands","dutch","nederland","nederlands","niederlande","pays-bas","holland"], "🇳🇱"],
+  [["belgium","belgian","belgique","belgie","belgien","belgica"], "🇧🇪"],
+  [["portugal","portuguese","portugues"], "🇵🇹"],
+  [["united kingdom","england","scotland","wales","british","grande bretagne"], "🇬🇧"],
+  [["united states","usa","america"], "🇺🇸"],
+  [["canada","canadian"], "🇨🇦"],
+  [["australia","australian"], "🇦🇺"],
+  [["new zealand"], "🇳🇿"],
+  [["japan","japanese","japon"], "🇯🇵"],
+  [["china","chinese","chine"], "🇨🇳"],
+  [["russia","russian","russie","russland"], "🇷🇺"],
+  [["ukraine","ukrainian"], "🇺🇦"],
+  [["poland","polish","polska","pologne","polnisch"], "🇵🇱"],
+  [["sweden","swedish","sverige","schweden","suede"], "🇸🇪"],
+  [["norway","norwegian","norge","norwegen","norvege"], "🇳🇴"],
+  [["denmark","danish","danmark","danemark"], "🇩🇰"],
+  [["finland","finnish","suomi","finnland"], "🇫🇮"],
+  [["austria","austrian","österreich","osterreich","autriche"], "🇦🇹"],
+  [["switzerland","swiss","schweiz","suisse"], "🇨🇭"],
+  [["czechia","czech republic","česká","ceska","tschechien"], "🇨🇿"],
+  [["slovakia","slovak","slovensko","slowakei"], "🇸🇰"],
+  [["hungary","hungarian","magyarország","magyarorszag"], "🇭🇺"],
+  [["romania","romanian","românia","rumänien"], "🇷🇴"],
+  [["bulgaria","bulgarian","bălgarija"], "🇧🇬"],
+  [["greece","greek","grecia","griechenland","grece"], "🇬🇷"],
+  [["turkey","turkish","türkiye","turkiye"], "🇹🇷"],
+  [["croatia","croatian","hrvatska"], "🇭🇷"],
+  [["serbia","serbian","srbija"], "🇷🇸"],
+  [["slovenia","slovenian","slovenija"], "🇸🇮"],
+  [["ireland","irish","éire","eire"], "🇮🇪"],
+  [["israel","israeli"], "🇮🇱"],
+  [["brazil","brasil","brazilian","brasiliano"], "🇧🇷"],
+  [["argentina"], "🇦🇷"],
+  [["mexico","mexicano"], "🇲🇽"],
+  [["south africa"], "🇿🇦"],
+  [["south korea","korea","korean"], "🇰🇷"],
+  [["taiwan"], "🇹🇼"],
+  [["india","indian"], "🇮🇳"],
+  [["singapore"], "🇸🇬"],
+  [["malaysia","malaysian"], "🇲🇾"],
+  [["indonesia","indonesian"], "🇮🇩"],
+  [["philippines","philippine"], "🇵🇭"],
+  [["thailand","thai"], "🇹🇭"],
+  [["vietnam","vietnamese"], "🇻🇳"],
+  [["nordic","scandinavia","scandinavian"], "🌍"],
+  [["africa","african"], "🌍"],
+  [["europe","european"], "🇪🇺"],
+  [["latin america","latinoamerica"], "🌎"],
+  [["asia","asian"], "🌏"],
+];
+
+function getTgFlag(name: string): string {
+  if (!name) return "";
+  const n = name.toLowerCase();
+  for (const [keywords, flag] of TG_FLAG_KEYWORDS) {
+    if (keywords.some(kw => n.includes(kw))) return flag;
+  }
+  return "";
+}
+
 function useTgNames(): (id: string | number) => string {
   const [names, setNames] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem("tetra_tg_names") || "{}"); } catch { return {}; }
@@ -97,10 +163,11 @@ function TerminalRow({ t: terminal, tgName }: { t: Terminal; tgName: (id: string
 
   const scanItems = terminal.groups.map((g) => {
     const name = tgName(g);
+    const flag = name ? getTgFlag(name) : "";
     if (g === selectedNum) {
-      return <span key={g} className="text-primary font-bold" title={name || undefined}>[{g}{name ? ` ${name}` : ""}]</span>;
+      return <span key={g} className="text-primary font-bold" title={name || undefined}>[{g}{name ? <> {flag}{flag ? " " : ""}{name}</> : ""}]</span>;
     }
-    return <span key={g} className="text-muted-foreground" title={name || undefined}>{g}</span>;
+    return <span key={g} className="text-muted-foreground" title={name ? `${flag ? flag + " " : ""}${name}` : undefined}>{g}</span>;
   });
 
   return (
@@ -126,7 +193,9 @@ function TerminalRow({ t: terminal, tgName }: { t: Terminal; tgName: (id: string
       <td className="px-2 sm:px-3 py-1.5">
         <span className="text-amber-400 font-semibold font-mono text-xs sm:text-sm">{terminal.selectedTg}</span>
         {tgName(selectedNum) && (
-          <span className="text-amber-300/70 text-[10px] font-normal ml-1 hidden sm:inline">{tgName(selectedNum)}</span>
+          <span className="text-amber-300/80 text-xs font-normal ml-1.5 hidden sm:inline">
+            {getTgFlag(tgName(selectedNum))}{getTgFlag(tgName(selectedNum)) ? " " : ""}{tgName(selectedNum)}
+          </span>
         )}
       </td>
       <td className="px-2 sm:px-3 py-1.5 hidden sm:table-cell">
@@ -304,7 +373,9 @@ function CallHistory({ entries, title, isLocal }: {
               <span className="text-muted-foreground/60"> {">"} </span>
               <span className="text-amber-400 font-semibold">TG {entry.targetTg}</span>
               {tgName(entry.targetTg) && (
-                <span className="text-amber-300/60 text-[10px] ml-1">{tgName(entry.targetTg)}</span>
+                <span className="text-amber-300/70 text-xs ml-1.5">
+                  {getTgFlag(tgName(entry.targetTg))}{getTgFlag(tgName(entry.targetTg)) ? " " : ""}{tgName(entry.targetTg)}
+                </span>
               )}
               {entry.timeSlot != null ? (
                 <span className="text-cyan-400/80 text-[10px] ml-1">TS{entry.timeSlot}</span>
