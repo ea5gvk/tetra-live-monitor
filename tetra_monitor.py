@@ -668,33 +668,21 @@ class TetraMonitor:
                 dst_i = cmce_sds.group(2)
                 sds_type_num = int(cmce_sds.group(3))
                 bytes_str = cmce_sds.group(4)
-                gps_dst = int(dst_i) in (200999, 9999)
                 try:
                     byte_list = [int(b.strip()) for b in bytes_str.split(",") if b.strip()]
-                    if sds_type_num == 4 and not gps_dst:
-                        # Type 4 non-GPS: user-defined text
+                    # Always try LIP first — the 0x0A protocol ID byte is a reliable gate,
+                    # so no destination filter needed. Any destination (200999, 9999, 288999, etc.)
+                    # can carry a LIP/GPS SDS.
+                    lip_data = _try_decode_lip_pdu_bytes(byte_list)
+                    if lip_data:
+                        self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
+                        self._attach_content_to_pending_entry(src_i, "lip", lip_data)
+                    else:
+                        # LIP decode failed: try text (works for all SDS types)
                         text_val = _try_decode_sds_text(byte_list)
                         if text_val:
                             self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
                             self._attach_content_to_pending_entry(src_i, "text", text_val)
-                    else:
-                        # Type 0/1/2/3 or Type4 GPS dest: try LIP decode first
-                        lip_data = _try_decode_lip_pdu_bytes(byte_list)
-                        if lip_data:
-                            self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
-                            self._attach_content_to_pending_entry(src_i, "lip", lip_data)
-                        elif sds_type_num == 4:
-                            # Type4 GPS but LIP decode failed: try text anyway
-                            text_val = _try_decode_sds_text(byte_list)
-                            if text_val:
-                                self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
-                                self._attach_content_to_pending_entry(src_i, "text", text_val)
-                        else:
-                            # Binary type, LIP failed: try text as fallback
-                            text_val = _try_decode_sds_text(byte_list)
-                            if text_val:
-                                self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
-                                self._attach_content_to_pending_entry(src_i, "text", text_val)
                 except Exception:
                     pass
                 return
