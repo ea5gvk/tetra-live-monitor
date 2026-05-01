@@ -97,35 +97,59 @@ def _try_decode_sds_text(byte_list: list) -> str | None:
 
 def _try_decode_lip_pdu_bytes(byte_list: list) -> dict | None:
     """
-    Best-effort decode of a TETRA LIP (Location Information Protocol)
-    Short Location Report (SLR) from raw SDS payload bytes.
+    Decode a TETRA LIP (Location Information Protocol) Short or Long Location
+    Report from raw SDS payload bytes.
 
-    ETSI TS 100 392-18-1: SLR PDU layout (bits, MSB-first):
-      PDU_TYPE       :  5 bits = 00000
-      LATITUDE       : 25 bits (two's complement, 1 LSB = 180/2^25 ≈ 5.36e-6 °)
-      LONGITUDE      : 25 bits (two's complement, 1 LSB = 360/2^25 ≈ 1.07e-5 °)
-      POSITION_ERROR :  4 bits
-      VELOCITY flag  :  1 bit
-      If velocity:
-        SPEED        :  7 bits (km/h)
-        DIRECTION    :  4 bits (N=0, steps of 22.5°)
+    Layout (from ETSI TS 100 392-18-1 and validated against lip-parser.ts):
+      byte[0]        : LIP Protocol ID = 0x0A (mandatory)
+      byte[1]+       : LIP PDU (MSB-first bitstream)
+        Bits 0-1     : PDU type (0=Short, 1=Long)
+        [Short Report]
+          Bits 2-3   : Time elapsed (2 bits)
+          Bits 4-28  : Longitude (25 bits signed), lon = raw * 360 / 2^25
+          Bits 29-52 : Latitude  (24 bits signed), lat = raw * 180 / 2^24
+          Bits 53-55 : Position error (3 bits, index into error table)
+          Bits 56-62 : Velocity index (7 bits, from VELOCITY_TABLE)  [optional]
+          Bits 63-66 : Direction index (4 bits, steps of 22.5°)      [optional]
 
-    The PDU may be preceded by 0-3 bytes of SDS-TL header; we try each offset.
     Returns dict with lat/lon (and optionally speed/heading) or None.
     """
-    if len(byte_list) < 8:
+    LIP_PROTOCOL_ID = 0x0A
+
+    # VELOCITY_TABLE km/h values (index → km/h), from lip-parser.ts
+    VELOCITY_TABLE = [
+        0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15,
+        16, 17, 18, 19, 20, 22, 24, 26, 28, 30, 33, 36, 40, 44, 48, 52,
+        56, 60, 65, 70, 75, 80, 85, 90, 95, 100, 110, 120, 130, 140, 150, 160,
+        170, 180, 190, 200, 220, 240, 260, 280, 300, 350, 400, 450, 500, 550, 600, 650,
+        700, 750, 800, 850, 900, 950, 1000, 1100, 1200, 1300, 1400, 1500, 1650, 1800, 2000, 2200,
+        2500, 2800, 3100, 3400, 3700, 4000, 4400, 4800, 5200, 5600, 6000, 6500, 7000, 7500, 8000, 9000,
+        10000, 11000, 12000, 13000, 14000, 15000,
+    ]
+
+    DIRECTION_TABLE = [
+        0, 22.5, 45, 67.5, 90, 112.5, 135, 157.5,
+        180, 202.5, 225, 247.5, 270, 292.5, 315, 337.5,
+    ]
+
+    if len(byte_list) < 9:
         return None
 
-    # Expand bytes to individual bits (MSB first)
+    # First byte must be the LIP Protocol ID
+    if byte_list[0] != LIP_PROTOCOL_ID:
+        return None
+
+    # Build bitstream from byte[1] onward (MSB first)
+    pdu_bytes = byte_list[1:]
     all_bits = []
-    for b in byte_list:
+    for b in pdu_bytes:
         for i in range(7, -1, -1):
             all_bits.append((b >> i) & 1)
 
-    def read_int(bits, start, n):
-        if start + n > len(bits):
+    def read_int(start, n):
+        if start + n > len(all_bits):
             return None
-        return int(''.join(str(b) for b in bits[start:start + n]), 2)
+        return int(''.join(str(b) for b in all_bits[start:start + n]), 2)
 
     def to_signed(val, n):
         if val is None:
@@ -134,44 +158,67 @@ def _try_decode_lip_pdu_bytes(byte_list: list) -> dict | None:
             val -= (1 << n)
         return val
 
-    # Try different byte offsets for possible SDS-TL headers (0, 1, 2, 3 bytes)
-    for byte_offset in range(4):
-        bit_start = byte_offset * 8
-        if bit_start + 55 > len(all_bits):
-            break
-        pdu_type = read_int(all_bits, bit_start, 5)
-        if pdu_type != 0:
-            continue  # Not an SLR — try next offset
+    pdu_type = read_int(0, 2)
+    if pdu_type not in (0, 1):
+        return None
 
-        lat_raw = to_signed(read_int(all_bits, bit_start + 5, 25), 25)
-        lon_raw = to_signed(read_int(all_bits, bit_start + 30, 25), 25)
+    if pdu_type == 0:
+        # Short Location Report
+        # bit 2-3: time elapsed, bit 4-28: lon (25), bit 29-52: lat (24), bit 53-55: pos error
+        lon_raw = to_signed(read_int(4, 25), 25)
+        lat_raw = to_signed(read_int(29, 24), 24)
         if lat_raw is None or lon_raw is None:
-            continue
+            return None
 
-        lat = lat_raw * (180.0 / (1 << 25))
         lon = lon_raw * (360.0 / (1 << 25))
+        lat = lat_raw * (180.0 / (1 << 24))
 
-        # Sanity checks
         if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
-            continue
+            return None
         if lat == 0.0 and lon == 0.0:
-            continue  # Probably invalid
+            return None
 
         result = {"lat": round(lat, 6), "lon": round(lon, 6)}
 
-        # Optional velocity fields
-        vel_bit = bit_start + 60
-        if vel_bit < len(all_bits) and all_bits[vel_bit] == 1:
-            speed = read_int(all_bits, vel_bit + 1, 7)
-            direction = read_int(all_bits, vel_bit + 8, 4)
-            if speed is not None:
-                result["speed"] = speed
-            if direction is not None:
-                result["heading"] = round(direction * 22.5, 1)
+        # Optional: velocity index (7 bits) + direction index (4 bits) at bit 56
+        vel_idx = read_int(56, 7)
+        if vel_idx is not None and vel_idx < len(VELOCITY_TABLE):
+            kmh = VELOCITY_TABLE[vel_idx]
+            result["speed"] = kmh
+
+        dir_idx = read_int(63, 4)
+        if dir_idx is not None and dir_idx < len(DIRECTION_TABLE):
+            result["heading"] = DIRECTION_TABLE[dir_idx]
 
         return result
 
-    return None
+    else:
+        # Long Location Report — same lon/lat layout, different header bits
+        # bit 2: time elapsed flag, bit 3-4: report type, bit 5-29: lon (25), bit 30-53: lat (24)
+        lon_raw = to_signed(read_int(5, 25), 25)
+        lat_raw = to_signed(read_int(30, 24), 24)
+        if lat_raw is None or lon_raw is None:
+            return None
+
+        lon = lon_raw * (360.0 / (1 << 25))
+        lat = lat_raw * (180.0 / (1 << 24))
+
+        if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+            return None
+        if lat == 0.0 and lon == 0.0:
+            return None
+
+        result = {"lat": round(lat, 6), "lon": round(lon, 6)}
+
+        vel_idx = read_int(68, 7)
+        if vel_idx is not None and vel_idx < len(VELOCITY_TABLE):
+            result["speed"] = VELOCITY_TABLE[vel_idx]
+
+        dir_idx = read_int(75, 4)
+        if dir_idx is not None and dir_idx < len(DIRECTION_TABLE):
+            result["heading"] = DIRECTION_TABLE[dir_idx]
+
+        return result
 
 
 class TetraMonitor:
@@ -618,24 +665,32 @@ class TetraMonitor:
             )
             if cmce_sds:
                 src_i = cmce_sds.group(1)
+                dst_i = cmce_sds.group(2)
                 sds_type_num = int(cmce_sds.group(3))
                 bytes_str = cmce_sds.group(4)
+                gps_dst = int(dst_i) in (200999, 9999)
                 try:
                     byte_list = [int(b.strip()) for b in bytes_str.split(",") if b.strip()]
-                    if sds_type_num == 4:
-                        # Type 4: user-defined text
+                    if sds_type_num == 4 and not gps_dst:
+                        # Type 4 non-GPS: user-defined text
                         text_val = _try_decode_sds_text(byte_list)
                         if text_val:
                             self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
                             self._attach_content_to_pending_entry(src_i, "text", text_val)
                     else:
-                        # Type 0/1/2/3: binary SDS — try to decode as TETRA LIP SLR
+                        # Type 0/1/2/3 or Type4 GPS dest: try LIP decode first
                         lip_data = _try_decode_lip_pdu_bytes(byte_list)
                         if lip_data:
                             self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
                             self._attach_content_to_pending_entry(src_i, "lip", lip_data)
+                        elif sds_type_num == 4:
+                            # Type4 GPS but LIP decode failed: try text anyway
+                            text_val = _try_decode_sds_text(byte_list)
+                            if text_val:
+                                self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+                                self._attach_content_to_pending_entry(src_i, "text", text_val)
                         else:
-                            # Fallback: try text decode (some Type0/1 carry text)
+                            # Binary type, LIP failed: try text as fallback
                             text_val = _try_decode_sds_text(byte_list)
                             if text_val:
                                 self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
@@ -659,22 +714,17 @@ class TetraMonitor:
                 bytes_str = dsds_match.group(3)
                 try:
                     byte_list = [int(b.strip()) for b in bytes_str.split(",") if b.strip()]
-                    if sds_type_num == 4:
+                    # Always try LIP first: if byte[0]==0x0A it's a GPS/LIP message
+                    lip_data = _try_decode_lip_pdu_bytes(byte_list)
+                    if lip_data:
+                        self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
+                        self._attach_content_to_pending_entry(src_i, "lip", lip_data)
+                    else:
+                        # Not LIP: try text decode
                         text_val = _try_decode_sds_text(byte_list)
                         if text_val:
                             self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
                             self._attach_content_to_pending_entry(src_i, "text", text_val)
-                    else:
-                        # Binary SDS-TL — try LIP decode first
-                        lip_data = _try_decode_lip_pdu_bytes(byte_list)
-                        if lip_data:
-                            self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
-                            self._attach_content_to_pending_entry(src_i, "lip", lip_data)
-                        else:
-                            text_val = _try_decode_sds_text(byte_list)
-                            if text_val:
-                                self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
-                                self._attach_content_to_pending_entry(src_i, "text", text_val)
                 except Exception:
                     pass
                 return
