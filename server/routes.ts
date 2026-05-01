@@ -386,24 +386,39 @@ export async function registerRoutes(
       const json = JSON.parse(raw);
       const data: Record<string, string> = {};
       if (source === "bm") {
-        const entries: any[] = Array.isArray(json) ? json : Object.values(json);
-        for (const item of entries) {
-          const id = String(item.talkgroup_id ?? item.id ?? item.ID ?? "").trim();
-          const name = String(item.name ?? item.Name ?? item.description ?? item.Description ?? "").trim();
-          if (id && name) data[id] = name;
-        }
-      } else {
+        // BM /v2/talkgroup returns either:
+        //   { "1": "Local", "2": "Cluster", ... }  (flat id→name dict)
+        //   [ { talkgroup_id, name, ... }, ... ]    (array of objects)
         if (Array.isArray(json)) {
           for (const item of json) {
-            const id = String(item.id ?? item.ID ?? "").trim();
-            const name = String(item.name ?? item.Name ?? "").trim();
+            const id = String(item.talkgroup_id ?? item.id ?? item.ID ?? "").trim();
+            const name = String(item.name ?? item.Name ?? item.description ?? item.Description ?? "").trim();
             if (id && name) data[id] = name;
           }
         } else {
+          // Flat dict: keys are IDs, values are names (strings) or objects
           for (const [k, v] of Object.entries(json)) {
-            const name = typeof v === "string" ? v : (typeof v === "object" && v !== null ? String((v as any).name ?? k) : String(v));
-            data[k] = name.trim();
+            if (typeof v === "string") {
+              if (k && v) data[k] = v;
+            } else if (typeof v === "object" && v !== null) {
+              const id = String((v as any).talkgroup_id ?? (v as any).id ?? k).trim();
+              const name = String((v as any).name ?? (v as any).Name ?? (v as any).description ?? "").trim();
+              if (id && name) data[id] = name;
+            }
           }
+        }
+      } else {
+        // ADN /talkgroup_ids.json returns { "results": [ { tgid, callsign, id }, ... ] }
+        const items: any[] = Array.isArray(json)
+          ? json
+          : Array.isArray(json.results)
+            ? json.results
+            : Object.values(json);
+        for (const item of items) {
+          if (typeof item === "string") continue;
+          const id = String(item.tgid ?? item.id ?? item.ID ?? "").trim();
+          const name = String(item.callsign ?? item.name ?? item.Name ?? item.description ?? "").trim();
+          if (id && name) data[id] = name;
         }
       }
       tgCache[source] = { ts: Date.now(), data };
