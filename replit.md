@@ -15,9 +15,10 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 - `client/src/pages/Dashboard.tsx` — Main dashboard UI (terminal-style)
 - `client/src/pages/Calculator.tsx` — TETRA frequency calculator (iframe wrapper, syncs language via postMessage)
 - `client/src/pages/LogLive.tsx` — Real-time journalctl log viewer (SSE stream)
+- `client/src/pages/GpsMap.tsx` — GPS/LIP station map (react-leaflet, real-time via WebSocket)
 - `client/public/calculator.html` — Standalone TETRA frequency calculator (ETSI TS 100 392-15)
-- `client/src/lib/i18n.ts` — Internationalization system (7 languages)
-- `client/src/hooks/useTetraWebSocket.ts` — WebSocket connection hook
+- `client/src/lib/i18n.ts` — Internationalization system (9 languages)
+- `client/src/hooks/useTetraWebSocket.ts` — WebSocket connection hook (includes gpsPositions state)
 - `client/src/components/UpdateChecker.tsx` — Navbar update button + modal (GitHub check + streaming apply)
 - `shared/schema.ts` — Shared TypeScript types
 
