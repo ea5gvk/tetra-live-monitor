@@ -67,6 +67,7 @@ export interface TetraState {
   externalHistory: CallLogEntry[];
   sdsMessages: SdsMessage[];
   gpsPositions: Record<string, GpsPosition>;
+  gpsHistory: Record<string, GpsPosition[]>;
   connected: boolean;
   mode: string;
 }
@@ -77,6 +78,7 @@ export function useTetraWebSocket(): TetraState {
   const [externalHistory, setExternalHistory] = useState<CallLogEntry[]>([]);
   const [sdsMessages, setSdsMessages] = useState<SdsMessage[]>([]);
   const [gpsPositions, setGpsPositions] = useState<Record<string, GpsPosition>>({});
+  const [gpsHistory, setGpsHistory] = useState<Record<string, GpsPosition[]>>({});
   const [connected, setConnected] = useState(false);
   const [mode, setMode] = useState("connecting");
   const wsRef = useRef<WebSocket | null>(null);
@@ -104,6 +106,7 @@ export function useTetraWebSocket(): TetraState {
             setExternalHistory(msg.payload.externalHistory || []);
             setSdsMessages(msg.payload.sdsMessages || []);
             setGpsPositions(msg.payload.gpsPositions || {});
+            setGpsHistory(msg.payload.gpsHistory || {});
             break;
 
           case "update_terminal":
@@ -144,21 +147,27 @@ export function useTetraWebSocket(): TetraState {
               }
               return [sds, ...prev].slice(0, 50);
             });
-            // Update GPS positions when SDS carries LIP data
+            // Update GPS positions + track history when SDS carries LIP data
             if (sds.lipData && sds.srcIssi) {
+              const newPos: GpsPosition = {
+                issi: sds.srcIssi,
+                callsign: sds.srcCallsign || null,
+                lat: sds.lipData!.lat,
+                lon: sds.lipData!.lon,
+                speed: sds.lipData!.speed ?? null,
+                heading: sds.lipData!.heading ?? null,
+                timestamp: sds.timestamp,
+                hasFix: true,
+              };
               setGpsPositions(prev => ({
                 ...prev,
-                [sds.srcIssi]: {
-                  issi: sds.srcIssi,
-                  callsign: sds.srcCallsign || prev[sds.srcIssi]?.callsign || null,
-                  lat: sds.lipData!.lat,
-                  lon: sds.lipData!.lon,
-                  speed: sds.lipData!.speed ?? null,
-                  heading: sds.lipData!.heading ?? null,
-                  timestamp: sds.timestamp,
-                  hasFix: true,
-                }
+                [sds.srcIssi]: { ...newPos, callsign: sds.srcCallsign || prev[sds.srcIssi]?.callsign || null },
               }));
+              setGpsHistory(prev => {
+                const existing = prev[sds.srcIssi] || [];
+                const updated = [...existing, newPos].slice(-200);
+                return { ...prev, [sds.srcIssi]: updated };
+              });
             }
             break;
           }
@@ -191,5 +200,5 @@ export function useTetraWebSocket(): TetraState {
     };
   }, [connect]);
 
-  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, connected, mode };
+  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, connected, mode };
 }

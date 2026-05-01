@@ -1311,13 +1311,16 @@ ${restartLine}
     });
   }
 
+  const MAX_GPS_HISTORY = 200; // max track points per ISSI
+
   const currentState: {
     terminals: Record<string, any>;
     localHistory: any[];
     externalHistory: any[];
     sdsMessages: any[];
     gpsPositions: Record<string, any>;
-  } = { terminals: {}, localHistory: [], externalHistory: [], sdsMessages: [], gpsPositions: {} };
+    gpsHistory: Record<string, any[]>;
+  } = { terminals: {}, localHistory: [], externalHistory: [], sdsMessages: [], gpsPositions: {}, gpsHistory: {} };
   const MAX_HISTORY = 50;
 
   function updateStateFromEvent(event: any) {
@@ -1374,10 +1377,10 @@ ${restartLine}
             if (currentState.sdsMessages.length > MAX_HISTORY)
               currentState.sdsMessages = currentState.sdsMessages.slice(0, MAX_HISTORY);
           }
-          // Update GPS position tracker when SDS carries LIP/GPS data
+          // Update GPS position tracker + history when SDS carries LIP/GPS data
           if (sds.lipData && sds.srcIssi) {
             const prev = currentState.gpsPositions[sds.srcIssi];
-            currentState.gpsPositions[sds.srcIssi] = {
+            const pos = {
               issi: sds.srcIssi,
               callsign: sds.srcCallsign || prev?.callsign || null,
               lat: sds.lipData.lat,
@@ -1387,6 +1390,15 @@ ${restartLine}
               timestamp: sds.timestamp,
               hasFix: true,
             };
+            currentState.gpsPositions[sds.srcIssi] = pos;
+            // Append to track history (keep last MAX_GPS_HISTORY points)
+            if (!currentState.gpsHistory[sds.srcIssi]) {
+              currentState.gpsHistory[sds.srcIssi] = [];
+            }
+            currentState.gpsHistory[sds.srcIssi].push(pos);
+            if (currentState.gpsHistory[sds.srcIssi].length > MAX_GPS_HISTORY) {
+              currentState.gpsHistory[sds.srcIssi] = currentState.gpsHistory[sds.srcIssi].slice(-MAX_GPS_HISTORY);
+            }
           }
         }
         break;
@@ -1403,6 +1415,7 @@ ${restartLine}
         externalHistory: currentState.externalHistory,
         sdsMessages: currentState.sdsMessages,
         gpsPositions: currentState.gpsPositions,
+        gpsHistory: currentState.gpsHistory,
       }
     });
     ws.send(snapshot);
