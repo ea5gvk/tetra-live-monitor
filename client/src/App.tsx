@@ -6,10 +6,11 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import Dashboard from "@/pages/Dashboard";
 import Calculator from "@/pages/Calculator";
 import LogLive from "@/pages/LogLive";
+import GpsMap from "@/pages/GpsMap";
 import VpnManager from "@/pages/VpnManager";
 import WifiManager from "@/pages/WifiManager";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, ShieldCheck, Wifi } from "lucide-react";
+import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, ShieldCheck, Wifi, MapPin } from "lucide-react";
 import { SiPaypal } from "react-icons/si";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 import { UpdateChecker } from "@/components/UpdateChecker";
@@ -114,6 +115,18 @@ function NavBar() {
         {t("log_live")}
       </Link>
       <Link
+        href="/gps-map"
+        className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-t transition-colors ${
+          location === "/gps-map"
+            ? "bg-primary/10 text-primary border border-primary/20 border-b-0"
+            : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+        }`}
+        data-testid="nav-link-gps-map"
+      >
+        <MapPin className="w-3.5 h-3.5" />
+        {t("gps_map")}
+      </Link>
+      <Link
         href="/vpn"
         className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-t transition-colors ${
           location === "/vpn"
@@ -175,6 +188,7 @@ function Router() {
           <Route path="/" component={Dashboard} />
           <Route path="/calculator" component={Calculator} />
           <Route path="/log-live" component={LogLive} />
+          <Route path="/gps-map" component={GpsMap} />
           <Route path="/vpn" component={VpnManager} />
           <Route path="/wifi" component={WifiManager} />
           <Route component={NotFound} />

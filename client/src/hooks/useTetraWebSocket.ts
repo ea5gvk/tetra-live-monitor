@@ -50,11 +50,23 @@ export interface SdsMessage {
   lipData?: SdsLipData;
 }
 
+export interface GpsPosition {
+  issi: string;
+  callsign: string | null;
+  lat: number;
+  lon: number;
+  speed: number | null;
+  heading: number | null;
+  timestamp: string;
+  hasFix: boolean;
+}
+
 export interface TetraState {
   terminals: Record<string, Terminal>;
   localHistory: CallLogEntry[];
   externalHistory: CallLogEntry[];
   sdsMessages: SdsMessage[];
+  gpsPositions: Record<string, GpsPosition>;
   connected: boolean;
   mode: string;
 }
@@ -64,6 +76,7 @@ export function useTetraWebSocket(): TetraState {
   const [localHistory, setLocalHistory] = useState<CallLogEntry[]>([]);
   const [externalHistory, setExternalHistory] = useState<CallLogEntry[]>([]);
   const [sdsMessages, setSdsMessages] = useState<SdsMessage[]>([]);
+  const [gpsPositions, setGpsPositions] = useState<Record<string, GpsPosition>>({});
   const [connected, setConnected] = useState(false);
   const [mode, setMode] = useState("connecting");
   const wsRef = useRef<WebSocket | null>(null);
@@ -90,6 +103,7 @@ export function useTetraWebSocket(): TetraState {
             setLocalHistory(msg.payload.localHistory || []);
             setExternalHistory(msg.payload.externalHistory || []);
             setSdsMessages(msg.payload.sdsMessages || []);
+            setGpsPositions(msg.payload.gpsPositions || {});
             break;
 
           case "update_terminal":
@@ -130,6 +144,22 @@ export function useTetraWebSocket(): TetraState {
               }
               return [sds, ...prev].slice(0, 50);
             });
+            // Update GPS positions when SDS carries LIP data
+            if (sds.lipData && sds.srcIssi) {
+              setGpsPositions(prev => ({
+                ...prev,
+                [sds.srcIssi]: {
+                  issi: sds.srcIssi,
+                  callsign: sds.srcCallsign || prev[sds.srcIssi]?.callsign || null,
+                  lat: sds.lipData!.lat,
+                  lon: sds.lipData!.lon,
+                  speed: sds.lipData!.speed ?? null,
+                  heading: sds.lipData!.heading ?? null,
+                  timestamp: sds.timestamp,
+                  hasFix: true,
+                }
+              }));
+            }
             break;
           }
 
@@ -161,5 +191,5 @@ export function useTetraWebSocket(): TetraState {
     };
   }, [connect]);
 
-  return { terminals, localHistory, externalHistory, sdsMessages, connected, mode };
+  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, connected, mode };
 }

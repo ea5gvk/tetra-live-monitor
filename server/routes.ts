@@ -1316,7 +1316,8 @@ ${restartLine}
     localHistory: any[];
     externalHistory: any[];
     sdsMessages: any[];
-  } = { terminals: {}, localHistory: [], externalHistory: [], sdsMessages: [] };
+    gpsPositions: Record<string, any>;
+  } = { terminals: {}, localHistory: [], externalHistory: [], sdsMessages: [], gpsPositions: {} };
   const MAX_HISTORY = 50;
 
   function updateStateFromEvent(event: any) {
@@ -1373,6 +1374,20 @@ ${restartLine}
             if (currentState.sdsMessages.length > MAX_HISTORY)
               currentState.sdsMessages = currentState.sdsMessages.slice(0, MAX_HISTORY);
           }
+          // Update GPS position tracker when SDS carries LIP/GPS data
+          if (sds.lipData && sds.srcIssi) {
+            const prev = currentState.gpsPositions[sds.srcIssi];
+            currentState.gpsPositions[sds.srcIssi] = {
+              issi: sds.srcIssi,
+              callsign: sds.srcCallsign || prev?.callsign || null,
+              lat: sds.lipData.lat,
+              lon: sds.lipData.lon,
+              speed: sds.lipData.speed ?? null,
+              heading: sds.lipData.heading ?? null,
+              timestamp: sds.timestamp,
+              hasFix: true,
+            };
+          }
         }
         break;
       }
@@ -1387,6 +1402,7 @@ ${restartLine}
         localHistory: currentState.localHistory,
         externalHistory: currentState.externalHistory,
         sdsMessages: currentState.sdsMessages,
+        gpsPositions: currentState.gpsPositions,
       }
     });
     ws.send(snapshot);
