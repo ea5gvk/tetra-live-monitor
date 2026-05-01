@@ -156,7 +156,7 @@ export function useTetraWebSocket(): TetraState {
                 lon: sds.lipData!.lon,
                 speed: sds.lipData!.speed ?? null,
                 heading: sds.lipData!.heading ?? null,
-                timestamp: sds.timestamp,
+                timestamp: new Date().toISOString(),
                 hasFix: true,
               };
               setGpsPositions(prev => ({

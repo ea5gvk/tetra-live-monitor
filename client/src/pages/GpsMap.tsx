@@ -88,20 +88,35 @@ function MapLayerUpdater({ layer }: { layer: LayerType }) {
   return null;
 }
 
+function parseTs(ts: string): Date | null {
+  if (!ts) return null;
+  // Full ISO / RFC2822 → parse directly
+  const d = new Date(ts);
+  if (!isNaN(d.getTime())) return d;
+  // Time-only fallback "HH:MM:SS" → attach today's date
+  if (/^\d{2}:\d{2}(:\d{2})?$/.test(ts)) {
+    const today = new Date().toISOString().split("T")[0];
+    const d2 = new Date(`${today}T${ts}`);
+    if (!isNaN(d2.getTime())) return d2;
+  }
+  return null;
+}
+
 function formatAge(ts: string): string {
-  try {
-    const diff = (Date.now() - new Date(ts).getTime()) / 1000;
-    if (diff < 60) return `${Math.round(diff)}s`;
-    if (diff < 3600) return `${Math.round(diff / 60)}m`;
-    if (diff < 86400) return `${Math.round(diff / 3600)}h`;
-    return `${Math.round(diff / 86400)}d`;
-  } catch { return "?"; }
+  const d = parseTs(ts);
+  if (!d) return "?";
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 0) return "0s";
+  if (diff < 60) return `${Math.round(diff)}s`;
+  if (diff < 3600) return `${Math.round(diff / 60)}m`;
+  if (diff < 86400) return `${Math.round(diff / 3600)}h`;
+  return `${Math.round(diff / 86400)}d`;
 }
 
 function formatTime(ts: string): string {
-  try {
-    return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
-  } catch { return ts; }
+  const d = parseTs(ts);
+  if (!d) return ts || "?";
+  return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 function dirArrow(heading: number | null): string {
