@@ -135,12 +135,19 @@ def _try_decode_lip_pdu_bytes(byte_list: list) -> dict | None:
     if len(byte_list) < 9:
         return None
 
-    # First byte must be the LIP Protocol ID
-    if byte_list[0] != LIP_PROTOCOL_ID:
+    # Find the LIP Protocol ID byte (0x0A) at offset 0, 2, 3 or 4.
+    # Outgoing GPS SDS from TETRA radios may carry an SDS-TL header (typically 2-4
+    # bytes starting with 0x82) before the actual LIP PDU, so we scan a few offsets.
+    lip_offset = None
+    for offset in (0, 2, 3, 4):
+        if offset < len(byte_list) and byte_list[offset] == LIP_PROTOCOL_ID:
+            lip_offset = offset
+            break
+    if lip_offset is None:
         return None
 
-    # Build bitstream from byte[1] onward (MSB first)
-    pdu_bytes = byte_list[1:]
+    # Build bitstream from the byte AFTER the LIP Protocol ID byte (MSB first)
+    pdu_bytes = byte_list[lip_offset + 1:]
     all_bits = []
     for b in pdu_bytes:
         for i in range(7, -1, -1):
@@ -235,6 +242,7 @@ class TetraMonitor:
         self.sds_pending_ack = {}          # (dst, src) -> timestamp, for delivery-report filtering
         self.sds_content_pending = {}      # src_issi -> {type, content, ts} for text/LIP correlation
         self.sds_entry_ts = {}             # entry_id -> float ts; used for retroactive text attachment
+        self._pending_usds_bytes = None    # bytes from USdsData line; correlated on next U-SDS-DATA line
 
     def get_callsign(self, issi):
         if not issi or int(issi) < 1000:
@@ -653,6 +661,41 @@ class TetraMonitor:
             # 8. SDS messages
 
             # --- Content lines stored for enriching next BrewEntity SDS entry ---
+
+            # USdsData: CMCE layer logs uplink SDS (radio→network) as "<- USdsData { ... }".
+            # The bytes are in user_defined_data; source ISSI comes on the NEXT log line
+            # ("SDS: U-SDS-DATA from ISSI X to ISSI Y"). Buffer bytes here, consume on that line.
+            usds_match = re.search(
+                r"<-\s+USdsData\s*\{.*?user_defined_data:\s*Type(\d)\(\d+,\s*\[([^\]]+)\]\)",
+                msg, re.DOTALL
+            )
+            if usds_match:
+                self._pending_usds_bytes = usds_match.group(2)
+                return
+
+            # SDS: U-SDS-DATA from ISSI X to ISSI Y — correlates with buffered USdsData bytes above.
+            u_sds_from = re.search(
+                r"SDS:\s+U-SDS-DATA\s+from\s+ISSI\s+(\d+)\s+to\s+ISSI\s+(\d+)",
+                msg
+            )
+            if u_sds_from and self._pending_usds_bytes:
+                src_i = u_sds_from.group(1)
+                bytes_str = self._pending_usds_bytes
+                self._pending_usds_bytes = None
+                try:
+                    byte_list = [int(b.strip()) for b in bytes_str.split(",") if b.strip()]
+                    lip_data = _try_decode_lip_pdu_bytes(byte_list)
+                    if lip_data:
+                        self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
+                        self._attach_content_to_pending_entry(src_i, "lip", lip_data)
+                    else:
+                        text_val = _try_decode_sds_text(byte_list)
+                        if text_val:
+                            self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+                            self._attach_content_to_pending_entry(src_i, "text", text_val)
+                except Exception:
+                    pass
+                return
 
             # CmceSdsData: logged by CMCE layer for BOTH outgoing (radio→Brew) and incoming (Brew→radio).
             # Format: "CmceSdsData(CmceSdsData { source_issi: X, dest_issi: Y, user_defined_data: Type4(N, [bytes]) })"
