@@ -2419,6 +2419,11 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     el("tgStatus").innerHTML = `<span style="color:var(--muted)">Cleared.</span>`;
   }
 
+  // Expose TG functions to global scope so onclick attributes can call them
+  window.selectTgSource = selectTgSource;
+  window.loadTgNames = loadTgNames;
+  window.clearTgNames = clearTgNames;
+
   // Init TG source buttons and show cached status
   (function initTgNames() {
     selectTgSource(tgSource);
