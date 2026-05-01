@@ -517,30 +517,61 @@ pm2 restart tetra-monitor
     } catch {
       return res.json({ demo: true });
     }
+    let localHash = "";
     try {
-      const localHash = execSync(`git -C "${cleanDir}" rev-parse HEAD 2>/dev/null`, { timeout: 5000 }).toString().trim();
-      const raw = execSync(
-        `curl -sf -H "User-Agent: tetra-live-monitor" "https://api.github.com/repos/MidnightBlueLabs/tetra-bluestation/commits/main"`,
-        { timeout: 12000 }
+      localHash = execSync(`git -C "${cleanDir}" rev-parse HEAD 2>/dev/null`, { timeout: 5000 }).toString().trim();
+    } catch {
+      return res.json({ demo: true });
+    }
+
+    // Use git ls-remote to get remote hash (same protocol as git pull, no API rate limits)
+    let remoteHash = "";
+    try {
+      const lsOut = execSync(
+        `git ls-remote https://github.com/MidnightBlueLabs/tetra-bluestation.git main`,
+        { timeout: 15000 }
       ).toString();
-      const data = JSON.parse(raw);
-      const remoteHash: string = data.sha || "";
-      const remoteMessage: string = (data.commit?.message || "").split("\n")[0];
-      const remoteDate: string = data.commit?.author?.date || "";
-      const remoteAuthor: string = data.commit?.author?.name || "";
-      res.json({
-        upToDate: localHash === remoteHash,
-        localHash: localHash.substring(0, 8),
-        remoteHash: remoteHash.substring(0, 8),
-        remoteMessage,
-        remoteDate,
-        remoteAuthor,
+      remoteHash = lsOut.split(/\s+/)[0].trim();
+    } catch (err) {
+      return res.json({
         demo: false,
         dirNotFound: false,
+        upToDate: false,
+        localHash: localHash.substring(0, 8),
+        remoteHash: "??????",
+        remoteMessage: "No se pudo contactar GitHub",
+        remoteDate: "",
+        remoteAuthor: "",
+        apiError: String(err).substring(0, 160),
       });
-    } catch (err) {
-      res.json({ demo: true, error: String(err) });
     }
+
+    // Optionally fetch commit details from GitHub API (nice-to-have)
+    let remoteMessage = "", remoteDate = "", remoteAuthor = "";
+    try {
+      const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
+      const raw = execSync(
+        `curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/MidnightBlueLabs/tetra-bluestation/commits/main"`,
+        { timeout: 10000 }
+      ).toString();
+      const data = JSON.parse(raw);
+      remoteMessage = (data.commit?.message || "").split("\n")[0];
+      remoteDate = data.commit?.author?.date || "";
+      remoteAuthor = data.commit?.author?.name || "";
+    } catch {
+      remoteMessage = "(detalles no disponibles)";
+    }
+
+    res.json({
+      upToDate: localHash === remoteHash,
+      localHash: localHash.substring(0, 8),
+      remoteHash: remoteHash.substring(0, 8),
+      remoteMessage,
+      remoteDate,
+      remoteAuthor,
+      demo: false,
+      dirNotFound: false,
+    });
   });
 
   app.post("/api/bluestation/apply", (req, res) => {
