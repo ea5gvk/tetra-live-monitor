@@ -476,14 +476,8 @@ echo ""
 echo "=== npm run build ==="
 npm run build
 echo ""
-echo "=== Reiniciando servicio ==="
-if command -v pm2 &>/dev/null && pm2 list 2>/dev/null | grep -q "tetra-monitor"; then
-  pm2 restart tetra-monitor
-elif sudo systemctl is-active --quiet tmo.service 2>/dev/null || sudo systemctl list-units --quiet tmo.service &>/dev/null; then
-  sudo systemctl restart tmo.service
-else
-  echo "WARN: no se encontro pm2 ni tmo.service — reinicia el servicio manualmente"
-fi
+echo "=== pm2 restart tetra-monitor ==="
+pm2 restart tetra-monitor
 `;
     const child = spawn("bash", ["-c", dashScript], { cwd: UPDATE_DIR });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
