@@ -95,6 +95,85 @@ def _try_decode_sds_text(byte_list: list) -> str | None:
     return None
 
 
+def _try_decode_lip_pdu_bytes(byte_list: list) -> dict | None:
+    """
+    Best-effort decode of a TETRA LIP (Location Information Protocol)
+    Short Location Report (SLR) from raw SDS payload bytes.
+
+    ETSI TS 100 392-18-1: SLR PDU layout (bits, MSB-first):
+      PDU_TYPE       :  5 bits = 00000
+      LATITUDE       : 25 bits (two's complement, 1 LSB = 180/2^25 ≈ 5.36e-6 °)
+      LONGITUDE      : 25 bits (two's complement, 1 LSB = 360/2^25 ≈ 1.07e-5 °)
+      POSITION_ERROR :  4 bits
+      VELOCITY flag  :  1 bit
+      If velocity:
+        SPEED        :  7 bits (km/h)
+        DIRECTION    :  4 bits (N=0, steps of 22.5°)
+
+    The PDU may be preceded by 0-3 bytes of SDS-TL header; we try each offset.
+    Returns dict with lat/lon (and optionally speed/heading) or None.
+    """
+    if len(byte_list) < 8:
+        return None
+
+    # Expand bytes to individual bits (MSB first)
+    all_bits = []
+    for b in byte_list:
+        for i in range(7, -1, -1):
+            all_bits.append((b >> i) & 1)
+
+    def read_int(bits, start, n):
+        if start + n > len(bits):
+            return None
+        return int(''.join(str(b) for b in bits[start:start + n]), 2)
+
+    def to_signed(val, n):
+        if val is None:
+            return None
+        if val >= (1 << (n - 1)):
+            val -= (1 << n)
+        return val
+
+    # Try different byte offsets for possible SDS-TL headers (0, 1, 2, 3 bytes)
+    for byte_offset in range(4):
+        bit_start = byte_offset * 8
+        if bit_start + 55 > len(all_bits):
+            break
+        pdu_type = read_int(all_bits, bit_start, 5)
+        if pdu_type != 0:
+            continue  # Not an SLR — try next offset
+
+        lat_raw = to_signed(read_int(all_bits, bit_start + 5, 25), 25)
+        lon_raw = to_signed(read_int(all_bits, bit_start + 30, 25), 25)
+        if lat_raw is None or lon_raw is None:
+            continue
+
+        lat = lat_raw * (180.0 / (1 << 25))
+        lon = lon_raw * (360.0 / (1 << 25))
+
+        # Sanity checks
+        if not (-90.0 <= lat <= 90.0 and -180.0 <= lon <= 180.0):
+            continue
+        if lat == 0.0 and lon == 0.0:
+            continue  # Probably invalid
+
+        result = {"lat": round(lat, 6), "lon": round(lon, 6)}
+
+        # Optional velocity fields
+        vel_bit = bit_start + 60
+        if vel_bit < len(all_bits) and all_bits[vel_bit] == 1:
+            speed = read_int(all_bits, vel_bit + 1, 7)
+            direction = read_int(all_bits, vel_bit + 8, 4)
+            if speed is not None:
+                result["speed"] = speed
+            if direction is not None:
+                result["heading"] = round(direction * 22.5, 1)
+
+        return result
+
+    return None
+
+
 class TetraMonitor:
     def __init__(self):
         self.terminals = {}
@@ -534,17 +613,33 @@ class TetraMonitor:
             # This is the most reliable source for SDS text content (covers outgoing SDS from radio).
             cmce_sds = re.search(
                 r"CmceSdsData\s*\{\s*source_issi:\s*(\d+),\s*dest_issi:\s*(\d+),\s*"
-                r"user_defined_data:\s*Type4\(\d+,\s*\[([^\]]+)\]\)",
+                r"user_defined_data:\s*Type(\d)\(\d+,\s*\[([^\]]+)\]\)",
                 msg
             )
             if cmce_sds:
                 src_i = cmce_sds.group(1)
+                sds_type_num = int(cmce_sds.group(3))
+                bytes_str = cmce_sds.group(4)
                 try:
-                    byte_list = [int(b.strip()) for b in cmce_sds.group(3).split(",") if b.strip()]
-                    text_val = _try_decode_sds_text(byte_list)
-                    if text_val:
-                        self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
-                        self._attach_content_to_pending_entry(src_i, "text", text_val)
+                    byte_list = [int(b.strip()) for b in bytes_str.split(",") if b.strip()]
+                    if sds_type_num == 4:
+                        # Type 4: user-defined text
+                        text_val = _try_decode_sds_text(byte_list)
+                        if text_val:
+                            self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+                            self._attach_content_to_pending_entry(src_i, "text", text_val)
+                    else:
+                        # Type 0/1/2/3: binary SDS — try to decode as TETRA LIP SLR
+                        lip_data = _try_decode_lip_pdu_bytes(byte_list)
+                        if lip_data:
+                            self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
+                            self._attach_content_to_pending_entry(src_i, "lip", lip_data)
+                        else:
+                            # Fallback: try text decode (some Type0/1 carry text)
+                            text_val = _try_decode_sds_text(byte_list)
+                            if text_val:
+                                self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+                                self._attach_content_to_pending_entry(src_i, "text", text_val)
                 except Exception:
                     pass
                 return
@@ -555,42 +650,88 @@ class TetraMonitor:
             # The calling_party_address_ssi is the SENDER; bytes may encode text.
             dsds_match = re.search(
                 r"D-SDS-DATA\s+DSdsData\s*\{.*?calling_party_address_ssi:\s*Some\((\d+)\)"
-                r".*?user_defined_data:\s*Type4\(\d+,\s*\[([^\]]+)\]\)",
+                r".*?user_defined_data:\s*Type(\d)\(\d+,\s*\[([^\]]+)\]\)",
                 msg, re.DOTALL
             )
             if dsds_match:
                 src_i = dsds_match.group(1)
+                sds_type_num = int(dsds_match.group(2))
+                bytes_str = dsds_match.group(3)
                 try:
-                    byte_list = [int(b.strip()) for b in dsds_match.group(2).split(",") if b.strip()]
-                    text_val = _try_decode_sds_text(byte_list)
-                    if text_val:
-                        self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
-                        self._attach_content_to_pending_entry(src_i, "text", text_val)
+                    byte_list = [int(b.strip()) for b in bytes_str.split(",") if b.strip()]
+                    if sds_type_num == 4:
+                        text_val = _try_decode_sds_text(byte_list)
+                        if text_val:
+                            self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+                            self._attach_content_to_pending_entry(src_i, "text", text_val)
+                    else:
+                        # Binary SDS-TL — try LIP decode first
+                        lip_data = _try_decode_lip_pdu_bytes(byte_list)
+                        if lip_data:
+                            self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
+                            self._attach_content_to_pending_entry(src_i, "lip", lip_data)
+                        else:
+                            text_val = _try_decode_sds_text(byte_list)
+                            if text_val:
+                                self.sds_content_pending[src_i] = {"type": "text", "content": text_val, "ts": time.time()}
+                                self._attach_content_to_pending_entry(src_i, "text", text_val)
                 except Exception:
                     pass
                 return
 
-            # LIP / GPS: "SDS: LIP from ISSI X: lat=Y lon=Z [speed=N] [heading=N]"
-            # (used in demo mode and some custom TETRA implementations)
-            sds_lip_line = re.search(
-                r"(?:SDS[:\s]+LIP|LIP)[:\s].*?(?:from\s+(?:ISSI\s+)?)?(\d{4,}).*?"
-                r"lat=([\d.+\-]+).*?lon=([\d.+\-]+)"
-                r"(?:.*?speed=([\d.]+))?(?:.*?heading=([\d.]+))?",
-                msg, re.IGNORECASE
-            )
-            if sds_lip_line:
-                src_i = sds_lip_line.group(1)
-                lip_data = {
-                    "lat": float(sds_lip_line.group(2)),
-                    "lon": float(sds_lip_line.group(3)),
-                }
-                if sds_lip_line.group(4) is not None:
-                    lip_data["speed"] = float(sds_lip_line.group(4))
-                if sds_lip_line.group(5) is not None:
-                    lip_data["heading"] = float(sds_lip_line.group(5))
-                self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
-                self._attach_content_to_pending_entry(src_i, "lip", lip_data)
-                return
+            # LIP / GPS — text-format patterns (demo mode, custom TETRA, bluestation)
+            # Pattern 1: "SDS: LIP from ISSI X: lat=Y lon=Z [speed=N] [heading=N]"
+            # Pattern 2: bluestation Rust debug "LipPdu { issi: X, latitude: Y, longitude: Z }"
+            # Pattern 3: generic "lat=Y lon=Z" with a nearby ISSI
+            # Pattern 4: "location_report: ... issi=X ... lat=Y lon=Z"
+            _lip_candidates = [
+                re.search(
+                    r"(?:SDS[:\s]+LIP|LIP report|LIP data)[:\s].*?"
+                    r"(?:from\s+(?:ISSI\s+)?)?(\d{4,}).*?"
+                    r"lat=([\d.+\-]+).*?lon=([\d.+\-]+)"
+                    r"(?:.*?speed=([\d.]+))?(?:.*?heading=([\d.]+))?",
+                    msg, re.IGNORECASE
+                ),
+                re.search(
+                    r"LipPdu\s*\{[^}]*?(?:issi|source_issi):\s*(\d{4,})"
+                    r"[^}]*?lat(?:itude)?:\s*([\d.+\-]+)"
+                    r"[^}]*?lon(?:gitude)?:\s*([\d.+\-]+)"
+                    r"(?:[^}]*?speed:\s*([\d.]+))?(?:[^}]*?(?:heading|direction):\s*([\d.]+))?",
+                    msg, re.IGNORECASE
+                ),
+                re.search(
+                    r"Location(?:Report|Pdu|Info)?\s*\{[^}]*?(?:issi|source):\s*(\d{4,})"
+                    r"[^}]*?lat(?:itude)?:\s*([\d.+\-]+)"
+                    r"[^}]*?lon(?:gitude)?:\s*([\d.+\-]+)"
+                    r"(?:[^}]*?speed:\s*([\d.]+))?(?:[^}]*?(?:heading|direction):\s*([\d.]+))?",
+                    msg, re.IGNORECASE
+                ),
+                re.search(
+                    r"(?:location|position|gps|lip)[^:]*[:\s]+(?:source(?:_issi)?=|from[:\s]+)?(\d{4,})"
+                    r"[,\s]+lat(?:itude)?=([\d.+\-]+)[,\s]+lon(?:gitude)?=([\d.+\-]+)"
+                    r"(?:[,\s]+speed=([\d.]+))?(?:[,\s]+(?:heading|direction)=([\d.]+))?",
+                    msg, re.IGNORECASE
+                ),
+            ]
+            for sds_lip_line in _lip_candidates:
+                if not sds_lip_line:
+                    continue
+                try:
+                    src_i = sds_lip_line.group(1)
+                    lip_data: dict = {
+                        "lat": float(sds_lip_line.group(2)),
+                        "lon": float(sds_lip_line.group(3)),
+                    }
+                    if sds_lip_line.lastindex >= 4 and sds_lip_line.group(4) is not None:
+                        lip_data["speed"] = float(sds_lip_line.group(4))
+                    if sds_lip_line.lastindex >= 5 and sds_lip_line.group(5) is not None:
+                        lip_data["heading"] = float(sds_lip_line.group(5))
+                    if -90 <= lip_data["lat"] <= 90 and -180 <= lip_data["lon"] <= 180:
+                        self.sds_content_pending[src_i] = {"type": "lip", "content": lip_data, "ts": time.time()}
+                        self._attach_content_to_pending_entry(src_i, "lip", lip_data)
+                        return
+                except (ValueError, IndexError):
+                    continue
 
             # Delivery report UUID registration: BrewEntity: SDS_REPORT uuid=... status=N -> Brew
             # Secondary filter — UUID arrives in any order relative to SDS transfer
