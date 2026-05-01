@@ -71,11 +71,62 @@ const TG_FLAG_KEYWORDS: [string[], string][] = [
   [["asia","asian"], "🌏"],
 ];
 
-function getTgFlag(name: string): string {
-  if (!name) return "";
-  const n = name.toLowerCase();
-  for (const [keywords, flag] of TG_FLAG_KEYWORDS) {
-    if (keywords.some(kw => n.includes(kw))) return flag;
+// MCC (Mobile Country Code) → flag emoji — covers all ITU-allocated MCCs
+const MCC_FLAGS: Record<string, string> = {
+  "202":"🇬🇷","204":"🇳🇱","206":"🇧🇪","208":"🇫🇷","212":"🇲🇨","213":"🇦🇩",
+  "214":"🇪🇸","216":"🇭🇺","218":"🇧🇦","219":"🇭🇷","220":"🇷🇸","222":"🇮🇹",
+  "226":"🇷🇴","228":"🇨🇭","230":"🇨🇿","231":"🇸🇰","232":"🇦🇹",
+  "234":"🇬🇧","235":"🇬🇧","238":"🇩🇰","240":"🇸🇪","242":"🇳🇴","244":"🇫🇮",
+  "246":"🇱🇹","247":"🇱🇻","248":"🇪🇪","250":"🇷🇺","255":"🇺🇦","257":"🇧🇾",
+  "259":"🇲🇩","260":"🇵🇱","262":"🇩🇪","266":"🇬🇮","268":"🇵🇹","270":"🇱🇺",
+  "272":"🇮🇪","274":"🇮🇸","276":"🇦🇱","278":"🇲🇹","280":"🇨🇾","282":"🇬🇪",
+  "283":"🇦🇲","284":"🇧🇬","286":"🇹🇷","288":"🇫🇴","290":"🇬🇱","292":"🇸🇲",
+  "293":"🇸🇮","294":"🇲🇰","295":"🇱🇮","297":"🇲🇪",
+  "302":"🇨🇦",
+  "310":"🇺🇸","311":"🇺🇸","312":"🇺🇸","313":"🇺🇸","314":"🇺🇸","315":"🇺🇸","316":"🇺🇸",
+  "334":"🇲🇽","338":"🇯🇲","340":"🇬🇵","342":"🇧🇧","344":"🇦🇬","346":"🇰🇾",
+  "348":"🇻🇬","350":"🇧🇲","352":"🇬🇩","354":"🇲🇸","356":"🇰🇳","358":"🇱🇨",
+  "360":"🇻🇨","362":"🇧🇶","363":"🇦🇼","364":"🇧🇸","365":"🇦🇮","366":"🇩🇲",
+  "368":"🇨🇺","370":"🇩🇴","372":"🇭🇹","374":"🇹🇹","376":"🇹🇨",
+  "400":"🇦🇿","401":"🇰🇿","402":"🇧🇹","404":"🇮🇳","405":"🇮🇳","406":"🇮🇳",
+  "410":"🇵🇰","412":"🇦🇫","413":"🇱🇰","414":"🇲🇲","415":"🇱🇧","416":"🇯🇴",
+  "417":"🇸🇾","418":"🇮🇶","419":"🇰🇼","420":"🇸🇦","421":"🇾🇪","422":"🇴🇲",
+  "424":"🇦🇪","425":"🇮🇱","426":"🇧🇭","427":"🇶🇦","428":"🇲🇳","429":"🇳🇵",
+  "432":"🇮🇷","434":"🇺🇿","436":"🇹🇯","437":"🇰🇬","438":"🇹🇲",
+  "440":"🇯🇵","441":"🇯🇵","450":"🇰🇷","452":"🇻🇳","454":"🇭🇰","455":"🇲🇴",
+  "456":"🇰🇭","457":"🇱🇦","460":"🇨🇳","461":"🇨🇳","466":"🇹🇼","467":"🇰🇵",
+  "470":"🇧🇩","472":"🇲🇻",
+  "502":"🇲🇾","505":"🇦🇺","510":"🇮🇩","515":"🇵🇭","520":"🇹🇭","525":"🇸🇬",
+  "528":"🇧🇳","530":"🇳🇿","537":"🇵🇬","539":"🇹🇴","541":"🇻🇺",
+  "546":"🇳🇨","547":"🇵🇫","549":"🇼🇸",
+  "601":"🇲🇷","602":"🇲🇱","603":"🇸🇳","604":"🇬🇳","605":"🇧🇫","606":"🇨🇮",
+  "607":"🇬🇲","608":"🇬🇼","609":"🇲🇺","610":"🇱🇷","611":"🇸🇱","612":"🇬🇭",
+  "613":"🇳🇬","614":"🇹🇩","615":"🇨🇫","616":"🇨🇲","617":"🇨🇻","619":"🇬🇶",
+  "620":"🇬🇦","621":"🇨🇩","622":"🇨🇬","623":"🇦🇴","625":"🇸🇸","626":"🇪🇹",
+  "627":"🇸🇴","628":"🇩🇯","629":"🇰🇪","630":"🇹🇿","631":"🇺🇬","632":"🇧🇮",
+  "633":"🇲🇿","634":"🇿🇲","635":"🇲🇬","637":"🇿🇼","638":"🇳🇦","639":"🇲🇼",
+  "640":"🇱🇸","641":"🇧🇼","642":"🇸🇿","643":"🇰🇲","645":"🇪🇷","646":"🇿🇦",
+  "647":"🇸🇩","648":"🇷🇼","650":"🇱🇾","651":"🇩🇿","652":"🇲🇦","653":"🇹🇳","654":"🇪🇬",
+  "702":"🇧🇿","704":"🇬🇹","706":"🇸🇻","708":"🇭🇳","710":"🇳🇮","712":"🇨🇷",
+  "714":"🇵🇦","716":"🇵🇪","722":"🇦🇷","724":"🇧🇷","730":"🇨🇱","732":"🇨🇴",
+  "734":"🇻🇪","736":"🇧🇴","738":"🇬🇾","740":"🇪🇨","744":"🇵🇾","746":"🇸🇷","748":"🇺🇾",
+};
+
+function getTgFlag(name: string, id?: string | number): string {
+  // 1. Try name-based keyword detection first
+  if (name) {
+    const n = name.toLowerCase();
+    for (const [keywords, flag] of TG_FLAG_KEYWORDS) {
+      if (keywords.some(kw => n.includes(kw))) return flag;
+    }
+  }
+  // 2. Fallback: MCC prefix detection from TG number
+  if (id !== undefined) {
+    const s = String(id);
+    if (s.length >= 3) {
+      const mcc = s.slice(0, 3);
+      if (MCC_FLAGS[mcc]) return MCC_FLAGS[mcc];
+    }
   }
   return "";
 }
@@ -163,9 +214,9 @@ function TerminalRow({ t: terminal, tgName }: { t: Terminal; tgName: (id: string
 
   const scanItems = terminal.groups.map((g) => {
     const name = tgName(g);
-    const flag = name ? getTgFlag(name) : "";
+    const flag = getTgFlag(name, g);
     if (g === selectedNum) {
-      return <span key={g} className="text-primary font-bold" title={name || undefined}>[{g}{name ? <> {flag}{flag ? " " : ""}{name}</> : ""}]</span>;
+      return <span key={g} className="text-primary font-bold" title={(name || flag) ? `${flag ? flag+" " : ""}${name}` : undefined}>[{g}{(name||flag) ? <> {flag}{flag ? " " : ""}{name}</> : ""}]</span>;
     }
     return <span key={g} className="text-muted-foreground" title={name ? `${flag ? flag + " " : ""}${name}` : undefined}>{g}</span>;
   });
@@ -192,11 +243,7 @@ function TerminalRow({ t: terminal, tgName }: { t: Terminal; tgName: (id: string
       </td>
       <td className="px-2 sm:px-3 py-1.5">
         <span className="text-amber-400 font-semibold font-mono text-xs sm:text-sm">{terminal.selectedTg}</span>
-        {tgName(selectedNum) && (
-          <span className="text-amber-300/80 text-xs font-normal ml-1.5 hidden sm:inline">
-            {getTgFlag(tgName(selectedNum))}{getTgFlag(tgName(selectedNum)) ? " " : ""}{tgName(selectedNum)}
-          </span>
-        )}
+        {(() => { const n=tgName(selectedNum); const f=getTgFlag(n,selectedNum); return (n||f) ? <span className="text-amber-300/80 text-xs font-normal ml-1.5 hidden sm:inline">{f}{f?" ":""}{n}</span> : null; })()}
       </td>
       <td className="px-2 sm:px-3 py-1.5 hidden sm:table-cell">
         <StatusDot status={terminal.status} />
@@ -372,11 +419,7 @@ function CallHistory({ entries, title, isLocal }: {
               ) : null}
               <span className="text-muted-foreground/60"> {">"} </span>
               <span className="text-amber-400 font-semibold">TG {entry.targetTg}</span>
-              {tgName(entry.targetTg) && (
-                <span className="text-amber-300/70 text-xs ml-1.5">
-                  {getTgFlag(tgName(entry.targetTg))}{getTgFlag(tgName(entry.targetTg)) ? " " : ""}{tgName(entry.targetTg)}
-                </span>
-              )}
+              {(() => { const n=tgName(entry.targetTg); const f=getTgFlag(n,entry.targetTg); return (n||f) ? <span className="text-amber-300/70 text-xs ml-1.5">{f}{f?" ":""}{n}</span> : null; })()}
               {entry.timeSlot != null ? (
                 <span className="text-cyan-400/80 text-[10px] ml-1">TS{entry.timeSlot}</span>
               ) : null}
