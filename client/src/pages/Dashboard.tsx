@@ -140,15 +140,26 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
   const activityRank = (activity?: string) =>
     activity === "TX" ? 2 : activity === "RX" ? 1 : 0;
 
+  // Stable insertion-order map: assign each terminal a fixed position when
+  // it first appears. Terminals only change row when their activity rank
+  // changes (idle ↔ TX/RX), never just because lastSeen was updated.
+  const insertionOrder = useRef<Map<string, number>>(new Map());
+  const insertionCounter = useRef(0);
+  terminals.forEach(term => {
+    if (!insertionOrder.current.has(term.id)) {
+      insertionOrder.current.set(term.id, insertionCounter.current++);
+    }
+  });
+
   const sorted = terminals
-    .filter(t => t.isLocal === isLocal)
+    .filter(term => term.isLocal === isLocal)
     .sort((a, b) => {
       const rankDiff = activityRank(b.activity) - activityRank(a.activity);
       if (rankDiff !== 0) return rankDiff;
-      const timeA = a.lastSeen || "";
-      const timeB = b.lastSeen || "";
-      if (timeA !== timeB) return timeB.localeCompare(timeA);
-      return a.id.localeCompare(b.id);
+      // Within same activity rank use first-seen order (stable, no jumps)
+      const orderA = insertionOrder.current.get(a.id) ?? 0;
+      const orderB = insertionOrder.current.get(b.id) ?? 0;
+      return orderA - orderB;
     });
 
   return (

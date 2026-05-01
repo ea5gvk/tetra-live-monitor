@@ -151,7 +151,7 @@ function NavBar() {
             hover:shadow-[0_0_8px_2px_rgba(255,196,57,0.35)] active:scale-95"
         >
           <SiPaypal className="w-3.5 h-3.5 text-[#ffc439]" />
-          <span>Donar</span>
+          <span>Donate</span>
         </a>
         <span
           className="text-[11px] font-black tracking-widest px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 select-none"
