@@ -394,41 +394,55 @@ export async function registerRoutes(
     } catch {
       return res.json({ demo: true });
     }
+    // Use git ls-remote to get remote hash (same protocol as git pull, no API rate limits)
+    let remoteHash = "";
     try {
-      const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
-      const raw = execSync(
-        `curl -sf -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/ea5gvk/tetra-live-monitor/commits/main"`,
-        { timeout: 12000 }
+      const lsOut = execSync(
+        `git ls-remote https://github.com/ea5gvk/tetra-live-monitor.git main`,
+        { timeout: 15000 }
       ).toString();
-      const data = JSON.parse(raw);
-      const remoteHash: string = data.sha || "";
-      const remoteMessage: string = (data.commit?.message || "").split("\n")[0];
-      const remoteDate: string = data.commit?.author?.date || "";
-      const remoteAuthor: string = data.commit?.author?.name || "";
-      res.json({
-        upToDate: localHash === remoteHash,
-        localHash: localHash.substring(0, 8),
-        remoteHash: remoteHash.substring(0, 8),
-        remoteMessage,
-        remoteDate,
-        remoteAuthor,
-        demo: false,
-        updateDir: UPDATE_DIR,
-      });
+      remoteHash = lsOut.split(/\s+/)[0].trim();
     } catch (err) {
-      // GitHub API failed (network, rate limit, etc.) — show local hash, allow apply anyway
-      res.json({
+      return res.json({
         demo: false,
         upToDate: false,
         localHash: localHash.substring(0, 8),
         remoteHash: "??????",
-        remoteMessage: "No se pudo contactar GitHub API",
+        remoteMessage: "No se pudo contactar GitHub",
         remoteDate: "",
         remoteAuthor: "",
-        apiError: String(err).substring(0, 120),
+        apiError: String(err).substring(0, 160),
         updateDir: UPDATE_DIR,
       });
     }
+
+    // Optionally fetch commit details from GitHub API (nice-to-have, won't fail if unavailable)
+    let remoteMessage = "", remoteDate = "", remoteAuthor = "";
+    try {
+      const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
+      const raw = execSync(
+        `curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/ea5gvk/tetra-live-monitor/commits/main"`,
+        { timeout: 10000 }
+      ).toString();
+      const data = JSON.parse(raw);
+      remoteMessage = (data.commit?.message || "").split("\n")[0];
+      remoteDate = data.commit?.author?.date || "";
+      remoteAuthor = data.commit?.author?.name || "";
+    } catch {
+      // API unavailable — version check still works via git ls-remote
+      remoteMessage = "(detalles no disponibles)";
+    }
+
+    res.json({
+      upToDate: localHash === remoteHash,
+      localHash: localHash.substring(0, 8),
+      remoteHash: remoteHash.substring(0, 8),
+      remoteMessage,
+      remoteDate,
+      remoteAuthor,
+      demo: false,
+      updateDir: UPDATE_DIR,
+    });
   });
 
   app.post("/api/update/apply", (req, res) => {
