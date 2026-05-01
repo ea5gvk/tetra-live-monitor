@@ -549,14 +549,23 @@ class TetraMonitor:
                 self.terminals[ssi]["last_seen"] = timestamp
 
                 gssi_entries = self._extract_gssi_list(msg)
-                for gssi, is_detach in gssi_entries:
-                    if not is_detach:
-                        if gssi not in self.terminals[ssi]["groups"]:
-                            self.terminals[ssi]["groups"].append(gssi)
-                        if self.terminals[ssi]["selected"] == "---":
-                            self.terminals[ssi]["selected"] = f"TG {gssi}"
+                attach_groups = [g for g, det in gssi_entries if not det]
+                if attach_groups:
+                    # Replace the full group list from the location update.
+                    # This is the authoritative list from the radio — scan TGs will
+                    # be absent here when scan mode is turned off, clearing them.
+                    self.terminals[ssi]["groups"] = sorted(attach_groups)
+                    current_sel = self.terminals[ssi].get("selected", "---")
+                    sel_num = current_sel.replace("TG ", "").strip()
+                    if current_sel == "---" or sel_num not in attach_groups:
+                        self.terminals[ssi]["selected"] = f"TG {attach_groups[0]}"
+                elif gssi_entries:
+                    # All entries are detach — remove each one individually
+                    for gssi, is_detach in gssi_entries:
+                        if is_detach and gssi in self.terminals[ssi]["groups"]:
+                            self.terminals[ssi]["groups"].remove(gssi)
+                # (if gssi_entries is empty the terminal sent no group info — keep existing)
 
-                self.terminals[ssi]["groups"].sort()
                 emit("update_terminal", self._terminal_to_dict(ssi))
                 return
 
