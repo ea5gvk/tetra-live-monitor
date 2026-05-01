@@ -10,6 +10,7 @@ import VpnManager from "@/pages/VpnManager";
 import WifiManager from "@/pages/WifiManager";
 import NotFound from "@/pages/not-found";
 import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, ShieldCheck, Wifi } from "lucide-react";
+import { SiPaypal } from "react-icons/si";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 import { UpdateChecker } from "@/components/UpdateChecker";
 import { BluestationUpdater } from "@/components/BluestationUpdater";
@@ -139,6 +140,19 @@ function NavBar() {
       <div className="ml-auto flex items-center gap-2">
         <BluestationUpdater />
         <UpdateChecker />
+        <a
+          href="https://www.paypal.com/donate?business=quini7620%40gmail.com&currency_code=EUR"
+          target="_blank"
+          rel="noopener noreferrer"
+          title="Donar con PayPal"
+          data-testid="link-paypal-donate"
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-bold select-none transition-all duration-150
+            bg-[#003087] hover:bg-[#002060] text-white border border-[#0070ba]/60 hover:border-[#ffc439]
+            hover:shadow-[0_0_8px_2px_rgba(255,196,57,0.35)] active:scale-95"
+        >
+          <SiPaypal className="w-3.5 h-3.5 text-[#ffc439]" />
+          <span>Donar</span>
+        </a>
         <span
           className="text-[11px] font-black tracking-widest px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 select-none"
           data-testid="text-callsign"
