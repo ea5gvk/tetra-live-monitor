@@ -137,26 +137,52 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
   isLocal: boolean;
 }) {
   const { t } = useI18n();
-  const activityRank = (activity?: string) =>
-    activity === "TX" ? 2 : activity === "RX" ? 1 : 0;
-
-  // Stable insertion-order map: assign each terminal a fixed position when
-  // it first appears. Terminals only change row when their activity rank
-  // changes (idle ↔ TX/RX), never just because lastSeen was updated.
+  // Stable insertion-order: assign each terminal a fixed position when first seen
   const insertionOrder = useRef<Map<string, number>>(new Map());
   const insertionCounter = useRef(0);
+
+  // Call-start order: assigned when a terminal goes from idle → active.
+  // Lower number = started talking earlier = appears higher in list.
+  // Deleted when terminal goes back to idle, so next call gets a fresh order.
+  const callStartOrder = useRef<Map<string, number>>(new Map());
+  const callCounter = useRef(0);
+  const prevActivityMap = useRef<Map<string, string | null | undefined>>(new Map());
+
   terminals.forEach(term => {
+    // Insertion order (first-seen)
     if (!insertionOrder.current.has(term.id)) {
       insertionOrder.current.set(term.id, insertionCounter.current++);
     }
+    // Detect idle → active transition to stamp call-start order
+    const prev = prevActivityMap.current.get(term.id);
+    const isNowActive = term.activity === "TX" || term.activity === "RX";
+    const wasActive = prev === "TX" || prev === "RX";
+    if (isNowActive && !wasActive) {
+      callStartOrder.current.set(term.id, callCounter.current++);
+    } else if (!isNowActive && wasActive) {
+      callStartOrder.current.delete(term.id);
+    }
+    prevActivityMap.current.set(term.id, term.activity);
   });
 
   const sorted = terminals
     .filter(term => term.isLocal === isLocal)
     .sort((a, b) => {
-      const rankDiff = activityRank(b.activity) - activityRank(a.activity);
-      if (rankDiff !== 0) return rankDiff;
-      // Within same activity rank use first-seen order (stable, no jumps)
+      const aActive = a.activity === "TX" || a.activity === "RX";
+      const bActive = b.activity === "TX" || b.activity === "RX";
+      // Active terminals always above idle ones
+      if (aActive !== bActive) return bActive ? 1 : -1;
+      if (aActive && bActive) {
+        // Both active: order by when THIS call started (earlier call = higher up)
+        const orderA = callStartOrder.current.get(a.id) ?? 0;
+        const orderB = callStartOrder.current.get(b.id) ?? 0;
+        if (orderA !== orderB) return orderA - orderB;
+        // Same call-start order (e.g., both from same TG): TX above RX
+        const rankA = a.activity === "TX" ? 2 : 1;
+        const rankB = b.activity === "TX" ? 2 : 1;
+        return rankB - rankA;
+      }
+      // Both idle: stable insertion order (no jumps)
       const orderA = insertionOrder.current.get(a.id) ?? 0;
       const orderB = insertionOrder.current.get(b.id) ?? 0;
       return orderA - orderB;
