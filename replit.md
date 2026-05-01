@@ -65,6 +65,16 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 - Features: service selector, clear button, line counter, max 5000 lines buffer
 - When `journalctl` is not available (Replit), shows a demo message explaining it works on Raspberry Pi
 
+## Talkgroup Names
+- Displays human-readable names next to TG numbers in terminal rows, scanlist, and call history
+- **Source**: Brandmeister (BM) or ADN Systems — toggled in Calculator's "Talkgroup Names" section
+- **Backend**: `GET /api/talkgroups?source=bm|adn` — proxies BM/ADN API with 1-hour in-memory cache
+- **Storage**: localStorage key `tetra_tg_names` = JSON `{id: name}`, `tetra_tg_source` = `'bm'|'adn'`
+- **Hook**: `useTgNames()` in `Dashboard.tsx` — reads localStorage, returns `(id) => string` lookup fn
+- **Calculator section**: LOAD button fetches all TGs from selected source; CLEAR removes them
+- **Display**: amber/muted name shown inline next to TG number; hidden if no name found
+- **i18n**: all 9 languages include `tg_names_*` keys
+
 ## Callsign Badge
 - `@EA5GVK` badge visible en la barra de navegación, a la derecha del selector de idioma
 - Color ámbar/dorado (`text-amber-400`, `bg-amber-500/15`, borde `border-amber-500/30`)
