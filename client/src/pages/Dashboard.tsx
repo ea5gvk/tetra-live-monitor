@@ -135,16 +135,22 @@ function useTgNames(): (id: string | number) => string {
   const [names, setNames] = useState<Record<string, string>>(() => {
     try { return JSON.parse(localStorage.getItem("tetra_tg_names") || "{}"); } catch { return {}; }
   });
+  const [custom, setCustom] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem("tetra_tg_custom") || "{}"); } catch { return {}; }
+  });
   useEffect(() => {
     const handler = (e: StorageEvent) => {
       if (e.key === "tetra_tg_names") {
         try { setNames(JSON.parse(e.newValue || "{}")); } catch { setNames({}); }
       }
+      if (e.key === "tetra_tg_custom") {
+        try { setCustom(JSON.parse(e.newValue || "{}")); } catch { setCustom({}); }
+      }
     };
     window.addEventListener("storage", handler);
     return () => window.removeEventListener("storage", handler);
   }, []);
-  return (id: string | number) => names[String(id)] || "";
+  return (id: string | number) => custom[String(id)] || names[String(id)] || "";
 }
 
 function ActivityBadge({ activity, timeSlot }: { activity?: "TX" | "RX" | null; timeSlot?: number | null }) {
