@@ -528,6 +528,25 @@
         <button id="tgClearBtn" class="btn-secondary" style="border-color:#e74c3c; color:#e74c3c;" data-i18n="tg_clear_btn" onclick="clearTgNames()">CLEAR</button>
       </div>
       <div id="tgStatus" class="footer-note" style="margin-top:10px;"></div>
+
+      <!-- Custom TG Names subsection -->
+      <div style="margin-top:16px; border-top:1px solid var(--border); padding-top:14px;">
+        <div style="font-size:11px; font-weight:700; color:var(--muted); letter-spacing:.06em; margin-bottom:5px;" data-i18n="tg_custom_subtitle">CUSTOM NAMES</div>
+        <div class="hint" data-i18n="tg_custom_hint" style="margin-bottom:10px;">Add your own TG names. Custom names take priority over BM/ADN.</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <input id="tgCustomId" type="number" min="1" step="1" placeholder="TG ID"
+            style="width:100px; font-family:monospace; font-size:13px;"
+            onkeydown="if(event.key==='Enter')addCustomTgName()" />
+          <input id="tgCustomName" type="text" maxlength="64" placeholder="Name"
+            style="flex:1; min-width:140px; font-size:13px;"
+            onkeydown="if(event.key==='Enter')addCustomTgName()" />
+          <button class="btn-secondary" onclick="addCustomTgName()" data-i18n="tg_custom_add"
+            style="white-space:nowrap;">ADD</button>
+          <button class="btn-secondary" onclick="clearCustomTgNames()" data-i18n="tg_custom_clear"
+            style="border-color:#e74c3c; color:#e74c3c; white-space:nowrap;">CLEAR ALL</button>
+        </div>
+        <div id="tgCustomList" style="margin-top:10px;"></div>
+      </div>
     </section>
   </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
@@ -662,6 +681,11 @@
       tg_load_btn: "LOAD NAMES",
       tg_clear_btn: "CLEAR",
       tg_loading: "Loading...",
+      tg_custom_subtitle: "CUSTOM NAMES",
+      tg_custom_hint: "Add your own TG names. Custom names take priority over BM/ADN.",
+      tg_custom_add: "ADD",
+      tg_custom_none: "No custom names added yet.",
+      tg_custom_clear: "CLEAR ALL",
       apply_title: "Apply to Raspberry Pi",
       config_path_label: "config.toml file path on Raspberry Pi",
       config_path_hint: "Full path to the TOML configuration file on your Raspberry Pi.",
@@ -769,6 +793,11 @@
       tg_load_btn: "載入名稱",
       tg_clear_btn: "清除",
       tg_loading: "載入中...",
+      tg_custom_subtitle: "自定義名稱",
+      tg_custom_hint: "新增自定義TG名稱，優先於BM/ADN名稱顯示。",
+      tg_custom_add: "新增",
+      tg_custom_none: "尚無自定義名稱。",
+      tg_custom_clear: "清除全部",
       apply_title: "套用到 Raspberry Pi",
       config_path_label: "Raspberry Pi 上的 config.toml 檔案路徑",
       config_path_hint: "Raspberry Pi 上 TOML 設定檔的完整路徑。",
@@ -876,6 +905,11 @@
       tg_load_btn: "CARGAR NOMBRES",
       tg_clear_btn: "BORRAR",
       tg_loading: "Cargando...",
+      tg_custom_subtitle: "NOMBRES PERSONALIZADOS",
+      tg_custom_hint: "Añade tus propios nombres de TG. Los personalizados tienen prioridad sobre BM/ADN.",
+      tg_custom_add: "AÑADIR",
+      tg_custom_none: "Sin nombres personalizados.",
+      tg_custom_clear: "BORRAR TODOS",
       apply_title: "Aplicar a Raspberry Pi",
       config_path_label: "Ruta del archivo config.toml en la Raspberry Pi",
       config_path_hint: "Ruta completa al archivo de configuración TOML en tu Raspberry Pi.",
@@ -983,6 +1017,11 @@
       tg_load_btn: "CARREGAR NOMES",
       tg_clear_btn: "LIMPAR",
       tg_loading: "Carregando...",
+      tg_custom_subtitle: "NOMES PERSONALIZADOS",
+      tg_custom_hint: "Adicione seus próprios nomes de TG. Eles têm prioridade sobre BM/ADN.",
+      tg_custom_add: "ADICIONAR",
+      tg_custom_none: "Nenhum nome personalizado.",
+      tg_custom_clear: "LIMPAR TUDO",
       apply_title: "Aplicar ao Raspberry Pi",
       config_path_label: "Caminho do arquivo config.toml no Raspberry Pi",
       config_path_hint: "Caminho completo para o arquivo de configura\u00e7\u00e3o TOML no seu Raspberry Pi.",
@@ -1090,6 +1129,11 @@
       tg_load_btn: "NAMEN LADEN",
       tg_clear_btn: "LÖSCHEN",
       tg_loading: "Laden...",
+      tg_custom_subtitle: "EIGENE NAMEN",
+      tg_custom_hint: "Eigene TG-Namen hinzufügen. Diese haben Vorrang vor BM/ADN-Namen.",
+      tg_custom_add: "HINZUFÜGEN",
+      tg_custom_none: "Keine eigenen Namen vorhanden.",
+      tg_custom_clear: "ALLE LÖSCHEN",
       apply_title: "Auf Raspberry Pi anwenden",
       config_path_label: "Pfad zur config.toml auf dem Raspberry Pi",
       config_path_hint: "Vollst\u00e4ndiger Pfad zur TOML-Konfigurationsdatei auf Ihrem Raspberry Pi.",
@@ -1197,6 +1241,11 @@
       tg_load_btn: "CHARGER LES NOMS",
       tg_clear_btn: "EFFACER",
       tg_loading: "Chargement...",
+      tg_custom_subtitle: "NOMS PERSONNALISÉS",
+      tg_custom_hint: "Ajoutez vos propres noms de TG. Ils ont priorité sur BM/ADN.",
+      tg_custom_add: "AJOUTER",
+      tg_custom_none: "Aucun nom personnalisé.",
+      tg_custom_clear: "TOUT EFFACER",
       apply_title: "Appliquer au Raspberry Pi",
       config_path_label: "Chemin du fichier config.toml sur le Raspberry Pi",
       config_path_hint: "Chemin complet vers le fichier de configuration TOML sur votre Raspberry Pi.",
@@ -1304,6 +1353,11 @@
       tg_load_btn: "CARICA NOMI",
       tg_clear_btn: "CANCELLA",
       tg_loading: "Caricamento...",
+      tg_custom_subtitle: "NOMI PERSONALIZZATI",
+      tg_custom_hint: "Aggiungi nomi TG personalizzati. Hanno priorità sui nomi BM/ADN.",
+      tg_custom_add: "AGGIUNGI",
+      tg_custom_none: "Nessun nome personalizzato.",
+      tg_custom_clear: "CANCELLA TUTTO",
       apply_title: "Applica al Raspberry Pi",
       config_path_label: "Percorso del file config.toml sul Raspberry Pi",
       config_path_hint: "Percorso completo del file di configurazione TOML sul tuo Raspberry Pi.",
@@ -1411,6 +1465,11 @@
       tg_load_btn: "INDLÆS NAVNE",
       tg_clear_btn: "RYDDE",
       tg_loading: "Indlæser...",
+      tg_custom_subtitle: "EGNE NAVNE",
+      tg_custom_hint: "Tilføj egne TG-navne. Disse har forrang over BM/ADN.",
+      tg_custom_add: "TILFØJ",
+      tg_custom_none: "Ingen egne navne endnu.",
+      tg_custom_clear: "RYD ALLE",
       apply_title: "Anvend p\u00e5 Raspberry Pi",
       config_path_label: "Sti til config.toml p\u00e5 Raspberry Pi",
       config_path_hint: "Fuld sti til TOML-konfigurationsfilen p\u00e5 din Raspberry Pi.",
@@ -1518,6 +1577,11 @@
       tg_load_btn: "NAMEN LADEN",
       tg_clear_btn: "WISSEN",
       tg_loading: "Laden...",
+      tg_custom_subtitle: "EIGEN NAMEN",
+      tg_custom_hint: "Voeg eigen TG-namen toe. Eigen namen hebben prioriteit boven BM/ADN.",
+      tg_custom_add: "TOEVOEGEN",
+      tg_custom_none: "Geen eigen namen.",
+      tg_custom_clear: "ALLES WISSEN",
       apply_title: "Toepassen op Raspberry Pi",
       config_path_label: "Pad naar config.toml op de Raspberry Pi",
       config_path_hint: "Volledig pad naar het TOML-configuratiebestand op uw Raspberry Pi.",
@@ -1593,6 +1657,7 @@
     if (offsetAuto) offsetAuto.textContent = t("offset_auto");
 
     updateDuplexHintAndCustomRow();
+    renderCustomTgList();
   }
 
   function applyTheme(){
@@ -2419,10 +2484,62 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     el("tgStatus").innerHTML = `<span style="color:var(--muted)">Cleared.</span>`;
   }
 
+  // ===== Custom TG Names =====
+  function getCustomTgNames() {
+    try { return JSON.parse(localStorage.getItem("tetra_tg_custom") || "{}"); } catch { return {}; }
+  }
+  function saveCustomTgNames(data) {
+    localStorage.setItem("tetra_tg_custom", JSON.stringify(data));
+  }
+  function renderCustomTgList() {
+    const data = getCustomTgNames();
+    const list = el("tgCustomList");
+    if (!list) return;
+    const keys = Object.keys(data).sort((a, b) => Number(a) - Number(b));
+    const tr = I18N[state.lang] || I18N.en;
+    if (!keys.length) {
+      list.innerHTML = `<span style="color:var(--muted); font-size:12px;">${tr.tg_custom_none || "No custom names added yet."}</span>`;
+      return;
+    }
+    list.innerHTML = keys.map(id =>
+      `<div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--border);">
+        <span style="font-family:monospace; font-size:12px; color:var(--accent); min-width:72px; flex-shrink:0;">${escapeHtml(id)}</span>
+        <span style="font-size:13px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(data[id])}</span>
+        <button onclick="removeCustomTgName('${escapeHtml(id)}')"
+          style="font-size:10px; padding:2px 8px; border:1px solid #e74c3c; color:#e74c3c; background:transparent; border-radius:4px; cursor:pointer; flex-shrink:0;">✕</button>
+      </div>`
+    ).join("");
+  }
+  function addCustomTgName() {
+    const idVal = el("tgCustomId").value.trim();
+    const nameVal = el("tgCustomName").value.trim();
+    if (!idVal || !nameVal) return;
+    const data = getCustomTgNames();
+    data[idVal] = nameVal;
+    saveCustomTgNames(data);
+    el("tgCustomId").value = "";
+    el("tgCustomName").value = "";
+    el("tgCustomId").focus();
+    renderCustomTgList();
+  }
+  function removeCustomTgName(id) {
+    const data = getCustomTgNames();
+    delete data[id];
+    saveCustomTgNames(data);
+    renderCustomTgList();
+  }
+  function clearCustomTgNames() {
+    localStorage.removeItem("tetra_tg_custom");
+    renderCustomTgList();
+  }
+
   // Expose TG functions to global scope so onclick attributes can call them
   window.selectTgSource = selectTgSource;
   window.loadTgNames = loadTgNames;
   window.clearTgNames = clearTgNames;
+  window.addCustomTgName = addCustomTgName;
+  window.removeCustomTgName = removeCustomTgName;
+  window.clearCustomTgNames = clearCustomTgNames;
 
   // Init TG source buttons and show cached status
   (function initTgNames() {
