@@ -243,6 +243,7 @@ class TetraMonitor:
         self.sds_content_pending = {}      # src_issi -> {type, content, ts} for text/LIP correlation
         self.sds_entry_ts = {}             # entry_id -> float ts; used for retroactive text attachment
         self._pending_usds_bytes = None    # bytes from USdsData line; correlated on next U-SDS-DATA line
+        self.private_calls = {}            # call_id -> {src, dst} for P2P individual call tracking
 
     def get_callsign(self, issi):
         if not issi or int(issi) < 1000:
@@ -464,6 +465,85 @@ class TetraMonitor:
                 emit("new_call", entry)
                 return
 
+            # 1a. PRIVATE CALL (P2P individual call — rx_u_setup_p2p)
+            p2p_match = re.search(
+                r"rx_u_setup_p2p:\s*call from ISSI\s*(\d+)\s*to ISSI\s*(\d+)\s*->\s*call_id=(\d+)",
+                msg, re.I
+            )
+            if p2p_match:
+                s_issi, d_issi, call_id = p2p_match.groups()
+                self.last_active = s_issi
+                self.private_calls[call_id] = {"src": s_issi, "dst": d_issi}
+
+                # Register src terminal
+                if s_issi not in self.terminals:
+                    self.terminals[s_issi] = {
+                        "selected": f"PRIV → {d_issi}",
+                        "groups": [],
+                        "status": "External",
+                        "is_local": False,
+                        "last_seen": timestamp,
+                        "activity": None,
+                        "activity_tg": None,
+                    }
+                else:
+                    self.terminals[s_issi]["selected"] = f"PRIV → {d_issi}"
+                    self.terminals[s_issi]["last_seen"] = timestamp
+
+                # Register dst terminal if not known
+                if d_issi not in self.terminals:
+                    self.terminals[d_issi] = {
+                        "selected": f"PRIV ← {s_issi}",
+                        "groups": [],
+                        "status": "External",
+                        "is_local": False,
+                        "last_seen": timestamp,
+                        "activity": None,
+                        "activity_tg": None,
+                    }
+                else:
+                    self.terminals[d_issi]["last_seen"] = timestamp
+
+                call = self.get_callsign(s_issi)
+                dst_call = self.get_callsign(d_issi)
+                dst_name = f"{d_issi} ({dst_call})" if dst_call else d_issi
+                display_name = f"{s_issi} ({call})" if call else s_issi
+                call_ts = self.terminals[s_issi].get("time_slot", None)
+
+                entry = {
+                    "id": self._next_id(),
+                    "timestamp": timestamp,
+                    "sourceId": s_issi,
+                    "sourceCallsign": call,
+                    "targetTg": d_issi,
+                    "targetIssi": d_issi,
+                    "display": f"[{timestamp}] {display_name} → PRIV {dst_name}",
+                    "isLocal": self.terminals[s_issi]["is_local"],
+                    "activity": "TX",
+                    "timeSlot": call_ts,
+                    "callType": "private",
+                }
+
+                if self.terminals[s_issi]["is_local"]:
+                    self.hist_local.insert(0, entry)
+                    self.hist_local = self.hist_local[:MAX_HISTORY]
+                else:
+                    self.hist_ext.insert(0, entry)
+                    self.hist_ext = self.hist_ext[:MAX_HISTORY]
+
+                # src=TX, dst=RX, scoped to unique private call key
+                priv_tg_key = f"PRIV_{call_id}"
+                self.terminals[s_issi]["activity"] = "TX"
+                self.terminals[s_issi]["activity_tg"] = priv_tg_key
+                emit("update_terminal", self._terminal_to_dict(s_issi))
+
+                self.terminals[d_issi]["activity"] = "RX"
+                self.terminals[d_issi]["activity_tg"] = priv_tg_key
+                emit("update_terminal", self._terminal_to_dict(d_issi))
+
+                emit("new_call", entry)
+                return
+
             # 1b. VOICE FRAME (BrewEntity: voice frame ... ts=N)
             voice_match = re.search(r"voice frame\s+#\d+.*?\bts=(\d+)", msg)
             if voice_match:
@@ -511,6 +591,28 @@ class TetraMonitor:
                     self._clear_activity(tg=gssi_m.group(1))
                 else:
                     self._clear_activity()
+                return
+
+            # 3b. PRIVATE CALL END (U-DISCONNECT / D-RELEASE for P2P calls)
+            udisconn_m = re.search(
+                r"<-\s*U-DISCONNECT\s+UDisconnect\s*\{[^}]*call_identifier:\s*(\d+)",
+                msg
+            )
+            if not udisconn_m:
+                udisconn_m = re.search(
+                    r"D-RELEASE[^}]*call_identifier:\s*(\d+)",
+                    msg
+                )
+            if udisconn_m:
+                call_id = udisconn_m.group(1)
+                if call_id in self.private_calls:
+                    pc = self.private_calls.pop(call_id)
+                    for issi in [pc["src"], pc["dst"]]:
+                        if issi in self.terminals and self.terminals[issi].get("activity"):
+                            self.terminals[issi]["activity"] = None
+                            self.terminals[issi]["activity_tg"] = None
+                            self.terminals[issi]["time_slot"] = None
+                            emit("update_terminal", self._terminal_to_dict(issi))
                 return
 
             # 4. REGISTRATION (ULocationUpdateDemand / ItsiAttach)
@@ -1152,6 +1254,21 @@ def run_demo_mode(mon):
                             "__REALTIME_TIMESTAMP": ts_us
                         })
                     mon.process_line(sds_line)
+
+        # ~15% chance of a private call (P2P) between two random terminals
+        if random.random() < 0.15 and len(demo_terminals) >= 2:
+            mon.private_calls.clear()
+            p2p_src, p2p_dst = random.sample(demo_terminals, 2)
+            demo_call_id = str(random.randint(100, 999))
+            p2p_line = json.dumps({
+                "MESSAGE": (
+                    f"INFO [entities/cmce] setup.rs:320: "
+                    f"rx_u_setup_p2p: call from ISSI {p2p_src['issi']} to ISSI {p2p_dst['issi']} "
+                    f"-> call_id={demo_call_id} ts(call)=2 usage(call)=14 ts(called)=3 usage(called)=15"
+                ),
+                "__REALTIME_TIMESTAMP": str(int(time.time() * 1000000))
+            })
+            mon.process_line(p2p_line)
 
         # ~10% chance of an SDS status message each cycle
         if random.random() < 0.10:
