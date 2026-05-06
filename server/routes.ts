@@ -544,9 +544,14 @@ else
   fi
 fi
 echo ""
-echo "=== npm install ==="
-npm install
-echo ""
+if echo "$PULL_OUT" | grep -qE "package\\.json|package-lock\\.json"; then
+  echo "=== npm install (package.json changed) ==="
+  npm install
+  echo ""
+else
+  echo "=== Skipping npm install (package.json unchanged) ==="
+  echo ""
+fi
 echo "=== npm run build ==="
 npm run build
 echo ""
