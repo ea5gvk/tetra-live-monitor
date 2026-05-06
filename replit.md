@@ -119,13 +119,24 @@ SDS (Short Data Service) messages are detected from TETRA logs and displayed in 
 - D-SDS-DATA content lines are correlated with BrewEntity SDS entries via `sds_content_pending` dict keyed by `calling_party_address_ssi` (5s window, 10s eviction)
 - **Note**: bluestation does NOT log outgoing SDS text in plain format — outgoing SDS from the radio show without text content (only metadata)
 
+## Private Calls (P2P Full Duplex)
+Individual/private calls between two ISSI terminals are detected and displayed:
+- **Detection pattern**: `rx_u_setup_p2p: call from ISSI X to ISSI Y -> call_id=N` (bluestation CMCE setup.rs)
+- **Call end**: `<- U-DISCONNECT UDisconnect { call_identifier: N` or `D-RELEASE ... call_identifier: N`
+- **SELECTED column**: shows cyan `[PRIV]` badge + destination ISSI instead of amber TG number
+- **Call history**: shows cyan `[PRIV]` badge + destination ISSI; `callType: "private"` in entry
+- **Activity**: src terminal = TX (red), dst terminal = RX (green); scoped to unique `PRIV_<call_id>` key
+- **Tracking**: `self.private_calls` dict maps `call_id → {src, dst}` for proper end-of-call clearing
+- **Demo mode**: ~15% chance per cycle of simulating a P2P private call between two random terminals
+
 ## Demo Mode
-When `journalctl` is not available (like in Replit), the Python script runs in demo mode with simulated TETRA traffic using realistic callsigns and talk groups. ~35% of demo cycles simulate two concurrent calls on different TGs with different time slots. ~20% of demo cycles also simulate an SDS message (outgoing or incoming).
+When `journalctl` is not available (like in Replit), the Python script runs in demo mode with simulated TETRA traffic using realistic callsigns and talk groups. ~35% of demo cycles simulate two concurrent calls on different TGs with different time slots. ~20% of demo cycles also simulate an SDS message. ~15% chance of a private P2P call.
 
 ## Concurrent Calls
 - `_clear_activity(tg=X)` only clears terminals on the specified TG, allowing multiple simultaneous calls
 - `_update_time_slot()` scopes TS propagation to terminals on the same TG as the active call
 - Call end events (GROUP_IDLE, D-TX CEASED) extract the GSSI to clear only the relevant TG
+- Private calls use `activity_tg = "PRIV_<call_id>"` so group call clears never interfere
 
 ## User Preferences
 - Language: Spanish (default), with 7-language support
