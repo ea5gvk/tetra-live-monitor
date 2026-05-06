@@ -20,10 +20,12 @@ export interface CallLogEntry {
   sourceId: string;
   sourceCallsign?: string;
   targetTg: string;
+  targetIssi?: string;
   display: string;
   isLocal: boolean;
   activity?: "TX" | "RX" | null;
   timeSlot?: number | null;
+  callType?: "group" | "private";
 }
 
 export interface SdsLipData {
