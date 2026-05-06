@@ -521,6 +521,9 @@ export async function registerRoutes(
     const dashScript = `
 set -e
 cd "${UPDATE_DIR}"
+echo "=== Updating npm ==="
+npm install -g npm@latest 2>&1 || echo "(npm self-update skipped)"
+echo ""
 echo "=== git pull ==="
 if PULL_OUT=$(git pull 2>&1); then
   echo "$PULL_OUT"
