@@ -248,8 +248,17 @@ function TerminalRow({ t: terminal, tgName }: { t: Terminal; tgName: (id: string
         </span>
       </td>
       <td className="px-2 sm:px-3 py-1.5">
-        <span className="text-amber-400 font-semibold font-mono text-xs sm:text-sm">{terminal.selectedTg}</span>
-        {(() => { const n=tgName(selectedNum); const f=getTgFlag(n,selectedNum); return (n||f) ? <span className="text-amber-300/80 text-xs font-normal ml-1.5 hidden sm:inline">{f?<span className="text-sm">{f}</span>:null}{f&&n?" ":""}{n}</span> : null; })()}
+        {terminal.selectedTg.startsWith("PRIV") ? (
+          <span className="inline-flex items-center gap-1">
+            <span className="text-[10px] font-bold border border-cyan-400/60 text-cyan-400 rounded px-1 tracking-wide">PRIV</span>
+            <span className="text-cyan-300 font-semibold font-mono text-xs sm:text-sm">{terminal.selectedTg.replace(/^PRIV\s*[→←]\s*/, "")}</span>
+          </span>
+        ) : (
+          <>
+            <span className="text-amber-400 font-semibold font-mono text-xs sm:text-sm">{terminal.selectedTg}</span>
+            {(() => { const n=tgName(selectedNum); const f=getTgFlag(n,selectedNum); return (n||f) ? <span className="text-amber-300/80 text-xs font-normal ml-1.5 hidden sm:inline">{f?<span className="text-sm">{f}</span>:null}{f&&n?" ":""}{n}</span> : null; })()}
+          </>
+        )}
       </td>
       <td className="px-2 sm:px-3 py-1.5 hidden sm:table-cell">
         <StatusDot status={terminal.status} />
@@ -424,8 +433,17 @@ function CallHistory({ entries, title, isLocal }: {
                 </span>
               ) : null}
               <span className="text-muted-foreground/60"> {">"} </span>
-              <span className="text-amber-400 font-semibold">TG {entry.targetTg}</span>
-              {(() => { const n=tgName(entry.targetTg); const f=getTgFlag(n,entry.targetTg); return (n||f) ? <span className="text-amber-300/70 text-xs ml-1.5">{f?<span className="text-sm">{f}</span>:null}{f&&n?" ":""}{n}</span> : null; })()}
+              {entry.callType === "private" ? (
+                <span className="inline-flex items-center gap-1">
+                  <span className="text-[10px] font-bold border border-cyan-400/60 text-cyan-400 rounded px-1 tracking-wide">PRIV</span>
+                  <span className="text-cyan-300 font-semibold">{entry.targetIssi ?? entry.targetTg}</span>
+                </span>
+              ) : (
+                <>
+                  <span className="text-amber-400 font-semibold">TG {entry.targetTg}</span>
+                  {(() => { const n=tgName(entry.targetTg); const f=getTgFlag(n,entry.targetTg); return (n||f) ? <span className="text-amber-300/70 text-xs ml-1.5">{f?<span className="text-sm">{f}</span>:null}{f&&n?" ":""}{n}</span> : null; })()}
+                </>
+              )}
               {entry.timeSlot != null ? (
                 <span className="text-cyan-400/80 text-[10px] ml-1">TS{entry.timeSlot}</span>
               ) : null}
