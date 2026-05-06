@@ -28,8 +28,10 @@ export interface CallLog {
   sourceId: string;
   sourceCallsign?: string;
   targetTg: string;
+  targetIssi?: string;
   display: string;
   isLocal: boolean;
+  callType?: "group" | "private";
 }
 
 export interface MonitorState {
