@@ -1234,6 +1234,50 @@ ${restartLine}
         ssiRanges = ssiMatches.map(m => ({ start: parseInt(m[1]), end: parseInt(m[2]) }));
       }
 
+      // Parse [[cell_info.neighbor_cells_ca]] blocks (active and commented)
+      let neighborCells: Array<Record<string, any>> = [];
+      let neighborCellsActive = false;
+      {
+        let inBlock = false;
+        let blockCommented = false;
+        let curCell: Record<string, any> = {};
+        const flush = () => {
+          if (Object.keys(curCell).length > 0) neighborCells.push(curCell);
+          curCell = {};
+        };
+        for (const raw of lines) {
+          const t = raw.trim();
+          if (!t) continue;
+
+          if (t.match(/^\[\[\s*cell_info\.neighbor_cells_ca\s*\]\]/)) {
+            flush(); inBlock = true; blockCommented = false; neighborCellsActive = true; continue;
+          }
+          if (t.match(/^#\s*\[\[\s*cell_info\.neighbor_cells_ca\s*\]\]/)) {
+            flush(); inBlock = true; blockCommented = true; continue;
+          }
+          // Any other section header ends the block
+          if (t.match(/^\[/) || t.match(/^#\s*\[/)) {
+            flush(); inBlock = false; continue;
+          }
+          if (!inBlock) continue;
+
+          const stripped = blockCommented ? t.replace(/^#\s*/, "") : t;
+          if (!stripped) continue;
+          const kvM = stripped.match(/^([\w]+)\s*=\s*(.+)/);
+          if (kvM) {
+            const k = kvM[1];
+            const v = kvM[2].trim();
+            if (v === "true") curCell[k] = true;
+            else if (v === "false") curCell[k] = false;
+            else {
+              const n = parseFloat(v);
+              curCell[k] = isNaN(n) ? v.replace(/^"|"$/g, "") : n;
+            }
+          }
+        }
+        flush();
+      }
+
       // Parse whitelisted_ssis: [id, id, ...]
       let whitelistedSsis: number[] = [];
       const rawWl = get('brew', 'whitelisted_ssis');
@@ -1269,6 +1313,8 @@ ${restartLine}
           timezone: str('cell_info', 'timezone'),
           local_ssi_ranges: ssiRanges,
           ssi_ranges_enabled: ssiRangesEnabled,
+          neighbor_cells: neighborCells,
+          neighbor_cells_enabled: neighborCellsActive,
         },
         net_info: {
           mcc: num('net_info', 'mcc'),
@@ -1295,7 +1341,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, brewConfig, securityConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, brewConfig, securityConfig, neighborCellsConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -1599,6 +1645,75 @@ ${restartLine}
               }
               break;
             }
+          }
+        }
+      }
+
+      // ── NEIGHBOR CELLS: replace all [[cell_info.neighbor_cells_ca]] blocks ──
+      {
+        const ncEnabled = neighborCellsConfig?.enabled === true;
+        const cells: any[] = Array.isArray(neighborCellsConfig?.cells) ? neighborCellsConfig.cells : [];
+
+        // 1) Remove all existing neighbor_cells_ca blocks (active and commented).
+        //    Block = header line + following key=value lines (active or commented)
+        //    until the next section/sub-table header.
+        for (let i = 0; i < lines.length; ) {
+          const t = lines[i].trim();
+          const isHdr = !!t.match(/^\[\[\s*cell_info\.neighbor_cells_ca\s*\]\]/) ||
+                        !!t.match(/^#\s*\[\[\s*cell_info\.neighbor_cells_ca\s*\]\]/);
+          if (!isHdr) { i++; continue; }
+          let j = i + 1;
+          while (j < lines.length) {
+            const tj = lines[j].trim();
+            if (tj === "") { j++; continue; }
+            if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+            j++;
+          }
+          // Trim trailing blank lines we'd otherwise leave behind
+          while (j > i + 1 && lines[j - 1].trim() === "") j--;
+          // Also drop one leading blank line right before the block (if any)
+          let start = i;
+          if (start > 0 && lines[start - 1].trim() === "") start = start - 1;
+          lines.splice(start, j - start);
+          i = start;
+        }
+
+        // 2) Build new blocks (always emitted if cells provided — commented when disabled)
+        if (cells.length > 0) {
+          const newBlock: string[] = [];
+          cells.forEach((c, idx) => {
+            const prefix = ncEnabled ? "" : "# ";
+            newBlock.push("");
+            newBlock.push(`${prefix}[[cell_info.neighbor_cells_ca]]`);
+            newBlock.push(`${prefix}cell_identifier_ca = ${Number(c.cell_identifier_ca ?? (idx + 1))}`);
+            newBlock.push(`${prefix}cell_reselection_types_supported = ${Number(c.cell_reselection_types_supported ?? 0)}`);
+            newBlock.push(`${prefix}neighbor_cell_synchronized = ${c.neighbor_cell_synchronized === true ? "true" : "false"}`);
+            newBlock.push(`${prefix}cell_load_ca = ${Number(c.cell_load_ca ?? 0)}`);
+            newBlock.push(`${prefix}main_carrier_number = ${Number(c.main_carrier_number ?? 0)}`);
+            newBlock.push(`${prefix}mcc = ${Number(c.mcc ?? 0)}`);
+            newBlock.push(`${prefix}mnc = ${Number(c.mnc ?? 0)}`);
+            newBlock.push(`${prefix}location_area = ${Number(c.location_area ?? 0)}`);
+          });
+
+          // 3) Insert at end of [cell_info] direct fields (before any next section header,
+          //    active or commented, including [[..]] sub-tables and [other])
+          let cellInfoIdx = -1;
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].match(/^\s*\[cell_info\]/)) { cellInfoIdx = i; break; }
+          }
+          if (cellInfoIdx === -1) {
+            if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+            lines.push(...newBlock);
+          } else {
+            let insertAt = cellInfoIdx + 1;
+            while (insertAt < lines.length) {
+              const tj = lines[insertAt].trim();
+              if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+              insertAt++;
+            }
+            // Step back over trailing blank lines so block sits right after content
+            while (insertAt > cellInfoIdx + 1 && lines[insertAt - 1].trim() === "") insertAt--;
+            lines.splice(insertAt, 0, ...newBlock);
           }
         }
       }
