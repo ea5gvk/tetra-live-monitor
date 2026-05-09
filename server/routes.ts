@@ -1716,10 +1716,25 @@ ${restartLine}
         const valueLine = secEnabled ? issiLine : `# ${issiLine}`;
 
         if (secHeaderIdx === -1) {
-          // No security section at all — append at end of file
-          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
-          lines.push(headerLine);
-          lines.push(valueLine);
+          // No security section at all — insert just before [brew] (active or commented).
+          // Falls back to end-of-file if no [brew] header is present.
+          let brewIdx = -1;
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].match(/^\s*\[brew\]/) || lines[i].match(/^\s*#\s*\[brew\]/)) {
+              brewIdx = i;
+              break;
+            }
+          }
+          if (brewIdx === -1) {
+            if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+            lines.push(headerLine);
+            lines.push(valueLine);
+          } else {
+            const block = [headerLine, valueLine, ""];
+            // Ensure a blank line separates the previous content from the new block
+            if (brewIdx > 0 && lines[brewIdx - 1].trim() !== "") block.unshift("");
+            lines.splice(brewIdx, 0, ...block);
+          }
         } else {
           lines[secHeaderIdx] = headerLine;
           // Replace any existing issi_whitelist line (active or commented) within the section
