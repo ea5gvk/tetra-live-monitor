@@ -1,5 +1,5 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage } from "../hooks/useTetraWebSocket";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo } from "react";
 import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network } from "lucide-react";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
 import { useI18n } from "@/lib/i18n";
@@ -210,8 +210,10 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
-function TerminalRow({ t: terminal, tgName }: { t: Terminal; tgName: (id: string | number) => string }) {
+function TerminalRow({ t: terminal, tgName, issiCallsign }: { t: Terminal; tgName: (id: string | number) => string; issiCallsign: (id: string | number) => string }) {
   const selectedNum = terminal.selectedTg.replace("TG ", "");
+  const privDst = terminal.selectedTg.startsWith("PRIV") ? terminal.selectedTg.replace(/^PRIV\s*[→←]\s*/, "") : "";
+  const privDstCs = privDst ? issiCallsign(privDst) : "";
   const rowBg = terminal.activity === "TX"
     ? "bg-red-500/10 border-l-2 border-l-red-500"
     : terminal.activity === "RX"
@@ -249,9 +251,15 @@ function TerminalRow({ t: terminal, tgName }: { t: Terminal; tgName: (id: string
       </td>
       <td className="px-2 sm:px-3 py-1.5">
         {terminal.selectedTg.startsWith("PRIV") ? (
-          <span className="inline-flex items-center gap-1">
+          <span className="inline-flex items-center gap-1 flex-wrap">
             <span className="text-[10px] font-bold border border-cyan-400/60 text-cyan-400 rounded px-1 tracking-wide">PRIV</span>
-            <span className="text-cyan-300 font-semibold font-mono text-xs sm:text-sm">{terminal.selectedTg.replace(/^PRIV\s*[→←]\s*/, "")}</span>
+            <span className="text-cyan-300 font-semibold font-mono text-xs sm:text-sm">{privDst}</span>
+            {privDstCs ? (
+              <>
+                <CountryFlag callsign={privDstCs} />
+                <span className="text-cyan-200 font-bold text-xs sm:text-sm">({privDstCs})</span>
+              </>
+            ) : null}
           </span>
         ) : (
           <>
@@ -281,11 +289,12 @@ function TerminalRow({ t: terminal, tgName }: { t: Terminal; tgName: (id: string
   );
 }
 
-function TerminalTable({ terminals, title, icon, isLocal }: {
+function TerminalTable({ terminals, title, icon, isLocal, issiCallsign }: {
   terminals: Terminal[];
   title: string;
   icon: "local" | "external";
   isLocal: boolean;
+  issiCallsign: (id: string | number) => string;
 }) {
   const { t } = useI18n();
   const tgName = useTgNames();
@@ -378,7 +387,7 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
                 </td>
               </tr>
             ) : (
-              sorted.map(terminal => <TerminalRow key={terminal.id} t={terminal} tgName={tgName} />)
+              sorted.map(terminal => <TerminalRow key={terminal.id} t={terminal} tgName={tgName} issiCallsign={issiCallsign} />)
             )}
           </tbody>
         </table>
@@ -387,10 +396,11 @@ function TerminalTable({ terminals, title, icon, isLocal }: {
   );
 }
 
-function CallHistory({ entries, title, isLocal }: {
+function CallHistory({ entries, title, isLocal, issiCallsign }: {
   entries: CallLogEntry[];
   title: string;
   isLocal: boolean;
+  issiCallsign: (id: string | number) => string;
 }) {
   const { t } = useI18n();
   const tgName = useTgNames();
@@ -434,10 +444,22 @@ function CallHistory({ entries, title, isLocal }: {
               ) : null}
               <span className="text-muted-foreground/60"> {">"} </span>
               {entry.callType === "private" ? (
-                <span className="inline-flex items-center gap-1">
-                  <span className="text-[10px] font-bold border border-cyan-400/60 text-cyan-400 rounded px-1 tracking-wide">PRIV</span>
-                  <span className="text-cyan-300 font-semibold">{entry.targetIssi ?? entry.targetTg}</span>
-                </span>
+                (() => {
+                  const dst = String(entry.targetIssi ?? entry.targetTg ?? "");
+                  const dstCs = dst ? issiCallsign(dst) : "";
+                  return (
+                    <span className="inline-flex items-center gap-1 align-middle">
+                      <span className="text-[10px] font-bold border border-cyan-400/60 text-cyan-400 rounded px-1 tracking-wide">PRIV</span>
+                      <span className="text-cyan-300 font-semibold">{dst}</span>
+                      {dstCs ? (
+                        <>
+                          {" "}<CountryFlag callsign={dstCs} />
+                          <span className="text-cyan-200 font-semibold">({dstCs})</span>
+                        </>
+                      ) : null}
+                    </span>
+                  );
+                })()
               ) : (
                 <>
                   <span className="text-amber-400 font-semibold">TG {entry.targetTg}</span>
@@ -818,6 +840,16 @@ export default function Dashboard() {
   const { terminals, localHistory, externalHistory, sdsMessages, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 
+  // Build ISSI → callsign lookup so PRIV destinations can show callsign + flag
+  const issiCallsignMap = useMemo(() => {
+    const m = new Map<string, string>();
+    for (const term of terminalList) {
+      if (term.callsign) m.set(String(term.id), term.callsign);
+    }
+    return m;
+  }, [terminalList]);
+  const issiCallsign = (id: string | number) => issiCallsignMap.get(String(id)) || "";
+
   const txCount = terminalList.filter(t => t.activity === "TX").length;
   const rxCount = terminalList.filter(t => t.activity === "RX").length;
 
@@ -884,6 +916,7 @@ export default function Dashboard() {
           title={t("local_terminals")}
           icon="local"
           isLocal={true}
+          issiCallsign={issiCallsign}
         />
 
         <TerminalTable
@@ -891,6 +924,7 @@ export default function Dashboard() {
           title={t("external_terminals")}
           icon="external"
           isLocal={false}
+          issiCallsign={issiCallsign}
         />
 
         <div className="flex flex-col md:flex-row gap-3 flex-1">
@@ -898,11 +932,13 @@ export default function Dashboard() {
             entries={localHistory}
             title={t("local_history")}
             isLocal={true}
+            issiCallsign={issiCallsign}
           />
           <CallHistory
             entries={externalHistory}
             title={t("external_history")}
             isLocal={false}
+            issiCallsign={issiCallsign}
           />
         </div>
 
