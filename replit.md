@@ -30,6 +30,37 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 - **Calculator**: Standalone I18N object in `calculator.html`, synced from dashboard via postMessage
 - **Language selector**: Globe button in the navigation bar, cycles through all 7 languages
 
+## Dual Station Support (Bluestation / Flowstation)
+The Pi can run **two TETRA station implementations**, switchable via the navbar:
+- **Bluestation** (default) — `/root/tetra-bluestation`, service `tmo.service`, repo `MidnightBlueLabs/tetra-bluestation`
+- **Flowstation** — `/root/flowstation`, service `flowstation.service`, repo `razvanzeces/flowstation`
+
+### Components
+- `client/src/components/StationSwitcher.tsx` — toggle pill in navbar (BLUE | FLOW). Active station shown with green pulse. Clicking the inactive one opens a modal asking the system password to switch.
+- `client/src/components/FlowstationUpdater.tsx` — emerald-themed Update button. When `/root/flowstation` is missing it switches to "Install" mode (clones repo, runs `cargo build --release`, copies `example_config/config.toml`, creates `flowstation.service`).
+- `client/src/components/BluestationUpdater.tsx` — existing violet-themed Update button (unchanged).
+
+### Switch behavior (`POST /api/station/switch`)
+- `sudo systemctl disable` + `stop` of the OTHER station
+- `sudo systemctl enable` + `start` of the chosen station
+- Persists choice in `active-station.json` at project root
+- Frontend auto-updates `localStorage.tetra_restart_service` and `localStorage.tetra_log_service` to the new service so the "Restart Service" button and Log Live tab follow the active station automatically (still manually editable)
+
+### API endpoints
+- `GET /api/station/active` → `{station, persisted, services: {bluestation, flowstation}}` with `{exists, active, enabled, installed, dir, configPath, service}` per station
+- `POST /api/station/switch` `{password, station}` (requires system password)
+- `GET /api/flowstation/check?dir=...` (same shape as bluestation/check)
+- `POST /api/flowstation/install` (SSE — clone+build+create service)
+- `POST /api/flowstation/apply` `{password, dir, serviceName}` (SSE — git pull+build+restart)
+
+### Calculator dual-station selector
+The Calculator page (`client/src/pages/Calculator.tsx`) shows a top bar with **[BLUESTATION | FLOWSTATION]** tabs. Selecting one posts a `setStation` message to the iframe (`calculator.html`) which:
+1. Updates the `configPathVal` input (e.g. `/root/flowstation/config.toml`)
+2. Updates the `serviceNameVal` input (e.g. `flowstation.service`)
+3. Auto-clicks "LOAD FROM CONFIG.TOML" to re-read the config of the selected station
+
+Storage key: `tetra_calc_station` (`bluestation` | `flowstation`, default `bluestation`).
+
 ## System Controls
 - **Restart Service**: Button to restart a systemd service via `sudo systemctl restart <service>`, requires password
   - Configurable service name (default: `tmo.service`), stored in localStorage key `tetra_restart_service`
