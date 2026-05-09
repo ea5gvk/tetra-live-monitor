@@ -1118,8 +1118,10 @@ ${restartLine}
 
       let currentSection = '';
       let inCommentedBrew = false;
+      let inCommentedSecurity = false;
       let brewCommented = false; // true if [brew] header is commented out
       let brewActive = false;    // true if [brew] header is active
+      let securityActive = false; // true if [security] header is active
       const sections: Record<string, Record<string, string>> = {};
 
       for (const raw of lines) {
@@ -1129,8 +1131,16 @@ ${restartLine}
         // Detect #[brew] (disabled brew section header)
         if (line.match(/^#\s*\[brew\]/)) {
           inCommentedBrew = true;
+          inCommentedSecurity = false;
           brewCommented = true;
           sections['brew'] = sections['brew'] || {};
+          continue;
+        }
+        // Detect #[security] (disabled security section header)
+        if (line.match(/^#\s*\[security\]/)) {
+          inCommentedSecurity = true;
+          inCommentedBrew = false;
+          sections['security'] = sections['security'] || {};
           continue;
         }
 
@@ -1139,6 +1149,10 @@ ${restartLine}
           if (inCommentedBrew) {
             const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
             if (ckv) sections['brew'][ckv[1].trim()] = ckv[2].trim();
+          }
+          if (inCommentedSecurity) {
+            const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
+            if (ckv) sections['security'][ckv[1].trim()] = ckv[2].trim();
           }
           // Parse commented timezone in [cell_info] so it loads even when disabled
           if (currentSection === 'cell_info' && !sections['cell_info']?.['timezone']) {
@@ -1151,12 +1165,14 @@ ${restartLine}
           continue;
         }
 
-        // Active section header resets commented-brew tracking
+        // Active section header resets commented-section tracking
         inCommentedBrew = false;
+        inCommentedSecurity = false;
         const sectionMatch = line.match(/^\[([^\]]+)\]/);
         if (sectionMatch) {
           currentSection = sectionMatch[1];
           if (currentSection === 'brew') brewActive = true;
+          if (currentSection === 'security') securityActive = true;
           sections[currentSection] = sections[currentSection] || {};
           continue;
         }
@@ -1218,6 +1234,14 @@ ${restartLine}
         whitelistedSsis = nums;
       }
 
+      // Parse security issi_whitelist: [id, id, ...]
+      let securityIssiWhitelist: number[] = [];
+      const rawSec = get('security', 'issi_whitelist');
+      if (rawSec) {
+        const nums = rawSec.replace(/[\[\]]/g, '').split(',').map((s: string) => parseInt(s.trim())).filter((n: number) => !isNaN(n));
+        securityIssiWhitelist = nums;
+      }
+
       res.json({
         phy_io_soapysdr: {
           tx_freq: num('phy_io.soapysdr', 'tx_freq'),
@@ -1252,6 +1276,10 @@ ${restartLine}
           reconnect_delay_secs: num('brew', 'reconnect_delay_secs'),
           whitelisted_ssis: whitelistedSsis,
         },
+        security: {
+          enabled: securityActive,
+          issi_whitelist: securityIssiWhitelist,
+        },
       });
     } catch (err: any) {
       res.status(500).json({ message: `Error leyendo config: ${err.message}` });
@@ -1259,7 +1287,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, brewConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, brewConfig, securityConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -1655,6 +1683,53 @@ ${restartLine}
               break;
             }
           }
+        }
+      }
+
+      // ── SECURITY SECTION: comment/uncomment block (header + issi_whitelist) ──
+      {
+        const secEnabled = securityConfig?.enabled === true;
+        const rawList: string[] = Array.isArray(securityConfig?.issi_whitelist)
+          ? securityConfig.issi_whitelist.map((x: any) => String(x).trim()).filter(Boolean)
+          : [];
+        const ssiList = rawList.length > 0 ? rawList : ["1030299", "1030036", "2145007"];
+        const issiLine = `issi_whitelist = [${ssiList.join(", ")}]`;
+
+        // Locate active [security] or commented #[security] header
+        let secHeaderIdx = -1;
+        let secIsActive = false;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[security\]/)) { secHeaderIdx = i; secIsActive = true; break; }
+          if (lines[i].match(/^\s*#\s*\[security\]/)) { secHeaderIdx = i; secIsActive = false; break; }
+        }
+        const getSecEnd = (start: number): number => {
+          for (let j = start + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/)) return j;
+          }
+          return lines.length;
+        };
+
+        const headerLine = secEnabled ? "[security]" : "# [security]";
+        const valueLine = secEnabled ? issiLine : `# ${issiLine}`;
+
+        if (secHeaderIdx === -1) {
+          // No security section at all — append at end of file
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(headerLine);
+          lines.push(valueLine);
+        } else {
+          lines[secHeaderIdx] = headerLine;
+          // Replace any existing issi_whitelist line (active or commented) within the section
+          const secEnd = getSecEnd(secHeaderIdx);
+          let foundWl = false;
+          for (let i = secHeaderIdx + 1; i < secEnd; i++) {
+            if (lines[i].match(/^\s*#?\s*issi_whitelist\s*=/)) {
+              lines[i] = valueLine;
+              foundWl = true;
+              break;
+            }
+          }
+          if (!foundWl) lines.splice(secHeaderIdx + 1, 0, valueLine);
         }
       }
 
