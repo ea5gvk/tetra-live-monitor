@@ -2014,10 +2014,13 @@
         lines.push(`whitelisted_ssis = [${ssis.join(", ")}]`);
       }
     }
-    // Security whitelist
+    // Security whitelist (digits only — invalid tokens silently dropped)
     {
       const raw = (el("securityWhitelist").value || "").trim();
-      const ssis = raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : ["1030299","1030036","2145007"];
+      const parsed = raw
+        ? raw.split(",").map(s => s.trim()).filter(s => /^\d+$/.test(s))
+        : [];
+      const ssis = parsed.length > 0 ? parsed : ["1030299","1030036","2145007"];
       lines.push("");
       if (el("enableSecurity").checked){
         lines.push("[security]");
@@ -2425,12 +2428,13 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         }
       }
 
-      // ── [security] section
+      // ── [security] section (dispatch change so TOML preview rebuilds with loaded values)
       if (data.security) {
         el("enableSecurity").checked = !!data.security.enabled;
         if (Array.isArray(data.security.issi_whitelist) && data.security.issi_whitelist.length > 0) {
           el("securityWhitelist").value = data.security.issi_whitelist.join(", ");
         }
+        el("enableSecurity").dispatchEvent(new Event("change"));
       }
 
       statusEl.innerHTML = `<span style="color:var(--ok)">✅ Config cargada correctamente desde ${escapeHtml(configPath)}</span>`;
@@ -2501,13 +2505,14 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         : []
     } : { enabled: false };
 
-    // Collect security whitelist
+    // Collect security whitelist (digits only — invalid tokens silently dropped)
     const secRaw = (el("securityWhitelist").value || "").trim();
+    const secParsed = secRaw
+      ? secRaw.split(",").map(s => s.trim()).filter(s => /^\d+$/.test(s))
+      : [];
     const securityConfig = {
       enabled: el("enableSecurity").checked,
-      issi_whitelist: secRaw
-        ? secRaw.split(",").map(s => s.trim()).filter(Boolean)
-        : ["1030299","1030036","2145007"]
+      issi_whitelist: secParsed.length > 0 ? secParsed : ["1030299","1030036","2145007"]
     };
 
     try {
