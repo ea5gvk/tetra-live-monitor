@@ -61,6 +61,12 @@ The Calculator page (`client/src/pages/Calculator.tsx`) shows a top bar with **[
 
 Storage key: `tetra_calc_station` (`bluestation` | `flowstation`, default `bluestation`).
 
+## Public IP Visibility
+- The public IP shown in the navbar stats (violet globe icon) is **hidden by default** as `•••.•••.•••.•••`
+- Click the eye icon to reveal — opens an inline password prompt that calls `POST /api/system/verify-password` with the system password
+- Once revealed, the visibility persists for the **current browser session only** (sessionStorage key `tetra_public_ip_revealed`); closing the tab/browser hides it again
+- Click the eye-off icon to hide again immediately (no password required)
+
 ## System Controls
 - **Restart Service**: Button to restart a systemd service via `sudo systemctl restart <service>`, requires password
   - Configurable service name (default: `tmo.service`), stored in localStorage key `tetra_restart_service`
