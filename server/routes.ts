@@ -176,6 +176,14 @@ export async function registerRoutes(
     }, 1000);
   });
 
+  app.post(api.system.verifyPassword.path, (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
+    }
+    res.json({ ok: true });
+  });
+
   app.post(api.system.restartService.path, (req, res) => {
     const { password, serviceName } = req.body || {};
     if (!password || password !== getSystemPassword()) {
