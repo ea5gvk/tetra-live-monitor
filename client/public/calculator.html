@@ -453,6 +453,35 @@
   </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
+      <h2 data-i18n="timing_title">⏱️ Tiempo de Llamadas</h2>
+      <div class="checkbox-row">
+        <input type="checkbox" id="enableCallTiming" />
+        <label for="enableCallTiming" data-i18n="timing_enable">Activar parámetros de tiempo de llamada</label>
+      </div>
+      <div class="hint" data-i18n="timing_hint">Si está desactivado, los tres campos se escriben comentados bajo [cell_info].</div>
+      <div id="callTimingFields" style="margin-top:12px;">
+        <div class="row">
+          <div>
+            <label for="hangtimeSecs" data-i18n="timing_hangtime">hangtime_secs (0 - 300)</label>
+            <input id="hangtimeSecs" type="number" min="0" max="300" value="5" />
+          </div>
+          <div>
+            <label for="callTimeoutSecs" data-i18n="timing_call_timeout">call_timeout_secs (30 - 300)</label>
+            <input id="callTimeoutSecs" type="number" min="30" max="300" value="120" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div>
+            <label for="ulInactivitySecs" data-i18n="timing_ul_inactivity">ul_inactivity_secs (1 - 30)</label>
+            <input id="ulInactivitySecs" type="number" min="1" max="30" value="3" />
+          </div>
+          <div></div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
       <h2 data-i18n="ncells_title">🏘️ Neighbor Cells [[cell_info.neighbor_cells_ca]]</h2>
       <div class="row">
         <div>
@@ -726,6 +755,12 @@
       security_hint: "If disabled, both lines are written as comments. If enabled, only listed ISSIs can connect.",
       security_whitelist_label: "issi_whitelist (comma-separated)",
       security_whitelist_hint: "List of allowed ISSIs, e.g.: 1030299, 1030036, 2145007",
+      timing_title: "⏱️ Call Timing",
+      timing_enable: "Enable call timing parameters",
+      timing_hint: "If disabled, all three fields are written as comments under [cell_info].",
+      timing_hangtime: "hangtime_secs (0 - 300)",
+      timing_call_timeout: "call_timeout_secs (30 - 300)",
+      timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
       ncells_title: "🏘️ Neighbor Cells [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Enable neighbor cells",
       ncells_hint: "If disabled, blocks are written commented. cell_identifier_ca and location_area must be unique per cell.",
@@ -850,6 +885,12 @@
       security_hint: "禁用時，兩行均寫為註釋。啟用時，僅列出的 ISSI 可連接。",
       security_whitelist_label: "issi_whitelist（逗號分隔）",
       security_whitelist_hint: "允許的 ISSI 列表，例如：1030299, 1030036, 2145007",
+      timing_title: "⏱️ 通话时间",
+      timing_enable: "启用通话时间参数",
+      timing_hint: "如果禁用，三个字段将作为注释写入 [cell_info]。",
+      timing_hangtime: "hangtime_secs (0 - 300)",
+      timing_call_timeout: "call_timeout_secs (30 - 300)",
+      timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
       ncells_title: "🏘️ 相邻小区 [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "启用相邻小区",
       ncells_hint: "如果禁用，块以注释形式写入。每个小区的 cell_identifier_ca 和 location_area 必须唯一。",
@@ -974,6 +1015,12 @@
       security_hint: "Si está desactivada, ambas líneas se escriben como comentario. Si se activa, solo las ISSI listadas pueden conectarse.",
       security_whitelist_label: "issi_whitelist (separadas por coma)",
       security_whitelist_hint: "Lista de ISSI permitidas, ej: 1030299, 1030036, 2145007",
+      timing_title: "⏱️ Tiempo de Llamadas",
+      timing_enable: "Activar parámetros de tiempo de llamada",
+      timing_hint: "Si está desactivado, los tres campos se escriben comentados bajo [cell_info].",
+      timing_hangtime: "hangtime_secs (0 - 300)",
+      timing_call_timeout: "call_timeout_secs (30 - 300)",
+      timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
       ncells_title: "🏘️ Celdas Vecinas [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Activar celdas vecinas",
       ncells_hint: "Si está desactivado, los bloques se escriben comentados. cell_identifier_ca y location_area deben ser únicos por celda.",
@@ -1098,6 +1145,12 @@
       security_hint: "Se desativada, ambas as linhas são escritas como comentário. Se ativada, apenas os ISSI listados podem conectar.",
       security_whitelist_label: "issi_whitelist (separados por vírgula)",
       security_whitelist_hint: "Lista de ISSI permitidos, ex: 1030299, 1030036, 2145007",
+      timing_title: "⏱️ Tempo de Chamadas",
+      timing_enable: "Ativar parâmetros de tempo de chamada",
+      timing_hint: "Se desativado, os três campos são escritos como comentários sob [cell_info].",
+      timing_hangtime: "hangtime_secs (0 - 300)",
+      timing_call_timeout: "call_timeout_secs (30 - 300)",
+      timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
       ncells_title: "🏘️ Células Vizinhas [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Ativar células vizinhas",
       ncells_hint: "Se desativado, os blocos são escritos comentados. cell_identifier_ca e location_area devem ser únicos por célula.",
@@ -1222,6 +1275,12 @@
       security_hint: "Wenn deaktiviert, werden beide Zeilen als Kommentar geschrieben. Wenn aktiviert, können nur gelistete ISSIs verbinden.",
       security_whitelist_label: "issi_whitelist (kommagetrennt)",
       security_whitelist_hint: "Liste erlaubter ISSIs, z.B.: 1030299, 1030036, 2145007",
+      timing_title: "⏱️ Anrufzeit",
+      timing_enable: "Anrufzeit-Parameter aktivieren",
+      timing_hint: "Wenn deaktiviert, werden alle drei Felder als Kommentare unter [cell_info] geschrieben.",
+      timing_hangtime: "hangtime_secs (0 - 300)",
+      timing_call_timeout: "call_timeout_secs (30 - 300)",
+      timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
       ncells_title: "🏘️ Nachbarzellen [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Nachbarzellen aktivieren",
       ncells_hint: "Wenn deaktiviert, werden die Blöcke auskommentiert geschrieben. cell_identifier_ca und location_area müssen pro Zelle eindeutig sein.",
@@ -1346,6 +1405,12 @@
       security_hint: "Si désactivée, les deux lignes sont écrites en commentaire. Si activée, seuls les ISSI listés peuvent se connecter.",
       security_whitelist_label: "issi_whitelist (séparés par virgule)",
       security_whitelist_hint: "Liste des ISSI autorisés, ex: 1030299, 1030036, 2145007",
+      timing_title: "⏱️ Temps d'appel",
+      timing_enable: "Activer les paramètres de temps d'appel",
+      timing_hint: "Si désactivé, les trois champs sont écrits en commentaires sous [cell_info].",
+      timing_hangtime: "hangtime_secs (0 - 300)",
+      timing_call_timeout: "call_timeout_secs (30 - 300)",
+      timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
       ncells_title: "🏘️ Cellules voisines [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Activer cellules voisines",
       ncells_hint: "Si désactivé, les blocs sont écrits en commentaire. cell_identifier_ca et location_area doivent être uniques par cellule.",
@@ -1470,6 +1535,12 @@
       security_hint: "Se disattivata, entrambe le righe sono scritte come commento. Se attivata, solo gli ISSI elencati possono connettersi.",
       security_whitelist_label: "issi_whitelist (separati da virgola)",
       security_whitelist_hint: "Elenco degli ISSI consentiti, es: 1030299, 1030036, 2145007",
+      timing_title: "⏱️ Tempo di Chiamata",
+      timing_enable: "Attiva parametri di tempo di chiamata",
+      timing_hint: "Se disattivato, i tre campi sono scritti come commenti sotto [cell_info].",
+      timing_hangtime: "hangtime_secs (0 - 300)",
+      timing_call_timeout: "call_timeout_secs (30 - 300)",
+      timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
       ncells_title: "🏘️ Celle vicine [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Abilita celle vicine",
       ncells_hint: "Se disattivato, i blocchi vengono scritti commentati. cell_identifier_ca e location_area devono essere univoci per cella.",
@@ -1594,6 +1665,12 @@
       security_hint: "Hvis deaktiveret skrives begge linjer som kommentar. Hvis aktiveret kan kun de angivne ISSIer forbinde.",
       security_whitelist_label: "issi_whitelist (kommasepareret)",
       security_whitelist_hint: "Liste over tilladte ISSIer, f.eks.: 1030299, 1030036, 2145007",
+      timing_title: "⏱️ Opkaldstid",
+      timing_enable: "Aktivér opkaldstidsparametre",
+      timing_hint: "Hvis deaktiveret, skrives alle tre felter som kommentarer under [cell_info].",
+      timing_hangtime: "hangtime_secs (0 - 300)",
+      timing_call_timeout: "call_timeout_secs (30 - 300)",
+      timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
       ncells_title: "🏘️ Nabo-celler [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Aktivér nabo-celler",
       ncells_hint: "Hvis deaktiveret, skrives blokke som kommentarer. cell_identifier_ca og location_area skal være unikke pr. celle.",
@@ -1718,6 +1795,12 @@
       security_hint: "Indien uitgeschakeld worden beide regels als commentaar geschreven. Indien ingeschakeld kunnen alleen vermelde ISSIs verbinden.",
       security_whitelist_label: "issi_whitelist (kommagescheiden)",
       security_whitelist_hint: "Lijst van toegestane ISSIs, bv: 1030299, 1030036, 2145007",
+      timing_title: "⏱️ Gesprekstijd",
+      timing_enable: "Gesprekstijd-parameters inschakelen",
+      timing_hint: "Indien uitgeschakeld worden alle drie velden als commentaar onder [cell_info] geschreven.",
+      timing_hangtime: "hangtime_secs (0 - 300)",
+      timing_call_timeout: "call_timeout_secs (30 - 300)",
+      timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
       ncells_title: "🏘️ Naburige cellen [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Naburige cellen inschakelen",
       ncells_hint: "Indien uitgeschakeld worden blokken als commentaar geschreven. cell_identifier_ca en location_area moeten uniek zijn per cel.",
@@ -1842,6 +1925,12 @@
       security_hint: "Dacă este dezactivat, ambele linii sunt scrise ca comentarii. Dacă este activat, doar ISSI-urile listate se pot conecta.",
       security_whitelist_label: "issi_whitelist (separate prin virgulă)",
       security_whitelist_hint: "Listă de ISSI-uri permise, ex.: 1030299, 1030036, 2145007",
+      timing_title: "⏱️ Timp Apeluri",
+      timing_enable: "Activează parametrii de timp ai apelului",
+      timing_hint: "Dacă este dezactivat, toate cele trei câmpuri sunt scrise ca comentarii sub [cell_info].",
+      timing_hangtime: "hangtime_secs (0 - 300)",
+      timing_call_timeout: "call_timeout_secs (30 - 300)",
+      timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
       ncells_title: "🏘️ Celule vecine [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Activează celule vecine",
       ncells_hint: "Dacă este dezactivat, blocurile sunt scrise ca comentarii. cell_identifier_ca și location_area trebuie să fie unice pentru fiecare celulă.",
@@ -2203,6 +2292,18 @@
     if (el("enableTimezone").checked){
       lines.push(`timezone_broadcast = true`);
       lines.push(`timezone = "${el("timezoneVal").value}"`);
+    }
+    // Call Timing — 3 [cell_info] direct fields. Active or commented depending on toggle.
+    {
+      const ctEnabled = el("enableCallTiming").checked;
+      const prefix = ctEnabled ? "" : "# ";
+      const clamp = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
+      const hg = clamp(el("hangtimeSecs").value, 0, 300, 5);
+      const ct = clamp(el("callTimeoutSecs").value, 30, 300, 120);
+      const ul = clamp(el("ulInactivitySecs").value, 1, 30, 3);
+      lines.push(`${prefix}hangtime_secs = ${hg}`);
+      lines.push(`${prefix}call_timeout_secs = ${ct}`);
+      lines.push(`${prefix}ul_inactivity_secs = ${ul}`);
     }
     // Neighbor Cells — emit blocks at end of [cell_info] direct fields, before [net_info]/[brew]/[security]
     {
@@ -2632,6 +2733,13 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         el("timezoneVal").value = data.cell_info.timezone;
       }
 
+      // ── Call Timing (load values even when disabled/commented)
+      const ct = data.cell_info.call_timing || {};
+      el("enableCallTiming").checked = !!ct.enabled;
+      if (ct.hangtime_secs !== null && ct.hangtime_secs !== undefined) el("hangtimeSecs").value = String(ct.hangtime_secs);
+      if (ct.call_timeout_secs !== null && ct.call_timeout_secs !== undefined) el("callTimeoutSecs").value = String(ct.call_timeout_secs);
+      if (ct.ul_inactivity_secs !== null && ct.ul_inactivity_secs !== undefined) el("ulInactivitySecs").value = String(ct.ul_inactivity_secs);
+
       // ── Net Info (MCC / MNC)
       if (data.net_info.mcc !== null) el("mccVal").value = String(data.net_info.mcc);
       if (data.net_info.mnc !== null) el("mncVal").value = String(data.net_info.mnc);
@@ -2742,6 +2850,15 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     // Collect timezone options
     const timezoneConfig = { enabled: el("enableTimezone").checked, timezone: el("timezoneVal").value };
 
+    // Collect call timing options
+    const clampInt = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
+    const callTimingConfig = {
+      enabled: el("enableCallTiming").checked,
+      hangtime_secs: clampInt(el("hangtimeSecs").value, 0, 300, 5),
+      call_timeout_secs: clampInt(el("callTimeoutSecs").value, 30, 300, 120),
+      ul_inactivity_secs: clampInt(el("ulInactivitySecs").value, 1, 30, 3),
+    };
+
     // Collect brew options
     const brewConfig = el("enableBrew").checked ? {
       enabled: true,
@@ -2786,6 +2903,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           cellInfoExtra,
           ssiRangesConfig,
           timezoneConfig,
+          callTimingConfig,
           brewConfig,
           securityConfig,
           neighborCellsConfig
@@ -3112,6 +3230,18 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   // Whitelist toggle
   el("enableWhitelist").addEventListener("change", function(){
     el("whitelistRow").style.display = this.checked ? "block" : "none";
+  });
+
+  // Call Timing toggle + inputs — refresh TOML preview
+  ["enableCallTiming","hangtimeSecs","callTimeoutSecs","ulInactivitySecs"].forEach(id => {
+    el(id).addEventListener(id === "enableCallTiming" ? "change" : "input", function(){
+      if (lastComputedResult) el("tomlPreview").textContent = buildToml({
+        txHz: lastComputedResult.tx_freq, rxHz: lastComputedResult.rx_freq,
+        band: lastComputedResult.freq_band, mainCarrier: lastComputedResult.main_carrier,
+        freqOffset: lastComputedResult.freq_offset, duplexCodeIdx: lastComputedResult.duplex_spacing,
+        customDuplexHz: lastComputedResult.custom_duplex_spacing, reverse: lastComputedResult.reverse_operation
+      });
+    });
   });
 
   // Security toggle — refresh TOML preview
