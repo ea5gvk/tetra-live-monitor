@@ -2079,6 +2079,26 @@
       lines.push(`timezone_broadcast = true`);
       lines.push(`timezone = "${el("timezoneVal").value}"`);
     }
+    // Neighbor Cells — emit blocks at end of [cell_info] direct fields, before [net_info]/[brew]/[security]
+    {
+      const ncells = getNeighborCells();
+      if (ncells.length > 0) {
+        const ncEnabled = el("enableNeighborCells").checked;
+        const prefix = ncEnabled ? "" : "# ";
+        ncells.forEach(c => {
+          lines.push("");
+          lines.push(`${prefix}[[cell_info.neighbor_cells_ca]]`);
+          lines.push(`${prefix}cell_identifier_ca = ${Number(c.cell_identifier_ca ?? 0)}`);
+          lines.push(`${prefix}cell_reselection_types_supported = ${Number(c.cell_reselection_types_supported ?? 0)}`);
+          lines.push(`${prefix}neighbor_cell_synchronized = ${c.neighbor_cell_synchronized ? "true" : "false"}`);
+          lines.push(`${prefix}cell_load_ca = ${Number(c.cell_load_ca ?? 0)}`);
+          lines.push(`${prefix}main_carrier_number = ${Number(c.main_carrier_number ?? 0)}`);
+          lines.push(`${prefix}mcc = ${Number(c.mcc ?? 0)}`);
+          lines.push(`${prefix}mnc = ${Number(c.mnc ?? 0)}`);
+          lines.push(`${prefix}location_area = ${Number(c.location_area ?? 0)}`);
+        });
+      }
+    }
     // net_info section
     const mcc = el("mccVal").value.trim();
     const mnc = el("mncVal").value.trim();
@@ -2101,26 +2121,6 @@
       if (el("enableWhitelist").checked && el("brewWhitelist").value.trim()){
         const ssis = el("brewWhitelist").value.trim().split(",").map(s => s.trim()).filter(Boolean);
         lines.push(`whitelisted_ssis = [${ssis.join(", ")}]`);
-      }
-    }
-    // Neighbor Cells — emit blocks before [net_info]/[brew]/[security]
-    {
-      const ncells = getNeighborCells();
-      if (ncells.length > 0) {
-        const ncEnabled = el("enableNeighborCells").checked;
-        const prefix = ncEnabled ? "" : "# ";
-        ncells.forEach(c => {
-          lines.push("");
-          lines.push(`${prefix}[[cell_info.neighbor_cells_ca]]`);
-          lines.push(`${prefix}cell_identifier_ca = ${Number(c.cell_identifier_ca ?? 0)}`);
-          lines.push(`${prefix}cell_reselection_types_supported = ${Number(c.cell_reselection_types_supported ?? 0)}`);
-          lines.push(`${prefix}neighbor_cell_synchronized = ${c.neighbor_cell_synchronized ? "true" : "false"}`);
-          lines.push(`${prefix}cell_load_ca = ${Number(c.cell_load_ca ?? 0)}`);
-          lines.push(`${prefix}main_carrier_number = ${Number(c.main_carrier_number ?? 0)}`);
-          lines.push(`${prefix}mcc = ${Number(c.mcc ?? 0)}`);
-          lines.push(`${prefix}mnc = ${Number(c.mnc ?? 0)}`);
-          lines.push(`${prefix}location_area = ${Number(c.location_area ?? 0)}`);
-        });
       }
     }
     // Security whitelist (digits only — invalid tokens silently dropped)
@@ -2513,10 +2513,11 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
       // ── Local SSI Ranges (loads ranges even when commented/disabled)
       const ssiEnabled = !!data.cell_info.ssi_ranges_enabled;
+      // Always clear stale rows so a config without ranges leaves UI empty
+      el("ssiRangesList").innerHTML = "";
       el("enableSsiRanges").checked = ssiEnabled;
-      el("enableSsiRanges").dispatchEvent(new Event("change"));
+      el("ssiRangesContainer").style.display = ssiEnabled ? "block" : "none";
       if (data.cell_info.local_ssi_ranges && data.cell_info.local_ssi_ranges.length > 0) {
-        el("ssiRangesList").innerHTML = "";
         data.cell_info.local_ssi_ranges.forEach(r => addSsiRangeRow(r.start, r.end));
       }
 
@@ -2540,15 +2541,19 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       // ── Neighbor Cells (loads cells even when commented/disabled)
       const ncellsList = (data.cell_info && Array.isArray(data.cell_info.neighbor_cells)) ? data.cell_info.neighbor_cells : [];
       const ncellsEnabled = !!(data.cell_info && data.cell_info.neighbor_cells_enabled);
+      // Always clear stale rows before repopulating to avoid leaking previous-load state into apply
+      el("ncellsList").innerHTML = "";
+      ncellsAutoIdx = 0;
       el("enableNeighborCells").checked = ncellsEnabled;
-      el("enableNeighborCells").dispatchEvent(new Event("change"));
+      // Avoid the change-listener auto-adding a default row when we have loaded data
+      el("ncellsContainer").style.display = ncellsEnabled ? "block" : "none";
       if (ncellsList.length > 0) {
-        el("ncellsList").innerHTML = "";
-        ncellsAutoIdx = 0;
         el("ncellsCount").value = String(ncellsList.length);
         ncellsList.forEach(c => addNeighborCellRow(c));
-        updateTomlFromNew();
+      } else {
+        el("ncellsCount").value = "1";
       }
+      updateTomlFromNew();
 
       // ── [security] section (dispatch change so TOML preview rebuilds with loaded values)
       if (data.security) {
