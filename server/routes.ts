@@ -706,6 +706,284 @@ ${restartLine}
     });
   });
 
+  // ─── Flowstation install / update / check ───────────────────────────────────
+  const FLOW_DIR_DEFAULT = "/root/flowstation";
+  const FLOW_SERVICE = "flowstation.service";
+  const FLOW_REPO = "razvanzeces/flowstation";
+  const FLOW_SERVICE_FILE = `[Unit]
+Description=Tetra Flowstation
+After=network.target
+
+[Service]
+Type=simple
+CPUSchedulingPolicy=fifo
+CPUSchedulingPriority=73
+WorkingDirectory=/root/flowstation
+ExecStart=/root/flowstation/target/release/bluestation-bs /root/flowstation/config.toml
+
+StandardOutput=journal
+StandardError=journal
+
+Restart=always
+RestartSec=2
+KillSignal=SIGINT
+
+[Install]
+WantedBy=multi-user.target
+`;
+
+  app.get("/api/flowstation/check", (req, res) => {
+    const dir = ((req.query.dir as string) || FLOW_DIR_DEFAULT).replace(/[;&|`$]/g, "");
+    const installed = fs.existsSync(dir);
+    if (!installed) return res.json({ demo: false, dirNotFound: true });
+    try { execSync("which git", { timeout: 2000 }); } catch { return res.json({ demo: true }); }
+
+    let localHash = "";
+    try {
+      localHash = execSync(`git -C "${dir}" rev-parse HEAD 2>/dev/null`, { timeout: 5000 }).toString().trim();
+    } catch { return res.json({ demo: true }); }
+
+    let remoteHash = "";
+    try {
+      const lsOut = execSync(`git ls-remote https://github.com/${FLOW_REPO}.git main`, { timeout: 15000 }).toString();
+      remoteHash = lsOut.split(/\s+/)[0].trim();
+    } catch (err) {
+      return res.json({
+        demo: false, dirNotFound: false, upToDate: false,
+        localHash: localHash.substring(0, 8), remoteHash: "??????",
+        remoteMessage: "No se pudo contactar GitHub", remoteDate: "", remoteAuthor: "",
+        apiError: String(err).substring(0, 160),
+      });
+    }
+
+    let remoteMessage = "", remoteDate = "", remoteAuthor = "";
+    try {
+      const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
+      const raw = execSync(
+        `curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/${FLOW_REPO}/commits/main"`,
+        { timeout: 10000 }
+      ).toString();
+      const data = JSON.parse(raw);
+      remoteMessage = (data.commit?.message || "").split("\n")[0];
+      remoteDate = data.commit?.author?.date || "";
+      remoteAuthor = data.commit?.author?.name || "";
+    } catch { remoteMessage = "(detalles no disponibles)"; }
+
+    res.json({
+      upToDate: localHash === remoteHash,
+      localHash: localHash.substring(0, 8),
+      remoteHash: remoteHash.substring(0, 8),
+      remoteMessage, remoteDate, remoteAuthor,
+      demo: false, dirNotFound: false,
+    });
+  });
+
+  app.post("/api/flowstation/install", (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ message: "Contraseña incorrecta" });
+    }
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("Cache-Control", "no-cache");
+    res.flushHeaders();
+
+    const serviceFileEscaped = FLOW_SERVICE_FILE.replace(/'/g, "'\\''");
+    const script = `
+set -e
+cd /root
+if [ -d /root/flowstation ]; then
+  echo "=== Existing /root/flowstation found — removing for clean install ==="
+  sudo rm -rf /root/flowstation
+fi
+echo "=== git clone https://github.com/${FLOW_REPO} ==="
+sudo git clone https://github.com/${FLOW_REPO}
+sudo chown -R root:root /root/flowstation
+cd /root/flowstation
+[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env" || true
+[ -f /root/.cargo/env ] && . /root/.cargo/env || true
+echo ""
+echo "=== cargo build --release (esto tarda varios minutos) ==="
+sudo bash -lc 'cd /root/flowstation && [ -f /root/.cargo/env ] && . /root/.cargo/env; cargo build --release'
+echo ""
+echo "=== Copiando example_config/config.toml -> config.toml ==="
+sudo cp example_config/config.toml config.toml
+echo ""
+echo "=== Creando /etc/systemd/system/${FLOW_SERVICE} ==="
+sudo bash -c 'cat > /etc/systemd/system/${FLOW_SERVICE} <<'\\''EOF'\\''
+${serviceFileEscaped}EOF'
+sudo systemctl daemon-reload
+echo ""
+echo "=== Instalación completada ==="
+echo "Para activar Flowstation usa el selector de estación en la barra de navegación."
+`;
+    const child = spawn("bash", ["-c", script]);
+    child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
+    child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
+    child.on("close", (code: number) => { res.write(`\n[Exit: ${code}]\n`); res.end(); });
+    child.on("error", (err: Error) => { res.write(`\n[Error: ${err.message}]\n`); res.end(); });
+  });
+
+  app.post("/api/flowstation/apply", (req, res) => {
+    const { password, dir = FLOW_DIR_DEFAULT, serviceName = FLOW_SERVICE } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ message: "Contraseña incorrecta" });
+    }
+    const cleanDir = (dir as string).replace(/[;&|`$]/g, "");
+    const cleanService = (serviceName as string).replace(/[;&|`$\s]/g, "");
+    if (!fs.existsSync(cleanDir)) {
+      return res.status(400).json({ message: "flowstation_dir_not_found" });
+    }
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("Cache-Control", "no-cache");
+    res.flushHeaders();
+
+    const restartLine = cleanService
+      ? `if systemctl is-active --quiet ${cleanService}; then echo "=== Reiniciando ${cleanService}... ===" && sudo systemctl restart ${cleanService}; else echo "(${cleanService} no activo — no se reinicia)"; fi`
+      : `echo "No service configured."`;
+
+    const script = `
+set -e
+cd "${cleanDir}"
+echo "=== git pull ==="
+sudo git pull
+echo ""
+echo "=== cargo build --release ==="
+sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env; cargo build --release'
+echo ""
+${restartLine}
+`;
+    const child = spawn("bash", ["-c", script], { cwd: cleanDir });
+    child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
+    child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
+    child.on("close", (code: number) => { res.write(`\n[Exit: ${code}]\n`); res.end(); });
+    child.on("error", (err: Error) => { res.write(`\n[Error: ${err.message}]\n`); res.end(); });
+  });
+
+  // ─── Active station selector (Bluestation / Flowstation) ────────────────────
+  const ACTIVE_STATION_PATH = path.join(process.cwd(), "active-station.json");
+  type StationName = "bluestation" | "flowstation";
+  const STATION_SERVICE: Record<StationName, string> = {
+    bluestation: "tmo.service",
+    flowstation: "flowstation.service",
+  };
+  const STATION_DIR: Record<StationName, string> = {
+    bluestation: "/root/tetra-bluestation",
+    flowstation: "/root/flowstation",
+  };
+  const STATION_CONFIG_PATH: Record<StationName, string> = {
+    bluestation: "/root/tetra-bluestation/config.toml",
+    flowstation: "/root/flowstation/config.toml",
+  };
+
+  function readActiveStation(): StationName {
+    try {
+      const data = JSON.parse(fs.readFileSync(ACTIVE_STATION_PATH, "utf-8"));
+      if (data.station === "bluestation" || data.station === "flowstation") return data.station;
+    } catch {}
+    return "bluestation";
+  }
+
+  function serviceState(name: string): { exists: boolean; active: boolean; enabled: boolean } {
+    let exists = false, active = false, enabled = false;
+    try {
+      const out = execSync(`systemctl list-unit-files ${name} --no-pager --no-legend 2>/dev/null`, { timeout: 4000 }).toString().trim();
+      if (out && out.includes(name)) exists = true;
+    } catch {}
+    if (!exists) {
+      // Fallback: check if file exists directly
+      exists = fs.existsSync(`/etc/systemd/system/${name}`) || fs.existsSync(`/lib/systemd/system/${name}`);
+    }
+    if (exists) {
+      try {
+        const a = execSync(`systemctl is-active ${name} 2>/dev/null`, { timeout: 4000 }).toString().trim();
+        active = a === "active";
+      } catch {}
+      try {
+        const e = execSync(`systemctl is-enabled ${name} 2>/dev/null`, { timeout: 4000 }).toString().trim();
+        enabled = e === "enabled" || e === "alias" || e === "static";
+      } catch {}
+    }
+    return { exists, active, enabled };
+  }
+
+  app.get("/api/station/active", (_req, res) => {
+    const blue = serviceState(STATION_SERVICE.bluestation);
+    const flow = serviceState(STATION_SERVICE.flowstation);
+    const flowInstalled = fs.existsSync(STATION_DIR.flowstation);
+    const blueInstalled = fs.existsSync(STATION_DIR.bluestation);
+    const persisted = readActiveStation();
+    // The "real" active station is the one whose service is active (overrides persisted)
+    let detected: StationName = persisted;
+    if (blue.active && !flow.active) detected = "bluestation";
+    else if (flow.active && !blue.active) detected = "flowstation";
+    res.json({
+      station: detected,
+      persisted,
+      services: {
+        bluestation: { ...blue, installed: blueInstalled, dir: STATION_DIR.bluestation, configPath: STATION_CONFIG_PATH.bluestation, service: STATION_SERVICE.bluestation },
+        flowstation: { ...flow, installed: flowInstalled, dir: STATION_DIR.flowstation, configPath: STATION_CONFIG_PATH.flowstation, service: STATION_SERVICE.flowstation },
+      },
+    });
+  });
+
+  app.post("/api/station/switch", (req, res) => {
+    const { password, station } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ message: "Contraseña incorrecta" });
+    }
+    if (station !== "bluestation" && station !== "flowstation") {
+      return res.status(400).json({ message: "Estación no válida" });
+    }
+    const target = station as StationName;
+    const other: StationName = target === "bluestation" ? "flowstation" : "bluestation";
+    const targetService = STATION_SERVICE[target];
+    const otherService = STATION_SERVICE[other];
+
+    const log: string[] = [];
+    function run(cmd: string) {
+      try {
+        const out = execSync(cmd + " 2>&1", { timeout: 15000 }).toString().trim();
+        log.push(`$ ${cmd}\n${out}`);
+        return true;
+      } catch (e: any) {
+        log.push(`$ ${cmd}\n[fail] ${e?.stderr?.toString() || e?.stdout?.toString() || e?.message || "error"}`);
+        return false;
+      }
+    }
+
+    // Stop+disable other (ignore failures — service may not exist)
+    run(`sudo systemctl disable ${otherService}`);
+    run(`sudo systemctl stop ${otherService}`);
+
+    // Verify target service exists before enabling
+    const tgState = serviceState(targetService);
+    if (!tgState.exists) {
+      return res.status(400).json({
+        message: target === "flowstation"
+          ? "Flowstation aún no está instalado. Pulsa 'Instalar Flowstation' primero."
+          : `Servicio ${targetService} no encontrado.`,
+        log: log.join("\n\n"),
+      });
+    }
+
+    const enabled = run(`sudo systemctl enable ${targetService}`);
+    const started = run(`sudo systemctl start ${targetService}`);
+
+    try {
+      fs.writeFileSync(ACTIVE_STATION_PATH, JSON.stringify({ station: target }, null, 2));
+    } catch {}
+
+    res.json({
+      ok: started,
+      station: target,
+      service: targetService,
+      configPath: STATION_CONFIG_PATH[target],
+      log: log.join("\n\n"),
+    });
+  });
+
   // ─── WiFi endpoints ─────────────────────────────────────────────────────────
 
   app.post("/api/wifi/check-password", (req, res) => {
