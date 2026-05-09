@@ -80,7 +80,7 @@ export function StationSwitcher() {
         body: JSON.stringify({ password, station: target }),
       });
       const j = await r.json();
-      if (!r.ok) {
+      if (!r.ok || !j.ok) {
         setErr(j.message || t("station_switch_error"));
         if (j.log) setLogOut(j.log);
         setBusy(false);
