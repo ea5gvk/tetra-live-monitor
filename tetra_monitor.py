@@ -367,6 +367,31 @@ class TetraMonitor:
                 t["time_slot"] = None
                 emit("update_terminal", self._terminal_to_dict(tid))
 
+    def _restore_selected(self, issi, orig_selected):
+        """After a private call ends, restore the terminal's selected TG."""
+        t = self.terminals.get(issi)
+        if not t:
+            return
+        # If we had a real TG before the private call, restore it
+        if orig_selected and not str(orig_selected).startswith("PRIV"):
+            t["selected"] = orig_selected
+        elif t.get("groups"):
+            # Fall back to first TG in the scanlist
+            t["selected"] = str(t["groups"][0])
+        else:
+            t["selected"] = "---"
+
+    def _end_private_call(self, pc):
+        """Clear activity for both ends of a private call and restore their selected TG."""
+        src, dst = pc["src"], pc["dst"]
+        for issi, orig_key in [(src, "orig_src_selected"), (dst, "orig_dst_selected")]:
+            if issi in self.terminals:
+                self.terminals[issi]["activity"] = None
+                self.terminals[issi]["activity_tg"] = None
+                self.terminals[issi]["time_slot"] = None
+                self._restore_selected(issi, pc.get(orig_key))
+                emit("update_terminal", self._terminal_to_dict(issi))
+
     def emit_full_state(self):
         terminals = {}
         for tid in self.terminals:
@@ -474,7 +499,15 @@ class TetraMonitor:
             if p2p_match:
                 s_issi, d_issi, call_id = p2p_match.groups()
                 self.last_active = s_issi
-                self.private_calls[call_id] = {"src": s_issi, "dst": d_issi}
+
+                # Save original selected before overwriting
+                orig_src_sel = self.terminals[s_issi].get("selected") if s_issi in self.terminals else None
+                orig_dst_sel = self.terminals[d_issi].get("selected") if d_issi in self.terminals else None
+                self.private_calls[call_id] = {
+                    "src": s_issi, "dst": d_issi,
+                    "orig_src_selected": orig_src_sel,
+                    "orig_dst_selected": orig_dst_sel,
+                }
 
                 # Register src terminal
                 if s_issi not in self.terminals:
@@ -564,7 +597,15 @@ class TetraMonitor:
             if brew_p2p_match:
                 uuid, call_id, s_issi, d_issi = brew_p2p_match.groups()
                 self.brew_circuits[uuid] = call_id
-                self.private_calls[call_id] = {"src": s_issi, "dst": d_issi}
+
+                # Save original selected before overwriting
+                orig_src_sel = self.terminals[s_issi].get("selected") if s_issi in self.terminals else None
+                orig_dst_sel = self.terminals[d_issi].get("selected") if d_issi in self.terminals else None
+                self.private_calls[call_id] = {
+                    "src": s_issi, "dst": d_issi,
+                    "orig_src_selected": orig_src_sel,
+                    "orig_dst_selected": orig_dst_sel,
+                }
 
                 # Register src terminal (external, on another BS)
                 if s_issi not in self.terminals:
@@ -699,12 +740,7 @@ class TetraMonitor:
                 call_id = udisconn_m.group(1)
                 if call_id in self.private_calls:
                     pc = self.private_calls.pop(call_id)
-                    for issi in [pc["src"], pc["dst"]]:
-                        if issi in self.terminals and self.terminals[issi].get("activity"):
-                            self.terminals[issi]["activity"] = None
-                            self.terminals[issi]["activity_tg"] = None
-                            self.terminals[issi]["time_slot"] = None
-                            emit("update_terminal", self._terminal_to_dict(issi))
+                    self._end_private_call(pc)
                 return
 
             # 3c. NETWORK PRIVATE CALL END via BrewEntity CIRCUIT CALL RELEASE uuid=
@@ -717,12 +753,7 @@ class TetraMonitor:
                 call_id = self.brew_circuits.pop(uuid, None)
                 if call_id and call_id in self.private_calls:
                     pc = self.private_calls.pop(call_id)
-                    for issi in [pc["src"], pc["dst"]]:
-                        if issi in self.terminals and self.terminals[issi].get("activity"):
-                            self.terminals[issi]["activity"] = None
-                            self.terminals[issi]["activity_tg"] = None
-                            self.terminals[issi]["time_slot"] = None
-                            emit("update_terminal", self._terminal_to_dict(issi))
+                    self._end_private_call(pc)
                 return
 
             # 4. REGISTRATION (ULocationUpdateDemand / ItsiAttach)
