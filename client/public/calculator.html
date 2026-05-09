@@ -1752,6 +1752,130 @@
       apply_success: "\u2705 Configuratie toegepast. TMO herstarten...",
       apply_error: "\u26a0\ufe0f Fout: {msg}",
       apply_sending: "Wijzigingen toepassen..."
+    },
+    ro: {
+      title: "Calculator de frecvențe TETRA",
+      subtitle: "ETSI TS 100 392-15: bază/referință de bandă, mapare duplex spacing, raster 25 kHz + offset.",
+      theme_dark: "Întunecat",
+      theme_light: "Luminos",
+      input: "Intrare",
+      output: "Rezultat",
+      freq_band: "Banda de frecvență",
+      band_hint: "Benzile 3/4/8 urmează ETSI Table 1 bază/referință: 300/400/800 MHz.",
+      base_ref: "Frecvență de bază/referință",
+      base_hint: "Folosit pentru: bază + main_carrier×25k + freq_offset.",
+      tx_label: "TX (Downlink / BS Tx)",
+      tx_hint: "Lipiți Hz întregi sau zecimale în MHz.",
+      rx_label: "RX (Uplink / MS Tx) (opțional)",
+      rx_hint: "Dacă este completat, programul calculează duplex_spacing + reverse_operation din |TX-RX|.",
+      offset_label: "Selecție freq_offset",
+      offset_auto: "Automat (cea mai bună potrivire)",
+      offset_hint: "Offset-ul se aplică după main_carrier. Un offset fix actualizează TX la bază + main_carrier×25k + offset (și recalculează).",
+      duplex_label: "duplex_spacing (cod ETSI Table 2)",
+      reverse_label: "reverse_operation",
+      reverse_false: "false (UL sub DL / normal)",
+      reverse_true: "true (UL peste DL / inversat)",
+      reverse_hint: "Dacă RX este completat, această valoare este suprascrisă de RX>TX.",
+      custom_label: "custom_duplex_spacing (doar când duplex_spacing=7 / 1112)",
+      custom_hint: "ETSI NOTE 3: 1112 înseamnă duplex spacing nedefinit; trebuie cunoscut pe altă cale.",
+      calc: "Calculează",
+      swap: "Schimbă TX/RX",
+      sample1: "Exemplu (bandă de amatori: 438.025 / 433.025)",
+      out_tx: "tx_freq (Hz)",
+      out_rx: "rx_freq (Hz)",
+      out_main: "main_carrier",
+      out_offset: "freq_offset (Hz)",
+      out_duplex: "duplex_spacing",
+      out_reverse: "reverse_operation",
+      pill_base: "bază",
+      pill_raster: "raster",
+      pill_offsets: "set offset",
+      copy: "Copiază fragmentul de configurare",
+      note: "Dacă TX nu poate fi reprezentat exact cu raster 25 kHz + offset-uri permise, programul afișează un avertisment și o aproximare.",
+      status_need_tx: "Introduceți frecvența TX.",
+      status_reserved: "duplex_spacing={idx} (IE {code}) este rezervat pentru bază={baseHz} (ETSI NOTE 1). Alegeți un cod valid sau introduceți RX direct.",
+      status_need_custom: "Dacă duplex_spacing=7 (1112), introduceți custom_duplex_spacing pentru a calcula RX.",
+      status_custom_positive: "custom_duplex_spacing trebuie să fie un număr pozitiv.",
+      warn_header: "\u26a0\ufe0f",
+      done: "\u2705 Gata. |TX-RX| = {spacing} Hz",
+      warn_no_match: "|TX-RX|={spacing} Hz nu se potrivește cu un duplex spacing predefinit din ETSI Table 2 (bază={baseHz}). Setat la duplex_spacing=7 (1112) cu custom_duplex_spacing={spacing}.",
+      warn_tx_approx: "TX nu poate fi reprezentat exact cu raster 25 kHz + offset-uri permise; eroare ≈ {err} Hz",
+      warn_fixed_offset_mismatch: "Cu freq_offset fix={off}, TX nu este pe rasterul de 25 kHz: eroare ≈ {err} Hz (s-a ales main_carrier-ul cel mai apropiat).",
+      copied: "\u2705 Copiat în clipboard.",
+      copied_fallback: "\u2705 Copiat în clipboard (fallback).",
+      copy_fail: "\u26a0\ufe0f Nu se poate copia automat. Selectați și copiați manual.",
+      duplex_hint_ok: "bandă {band} / bază {baseHz}: duplex_spacing={idx} (IE {code}) → {mhz} MHz",
+      duplex_hint_reserved: "bandă {band} / bază {baseHz}: duplex_spacing={idx} (IE {code}) este rezervat (ETSI NOTE 1). Introduceți RX sau folosiți duplex_spacing=7 cu custom spacing.",
+      duplex_hint_custom: "bandă {band} / bază {baseHz}: duplex_spacing={idx} (IE {code}) este nedefinit (ETSI NOTE 3 / 1112). Introduceți custom_duplex_spacing pentru a calcula RX.",
+      net_info_title: "🌐 Informații de rețea [net_info]",
+      mcc_label: "MCC (Cod de Țară Mobil)",
+      mcc_hint: "Cod de țară, ex. 226=România, 214=Spania",
+      mnc_label: "MNC (Cod de Rețea Mobilă)",
+      mnc_hint: "Cod de rețea TETRA. Asigurați utilizarea legală.",
+      location_area_label: "location_area",
+      colour_code_label: "colour_code (0–63)",
+      system_code_label: "system_code (0–15)",
+      ssi_ranges_title: "🔒 Intervale SSI Locale",
+      ssi_ranges_enable: "Activează local_ssi_ranges",
+      ssi_ranges_hint: "Traficul intervalelor SSI locale rămâne în această celulă. Sfârșitul intervalului este exclusiv. Suprascrie setările Brew dacă este activat.",
+      ssi_add_range: "+ Adaugă interval",
+      ssi_start: "Start SSI",
+      ssi_end: "Sfârșit SSI (exclusiv)",
+      cell_params_title: "📍 Parametri celulă",
+      timezone_enable: "Activează difuzarea fusului orar",
+      timezone_hint: "Difuzează ora UTC și offset-ul local o dată per super-hyperframe (~61 s). DST este gestionat automat.",
+      timezone_label: "Fus orar (IANA)",
+      brew_title: "🍺 Protocol Homebrew [brew]",
+      brew_enable: "Activează conexiunea Brew",
+      brew_hint: "Activează conexiunea către un repetor Homebrew/DMR+. Scrie secțiunea [brew] în config.toml.",
+      brew_host: "Host",
+      brew_port: "Port",
+      brew_username: "Utilizator (SSID: DMR ID + sufix de 2 cifre)",
+      brew_password: "Parolă",
+      brew_tls: "TLS (wss:// / https://)",
+      brew_reconnect: "reconnect_delay_secs",
+      brew_whitelist_enable: "Activează whitelisted_ssis",
+      brew_whitelist_label: "whitelisted_ssis (separate prin virgulă)",
+      brew_whitelist_hint: "Doar SSI-urile listate vor fi transmise prin Brew. Lăsați gol pentru a permite toate.",
+      security_title: "🔒 Securitate - Listă albă [security]",
+      security_enable: "Activează lista albă ISSI",
+      security_hint: "Dacă este dezactivat, ambele linii sunt scrise ca comentarii. Dacă este activat, doar ISSI-urile listate se pot conecta.",
+      security_whitelist_label: "issi_whitelist (separate prin virgulă)",
+      security_whitelist_hint: "Listă de ISSI-uri permise, ex.: 1030299, 1030036, 2145007",
+      ncells_title: "🏘️ Celule vecine [[cell_info.neighbor_cells_ca]]",
+      ncells_enable: "Activează celule vecine",
+      ncells_hint: "Dacă este dezactivat, blocurile sunt scrise ca comentarii. cell_identifier_ca și location_area trebuie să fie unice pentru fiecare celulă.",
+      ncells_count: "Număr de celule",
+      ncells_apply_count: "Aplică",
+      ncells_add: "+ Adaugă celulă",
+      ncells_cell: "Celulă",
+      tg_names_title: "📡 Nume Talkgroup",
+      tg_names_hint: "Obține nume TG de la Brandmeister sau ADN Systems și afișează-le lângă numere în monitor.",
+      tg_source_label: "Sursă:",
+      tg_load_btn: "ÎNCARCĂ NUME",
+      tg_clear_btn: "ȘTERGE",
+      tg_loading: "Se încarcă...",
+      tg_custom_subtitle: "NUME PERSONALIZATE",
+      tg_custom_hint: "Adaugă nume TG personalizate. Numele personalizate au prioritate față de BM/ADN.",
+      tg_custom_add: "ADAUGĂ",
+      tg_custom_none: "Fără nume personalizate.",
+      tg_custom_clear: "ȘTERGE TOATE",
+      apply_title: "Aplică pe Raspberry Pi",
+      config_path_label: "Calea către config.toml pe Raspberry Pi",
+      config_path_hint: "Calea completă către fișierul de configurare TOML pe Raspberry Pi.",
+      apply_password_label: "Parola sistemului",
+      apply_password_hint: "Parolă configurată în config.json al monitorului.",
+      apply_btn: "APLICĂ MODIFICĂRI & REPORNEȘTE TMO",
+      load_btn: "ÎNCARCĂ DIN CONFIG.TOML",
+      service_name_label: "Nume serviciu TMO",
+      service_name_hint: "Numele serviciului care va fi repornit după aplicarea modificărilor (ex. tmo.service).",
+      apply_need_calc: "Calculați mai întâi frecvențele.",
+      apply_need_path: "Introduceți calea către fișierul config.toml.",
+      apply_need_service: "Introduceți numele serviciului.",
+      apply_need_password: "Introduceți parola sistemului.",
+      apply_success: "\u2705 Configurare aplicată. Repornire TMO...",
+      apply_error: "\u26a0\ufe0f Eroare: {msg}",
+      apply_sending: "Se aplică modificările..."
     }
   };
 
@@ -1780,7 +1904,7 @@
   }
 
   function applyI18n(){
-    const langMap = { en: "en", es: "es", zh: "zh-Hant-TW", pt: "pt", de: "de", fr: "fr", it: "it", da: "da", nl: "nl" };
+    const langMap = { en: "en", es: "es", zh: "zh-Hant-TW", pt: "pt", de: "de", fr: "fr", it: "it", da: "da", nl: "nl", ro: "ro" };
     document.documentElement.lang = langMap[state.lang] || "en";
     document.querySelectorAll("[data-i18n]").forEach(node=>{
       const key = node.getAttribute("data-i18n");
@@ -1796,14 +1920,15 @@
       fr: { tx: "ex. 431.7375 ou 431737500", rx: "optionnel ; d\u00e9river du duplex spacing", cd: "ex. 10 ou 10000000" },
       it: { tx: "es. 431.7375 o 431737500", rx: "opzionale; derivare dal duplex spacing", cd: "es. 10 o 10000000" },
       da: { tx: "f.eks. 431.7375 eller 431737500", rx: "valgfri; udled fra duplex spacing", cd: "f.eks. 10 eller 10000000" },
-      nl: { tx: "bijv. 431.7375 of 431737500", rx: "optioneel; afleiden uit duplex spacing", cd: "bijv. 10 of 10000000" }
+      nl: { tx: "bijv. 431.7375 of 431737500", rx: "optioneel; afleiden uit duplex spacing", cd: "bijv. 10 of 10000000" },
+      ro: { tx: "ex. 431.7375 sau 431737500", rx: "opțional; calculat din duplex spacing", cd: "ex. 10 sau 10000000" }
     };
     const ph = placeholders[state.lang] || placeholders.en;
     document.getElementById("txVal").placeholder = ph.tx;
     document.getElementById("rxVal").placeholder = ph.rx;
     document.getElementById("customDuplexVal").placeholder = ph.cd;
 
-    const langLabels = { en: "EN", es: "ES", zh: "中文", pt: "PT", de: "DE", fr: "FR", it: "IT", da: "DA", nl: "NL" };
+    const langLabels = { en: "EN", es: "ES", zh: "中文", pt: "PT", de: "DE", fr: "FR", it: "IT", da: "DA", nl: "NL", ro: "RO" };
     document.getElementById("langLabel").textContent = langLabels[state.lang] || "EN";
     document.getElementById("themeLabel").textContent = (state.theme === "light") ? t("theme_light") : t("theme_dark");
 
@@ -1820,7 +1945,7 @@
   }
 
   function toggleLang(){
-    const cycle = { en: "es", es: "zh", zh: "pt", pt: "de", de: "fr", fr: "it", it: "da", da: "nl", nl: "en" };
+    const cycle = { en: "es", es: "zh", zh: "pt", pt: "de", de: "fr", fr: "it", it: "da", da: "nl", nl: "ro", ro: "en" };
     state.lang = cycle[state.lang] || "en";
     localStorage.setItem(STORAGE_KEYS.lang, state.lang);
     applyI18n();
