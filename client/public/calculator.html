@@ -2686,6 +2686,23 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       localStorage.setItem(STORAGE_KEYS.lang, state.lang);
       applyI18n();
     }
+    if (e.data && e.data.type === "setStation" && (e.data.station === "bluestation" || e.data.station === "flowstation")) {
+      var newCfg = (e.data.configPath || "").trim();
+      var newSvc = (e.data.serviceName || "").trim();
+      if (newCfg) {
+        el("configPathVal").value = newCfg;
+        try { localStorage.setItem(STORAGE_KEYS.configPath, newCfg); } catch(_){}
+      }
+      if (newSvc) {
+        el("serviceNameVal").value = newSvc;
+        try { localStorage.setItem(STORAGE_KEYS.serviceName, newSvc); } catch(_){}
+      }
+      // Try auto-load the new config (silent — no password needed for read)
+      try {
+        var btn = el("loadConfigBtn");
+        if (btn) btn.click();
+      } catch(_){}
+    }
   });
 
   // init
