@@ -35,6 +35,10 @@ export const api = {
       method: 'POST' as const,
       path: '/api/system/restart-service' as const,
     },
+    verifyPassword: {
+      method: 'POST' as const,
+      path: '/api/system/verify-password' as const,
+    },
   },
 };
 
