@@ -23,7 +23,7 @@ A real-time TETRA radio network monitoring dashboard. The app displays active te
 - `shared/schema.ts` — Shared TypeScript types
 
 ## Internationalization (i18n)
-- **Supported languages**: English (EN), Spanish (ES), Chinese (ZH), Portuguese (PT), German (DE), French (FR), Italian (IT)
+- **Supported languages**: English (EN), Spanish (ES), Chinese (ZH), Portuguese (PT), German (DE), French (FR), Italian (IT), Danish (DA), Dutch (NL), Romanian (RO)
 - **Default language**: Spanish (ES)
 - **Storage**: localStorage key `tetra_dashboard_lang`
 - **Dashboard**: React Context + `useI18n` hook in `client/src/lib/i18n.ts`
