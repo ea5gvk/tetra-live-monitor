@@ -516,6 +516,26 @@
   </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
+      <h2 data-i18n="security_title">🔒 Security - Whitelist [security]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableSecurity" />
+            <label for="enableSecurity" data-i18n="security_enable">Enable ISSI whitelist</label>
+          </div>
+          <div class="hint" data-i18n="security_hint">If disabled, both lines are written as comments. If enabled, only listed ISSIs can connect.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="securityFields" style="margin-top:10px;">
+        <label for="securityWhitelist" data-i18n="security_whitelist_label">issi_whitelist (comma-separated)</label>
+        <input id="securityWhitelist" type="text" placeholder="1030299, 1030036, 2145007" />
+        <div class="hint" data-i18n="security_whitelist_hint">List of allowed ISSIs, e.g.: 1030299, 1030036, 2145007</div>
+      </div>
+    </section>
+  </div>
+  <div style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
       <h2 data-i18n="tg_names_title">📡 Talkgroup Names</h2>
       <div class="hint" data-i18n="tg_names_hint">Fetch TG names from Brandmeister or ADN Systems and display them next to TG numbers in the dashboard monitor.</div>
       <div style="margin-top:14px; display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
@@ -675,6 +695,11 @@
       brew_whitelist_enable: "Enable whitelisted_ssis",
       brew_whitelist_label: "whitelisted_ssis (comma-separated)",
       brew_whitelist_hint: "Only listed SSIs will be transmitted over Brew. Leave empty to allow all.",
+      security_title: "🔒 Security - Whitelist [security]",
+      security_enable: "Enable ISSI whitelist",
+      security_hint: "If disabled, both lines are written as comments. If enabled, only listed ISSIs can connect.",
+      security_whitelist_label: "issi_whitelist (comma-separated)",
+      security_whitelist_hint: "List of allowed ISSIs, e.g.: 1030299, 1030036, 2145007",
       tg_names_title: "📡 Talkgroup Names",
       tg_names_hint: "Fetch TG names from Brandmeister or ADN Systems and display them next to TG numbers in the dashboard monitor.",
       tg_source_label: "Source:",
@@ -787,6 +812,11 @@
       brew_whitelist_enable: "啟用白名單 SSI",
       brew_whitelist_label: "whitelisted_ssis（逗號分隔）",
       brew_whitelist_hint: "只有列出的 SSI 才會通過 Brew 傳輸。留空表示允許所有。",
+      security_title: "🔒 安全 - 白名單 [security]",
+      security_enable: "啟用 ISSI 白名單",
+      security_hint: "禁用時，兩行均寫為註釋。啟用時，僅列出的 ISSI 可連接。",
+      security_whitelist_label: "issi_whitelist（逗號分隔）",
+      security_whitelist_hint: "允許的 ISSI 列表，例如：1030299, 1030036, 2145007",
       tg_names_title: "📡 群組名稱",
       tg_names_hint: "從 Brandmeister 或 ADN Systems 擷取 TG 名稱，並在監控面板中顯示於 TG 號碼旁。",
       tg_source_label: "來源：",
@@ -899,6 +929,11 @@
       brew_whitelist_enable: "Activar lista blanca de SSIs",
       brew_whitelist_label: "whitelisted_ssis (separados por coma)",
       brew_whitelist_hint: "Solo los SSIs listados se transmitirán por Brew. Dejar vacío para permitir todos.",
+      security_title: "🔒 Seguridad - Lista Blanca [security]",
+      security_enable: "Activar lista blanca de ISSI",
+      security_hint: "Si está desactivada, ambas líneas se escriben como comentario. Si se activa, solo las ISSI listadas pueden conectarse.",
+      security_whitelist_label: "issi_whitelist (separadas por coma)",
+      security_whitelist_hint: "Lista de ISSI permitidas, ej: 1030299, 1030036, 2145007",
       tg_names_title: "📡 Nombres de Grupos de Conversación",
       tg_names_hint: "Obtén nombres de TG desde Brandmeister o ADN Systems y muéstralos junto al número en el monitor.",
       tg_source_label: "Fuente:",
@@ -1011,6 +1046,11 @@
       brew_whitelist_enable: "Ativar lista branca de SSIs",
       brew_whitelist_label: "whitelisted_ssis (separados por vírgula)",
       brew_whitelist_hint: "Apenas os SSIs listados serão transmitidos pelo Brew. Deixar vazio para permitir todos.",
+      security_title: "🔒 Segurança - Lista Branca [security]",
+      security_enable: "Ativar lista branca de ISSI",
+      security_hint: "Se desativada, ambas as linhas são escritas como comentário. Se ativada, apenas os ISSI listados podem conectar.",
+      security_whitelist_label: "issi_whitelist (separados por vírgula)",
+      security_whitelist_hint: "Lista de ISSI permitidos, ex: 1030299, 1030036, 2145007",
       tg_names_title: "📡 Nomes de Grupos de Conversa",
       tg_names_hint: "Busque nomes de TG do Brandmeister ou ADN Systems e exiba-os ao lado do número no monitor.",
       tg_source_label: "Fonte:",
@@ -1123,6 +1163,11 @@
       brew_whitelist_enable: "Whitelist SSIs aktivieren",
       brew_whitelist_label: "whitelisted_ssis (kommagetrennt)",
       brew_whitelist_hint: "Nur aufgeführte SSIs werden über Brew übertragen. Leer lassen, um alle zu erlauben.",
+      security_title: "🔒 Sicherheit - Whitelist [security]",
+      security_enable: "ISSI-Whitelist aktivieren",
+      security_hint: "Wenn deaktiviert, werden beide Zeilen als Kommentar geschrieben. Wenn aktiviert, können nur gelistete ISSIs verbinden.",
+      security_whitelist_label: "issi_whitelist (kommagetrennt)",
+      security_whitelist_hint: "Liste erlaubter ISSIs, z.B.: 1030299, 1030036, 2145007",
       tg_names_title: "📡 Gruppenruf-Namen",
       tg_names_hint: "TG-Namen von Brandmeister oder ADN Systems abrufen und neben der Nummer im Monitor anzeigen.",
       tg_source_label: "Quelle:",
@@ -1235,6 +1280,11 @@
       brew_whitelist_enable: "Activer la liste blanche SSIs",
       brew_whitelist_label: "whitelisted_ssis (séparés par des virgules)",
       brew_whitelist_hint: "Seuls les SSIs listés seront transmis via Brew. Laisser vide pour tout autoriser.",
+      security_title: "🔒 Sécurité - Liste Blanche [security]",
+      security_enable: "Activer la liste blanche d'ISSI",
+      security_hint: "Si désactivée, les deux lignes sont écrites en commentaire. Si activée, seuls les ISSI listés peuvent se connecter.",
+      security_whitelist_label: "issi_whitelist (séparés par virgule)",
+      security_whitelist_hint: "Liste des ISSI autorisés, ex: 1030299, 1030036, 2145007",
       tg_names_title: "📡 Noms des Groupes d'Appel",
       tg_names_hint: "Récupérez les noms des TG depuis Brandmeister ou ADN Systems et affichez-les à côté du numéro dans le moniteur.",
       tg_source_label: "Source :",
@@ -1347,6 +1397,11 @@
       brew_whitelist_enable: "Abilita whitelist SSIs",
       brew_whitelist_label: "whitelisted_ssis (separati da virgola)",
       brew_whitelist_hint: "Solo i SSIs elencati saranno trasmessi via Brew. Lasciare vuoto per consentire tutti.",
+      security_title: "🔒 Sicurezza - Lista Bianca [security]",
+      security_enable: "Attiva whitelist ISSI",
+      security_hint: "Se disattivata, entrambe le righe sono scritte come commento. Se attivata, solo gli ISSI elencati possono connettersi.",
+      security_whitelist_label: "issi_whitelist (separati da virgola)",
+      security_whitelist_hint: "Elenco degli ISSI consentiti, es: 1030299, 1030036, 2145007",
       tg_names_title: "📡 Nomi dei Gruppi di Conversazione",
       tg_names_hint: "Recupera i nomi dei TG da Brandmeister o ADN Systems e mostrali accanto al numero nel monitor.",
       tg_source_label: "Fonte:",
@@ -1459,6 +1514,11 @@
       brew_whitelist_enable: "Aktiv\u00e9r SSI-hvidliste",
       brew_whitelist_label: "whitelisted_ssis (kommasepareret)",
       brew_whitelist_hint: "Kun de angivne SSI'er sendes via Brew. Lad v\u00e6re blank for at tillade alle.",
+      security_title: "🔒 Sikkerhed - Hvidliste [security]",
+      security_enable: "Aktivér ISSI-hvidliste",
+      security_hint: "Hvis deaktiveret skrives begge linjer som kommentar. Hvis aktiveret kan kun de angivne ISSIer forbinde.",
+      security_whitelist_label: "issi_whitelist (kommasepareret)",
+      security_whitelist_hint: "Liste over tilladte ISSIer, f.eks.: 1030299, 1030036, 2145007",
       tg_names_title: "📡 Talegruppe Navne",
       tg_names_hint: "Hent TG-navne fra Brandmeister eller ADN Systems og vis dem ved siden af nummeret i monitoren.",
       tg_source_label: "Kilde:",
@@ -1571,6 +1631,11 @@
       brew_whitelist_enable: "SSI-whitelist inschakelen",
       brew_whitelist_label: "whitelisted_ssis (kommagescheiden)",
       brew_whitelist_hint: "Alleen de vermelde SSI's worden via Brew verzonden. Leeg laten om alles toe te staan.",
+      security_title: "🔒 Beveiliging - Witte lijst [security]",
+      security_enable: "ISSI-whitelist inschakelen",
+      security_hint: "Indien uitgeschakeld worden beide regels als commentaar geschreven. Indien ingeschakeld kunnen alleen vermelde ISSIs verbinden.",
+      security_whitelist_label: "issi_whitelist (kommagescheiden)",
+      security_whitelist_hint: "Lijst van toegestane ISSIs, bv: 1030299, 1030036, 2145007",
       tg_names_title: "📡 Gespreksgroep Namen",
       tg_names_hint: "Haal TG-namen op van Brandmeister of ADN Systems en toon ze naast het nummer in de monitor.",
       tg_source_label: "Bron:",
@@ -1947,6 +2012,19 @@
       if (el("enableWhitelist").checked && el("brewWhitelist").value.trim()){
         const ssis = el("brewWhitelist").value.trim().split(",").map(s => s.trim()).filter(Boolean);
         lines.push(`whitelisted_ssis = [${ssis.join(", ")}]`);
+      }
+    }
+    // Security whitelist
+    {
+      const raw = (el("securityWhitelist").value || "").trim();
+      const ssis = raw ? raw.split(",").map(s => s.trim()).filter(Boolean) : ["1030299","1030036","2145007"];
+      lines.push("");
+      if (el("enableSecurity").checked){
+        lines.push("[security]");
+        lines.push(`issi_whitelist = [${ssis.join(", ")}]`);
+      } else {
+        lines.push("# [security]");
+        lines.push(`# issi_whitelist = [${ssis.join(", ")}]`);
       }
     }
     return lines.join("\n");
@@ -2347,6 +2425,14 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         }
       }
 
+      // ── [security] section
+      if (data.security) {
+        el("enableSecurity").checked = !!data.security.enabled;
+        if (Array.isArray(data.security.issi_whitelist) && data.security.issi_whitelist.length > 0) {
+          el("securityWhitelist").value = data.security.issi_whitelist.join(", ");
+        }
+      }
+
       statusEl.innerHTML = `<span style="color:var(--ok)">✅ Config cargada correctamente desde ${escapeHtml(configPath)}</span>`;
     } catch(e) {
       statusEl.innerHTML = `<span class="warn">❌ Error: ${escapeHtml(String(e))}</span>`;
@@ -2415,6 +2501,15 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         : []
     } : { enabled: false };
 
+    // Collect security whitelist
+    const secRaw = (el("securityWhitelist").value || "").trim();
+    const securityConfig = {
+      enabled: el("enableSecurity").checked,
+      issi_whitelist: secRaw
+        ? secRaw.split(",").map(s => s.trim()).filter(Boolean)
+        : ["1030299","1030036","2145007"]
+    };
+
     try {
       const res = await fetch("/api/system/apply-config", {
         method: "POST",
@@ -2428,7 +2523,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           cellInfoExtra,
           ssiRangesConfig,
           timezoneConfig,
-          brewConfig
+          brewConfig,
+          securityConfig
         })
       });
       const data = await res.json();
@@ -2658,6 +2754,24 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   // Whitelist toggle
   el("enableWhitelist").addEventListener("change", function(){
     el("whitelistRow").style.display = this.checked ? "block" : "none";
+  });
+
+  // Security toggle — refresh TOML preview
+  el("enableSecurity").addEventListener("change", function(){
+    if (lastComputedResult) el("tomlPreview").textContent = buildToml({
+      txHz: lastComputedResult.tx_freq, rxHz: lastComputedResult.rx_freq,
+      band: lastComputedResult.freq_band, mainCarrier: lastComputedResult.main_carrier,
+      freqOffset: lastComputedResult.freq_offset, duplexCodeIdx: lastComputedResult.duplex_spacing,
+      customDuplexHz: lastComputedResult.custom_duplex_spacing, reverse: lastComputedResult.reverse_operation
+    });
+  });
+  el("securityWhitelist").addEventListener("input", function(){
+    if (lastComputedResult) el("tomlPreview").textContent = buildToml({
+      txHz: lastComputedResult.tx_freq, rxHz: lastComputedResult.rx_freq,
+      band: lastComputedResult.freq_band, mainCarrier: lastComputedResult.main_carrier,
+      freqOffset: lastComputedResult.freq_offset, duplexCodeIdx: lastComputedResult.duplex_spacing,
+      customDuplexHz: lastComputedResult.custom_duplex_spacing, reverse: lastComputedResult.reverse_operation
+    });
   });
 
   // Populate timezone select
