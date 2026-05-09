@@ -453,6 +453,32 @@
   </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
+      <h2 data-i18n="ncells_title">🏘️ Neighbor Cells [[cell_info.neighbor_cells_ca]]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableNeighborCells" />
+            <label for="enableNeighborCells" data-i18n="ncells_enable">Enable neighbor cells</label>
+          </div>
+          <div class="hint" data-i18n="ncells_hint">If disabled, blocks are written commented. cell_identifier_ca and location_area must be unique per cell.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="ncellsContainer" style="display:none; margin-top:12px;">
+        <div style="display:flex; gap:10px; align-items:flex-end; margin-bottom:10px; flex-wrap:wrap;">
+          <div>
+            <label for="ncellsCount" data-i18n="ncells_count">Number of cells</label>
+            <input id="ncellsCount" type="number" min="1" max="32" value="1" style="width:90px;" />
+          </div>
+          <button type="button" id="ncellsApplyCountBtn" class="btn-secondary" data-i18n="ncells_apply_count">Apply</button>
+          <button type="button" id="ncellsAddBtn" class="btn-secondary" data-i18n="ncells_add">+ Add cell</button>
+        </div>
+        <div id="ncellsList"></div>
+      </div>
+    </section>
+  </div>
+  <div style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
       <h2 data-i18n="brew_title">🍺 Homebrew Protocol [brew]</h2>
       <div class="row">
         <div>
@@ -700,6 +726,13 @@
       security_hint: "If disabled, both lines are written as comments. If enabled, only listed ISSIs can connect.",
       security_whitelist_label: "issi_whitelist (comma-separated)",
       security_whitelist_hint: "List of allowed ISSIs, e.g.: 1030299, 1030036, 2145007",
+      ncells_title: "🏘️ Neighbor Cells [[cell_info.neighbor_cells_ca]]",
+      ncells_enable: "Enable neighbor cells",
+      ncells_hint: "If disabled, blocks are written commented. cell_identifier_ca and location_area must be unique per cell.",
+      ncells_count: "Number of cells",
+      ncells_apply_count: "Apply",
+      ncells_add: "+ Add cell",
+      ncells_cell: "Cell",
       tg_names_title: "📡 Talkgroup Names",
       tg_names_hint: "Fetch TG names from Brandmeister or ADN Systems and display them next to TG numbers in the dashboard monitor.",
       tg_source_label: "Source:",
@@ -817,6 +850,13 @@
       security_hint: "禁用時，兩行均寫為註釋。啟用時，僅列出的 ISSI 可連接。",
       security_whitelist_label: "issi_whitelist（逗號分隔）",
       security_whitelist_hint: "允許的 ISSI 列表，例如：1030299, 1030036, 2145007",
+      ncells_title: "🏘️ 相邻小区 [[cell_info.neighbor_cells_ca]]",
+      ncells_enable: "启用相邻小区",
+      ncells_hint: "如果禁用，块以注释形式写入。每个小区的 cell_identifier_ca 和 location_area 必须唯一。",
+      ncells_count: "小区数量",
+      ncells_apply_count: "应用",
+      ncells_add: "+ 添加小区",
+      ncells_cell: "小区",
       tg_names_title: "📡 群組名稱",
       tg_names_hint: "從 Brandmeister 或 ADN Systems 擷取 TG 名稱，並在監控面板中顯示於 TG 號碼旁。",
       tg_source_label: "來源：",
@@ -934,6 +974,13 @@
       security_hint: "Si está desactivada, ambas líneas se escriben como comentario. Si se activa, solo las ISSI listadas pueden conectarse.",
       security_whitelist_label: "issi_whitelist (separadas por coma)",
       security_whitelist_hint: "Lista de ISSI permitidas, ej: 1030299, 1030036, 2145007",
+      ncells_title: "🏘️ Celdas Vecinas [[cell_info.neighbor_cells_ca]]",
+      ncells_enable: "Activar celdas vecinas",
+      ncells_hint: "Si está desactivado, los bloques se escriben comentados. cell_identifier_ca y location_area deben ser únicos por celda.",
+      ncells_count: "Número de celdas",
+      ncells_apply_count: "Aplicar",
+      ncells_add: "+ Añadir celda",
+      ncells_cell: "Celda",
       tg_names_title: "📡 Nombres de Grupos de Conversación",
       tg_names_hint: "Obtén nombres de TG desde Brandmeister o ADN Systems y muéstralos junto al número en el monitor.",
       tg_source_label: "Fuente:",
@@ -1051,6 +1098,13 @@
       security_hint: "Se desativada, ambas as linhas são escritas como comentário. Se ativada, apenas os ISSI listados podem conectar.",
       security_whitelist_label: "issi_whitelist (separados por vírgula)",
       security_whitelist_hint: "Lista de ISSI permitidos, ex: 1030299, 1030036, 2145007",
+      ncells_title: "🏘️ Células Vizinhas [[cell_info.neighbor_cells_ca]]",
+      ncells_enable: "Ativar células vizinhas",
+      ncells_hint: "Se desativado, os blocos são escritos comentados. cell_identifier_ca e location_area devem ser únicos por célula.",
+      ncells_count: "Número de células",
+      ncells_apply_count: "Aplicar",
+      ncells_add: "+ Adicionar célula",
+      ncells_cell: "Célula",
       tg_names_title: "📡 Nomes de Grupos de Conversa",
       tg_names_hint: "Busque nomes de TG do Brandmeister ou ADN Systems e exiba-os ao lado do número no monitor.",
       tg_source_label: "Fonte:",
@@ -1168,6 +1222,13 @@
       security_hint: "Wenn deaktiviert, werden beide Zeilen als Kommentar geschrieben. Wenn aktiviert, können nur gelistete ISSIs verbinden.",
       security_whitelist_label: "issi_whitelist (kommagetrennt)",
       security_whitelist_hint: "Liste erlaubter ISSIs, z.B.: 1030299, 1030036, 2145007",
+      ncells_title: "🏘️ Nachbarzellen [[cell_info.neighbor_cells_ca]]",
+      ncells_enable: "Nachbarzellen aktivieren",
+      ncells_hint: "Wenn deaktiviert, werden die Blöcke auskommentiert geschrieben. cell_identifier_ca und location_area müssen pro Zelle eindeutig sein.",
+      ncells_count: "Anzahl Zellen",
+      ncells_apply_count: "Anwenden",
+      ncells_add: "+ Zelle hinzufügen",
+      ncells_cell: "Zelle",
       tg_names_title: "📡 Gruppenruf-Namen",
       tg_names_hint: "TG-Namen von Brandmeister oder ADN Systems abrufen und neben der Nummer im Monitor anzeigen.",
       tg_source_label: "Quelle:",
@@ -1285,6 +1346,13 @@
       security_hint: "Si désactivée, les deux lignes sont écrites en commentaire. Si activée, seuls les ISSI listés peuvent se connecter.",
       security_whitelist_label: "issi_whitelist (séparés par virgule)",
       security_whitelist_hint: "Liste des ISSI autorisés, ex: 1030299, 1030036, 2145007",
+      ncells_title: "🏘️ Cellules voisines [[cell_info.neighbor_cells_ca]]",
+      ncells_enable: "Activer cellules voisines",
+      ncells_hint: "Si désactivé, les blocs sont écrits en commentaire. cell_identifier_ca et location_area doivent être uniques par cellule.",
+      ncells_count: "Nombre de cellules",
+      ncells_apply_count: "Appliquer",
+      ncells_add: "+ Ajouter cellule",
+      ncells_cell: "Cellule",
       tg_names_title: "📡 Noms des Groupes d'Appel",
       tg_names_hint: "Récupérez les noms des TG depuis Brandmeister ou ADN Systems et affichez-les à côté du numéro dans le moniteur.",
       tg_source_label: "Source :",
@@ -1402,6 +1470,13 @@
       security_hint: "Se disattivata, entrambe le righe sono scritte come commento. Se attivata, solo gli ISSI elencati possono connettersi.",
       security_whitelist_label: "issi_whitelist (separati da virgola)",
       security_whitelist_hint: "Elenco degli ISSI consentiti, es: 1030299, 1030036, 2145007",
+      ncells_title: "🏘️ Celle vicine [[cell_info.neighbor_cells_ca]]",
+      ncells_enable: "Abilita celle vicine",
+      ncells_hint: "Se disattivato, i blocchi vengono scritti commentati. cell_identifier_ca e location_area devono essere univoci per cella.",
+      ncells_count: "Numero di celle",
+      ncells_apply_count: "Applica",
+      ncells_add: "+ Aggiungi cella",
+      ncells_cell: "Cella",
       tg_names_title: "📡 Nomi dei Gruppi di Conversazione",
       tg_names_hint: "Recupera i nomi dei TG da Brandmeister o ADN Systems e mostrali accanto al numero nel monitor.",
       tg_source_label: "Fonte:",
@@ -1519,6 +1594,13 @@
       security_hint: "Hvis deaktiveret skrives begge linjer som kommentar. Hvis aktiveret kan kun de angivne ISSIer forbinde.",
       security_whitelist_label: "issi_whitelist (kommasepareret)",
       security_whitelist_hint: "Liste over tilladte ISSIer, f.eks.: 1030299, 1030036, 2145007",
+      ncells_title: "🏘️ Nabo-celler [[cell_info.neighbor_cells_ca]]",
+      ncells_enable: "Aktivér nabo-celler",
+      ncells_hint: "Hvis deaktiveret, skrives blokke som kommentarer. cell_identifier_ca og location_area skal være unikke pr. celle.",
+      ncells_count: "Antal celler",
+      ncells_apply_count: "Anvend",
+      ncells_add: "+ Tilføj celle",
+      ncells_cell: "Celle",
       tg_names_title: "📡 Talegruppe Navne",
       tg_names_hint: "Hent TG-navne fra Brandmeister eller ADN Systems og vis dem ved siden af nummeret i monitoren.",
       tg_source_label: "Kilde:",
@@ -1636,6 +1718,13 @@
       security_hint: "Indien uitgeschakeld worden beide regels als commentaar geschreven. Indien ingeschakeld kunnen alleen vermelde ISSIs verbinden.",
       security_whitelist_label: "issi_whitelist (kommagescheiden)",
       security_whitelist_hint: "Lijst van toegestane ISSIs, bv: 1030299, 1030036, 2145007",
+      ncells_title: "🏘️ Naburige cellen [[cell_info.neighbor_cells_ca]]",
+      ncells_enable: "Naburige cellen inschakelen",
+      ncells_hint: "Indien uitgeschakeld worden blokken als commentaar geschreven. cell_identifier_ca en location_area moeten uniek zijn per cel.",
+      ncells_count: "Aantal cellen",
+      ncells_apply_count: "Toepassen",
+      ncells_add: "+ Cel toevoegen",
+      ncells_cell: "Cel",
       tg_names_title: "📡 Gespreksgroep Namen",
       tg_names_hint: "Haal TG-namen op van Brandmeister of ADN Systems en toon ze naast het nummer in de monitor.",
       tg_source_label: "Bron:",
@@ -2012,6 +2101,26 @@
       if (el("enableWhitelist").checked && el("brewWhitelist").value.trim()){
         const ssis = el("brewWhitelist").value.trim().split(",").map(s => s.trim()).filter(Boolean);
         lines.push(`whitelisted_ssis = [${ssis.join(", ")}]`);
+      }
+    }
+    // Neighbor Cells — emit blocks before [net_info]/[brew]/[security]
+    {
+      const ncells = getNeighborCells();
+      if (ncells.length > 0) {
+        const ncEnabled = el("enableNeighborCells").checked;
+        const prefix = ncEnabled ? "" : "# ";
+        ncells.forEach(c => {
+          lines.push("");
+          lines.push(`${prefix}[[cell_info.neighbor_cells_ca]]`);
+          lines.push(`${prefix}cell_identifier_ca = ${Number(c.cell_identifier_ca ?? 0)}`);
+          lines.push(`${prefix}cell_reselection_types_supported = ${Number(c.cell_reselection_types_supported ?? 0)}`);
+          lines.push(`${prefix}neighbor_cell_synchronized = ${c.neighbor_cell_synchronized ? "true" : "false"}`);
+          lines.push(`${prefix}cell_load_ca = ${Number(c.cell_load_ca ?? 0)}`);
+          lines.push(`${prefix}main_carrier_number = ${Number(c.main_carrier_number ?? 0)}`);
+          lines.push(`${prefix}mcc = ${Number(c.mcc ?? 0)}`);
+          lines.push(`${prefix}mnc = ${Number(c.mnc ?? 0)}`);
+          lines.push(`${prefix}location_area = ${Number(c.location_area ?? 0)}`);
+        });
       }
     }
     // Security whitelist (digits only — invalid tokens silently dropped)
@@ -2428,6 +2537,19 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         }
       }
 
+      // ── Neighbor Cells (loads cells even when commented/disabled)
+      const ncellsList = (data.cell_info && Array.isArray(data.cell_info.neighbor_cells)) ? data.cell_info.neighbor_cells : [];
+      const ncellsEnabled = !!(data.cell_info && data.cell_info.neighbor_cells_enabled);
+      el("enableNeighborCells").checked = ncellsEnabled;
+      el("enableNeighborCells").dispatchEvent(new Event("change"));
+      if (ncellsList.length > 0) {
+        el("ncellsList").innerHTML = "";
+        ncellsAutoIdx = 0;
+        el("ncellsCount").value = String(ncellsList.length);
+        ncellsList.forEach(c => addNeighborCellRow(c));
+        updateTomlFromNew();
+      }
+
       // ── [security] section (dispatch change so TOML preview rebuilds with loaded values)
       if (data.security) {
         el("enableSecurity").checked = !!data.security.enabled;
@@ -2515,6 +2637,12 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       issi_whitelist: secParsed.length > 0 ? secParsed : ["1030299","1030036","2145007"]
     };
 
+    // Collect neighbor cells (always send so server can write commented when disabled)
+    const neighborCellsConfig = {
+      enabled: el("enableNeighborCells").checked,
+      cells: getNeighborCells()
+    };
+
     try {
       const res = await fetch("/api/system/apply-config", {
         method: "POST",
@@ -2529,7 +2657,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           ssiRangesConfig,
           timezoneConfig,
           brewConfig,
-          securityConfig
+          securityConfig,
+          neighborCellsConfig
         })
       });
       const data = await res.json();
@@ -2708,6 +2837,100 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     updateTomlFromNew();
   });
   el("addSsiRangeBtn").addEventListener("click", function(){ addSsiRangeRow(); });
+
+  // ===== Neighbor Cells helpers =====
+  let ncellsAutoIdx = 0;
+  function addNeighborCellRow(prefilled){
+    const idx = ++ncellsAutoIdx;
+    const list = el("ncellsList");
+    const num = list.querySelectorAll(".ncell-row").length + 1;
+    const lang = state.lang || "en";
+    const dict = (I18N[lang] || I18N.en);
+    const row = document.createElement("div");
+    row.className = "ncell-row";
+    row.dataset.rid = idx;
+    row.style.cssText = "border:1px solid var(--border); padding:10px; border-radius:8px; margin-bottom:10px;";
+    row.innerHTML = `
+      <div style="font-size:11px; font-weight:700; color:var(--muted); letter-spacing:.06em; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+        <span>${(dict.ncells_cell || "Cell")} #${num}</span>
+        <button type="button" data-rm style="border:none; background:transparent; color:#e74c3c; cursor:pointer; font-size:14px; padding:2px 6px;">✕</button>
+      </div>
+      <div class="row">
+        <div><label style="font-size:11px;color:var(--muted)">cell_identifier_ca</label><input type="number" data-k="cell_identifier_ca" min="0" value="${prefilled?.cell_identifier_ca ?? num}"/></div>
+        <div><label style="font-size:11px;color:var(--muted)">cell_reselection_types_supported</label><input type="number" data-k="cell_reselection_types_supported" min="0" value="${prefilled?.cell_reselection_types_supported ?? 0}"/></div>
+      </div>
+      <div style="height:8px;"></div>
+      <div class="row">
+        <div><div class="checkbox-row"><input type="checkbox" data-k="neighbor_cell_synchronized" ${prefilled?.neighbor_cell_synchronized ? "checked" : ""}/><label style="font-size:11px;color:var(--muted)">neighbor_cell_synchronized</label></div></div>
+        <div><label style="font-size:11px;color:var(--muted)">cell_load_ca</label><input type="number" data-k="cell_load_ca" min="0" value="${prefilled?.cell_load_ca ?? 0}"/></div>
+      </div>
+      <div style="height:8px;"></div>
+      <div class="row">
+        <div><label style="font-size:11px;color:var(--muted)">main_carrier_number</label><input type="number" data-k="main_carrier_number" min="0" value="${prefilled?.main_carrier_number ?? ''}"/></div>
+        <div><label style="font-size:11px;color:var(--muted)">location_area</label><input type="number" data-k="location_area" min="0" value="${prefilled?.location_area ?? ''}"/></div>
+      </div>
+      <div style="height:8px;"></div>
+      <div class="row">
+        <div><label style="font-size:11px;color:var(--muted)">mcc</label><input type="number" data-k="mcc" min="0" value="${prefilled?.mcc ?? ''}"/></div>
+        <div><label style="font-size:11px;color:var(--muted)">mnc</label><input type="number" data-k="mnc" min="0" value="${prefilled?.mnc ?? ''}"/></div>
+      </div>
+    `;
+    row.querySelector("[data-rm]").addEventListener("click", () => {
+      row.remove();
+      el("ncellsCount").value = String(el("ncellsList").querySelectorAll(".ncell-row").length || 1);
+      updateTomlFromNew();
+    });
+    row.querySelectorAll("input").forEach(inp => {
+      inp.addEventListener("input", updateTomlFromNew);
+      inp.addEventListener("change", updateTomlFromNew);
+    });
+    list.appendChild(row);
+  }
+  function getNeighborCells(){
+    const out = [];
+    el("ncellsList").querySelectorAll(".ncell-row").forEach(row => {
+      const cell = {};
+      row.querySelectorAll("[data-k]").forEach(inp => {
+        const k = inp.dataset.k;
+        if (inp.type === "checkbox") cell[k] = inp.checked;
+        else {
+          const v = inp.value.trim();
+          cell[k] = v === "" ? null : Number(v);
+        }
+      });
+      out.push(cell);
+    });
+    return out;
+  }
+  function setNeighborCellCount(n){
+    const list = el("ncellsList");
+    const cur = list.querySelectorAll(".ncell-row").length;
+    if (n > cur) {
+      for (let i = cur; i < n; i++) addNeighborCellRow();
+    } else if (n < cur) {
+      const rows = list.querySelectorAll(".ncell-row");
+      for (let i = cur - 1; i >= n; i--) rows[i].remove();
+    }
+    updateTomlFromNew();
+  }
+  el("enableNeighborCells").addEventListener("change", function(){
+    el("ncellsContainer").style.display = this.checked ? "block" : "none";
+    if (el("ncellsList").children.length === 0) {
+      addNeighborCellRow();
+      el("ncellsCount").value = "1";
+    }
+    updateTomlFromNew();
+  });
+  el("ncellsApplyCountBtn").addEventListener("click", function(){
+    const n = Math.max(1, Math.min(32, Number(el("ncellsCount").value) || 1));
+    el("ncellsCount").value = String(n);
+    setNeighborCellCount(n);
+  });
+  el("ncellsAddBtn").addEventListener("click", function(){
+    addNeighborCellRow();
+    el("ncellsCount").value = String(el("ncellsList").querySelectorAll(".ncell-row").length);
+    updateTomlFromNew();
+  });
 
   // net_info and cell_info extra inputs — update TOML preview on change
   ["mccVal","mncVal","locationArea","colourCode","systemCode"].forEach(id => {
