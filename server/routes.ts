@@ -1170,6 +1170,14 @@ ${restartLine}
               sections['cell_info']['timezone'] = `"${tzM[1]}"`;
             }
           }
+          // Parse commented call timing fields in [cell_info] so they load even when disabled
+          if (currentSection === 'cell_info') {
+            const ctM = line.match(/^#\s*(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=\s*([0-9]+)/);
+            if (ctM && !sections['cell_info']?.[ctM[1]]) {
+              sections['cell_info'] = sections['cell_info'] || {};
+              sections['cell_info'][ctM[1]] = ctM[2];
+            }
+          }
           continue;
         }
 
@@ -1315,6 +1323,25 @@ ${restartLine}
           ssi_ranges_enabled: ssiRangesEnabled,
           neighbor_cells: neighborCells,
           neighbor_cells_enabled: neighborCellsActive,
+          call_timing: {
+            // Enabled = at least one of the 3 keys appears as an ACTIVE assignment under [cell_info].
+            // Scan lines directly to distinguish active from commented (commented values are
+            // also stored in `sections` so we can populate the form even when disabled).
+            enabled: (() => {
+              let inCellInfo = false;
+              for (const raw of lines) {
+                const t = raw.trim();
+                const sm = t.match(/^\[([^\]]+)\]/);
+                if (sm) { inCellInfo = sm[1] === 'cell_info'; continue; }
+                if (!inCellInfo || t.startsWith('#')) continue;
+                if (/^(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=/.test(t)) return true;
+              }
+              return false;
+            })(),
+            hangtime_secs: num('cell_info', 'hangtime_secs'),
+            call_timeout_secs: num('cell_info', 'call_timeout_secs'),
+            ul_inactivity_secs: num('cell_info', 'ul_inactivity_secs'),
+          },
         },
         net_info: {
           mcc: num('net_info', 'mcc'),
@@ -1341,7 +1368,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, brewConfig, securityConfig, neighborCellsConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, brewConfig, securityConfig, neighborCellsConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -1417,6 +1444,20 @@ ${restartLine}
       }
       // timezone key itself is handled by targeted pass below (active or commented)
 
+      // Call Timing — 3 fields under [cell_info]. Active or commented depending on toggle.
+      const ctEnabled = callTimingConfig?.enabled === true;
+      const clampInt = (v: any, lo: number, hi: number, def: number): number => {
+        const n = Number(v); if (!Number.isFinite(n)) return def;
+        return Math.max(lo, Math.min(hi, Math.round(n)));
+      };
+      const ctVals: Record<string, number> = {
+        hangtime_secs: clampInt(callTimingConfig?.hangtime_secs, 0, 300, 5),
+        call_timeout_secs: clampInt(callTimingConfig?.call_timeout_secs, 30, 300, 120),
+        ul_inactivity_secs: clampInt(callTimingConfig?.ul_inactivity_secs, 1, 30, 3),
+      };
+      const ctKeys = Object.keys(ctVals);
+      const ctFound: Record<string, boolean> = { hangtime_secs: false, call_timeout_secs: false, ul_inactivity_secs: false };
+
       const hasCustomDuplex = !!(sectionUpdates["cell_info"]["custom_duplex_spacing"]);
 
       // Build brew section update map
@@ -1453,6 +1494,17 @@ ${restartLine}
         }
 
         if (currentSection === "cell_info") {
+          // Handle commented # <call_timing_key> = N lines (active or commented depending on toggle)
+          const commentedCtMatch = lines[i].match(/^(\s*)#\s*(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=\s*([0-9]+)/);
+          if (commentedCtMatch) {
+            const k = commentedCtMatch[2];
+            const v = ctVals[k];
+            lines[i] = ctEnabled
+              ? `${commentedCtMatch[1]}${k} = ${v}`
+              : `${commentedCtMatch[1]}# ${k} = ${v}`;
+            ctFound[k] = true;
+            continue;
+          }
           // Handle commented # timezone = "..." line
           const commentedTzMatch = lines[i].match(/^(\s*)#\s*timezone\s*=\s*"(.*)"/);
           if (commentedTzMatch) {
@@ -1501,6 +1553,14 @@ ${restartLine}
               }
               continue;
             }
+            if (ctKeys.includes(k)) {
+              const v = ctVals[k];
+              lines[i] = ctEnabled
+                ? `${keyMatch[1]}${k}${keyMatch[3]}${v}`
+                : `${keyMatch[1]}# ${k} = ${v}`;
+              ctFound[k] = true;
+              continue;
+            }
           }
         }
 
@@ -1521,7 +1581,7 @@ ${restartLine}
             const keyName = keyMatch[2];
             const val = sectionUpdates[currentSection][keyName];
             if (val !== undefined && val !== "__REMOVE__") {
-              if (!["custom_duplex_spacing","timezone_broadcast","timezone"].includes(keyName)) {
+              if (!["custom_duplex_spacing","timezone_broadcast","timezone","hangtime_secs","call_timeout_secs","ul_inactivity_secs"].includes(keyName)) {
                 lines[i] = `${keyMatch[1]}${keyName}${keyMatch[3]}${val}`;
               }
             }
@@ -1554,6 +1614,25 @@ ${restartLine}
             }
             if (!tzBroadcastFound && tzEnabled) lines.splice(insertAt, 0, `timezone_broadcast = true`);
             break;
+          }
+        }
+      }
+
+      // Insert any missing Call Timing keys under [cell_info] (active or commented per toggle)
+      {
+        const missing = ctKeys.filter(k => !ctFound[k]);
+        if (missing.length > 0) {
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].match(/^\s*\[cell_info\]/)) {
+              let insertAt = i + 1;
+              while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") insertAt++;
+              for (const k of missing) {
+                const v = ctVals[k];
+                lines.splice(insertAt, 0, ctEnabled ? `${k} = ${v}` : `# ${k} = ${v}`);
+                insertAt++;
+              }
+              break;
+            }
           }
         }
       }
