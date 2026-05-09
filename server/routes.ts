@@ -1706,9 +1706,29 @@ ${restartLine}
             lines.push(...newBlock);
           } else {
             let insertAt = cellInfoIdx + 1;
+            // Track multi-line arrays (e.g. `local_ssi_ranges = [` ... `]`) — both active and #commented —
+            // so a continuation line like `[0, 7],` is NOT treated as a new section header.
+            let inArray = 0;
+            const stripComment = (s: string) => s.replace(/^#\s*/, "");
             while (insertAt < lines.length) {
-              const tj = lines[insertAt].trim();
-              if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+              const raw = lines[insertAt];
+              const tj = raw.trim();
+              const body = stripComment(tj);
+              if (inArray === 0) {
+                if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+                // Detect opening of a multi-line array: `key = [...` with unbalanced brackets on this line
+                const eq = body.match(/^[A-Za-z_][\w.]*\s*=\s*(.*)$/);
+                if (eq) {
+                  const opens = (eq[1].match(/\[/g) || []).length;
+                  const closes = (eq[1].match(/\]/g) || []).length;
+                  if (opens > closes) inArray += (opens - closes);
+                }
+              } else {
+                const opens = (body.match(/\[/g) || []).length;
+                const closes = (body.match(/\]/g) || []).length;
+                inArray += opens - closes;
+                if (inArray < 0) inArray = 0;
+              }
               insertAt++;
             }
             // Step back over trailing blank lines so block sits right after content
