@@ -85,6 +85,7 @@ Storage key: `tetra_calc_station` (`bluestation` | `flowstation`, default `blues
 - **Cell Parameters section** (`[cell_info]`): location_area, colour_code (0–63), system_code (0–15), optional timezone broadcast (toggle + 421 IANA timezones dropdown, localStorage key `tetra_calc_timezone`).
 - **Local SSI Ranges section**: dynamic list of start/end SSI range pairs. Toggle to enable; "Add Range" button; ranges written as `local_ssi_ranges = [[start, end], ...]` under `[cell_info]`.
 - **Homebrew Protocol section** (`[brew]`): host, port (62031), username, password, TLS, reconnect_delay_secs (15), optional whitelisted_ssis (comma-separated). Removed if disabled.
+- **Security / Whitelist section** (`[security]`): toggle + `issi_whitelist` (comma-separated ISSI list, e.g. `1030299, 1030036, 2145007`). When enabled writes active `[security]` + `issi_whitelist = [...]`. When disabled writes commented `# [security]\n# issi_whitelist = [...]` (with the same list, default `1030299, 1030036, 2145007` if empty). Server preserves & toggles the block on apply (`securityConfig` in payload).
 - All sections reflected live in TOML preview; `server/routes.ts` apply-config handles all new fields with insert/update/remove TOML logic
 
 ## Log Live
@@ -157,6 +158,7 @@ Individual/private calls between two ISSI terminals are detected and displayed:
 - **SELECTED column**: shows cyan `[PRIV]` badge + destination ISSI instead of amber TG number
 - **Call history**: shows cyan `[PRIV]` badge + destination ISSI; `callType: "private"` in entry
 - **Activity**: src terminal = TX (red), dst terminal = RX (green); scoped to unique `PRIV_<call_id>` key
+- **Destination callsign + flag**: Dashboard builds an ISSI→callsign Map from all known terminals and shows the destination's callsign + country flag next to the destination ISSI (in both the SELECTED column and the call history), matching the source format
 - **Tracking**: `self.private_calls` dict maps `call_id → {src, dst}` for proper end-of-call clearing
 - **Demo mode**: ~15% chance per cycle of simulating a P2P private call between two random terminals
 
