@@ -1,6 +1,6 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network } from "lucide-react";
+import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network, Eye, EyeOff } from "lucide-react";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
 import { useI18n } from "@/lib/i18n";
 import tetraLogo from "@assets/tetra_1771538916537.png";
@@ -477,6 +477,8 @@ function CallHistory({ entries, title, isLocal, issiCallsign }: {
   );
 }
 
+const PUBLIC_IP_REVEAL_KEY = "tetra_public_ip_revealed";
+
 function PiStats() {
   const { t } = useI18n();
   const [stats, setStats] = useState<{
@@ -489,6 +491,47 @@ function PiStats() {
   }>({
     cpuTemp: null, cpuLoad: null, memUsed: null, localIp: null, publicIp: null, voltage: null
   });
+
+  // Public IP visibility — persisted only for the current browser session
+  const [publicIpRevealed, setPublicIpRevealed] = useState<boolean>(() => {
+    try { return sessionStorage.getItem(PUBLIC_IP_REVEAL_KEY) === "1"; } catch { return false; }
+  });
+  const [askPublicIpPwd, setAskPublicIpPwd] = useState(false);
+  const [publicIpPwd, setPublicIpPwd] = useState("");
+  const [publicIpErr, setPublicIpErr] = useState<string | null>(null);
+  const [publicIpBusy, setPublicIpBusy] = useState(false);
+
+  const setRevealed = (v: boolean) => {
+    setPublicIpRevealed(v);
+    try { v ? sessionStorage.setItem(PUBLIC_IP_REVEAL_KEY, "1") : sessionStorage.removeItem(PUBLIC_IP_REVEAL_KEY); } catch {}
+  };
+
+  const requestReveal = async () => {
+    if (!publicIpPwd) return;
+    setPublicIpBusy(true);
+    setPublicIpErr(null);
+    try {
+      const res = await fetch("/api/system/verify-password", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ password: publicIpPwd }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setPublicIpErr(data.message || "Error");
+        setTimeout(() => setPublicIpErr(null), 3000);
+        return;
+      }
+      setRevealed(true);
+      setAskPublicIpPwd(false);
+      setPublicIpPwd("");
+    } catch {
+      setPublicIpErr(t("connection_error"));
+      setTimeout(() => setPublicIpErr(null), 3000);
+    } finally {
+      setPublicIpBusy(false);
+    }
+  };
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -544,10 +587,53 @@ function PiStats() {
         </span>
       )}
       {stats.publicIp && (
-        <span className="inline-flex items-center gap-1 text-xs font-mono text-violet-400" title={t("public_ip")} data-testid="stat-public-ip">
-          <Globe className="w-3.5 h-3.5" />
-          {stats.publicIp}
-        </span>
+        askPublicIpPwd ? (
+          <span className="inline-flex items-center gap-1" data-testid="public-ip-pwd-prompt">
+            <Lock className="w-3 h-3 text-amber-400" />
+            <input
+              type="password"
+              value={publicIpPwd}
+              autoFocus
+              onChange={(e) => { setPublicIpPwd(e.target.value); setPublicIpErr(null); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && publicIpPwd && !publicIpBusy) requestReveal();
+                if (e.key === "Escape") { setAskPublicIpPwd(false); setPublicIpPwd(""); setPublicIpErr(null); }
+              }}
+              placeholder={t("password")}
+              className="w-24 px-2 py-0.5 text-[10px] rounded bg-black/30 border border-white/10 text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:border-amber-500/50"
+              data-testid="input-public-ip-password"
+            />
+            <button
+              onClick={requestReveal}
+              disabled={!publicIpPwd || publicIpBusy}
+              className="px-2 py-0.5 text-[10px] font-bold rounded bg-violet-500/20 text-violet-300 border border-violet-500/30 hover:bg-violet-500/30 transition-colors disabled:opacity-30"
+              data-testid="button-public-ip-confirm"
+            >
+              {t("ok")}
+            </button>
+            <button
+              onClick={() => { setAskPublicIpPwd(false); setPublicIpPwd(""); setPublicIpErr(null); }}
+              className="px-2 py-0.5 text-[10px] font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 transition-colors"
+              data-testid="button-public-ip-cancel"
+            >
+              ✕
+            </button>
+            {publicIpErr && <span className="text-[10px] text-red-400 animate-pulse">{publicIpErr}</span>}
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 text-xs font-mono text-violet-400" title={t("public_ip")} data-testid="stat-public-ip">
+            <Globe className="w-3.5 h-3.5" />
+            <span className="select-all">{publicIpRevealed ? stats.publicIp : "•••.•••.•••.•••"}</span>
+            <button
+              onClick={() => publicIpRevealed ? setRevealed(false) : setAskPublicIpPwd(true)}
+              className="ml-0.5 text-violet-300/70 hover:text-violet-200 transition-colors"
+              title={publicIpRevealed ? t("hide_public_ip") : t("show_public_ip")}
+              data-testid="button-toggle-public-ip"
+            >
+              {publicIpRevealed ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            </button>
+          </span>
+        )
       )}
     </div>
   );
