@@ -1618,14 +1618,26 @@ ${restartLine}
         }
       }
 
-      // Insert any missing Call Timing keys under [cell_info] (active or commented per toggle)
+      // Insert any missing Call Timing keys at the END of [cell_info] direct fields
+      // (after all existing keys/comments, before the next section header [..] or sub-table [[..]],
+      // and before any local_ssi_ranges = [...] multi-line array). Walk back over trailing blank
+      // lines so the new keys sit flush against the last meaningful line.
       {
         const missing = ctKeys.filter(k => !ctFound[k]);
         if (missing.length > 0) {
           for (let i = 0; i < lines.length; i++) {
-            if (lines[i].match(/^\s*\[cell_info\]/)) {
+            if (lines[i].match(/^\s*\[cell_info\]\s*$/)) {
               let insertAt = i + 1;
-              while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") insertAt++;
+              let inArray = 0; // bracket depth for multi-line values like local_ssi_ranges
+              while (insertAt < lines.length) {
+                const t = lines[insertAt];
+                if (inArray === 0 && t.match(/^\s*\[/)) break; // next [section] or [[sub.table]]
+                // Track bracket depth so multi-line arrays don't end the region prematurely
+                for (const ch of t) { if (ch === '[') inArray++; else if (ch === ']') inArray--; }
+                insertAt++;
+              }
+              // Trim trailing blank lines so insertion sits after last meaningful content
+              while (insertAt > i + 1 && lines[insertAt - 1].trim() === "") insertAt--;
               for (const k of missing) {
                 const v = ctVals[k];
                 lines.splice(insertAt, 0, ctEnabled ? `${k} = ${v}` : `# ${k} = ${v}`);
