@@ -1603,10 +1603,11 @@ ${restartLine}
         if (lines[i].match(/^\s*\[brew\]/)) { brewHeaderIdx = i; brewIsActive = true; break; }
         if (lines[i].match(/^\s*#\s*\[brew\]/)) { brewHeaderIdx = i; brewIsActive = false; break; }
       }
-      // Find end of brew section (index of next active section header, or end of file)
+      // Find end of brew section (next section header — active OR commented)
       const getBrewEnd = (start: number): number => {
         for (let j = start + 1; j < lines.length; j++) {
           if (lines[j].match(/^\s*\[[^\]]+\]/)) return j;
+          if (lines[j].match(/^\s*#\s*\[[^\]]+\]/)) return j;
         }
         return lines.length;
       };
@@ -1702,9 +1703,11 @@ ${restartLine}
           if (lines[i].match(/^\s*\[security\]/)) { secHeaderIdx = i; secIsActive = true; break; }
           if (lines[i].match(/^\s*#\s*\[security\]/)) { secHeaderIdx = i; secIsActive = false; break; }
         }
+        // Section ends at the next section header — active OR commented (`#[xxx]` / `# [xxx]`)
         const getSecEnd = (start: number): number => {
           for (let j = start + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/)) return j;
+            if (lines[j].match(/^\s*#\s*\[[^\]]+\]/)) return j;
           }
           return lines.length;
         };
