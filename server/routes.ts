@@ -732,8 +732,9 @@ KillSignal=SIGINT
 WantedBy=multi-user.target
 `;
 
-  app.get("/api/flowstation/check", (req, res) => {
-    const dir = ((req.query.dir as string) || FLOW_DIR_DEFAULT).replace(/[;&|`$]/g, "");
+  app.get("/api/flowstation/check", (_req, res) => {
+    // Hard-coded path — ignore any user-supplied input to avoid command injection
+    const dir = FLOW_DIR_DEFAULT;
     const installed = fs.existsSync(dir);
     if (!installed) return res.json({ demo: false, dirNotFound: true });
     try { execSync("which git", { timeout: 2000 }); } catch { return res.json({ demo: true }); }
@@ -825,12 +826,13 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
   });
 
   app.post("/api/flowstation/apply", (req, res) => {
-    const { password, dir = FLOW_DIR_DEFAULT, serviceName = FLOW_SERVICE } = req.body || {};
+    const { password } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
-    const cleanDir = (dir as string).replace(/[;&|`$]/g, "");
-    const cleanService = (serviceName as string).replace(/[;&|`$\s]/g, "");
+    // Hard-coded path/service — ignore any user-supplied input to avoid command injection
+    const cleanDir = FLOW_DIR_DEFAULT;
+    const cleanService = FLOW_SERVICE;
     if (!fs.existsSync(cleanDir)) {
       return res.status(400).json({ message: "flowstation_dir_not_found" });
     }
@@ -941,6 +943,18 @@ ${restartLine}
     const targetService = STATION_SERVICE[target];
     const otherService = STATION_SERVICE[other];
 
+    // Validate target service exists BEFORE touching the other one — prevents downtime
+    // if target is missing/broken.
+    const tgState = serviceState(targetService);
+    if (!tgState.exists) {
+      return res.status(400).json({
+        ok: false,
+        message: target === "flowstation"
+          ? "Flowstation aún no está instalado. Pulsa 'Instalar Flowstation' primero."
+          : `Servicio ${targetService} no encontrado.`,
+      });
+    }
+
     const log: string[] = [];
     function run(cmd: string) {
       try {
@@ -953,30 +967,29 @@ ${restartLine}
       }
     }
 
-    // Stop+disable other (ignore failures — service may not exist)
-    run(`sudo systemctl disable ${otherService}`);
-    run(`sudo systemctl stop ${otherService}`);
+    // Order: enable+start target FIRST, then stop+disable the other.
+    // If target fails to start, return error WITHOUT having stopped the other.
+    const enabled = run(`sudo systemctl enable ${targetService}`);
+    const started = run(`sudo systemctl start ${targetService}`);
 
-    // Verify target service exists before enabling
-    const tgState = serviceState(targetService);
-    if (!tgState.exists) {
-      return res.status(400).json({
-        message: target === "flowstation"
-          ? "Flowstation aún no está instalado. Pulsa 'Instalar Flowstation' primero."
-          : `Servicio ${targetService} no encontrado.`,
+    if (!started) {
+      return res.status(500).json({
+        ok: false,
+        message: `No se pudo iniciar ${targetService}`,
         log: log.join("\n\n"),
       });
     }
 
-    const enabled = run(`sudo systemctl enable ${targetService}`);
-    const started = run(`sudo systemctl start ${targetService}`);
+    // Target is up — now stop+disable the other (ignore failures: service may not exist)
+    run(`sudo systemctl disable ${otherService}`);
+    run(`sudo systemctl stop ${otherService}`);
 
     try {
       fs.writeFileSync(ACTIVE_STATION_PATH, JSON.stringify({ station: target }, null, 2));
     } catch {}
 
     res.json({
-      ok: started,
+      ok: true,
       station: target,
       service: targetService,
       configPath: STATION_CONFIG_PATH[target],
