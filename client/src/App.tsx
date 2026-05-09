@@ -15,6 +15,8 @@ import { SiPaypal } from "react-icons/si";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 import { UpdateChecker } from "@/components/UpdateChecker";
 import { BluestationUpdater } from "@/components/BluestationUpdater";
+import { FlowstationUpdater } from "@/components/FlowstationUpdater";
+import { StationSwitcher } from "@/components/StationSwitcher";
 import { useState, useEffect } from "react";
 
 const THEME_STORAGE_KEY = "tetra_dashboard_theme";
@@ -114,7 +116,9 @@ function NavBar() {
 
         {/* Right side utilities — visible on md+, hidden on mobile (shown in second row) */}
         <div className="hidden md:flex items-center gap-1.5 px-2 flex-shrink-0">
+          <StationSwitcher />
           <BluestationUpdater />
+          <FlowstationUpdater />
           <UpdateChecker />
           <a
             href="https://www.paypal.com/donate?business=quini7620%40gmail.com&currency_code=EUR"
@@ -148,7 +152,9 @@ function NavBar() {
 
       {/* Mobile second row: actions */}
       <div className="flex md:hidden items-center gap-1.5 px-2 py-1 border-t border-border/40 flex-wrap">
+        <StationSwitcher />
         <BluestationUpdater />
+        <FlowstationUpdater />
         <UpdateChecker />
         <a
           href="https://www.paypal.com/donate?business=quini7620%40gmail.com&currency_code=EUR"
