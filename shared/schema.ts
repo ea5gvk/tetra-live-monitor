@@ -20,6 +20,7 @@ export interface Terminal {
   lastSeen: string;
   isLocal: boolean;
   isActive?: boolean;
+  rssiDbfs?: number | null;
 }
 
 export interface CallLog {
