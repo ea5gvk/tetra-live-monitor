@@ -1236,7 +1236,8 @@ ${restartLine}
           // Without this guard, lines like "[0, 7]," inside local_ssi_ranges
           // would be mistakenly parsed as TOML section headers.
           if (!inSsiBlock) {
-            const secM = t.match(/^\[([^\]]+)\]/);
+            if (/^\[\[[\w.]+\]\]\s*$/.test(t)) continue;
+            const secM = t.match(/^\[([a-zA-Z_][\w.]*)\]\s*$/);
             if (secM) { ssiInCellInfo = secM[1] === "cell_info"; continue; }
             if (!ssiInCellInfo) continue;
             const activeM = t.match(/^local_ssi_ranges\s*=\s*(.*)/);
@@ -1675,7 +1676,8 @@ ${restartLine}
         let ssiSec = "";
         for (let i = 0; i < lines.length; i++) {
           const t = lines[i].trim();
-          const secM = t.match(/^\[([^\]]+)\]/);
+          if (/^\[\[[\w.]+\]\]\s*$/.test(t)) continue;
+          const secM = t.match(/^\[([a-zA-Z_][\w.]*)\]\s*$/);
           if (secM) { ssiSec = secM[1]; continue; }
           if (ssiSec !== "cell_info") continue;
           const isActive = t.match(/^local_ssi_ranges\s*=/);
