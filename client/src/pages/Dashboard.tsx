@@ -1,6 +1,6 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network, Eye, EyeOff } from "lucide-react";
+import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network, Eye, EyeOff, Signal as SignalIcon } from "lucide-react";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
 import { useI18n } from "@/lib/i18n";
 import tetraLogo from "@assets/tetra_1771538916537.png";
@@ -194,6 +194,26 @@ function CountryFlag({ callsign }: { callsign?: string }) {
   );
 }
 
+function RssiBadge({ dbfs }: { dbfs: number }) {
+  // dBFS color thresholds based on LimeSDR Mini 2.0 typical operating ranges:
+  // -10..-20 = very strong, -20..-35 = normal, -35..-45 = weak, <-45 = marginal
+  let color = "text-emerald-400 border-emerald-400/40 bg-emerald-400/10";
+  if (dbfs < -45) color = "text-red-400 border-red-400/40 bg-red-400/10";
+  else if (dbfs < -35) color = "text-orange-400 border-orange-400/40 bg-orange-400/10";
+  else if (dbfs < -20) color = "text-emerald-400 border-emerald-400/40 bg-emerald-400/10";
+  else color = "text-cyan-300 border-cyan-300/40 bg-cyan-300/10";
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 text-[10px] font-mono font-semibold border rounded px-1 py-px tracking-tight ${color}`}
+      title={`RSSI: ${dbfs.toFixed(1)} dBFS (≈ ${(dbfs - 30).toFixed(0)} dBm con LNA=30/TIA=6/PGA=10)`}
+      data-testid={`rssi-${dbfs.toFixed(0)}`}
+    >
+      <SignalIcon className="w-2.5 h-2.5" />
+      {dbfs.toFixed(1)}
+    </span>
+  );
+}
+
 function StatusDot({ status }: { status: string }) {
   const colors: Record<string, string> = {
     Online: "bg-emerald-400 shadow-emerald-400/50",
@@ -246,6 +266,9 @@ function TerminalRow({ t: terminal, tgName, issiCallsign }: { t: Terminal; tgNam
               <CountryFlag callsign={terminal.callsign} />
               <span className="text-foreground font-bold text-xs sm:text-sm">({terminal.callsign})</span>
             </>
+          ) : null}
+          {typeof terminal.rssiDbfs === "number" ? (
+            <RssiBadge dbfs={terminal.rssiDbfs} />
           ) : null}
         </span>
       </td>
