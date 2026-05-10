@@ -12,6 +12,7 @@ export interface Terminal {
   activity?: "TX" | "RX" | null;
   activityTg?: string | null;
   timeSlot?: number | null;
+  rssiDbfs?: number | null;
 }
 
 export interface CallLogEntry {
