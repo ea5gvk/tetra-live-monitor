@@ -169,6 +169,21 @@ Individual/private calls between two ISSI terminals are detected and displayed:
 - **Tracking**: `self.private_calls` dict maps `call_id → {src, dst}` for proper end-of-call clearing
 - **Demo mode**: ~15% chance per cycle of simulating a P2P private call between two random terminals
 
+## SDS Sending (Flowstation only)
+- Botón violeta **"SDS"** (icono Send) en la barra de navegación, junto a "Update Flowstation"
+- Al pulsarlo abre un modal con: ISSI destino, mensaje (max 160 chars), contraseña del sistema
+- Solo está habilitado cuando la estación activa es **FLOWSTATION** (botón gris/disabled en bluestation con tooltip "Solo disponible con FLOWSTATION activa")
+- Componente: `client/src/components/SdsSender.tsx` — sondea `/api/station/active` cada 30 s para conocer el estado de flowstation
+- **Backend**: `POST /api/sds/send` `{password, dest_issi, message}` en `server/routes.ts`
+  - Verifica password del sistema, valida ISSI/mensaje, comprueba que `flowstation.service` está activa
+  - Abre WebSocket cliente a `ws://127.0.0.1:8080/` (dashboard interno de flowstation)
+  - Envía `{type:"sds", dest_issi, message}` y cierra tras 300 ms (flowstation no devuelve ack en el WS)
+  - Timeout 5 s — devuelve 504 si no se conecta
+- **Origen del mensaje**: ISSI **9999** (BS dispatcher), hardcodeada en `crates/tetra-entities/src/net_dashboard/server.rs:327` de flowstation
+- Flowstation construye el PDU `D-SDS-DATA` y lo transmite por la portadora SDR; el log saliente correspondiente (`BrewEntity: sending SDS uuid=... src=9999 dst=X`) será capturado por nuestro parser y mostrado en el panel SDS Messages como mensaje saliente
+- Bluestation upstream **no tiene endpoint de control equivalente**, por eso esta función está limitada a flowstation
+- i18n: claves `sds_send_*` en los 10 idiomas
+
 ## RSSI Display
 - Bluestation/flowstation logs `MsRssiUpdate { issi: X, rssi_dbfs: Y }` (in dBFS) when a terminal first registers and on changes ≥3 dB
 - `tetra_monitor.py` parses these lines (early in `process_line`) and stores `rssi_dbfs` on the terminal dict; emits `update_terminal` event
