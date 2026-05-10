@@ -17,6 +17,7 @@ import { UpdateChecker } from "@/components/UpdateChecker";
 import { BluestationUpdater } from "@/components/BluestationUpdater";
 import { FlowstationUpdater } from "@/components/FlowstationUpdater";
 import { StationSwitcher } from "@/components/StationSwitcher";
+import { SdsSender } from "@/components/SdsSender";
 import { useState, useEffect } from "react";
 
 const THEME_STORAGE_KEY = "tetra_dashboard_theme";
@@ -119,6 +120,7 @@ function NavBar() {
           <StationSwitcher />
           <BluestationUpdater />
           <FlowstationUpdater />
+          <SdsSender />
           <UpdateChecker />
           <a
             href="https://www.paypal.com/donate?business=quini7620%40gmail.com&currency_code=EUR"
@@ -155,6 +157,7 @@ function NavBar() {
         <StationSwitcher />
         <BluestationUpdater />
         <FlowstationUpdater />
+        <SdsSender />
         <UpdateChecker />
         <a
           href="https://www.paypal.com/donate?business=quini7620%40gmail.com&currency_code=EUR"
