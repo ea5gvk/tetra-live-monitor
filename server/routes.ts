@@ -1185,18 +1185,23 @@ ${restartLine}
           continue;
         }
 
-        // Active section header resets commented-section tracking
-        inCommentedBrew = false;
-        inCommentedSecurity = false;
-        const sectionMatch = line.match(/^\[([^\]]+)\]/);
+        // Active section header resets commented-section tracking.
+        // Use STRICT regex so multi-line array continuations like `[0, 7],`
+        // are NOT mistaken for section headers.
+        const sectionMatch = line.match(/^\[([a-zA-Z_][\w.]*)\]\s*$/);
         if (sectionMatch) {
-          // [[sub-table]] headers (double bracket) — stay in parent section context
-          if (!line.startsWith('[[')) {
-            currentSection = sectionMatch[1];
-            if (currentSection === 'brew') brewActive = true;
-            if (currentSection === 'security') securityActive = true;
-            sections[currentSection] = sections[currentSection] || {};
-          }
+          inCommentedBrew = false;
+          inCommentedSecurity = false;
+          currentSection = sectionMatch[1];
+          if (currentSection === 'brew') brewActive = true;
+          if (currentSection === 'security') securityActive = true;
+          sections[currentSection] = sections[currentSection] || {};
+          continue;
+        }
+        // [[sub-table]] headers — stay in parent section context
+        if (/^\[\[[\w.]+\]\]\s*$/.test(line)) {
+          inCommentedBrew = false;
+          inCommentedSecurity = false;
           continue;
         }
         const kvMatch = line.match(/^([a-zA-Z0-9_.]+)\s*=\s*(.+)/);
@@ -1491,15 +1496,17 @@ ${restartLine}
       let netInfoSectionExists = false;
 
       for (let i = 0; i < lines.length; i++) {
-        const sectionMatch = lines[i].match(/^\s*\[([^\]]+)\]/);
+        // Match ONLY real section headers: [identifier] alone on its line.
+        // This avoids matching multi-line array continuations like `[0, 7],`
+        // inside `local_ssi_ranges = [ ... ]`.
+        const sectionMatch = lines[i].match(/^\s*\[([a-zA-Z_][\w.]*)\]\s*$/);
         if (sectionMatch) {
-          // [[sub-table]] headers (double bracket) — keep parent section context
-          if (!lines[i].trimStart().startsWith("[[")) {
-            currentSection = sectionMatch[1].trim();
-            if (currentSection === "net_info") netInfoSectionExists = true;
-          }
+          currentSection = sectionMatch[1].trim();
+          if (currentSection === "net_info") netInfoSectionExists = true;
           continue;
         }
+        // [[sub-table]] headers — skip without changing currentSection
+        if (/^\s*\[\[[\w.]+\]\]\s*$/.test(lines[i])) continue;
 
         if (currentSection === "cell_info") {
           // Handle commented # <call_timing_key> = N lines (active or commented depending on toggle)
