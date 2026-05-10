@@ -1133,6 +1133,7 @@ ${restartLine}
       let brewCommented = false; // true if [brew] header is commented out
       let brewActive = false;    // true if [brew] header is active
       let securityActive = false; // true if [security] header is active
+      let ctActive = false;      // true if any CT key appears as active (not commented) under [cell_info]
       const sections: Record<string, Record<string, string>> = {};
 
       for (const raw of lines) {
@@ -1189,14 +1190,24 @@ ${restartLine}
         inCommentedSecurity = false;
         const sectionMatch = line.match(/^\[([^\]]+)\]/);
         if (sectionMatch) {
-          currentSection = sectionMatch[1];
-          if (currentSection === 'brew') brewActive = true;
-          if (currentSection === 'security') securityActive = true;
-          sections[currentSection] = sections[currentSection] || {};
+          // [[sub-table]] headers (double bracket) — stay in parent section context
+          if (!line.startsWith('[[')) {
+            currentSection = sectionMatch[1];
+            if (currentSection === 'brew') brewActive = true;
+            if (currentSection === 'security') securityActive = true;
+            sections[currentSection] = sections[currentSection] || {};
+          }
           continue;
         }
         const kvMatch = line.match(/^([a-zA-Z0-9_.]+)\s*=\s*(.+)/);
-        if (kvMatch && currentSection) sections[currentSection][kvMatch[1].trim()] = kvMatch[2].trim();
+        if (kvMatch && currentSection) {
+          const kk = kvMatch[1].trim();
+          sections[currentSection][kk] = kvMatch[2].trim();
+          // Track active (non-commented) call timing keys under [cell_info]
+          if (currentSection === 'cell_info' && (kk === 'hangtime_secs' || kk === 'call_timeout_secs' || kk === 'ul_inactivity_secs')) {
+            ctActive = true;
+          }
+        }
       }
 
       const get = (sec: string, key: string) => sections[sec]?.[key] ?? null;
@@ -1330,20 +1341,7 @@ ${restartLine}
             // Enabled = at least one of the 3 keys appears as an ACTIVE assignment under [cell_info].
             // Scan lines directly to distinguish active from commented (commented values are
             // also stored in `sections` so we can populate the form even when disabled).
-            enabled: (() => {
-              let inCellInfo = false;
-              for (const raw of lines) {
-                const t = raw.trim();
-                // [[subsection]] headers (double bracket) — stay in current section context
-                if (t.startsWith('[[')) continue;
-                // [section] top-level headers switch context
-                const sm = t.match(/^\[([^\]]+)\]/);
-                if (sm) { inCellInfo = sm[1] === 'cell_info'; continue; }
-                if (!inCellInfo || t.startsWith('#')) continue;
-                if (/^(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=/.test(t)) return true;
-              }
-              return false;
-            })(),
+            enabled: ctActive,
             hangtime_secs: num('cell_info', 'hangtime_secs'),
             call_timeout_secs: num('cell_info', 'call_timeout_secs'),
             ul_inactivity_secs: num('cell_info', 'ul_inactivity_secs'),
