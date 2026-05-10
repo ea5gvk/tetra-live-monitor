@@ -1334,6 +1334,9 @@ ${restartLine}
               let inCellInfo = false;
               for (const raw of lines) {
                 const t = raw.trim();
+                // [[subsection]] headers (double bracket) — stay in current section context
+                if (t.startsWith('[[')) continue;
+                // [section] top-level headers switch context
                 const sm = t.match(/^\[([^\]]+)\]/);
                 if (sm) { inCellInfo = sm[1] === 'cell_info'; continue; }
                 if (!inCellInfo || t.startsWith('#')) continue;
@@ -1501,6 +1504,8 @@ ${restartLine}
           const commentedCtMatch = lines[i].match(/^(\s*)#\s*(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=\s*([0-9]+)/);
           if (commentedCtMatch) {
             const k = commentedCtMatch[2];
+            // Duplicate: a previous occurrence already handled this key → remove this line
+            if (ctFound[k]) { lines.splice(i, 1); i--; continue; }
             const v = ctVals[k];
             lines[i] = ctEnabled
               ? `${commentedCtMatch[1]}${k} = ${v}`
@@ -1557,6 +1562,8 @@ ${restartLine}
               continue;
             }
             if (ctKeys.includes(k)) {
+              // Duplicate: a previous occurrence already handled this key → remove this line
+              if (ctFound[k]) { lines.splice(i, 1); i--; continue; }
               const v = ctVals[k];
               lines[i] = ctEnabled
                 ? `${keyMatch[1]}${k}${keyMatch[3]}${v}`
