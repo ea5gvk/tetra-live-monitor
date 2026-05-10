@@ -2733,13 +2733,50 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         el("timezoneVal").value = data.cell_info.timezone;
       }
 
-      // ── Call Timing (load values even when disabled/commented)
-      const ct = data.cell_info.call_timing || {};
-      el("enableCallTiming").checked = !!ct.enabled;
-      el("enableCallTiming").dispatchEvent(new Event("change"));
-      if (ct.hangtime_secs !== null && ct.hangtime_secs !== undefined) el("hangtimeSecs").value = String(ct.hangtime_secs);
-      if (ct.call_timeout_secs !== null && ct.call_timeout_secs !== undefined) el("callTimeoutSecs").value = String(ct.call_timeout_secs);
-      if (ct.ul_inactivity_secs !== null && ct.ul_inactivity_secs !== undefined) el("ulInactivitySecs").value = String(ct.ul_inactivity_secs);
+      // ── Call Timing — parse client-side from raw TOML for maximum reliability.
+      // This bypasses any server-side parsing edge cases. Falls back to server-parsed
+      // call_timing object if _raw is not available (older servers).
+      (function() {
+        var ctEnabled = false;
+        var ctVals = { hangtime_secs: null, call_timeout_secs: null, ul_inactivity_secs: null };
+        var raw = (typeof data._raw === "string") ? data._raw : null;
+        if (raw) {
+          var lines = raw.split("\n");
+          var inCellInfo = false;
+          for (var i = 0; i < lines.length; i++) {
+            var t = lines[i].trim();
+            if (!t) continue;
+            // [[sub-table]] headers don't change parent section context
+            if (t.indexOf("[[") === 0) continue;
+            // Top-level [section] headers
+            var sm = t.match(/^\[([^\]]+)\]/);
+            if (sm) { inCellInfo = (sm[1].trim() === "cell_info"); continue; }
+            if (!inCellInfo) continue;
+            // Active line: hangtime_secs = N
+            var am = t.match(/^(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=\s*(\d+)/);
+            if (am) {
+              ctEnabled = true;
+              if (ctVals[am[1]] === null) ctVals[am[1]] = parseInt(am[2]);
+              continue;
+            }
+            // Commented line: # hangtime_secs = N (only if no active value yet)
+            var cm = t.match(/^#\s*(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=\s*(\d+)/);
+            if (cm && ctVals[cm[1]] === null) ctVals[cm[1]] = parseInt(cm[2]);
+          }
+        } else {
+          // Fallback to server-parsed call_timing
+          var ct = data.cell_info.call_timing || {};
+          ctEnabled = !!ct.enabled;
+          if (ct.hangtime_secs !== null && ct.hangtime_secs !== undefined) ctVals.hangtime_secs = ct.hangtime_secs;
+          if (ct.call_timeout_secs !== null && ct.call_timeout_secs !== undefined) ctVals.call_timeout_secs = ct.call_timeout_secs;
+          if (ct.ul_inactivity_secs !== null && ct.ul_inactivity_secs !== undefined) ctVals.ul_inactivity_secs = ct.ul_inactivity_secs;
+        }
+        el("enableCallTiming").checked = ctEnabled;
+        el("enableCallTiming").dispatchEvent(new Event("change"));
+        if (ctVals.hangtime_secs !== null) el("hangtimeSecs").value = String(ctVals.hangtime_secs);
+        if (ctVals.call_timeout_secs !== null) el("callTimeoutSecs").value = String(ctVals.call_timeout_secs);
+        if (ctVals.ul_inactivity_secs !== null) el("ulInactivitySecs").value = String(ctVals.ul_inactivity_secs);
+      })();
 
       // ── Net Info (MCC / MNC)
       if (data.net_info.mcc !== null) el("mccVal").value = String(data.net_info.mcc);
