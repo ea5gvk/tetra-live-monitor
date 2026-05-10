@@ -169,6 +169,15 @@ Individual/private calls between two ISSI terminals are detected and displayed:
 - **Tracking**: `self.private_calls` dict maps `call_id → {src, dst}` for proper end-of-call clearing
 - **Demo mode**: ~15% chance per cycle of simulating a P2P private call between two random terminals
 
+## RSSI Display
+- Bluestation/flowstation logs `MsRssiUpdate { issi: X, rssi_dbfs: Y }` (in dBFS) when a terminal first registers and on changes ≥3 dB
+- `tetra_monitor.py` parses these lines (early in `process_line`) and stores `rssi_dbfs` on the terminal dict; emits `update_terminal` event
+- `_terminal_to_dict` includes `rssiDbfs` field; `Terminal` interface in `shared/schema.ts` and `client/src/hooks/useTetraWebSocket.ts` extended with `rssiDbfs?: number | null`
+- Dashboard renders an `RssiBadge` next to the callsign (TERMINAL column) showing `<value> dBFS` with a Signal icon
+- Color thresholds: cyan ≥ -20, emerald -20 to -35, orange -35 to -45, red < -45
+- Tooltip shows the equivalent dBm assuming default LimeSDR Mini gain (LNA=30/TIA=6/PGA=10) → dBm ≈ dBFS - 30
+- Only updated when a terminal already exists in the table (not from RSSI-only lines for unknown ISSIs)
+
 ## Demo Mode
 When `journalctl` is not available (like in Replit), the Python script runs in demo mode with simulated TETRA traffic using realistic callsigns and talk groups. ~35% of demo cycles simulate two concurrent calls on different TGs with different time slots. ~20% of demo cycles also simulate an SDS message. ~15% chance of a private P2P call.
 
