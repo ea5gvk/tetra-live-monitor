@@ -2756,7 +2756,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
             var am = t.match(/^(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=\s*(\d+)/);
             if (am) {
               ctEnabled = true;
-              if (ctVals[am[1]] === null) ctVals[am[1]] = parseInt(am[2]);
+              ctVals[am[1]] = parseInt(am[2]);
               continue;
             }
             // Commented line: # hangtime_secs = N (only if no active value yet)
