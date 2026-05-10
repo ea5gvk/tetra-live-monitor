@@ -1493,8 +1493,11 @@ ${restartLine}
       for (let i = 0; i < lines.length; i++) {
         const sectionMatch = lines[i].match(/^\s*\[([^\]]+)\]/);
         if (sectionMatch) {
-          currentSection = sectionMatch[1].trim();
-          if (currentSection === "net_info") netInfoSectionExists = true;
+          // [[sub-table]] headers (double bracket) — keep parent section context
+          if (!lines[i].trimStart().startsWith("[[")) {
+            currentSection = sectionMatch[1].trim();
+            if (currentSection === "net_info") netInfoSectionExists = true;
+          }
           continue;
         }
 
