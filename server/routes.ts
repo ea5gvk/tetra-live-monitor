@@ -980,7 +980,7 @@ ${restartLine}
     }, 5000);
     let ws: WebSocket;
     try {
-      ws = new WebSocket("ws://127.0.0.1:8080/");
+      ws = new WebSocket("ws://127.0.0.1:8080/ws");
     } catch (e: any) {
       clearTimeout(timer);
       return res.status(502).json({ ok: false, message: `Error WS: ${e?.message || e}` });
