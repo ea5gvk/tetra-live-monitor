@@ -2736,6 +2736,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       // ── Call Timing (load values even when disabled/commented)
       const ct = data.cell_info.call_timing || {};
       el("enableCallTiming").checked = !!ct.enabled;
+      el("enableCallTiming").dispatchEvent(new Event("change"));
       if (ct.hangtime_secs !== null && ct.hangtime_secs !== undefined) el("hangtimeSecs").value = String(ct.hangtime_secs);
       if (ct.call_timeout_secs !== null && ct.call_timeout_secs !== undefined) el("callTimeoutSecs").value = String(ct.call_timeout_secs);
       if (ct.ul_inactivity_secs !== null && ct.ul_inactivity_secs !== undefined) el("ulInactivitySecs").value = String(ct.ul_inactivity_secs);
