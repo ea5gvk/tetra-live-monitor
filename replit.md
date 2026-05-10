@@ -176,7 +176,7 @@ Individual/private calls between two ISSI terminals are detected and displayed:
 - Componente: `client/src/components/SdsSender.tsx` — sondea `/api/station/active` cada 30 s para conocer el estado de flowstation
 - **Backend**: `POST /api/sds/send` `{password, dest_issi, message}` en `server/routes.ts`
   - Verifica password del sistema, valida ISSI/mensaje, comprueba que `flowstation.service` está activa
-  - Abre WebSocket cliente a `ws://127.0.0.1:8080/` (dashboard interno de flowstation)
+  - Abre WebSocket cliente a `ws://127.0.0.1:8080/ws` (dashboard interno de flowstation; la raíz `/` sirve HTML)
   - Envía `{type:"sds", dest_issi, message}` y cierra tras 300 ms (flowstation no devuelve ack en el WS)
   - Timeout 5 s — devuelve 504 si no se conecta
 - **Origen del mensaje**: ISSI **9999** (BS dispatcher), hardcodeada en `crates/tetra-entities/src/net_dashboard/server.rs:327` de flowstation
