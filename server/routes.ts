@@ -856,8 +856,11 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
     const script = `
 set -e
 cd "${cleanDir}"
-echo "=== git pull ==="
-sudo git pull
+echo "=== git fetch ==="
+sudo git fetch --all --prune
+BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)
+echo "=== Sincronizando con origin/$BRANCH (reset --hard, soporta force-push) ==="
+sudo git reset --hard "origin/$BRANCH"
 echo ""
 echo "=== cargo build --release ==="
 sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env; cargo build --release'
