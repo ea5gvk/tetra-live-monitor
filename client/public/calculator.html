@@ -2747,9 +2747,10 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
             var t = lines[i].trim();
             if (!t) continue;
             // [[sub-table]] headers don't change parent section context
-            if (t.indexOf("[[") === 0) continue;
-            // Top-level [section] headers
-            var sm = t.match(/^\[([^\]]+)\]/);
+            if (/^\[\[[\w.]+\]\]\s*$/.test(t)) continue;
+            // Top-level [section] headers — STRICT match so `[0, 7],` (array
+            // continuation inside local_ssi_ranges) is NOT treated as a section
+            var sm = t.match(/^\[([a-zA-Z_][\w.]*)\]\s*$/);
             if (sm) { inCellInfo = (sm[1].trim() === "cell_info"); continue; }
             if (!inCellInfo) continue;
             // Active line: hangtime_secs = N
