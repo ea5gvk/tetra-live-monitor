@@ -316,6 +316,7 @@ class TetraMonitor:
             "activity": t.get("activity", None),
             "activityTg": t.get("activity_tg", None),
             "timeSlot": t.get("time_slot", None),
+            "rssiDbfs": t.get("rssi_dbfs", None),
         }
 
     def _set_activity(self, s_issi, d_gssi, time_slot=None):
@@ -440,6 +441,20 @@ class TetraMonitor:
             context_ssi = self._extract_ssi(msg)
             if context_ssi:
                 self.last_context_id = context_ssi
+
+            # 0. RSSI updates: MsRssiUpdate { issi: NNN, rssi_dbfs: -12.34 }
+            # Logged by bluestation/flowstation when terminal registers and on >=3dB changes.
+            rssi_match = re.search(
+                r"MsRssiUpdate\s*\{\s*issi:\s*(\d+),\s*rssi_dbfs:\s*(-?\d+(?:\.\d+)?)",
+                msg
+            )
+            if rssi_match:
+                r_issi, r_dbfs = rssi_match.group(1), float(rssi_match.group(2))
+                if r_issi in self.terminals:
+                    self.terminals[r_issi]["rssi_dbfs"] = r_dbfs
+                    self.terminals[r_issi]["last_seen"] = timestamp
+                    emit("update_terminal", self._terminal_to_dict(r_issi))
+                return
 
             # 1. CALLS (GROUP_TX from BrewWorker)
             call_match = re.search(r"GROUP_TX\s+.*?src=(\d+)\s+dst=(\d+)", msg)
