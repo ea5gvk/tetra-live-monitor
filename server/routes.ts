@@ -1317,6 +1317,7 @@ ${restartLine}
       }
 
       res.json({
+        _raw: content,
         phy_io_soapysdr: {
           tx_freq: num('phy_io.soapysdr', 'tx_freq'),
           rx_freq: num('phy_io.soapysdr', 'rx_freq'),
