@@ -194,7 +194,10 @@ Individual/private calls between two ISSI terminals are detected and displayed:
 - Inputs `type=number` validan el patrón `^-?\d*\.?\d*$` antes de aceptar la pulsación
 - En `<textarea>` el botón Enter inserta `\n`; en `<input>` dispara submit del form más cercano (o keydown Enter si no hay form)
 - Se cierra automáticamente al hacer tap fuera del teclado y de cualquier input editable
-- **Limitación**: la calculadora (`/calculator`) corre en un iframe (`calculator.html`) y no recibe el teclado táctil — habría que inyectarlo dentro del iframe vía postMessage si se necesita
+- **Calculadora (iframe)**: `client/public/calculator.html` incluye una réplica vanilla JS del mismo teclado al final del archivo. Lee `localStorage.tetra_touch_mode` directamente (mismo origen) y se sincroniza con el padre por dos vías:
+  - Evento `storage` (cross-document, mismo origen) cuando el dashboard cambia el valor
+  - `postMessage({type:"touch-mode", on})` enviado desde `TouchModeToggle.toggle()` a todos los iframes para sincronización instantánea
+  - Mismas 3 capas, mismas teclas especiales, mismo handler `setNativeValue` con dispatch de eventos `input`/`change` para que los listeners de la calculadora (que actualizan el preview TOML) se enteren del cambio
 
 ## Kick Terminal (Flowstation only)
 - Botón rojo **"KICK"** (icono UserX) en la barra de navegación, junto al botón SDS
