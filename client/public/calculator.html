@@ -3383,5 +3383,238 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   })();
 })();
 </script>
+
+<!-- ============================================================
+     Touch keyboard (mirrors client/src/components/TouchKeyboard.tsx)
+     Reads localStorage.tetra_touch_mode; same-origin storage event
+     keeps it in sync when the dashboard toggle flips it.
+     ============================================================ -->
+<style>
+  #tetraTouchKb {
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 99999;
+    background: rgba(20,20,28,0.96); backdrop-filter: blur(6px);
+    border-top: 2px solid rgba(245,158,11,0.4);
+    box-shadow: 0 -8px 32px rgba(0,0,0,0.5);
+    user-select: none; -webkit-user-select: none;
+    color: #e5e7eb; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  #tetraTouchKb .tkb-hdr {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 6px 12px; border-bottom: 1px solid rgba(255,255,255,0.08);
+    font-size: 10px; font-weight: 700; color: rgba(252,211,77,0.9);
+    letter-spacing: 0.05em; text-transform: uppercase;
+  }
+  #tetraTouchKb .tkb-close {
+    background: none; border: none; color: #9ca3af; cursor: pointer;
+    padding: 4px 6px; border-radius: 4px; font-size: 14px; line-height: 1;
+  }
+  #tetraTouchKb .tkb-close:hover { background: rgba(255,255,255,0.1); color: #fff; }
+  #tetraTouchKb .tkb-rows { padding: 8px; display: flex; flex-direction: column; gap: 6px; }
+  #tetraTouchKb .tkb-row { display: flex; gap: 4px; justify-content: center; }
+  #tetraTouchKb button.tkb-key {
+    flex: 1; min-width: 0; max-width: 10%; height: 44px;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+    color: #e5e7eb; font-family: inherit; font-weight: 700; font-size: 15px;
+    border-radius: 6px; cursor: pointer; transition: background 0.1s;
+  }
+  #tetraTouchKb button.tkb-key:hover { background: rgba(255,255,255,0.15); }
+  #tetraTouchKb button.tkb-key:active { background: rgba(245,158,11,0.4); }
+  #tetraTouchKb button.tkb-special {
+    flex: 0 0 auto; padding: 0 12px; height: 44px;
+    background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.1);
+    color: #e5e7eb; font-weight: 700; font-size: 12px;
+    border-radius: 6px; cursor: pointer; transition: background 0.1s;
+  }
+  #tetraTouchKb button.tkb-special:hover { background: rgba(255,255,255,0.15); }
+  #tetraTouchKb button.tkb-special.tkb-shift-on {
+    background: rgba(245,158,11,0.4); color: #fef3c7; border-color: rgba(245,158,11,0.7);
+  }
+  #tetraTouchKb button.tkb-space { flex: 1; }
+  #tetraTouchKb button.tkb-bksp {
+    background: rgba(244,63,94,0.2); border-color: rgba(244,63,94,0.4); color: #fecdd3;
+  }
+  #tetraTouchKb button.tkb-bksp:hover { background: rgba(244,63,94,0.3); }
+  #tetraTouchKb button.tkb-enter {
+    background: rgba(16,185,129,0.2); border-color: rgba(16,185,129,0.4); color: #a7f3d0;
+  }
+  #tetraTouchKb button.tkb-enter:hover { background: rgba(16,185,129,0.3); }
+  html.calc-touch-pad { padding-bottom: 280px !important; }
+</style>
+<script>
+(function(){
+  var STORAGE_KEY = "tetra_touch_mode";
+  var LAYERS = {
+    letters: [
+      ["q","w","e","r","t","y","u","i","o","p"],
+      ["a","s","d","f","g","h","j","k","l"],
+      ["z","x","c","v","b","n","m",",","."],
+    ],
+    numbers: [
+      ["1","2","3","4","5","6","7","8","9","0"],
+      ["-","/",":",";","(",")","$","&","@","\""],
+      [".",",","?","!","'","+","=","_","*"],
+    ],
+    symbols: [
+      ["[","]","{","}","#","%","^","*","+","="],
+      ["_","\\","|","~","<",">","€","£","¥","·"],
+      [".",",","?","!","'","\"",";",":","/"],
+    ],
+  };
+  var enabled = false, target = null, layer = "letters", shift = false;
+  var root = null;
+
+  function readMode() {
+    try { return localStorage.getItem(STORAGE_KEY) === "1"; } catch(_) { return false; }
+  }
+  function isEditable(el) {
+    if (!el || !el.tagName) return false;
+    if (el.tagName === "TEXTAREA") return true;
+    if (el.tagName !== "INPUT") return false;
+    var t = (el.type || "text").toLowerCase();
+    return ["text","number","password","email","search","tel","url",""].indexOf(t) >= 0;
+  }
+  function setNativeValue(el, value) {
+    var proto = (el.tagName === "TEXTAREA")
+      ? window.HTMLTextAreaElement.prototype
+      : window.HTMLInputElement.prototype;
+    var desc = Object.getOwnPropertyDescriptor(proto, "value");
+    if (desc && desc.set) desc.set.call(el, value); else el.value = value;
+    el.dispatchEvent(new Event("input", { bubbles: true }));
+    el.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  function press(ch) {
+    if (!target) return;
+    var s = target.selectionStart != null ? target.selectionStart : target.value.length;
+    var e = target.selectionEnd   != null ? target.selectionEnd   : target.value.length;
+    var out = (shift && layer === "letters") ? ch.toUpperCase() : ch;
+    var v = target.value.slice(0, s) + out + target.value.slice(e);
+    if (target.type === "number" && !/^-?\d*\.?\d*$/.test(v)) return;
+    setNativeValue(target, v);
+    try { target.setSelectionRange(s + out.length, s + out.length); } catch(_){}
+    if (shift && layer === "letters") { shift = false; render(); }
+  }
+  function backspace() {
+    if (!target) return;
+    var s = target.selectionStart != null ? target.selectionStart : target.value.length;
+    var e = target.selectionEnd   != null ? target.selectionEnd   : target.value.length;
+    if (s === 0 && e === 0) return;
+    var cut = (s === e) ? s - 1 : s;
+    setNativeValue(target, target.value.slice(0, cut) + target.value.slice(e));
+    try { target.setSelectionRange(cut, cut); } catch(_){}
+  }
+  function enter() {
+    if (!target) return;
+    if (target.tagName === "TEXTAREA") { press("\n"); return; }
+    var f = target.form;
+    if (f) {
+      var ev = new Event("submit", { bubbles: true, cancelable: true });
+      if (f.dispatchEvent(ev) && f.requestSubmit) f.requestSubmit();
+    } else {
+      target.dispatchEvent(new KeyboardEvent("keydown", { key: "Enter", code: "Enter", bubbles: true }));
+      target.dispatchEvent(new KeyboardEvent("keyup",   { key: "Enter", code: "Enter", bubbles: true }));
+    }
+  }
+  function ensureRoot() {
+    if (root) return root;
+    root = document.createElement("div");
+    root.id = "tetraTouchKb";
+    root.setAttribute("data-touch-kb", "1");
+    root.addEventListener("pointerdown", function(e){ e.preventDefault(); });
+    root.addEventListener("mousedown",   function(e){ e.preventDefault(); });
+    document.body.appendChild(root);
+    return root;
+  }
+  function close() {
+    target = null;
+    if (root) { root.remove(); root = null; }
+    document.documentElement.classList.remove("calc-touch-pad");
+  }
+  function render() {
+    if (!enabled || !target) { if (root) close(); return; }
+    var r = ensureRoot();
+    var rows = LAYERS[layer];
+    var html = '<div class="tkb-hdr"><span>⌨ TECLADO TÁCTIL</span><button class="tkb-close" data-act="close">✕</button></div><div class="tkb-rows">';
+    rows.forEach(function(row){
+      html += '<div class="tkb-row">';
+      row.forEach(function(k){
+        var disp = (shift && layer === "letters") ? k.toUpperCase() : k;
+        html += '<button class="tkb-key" data-key="'+k.replace(/"/g,"&quot;")+'">'+disp+'</button>';
+      });
+      html += '</div>';
+    });
+    html += '<div class="tkb-row">';
+    if (layer === "letters") {
+      html += '<button class="tkb-special'+(shift?' tkb-shift-on':'')+'" data-act="shift">⇧</button>';
+    } else {
+      html += '<button class="tkb-special" data-act="symtoggle">'+(layer === "numbers" ? "#+=" : "123")+'</button>';
+    }
+    html += '<button class="tkb-special" data-act="layer">'+(layer === "letters" ? "123" : "ABC")+'</button>';
+    html += '<button class="tkb-special tkb-space" data-act="space">ESPACIO</button>';
+    html += '<button class="tkb-special tkb-bksp" data-act="bksp">⌫</button>';
+    html += '<button class="tkb-special tkb-enter" data-act="enter">⏎</button>';
+    html += '</div></div>';
+    r.innerHTML = html;
+    document.documentElement.classList.add("calc-touch-pad");
+    r.querySelectorAll("[data-key]").forEach(function(b){
+      b.addEventListener("click", function(){ press(b.getAttribute("data-key")); });
+    });
+    r.querySelectorAll("[data-act]").forEach(function(b){
+      b.addEventListener("click", function(){
+        var a = b.getAttribute("data-act");
+        if (a === "close") close();
+        else if (a === "shift") { shift = !shift; render(); }
+        else if (a === "layer") { layer = (layer === "letters") ? "numbers" : "letters"; shift = false; render(); }
+        else if (a === "symtoggle") { layer = (layer === "numbers") ? "symbols" : "numbers"; render(); }
+        else if (a === "space") press(" ");
+        else if (a === "bksp") backspace();
+        else if (a === "enter") enter();
+      });
+    });
+  }
+  function onFocusIn(e) {
+    if (!enabled) return;
+    if (isEditable(e.target)) { target = e.target; render(); }
+  }
+  function onPointerDown(e) {
+    if (!enabled || !target) return;
+    var path = e.composedPath ? e.composedPath() : [];
+    for (var i = 0; i < path.length; i++) {
+      var n = path[i];
+      if (n && n.dataset && n.dataset.touchKb === "1") return;
+      if (isEditable(n)) return;
+    }
+    close();
+  }
+  function applyMode(v) {
+    enabled = !!v;
+    if (!enabled) close();
+    else {
+      var ae = document.activeElement;
+      if (isEditable(ae)) { target = ae; render(); }
+    }
+  }
+  function init() {
+    enabled = readMode();
+    document.addEventListener("focusin", onFocusIn);
+    document.addEventListener("pointerdown", onPointerDown);
+    window.addEventListener("storage", function(e){
+      if (e.key === STORAGE_KEY) applyMode(e.newValue === "1");
+    });
+    // Parent (dashboard) may also notify via postMessage for instant sync.
+    window.addEventListener("message", function(e){
+      if (e.data && e.data.type === "touch-mode") applyMode(!!e.data.on);
+    });
+    if (enabled) {
+      var ae = document.activeElement;
+      if (isEditable(ae)) { target = ae; render(); }
+    }
+  }
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
 </body>
 </html>
