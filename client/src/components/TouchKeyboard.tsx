@@ -58,6 +58,10 @@ export function TouchModeToggle() {
     setOn(next);
     writeTouchMode(next);
     window.dispatchEvent(new CustomEvent("tetra:touchmode", { detail: next }));
+    // Notify same-origin iframes (e.g. /calculator) so they can show their own keyboard.
+    document.querySelectorAll("iframe").forEach(f => {
+      try { (f as HTMLIFrameElement).contentWindow?.postMessage({ type: "touch-mode", on: next }, "*"); } catch {}
+    });
   }
 
   return (
