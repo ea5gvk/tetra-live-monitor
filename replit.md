@@ -184,6 +184,18 @@ Individual/private calls between two ISSI terminals are detected and displayed:
 - Bluestation upstream **no tiene endpoint de control equivalente**, por eso esta función está limitada a flowstation
 - i18n: claves `sds_send_*` en los 10 idiomas
 
+## Kick Terminal (Flowstation only)
+- Botón rojo **"KICK"** (icono UserX) en la barra de navegación, junto al botón SDS
+- Al pulsarlo abre un modal con: ISSI del terminal a expulsar + contraseña del sistema
+- Solo está habilitado cuando la estación activa es **FLOWSTATION** (mismo gating que SDS)
+- Componente: `client/src/components/KickSender.tsx` — comparte el polling de `/api/station/active` cada 30 s con SdsSender
+- **Backend**: `POST /api/kick` `{password, issi}` en `server/routes.ts`
+  - Mismo flujo que `/api/sds/send`: valida password, comprueba flowstation activa, abre WS a `ws://127.0.0.1:8080/ws`
+  - Envía `{type:"kick", issi}` (formato definido en `crates/tetra-entities/src/net_dashboard/server.rs:308`)
+  - Flowstation construye `ControlCommand::KickMs { issi }` y lo despacha a su scheduler interno
+- Requiere `[dashboard] port = 8080` activado en `/root/flowstation/config.toml` (igual que SDS)
+- i18n: claves `kick_*` en los 10 idiomas
+
 ## RSSI Display
 - Bluestation/flowstation logs `MsRssiUpdate { issi: X, rssi_dbfs: Y }` (in dBFS) when a terminal first registers and on changes ≥3 dB
 - `tetra_monitor.py` parses these lines (early in `process_line`) and stores `rssi_dbfs` on the terminal dict; emits `update_terminal` event
