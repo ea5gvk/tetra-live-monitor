@@ -19,6 +19,7 @@ import { FlowstationUpdater } from "@/components/FlowstationUpdater";
 import { StationSwitcher } from "@/components/StationSwitcher";
 import { SdsSender } from "@/components/SdsSender";
 import { KickSender } from "@/components/KickSender";
+import { TouchKeyboard, TouchModeToggle } from "@/components/TouchKeyboard";
 import { useState, useEffect } from "react";
 
 const THEME_STORAGE_KEY = "tetra_dashboard_theme";
@@ -144,12 +145,14 @@ function NavBar() {
             @EA5GVK
           </span>
           <LangSelector />
+          <TouchModeToggle />
           <ThemeToggle />
         </div>
 
         {/* Mobile right side — compact */}
         <div className="flex md:hidden items-center gap-1 px-2 flex-shrink-0">
           <LangSelector />
+          <TouchModeToggle />
           <ThemeToggle />
         </div>
       </div>
@@ -211,6 +214,7 @@ function App() {
       <TooltipProvider>
         <I18nContext.Provider value={i18n}>
           <Router />
+          <TouchKeyboard />
           <Toaster />
         </I18nContext.Provider>
       </TooltipProvider>
