@@ -184,6 +184,18 @@ Individual/private calls between two ISSI terminals are detected and displayed:
 - Bluestation upstream **no tiene endpoint de control equivalente**, por eso esta función está limitada a flowstation
 - i18n: claves `sds_send_*` en los 10 idiomas
 
+## Touch Keyboard
+- Botón **TÁCTIL** (icono Keyboard) en la barra de navegación, junto al selector de tema
+- Al activarlo (color ámbar), aparece un teclado virtual fijo en la parte inferior cuando el usuario hace tap en cualquier `<input>` de tipo text/number/password/email/search/tel/url o `<textarea>`
+- Persistencia: localStorage `tetra_touch_mode` (`"1"` o `"0"`)
+- Componente: `client/src/components/TouchKeyboard.tsx` exporta `TouchKeyboard` (overlay) y `TouchModeToggle` (botón). El estado se sincroniza entre instancias mediante el evento global `tetra:touchmode`
+- **Layout**: 3 capas (letras QWERTY con shift, números con símbolos comunes, símbolos extendidos) + barra inferior con shift/123-ABC, espacio, retroceso, enter
+- **Inserción de texto**: usa el setter nativo `Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set` + dispatch de `input` event para que React detecte el cambio en componentes controlados
+- Inputs `type=number` validan el patrón `^-?\d*\.?\d*$` antes de aceptar la pulsación
+- En `<textarea>` el botón Enter inserta `\n`; en `<input>` dispara submit del form más cercano (o keydown Enter si no hay form)
+- Se cierra automáticamente al hacer tap fuera del teclado y de cualquier input editable
+- **Limitación**: la calculadora (`/calculator`) corre en un iframe (`calculator.html`) y no recibe el teclado táctil — habría que inyectarlo dentro del iframe vía postMessage si se necesita
+
 ## Kick Terminal (Flowstation only)
 - Botón rojo **"KICK"** (icono UserX) en la barra de navegación, junto al botón SDS
 - Al pulsarlo abre un modal con: ISSI del terminal a expulsar + contraseña del sistema
