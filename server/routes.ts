@@ -1000,6 +1000,55 @@ ${restartLine}
     });
   });
 
+  // Kick (deregister) an MS via flowstation's dashboard WebSocket. Same gating as SDS.
+  app.post("/api/kick", (req, res) => {
+    const { password, issi } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
+    }
+    const target = parseInt(String(issi), 10);
+    if (!target || isNaN(target) || target <= 0 || target > 16777215) {
+      return res.status(400).json({ ok: false, message: "ISSI inválido" });
+    }
+    const flow = serviceState(STATION_SERVICE.flowstation);
+    if (!flow.active) {
+      return res.status(409).json({
+        ok: false,
+        message: "Flowstation no está activa. Cambia a FLOW para expulsar terminales.",
+      });
+    }
+    let done = false;
+    const respond = (status: number, body: object) => {
+      if (done) return;
+      done = true;
+      try { ws.close(); } catch {}
+      clearTimeout(timer);
+      res.status(status).json(body);
+    };
+    const timer = setTimeout(() => {
+      respond(504, { ok: false, message: "Timeout conectando con flowstation:8080" });
+    }, 5000);
+    let ws: WebSocket;
+    try {
+      ws = new WebSocket("ws://127.0.0.1:8080/ws");
+    } catch (e: any) {
+      clearTimeout(timer);
+      return res.status(502).json({ ok: false, message: `Error WS: ${e?.message || e}` });
+    }
+    ws.on("open", () => {
+      try {
+        ws.send(JSON.stringify({ type: "kick", issi: target }));
+      } catch (e: any) {
+        respond(502, { ok: false, message: `Error enviando: ${e?.message || e}` });
+        return;
+      }
+      setTimeout(() => respond(200, { ok: true, message: `Kick enviado para ISSI ${target}`, issi: target }), 300);
+    });
+    ws.on("error", (err: Error) => {
+      respond(502, { ok: false, message: `Error WS flowstation: ${err.message}` });
+    });
+  });
+
   app.post("/api/station/switch", (req, res) => {
     const { password, station } = req.body || {};
     if (!password || password !== getSystemPassword()) {
