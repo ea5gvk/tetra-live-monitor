@@ -153,6 +153,22 @@ function useTgNames(): (id: string | number) => string {
   return (id: string | number) => custom[String(id)] || names[String(id)] || "";
 }
 
+function useIssiCustomNames(): Record<string, string> {
+  const [data, setData] = useState<Record<string, string>>(() => {
+    try { return JSON.parse(localStorage.getItem("tetra_issi_custom") || "{}"); } catch { return {}; }
+  });
+  useEffect(() => {
+    const handler = (e: StorageEvent) => {
+      if (e.key === "tetra_issi_custom") {
+        try { setData(JSON.parse(e.newValue || "{}")); } catch { setData({}); }
+      }
+    };
+    window.addEventListener("storage", handler);
+    return () => window.removeEventListener("storage", handler);
+  }, []);
+  return data;
+}
+
 function ActivityBadge({ activity, timeSlot }: { activity?: "TX" | "RX" | null; timeSlot?: number | null }) {
   if (!activity) return null;
   const tsLabel = timeSlot != null ? ` TS${timeSlot}` : "";
@@ -266,7 +282,18 @@ function TerminalRow({ t: terminal, tgName, issiCallsign }: { t: Terminal; tgNam
               <CountryFlag callsign={terminal.callsign} />
               <span className="text-foreground font-bold text-xs sm:text-sm">({terminal.callsign})</span>
             </>
-          ) : null}
+          ) : (() => {
+            const custom = issiCallsign(terminal.id);
+            return custom ? (
+              <span
+                className="text-amber-300 font-bold text-xs sm:text-sm"
+                title="Custom ISSI name"
+                data-testid={`text-issi-custom-${terminal.id}`}
+              >
+                ({custom})
+              </span>
+            ) : null;
+          })()}
           {typeof terminal.rssiDbfs === "number" ? (
             <RssiBadge dbfs={terminal.rssiDbfs} />
           ) : null}
@@ -949,14 +976,17 @@ export default function Dashboard() {
   const { terminals, localHistory, externalHistory, sdsMessages, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 
-  // Build ISSI → callsign lookup so PRIV destinations can show callsign + flag
+  // Build ISSI → callsign lookup so PRIV destinations can show callsign + flag.
+  // Custom ISSI names (from Calculator) act as a fallback when there is no real callsign.
+  const issiCustom = useIssiCustomNames();
   const issiCallsignMap = useMemo(() => {
     const m = new Map<string, string>();
+    for (const [id, name] of Object.entries(issiCustom)) m.set(id, name);
     for (const term of terminalList) {
       if (term.callsign) m.set(String(term.id), term.callsign);
     }
     return m;
-  }, [terminalList]);
+  }, [terminalList, issiCustom]);
   const issiCallsign = (id: string | number) => issiCallsignMap.get(String(id)) || "";
 
   const txCount = terminalList.filter(t => t.activity === "TX").length;
