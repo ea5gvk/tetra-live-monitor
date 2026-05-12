@@ -623,6 +623,28 @@
         <div id="tgCustomList" style="margin-top:10px;"></div>
       </div>
     </section>
+
+    <!-- ISSI Custom Names section -->
+    <section class="card" style="margin-top:14px;">
+      <h2 data-i18n="issi_custom_title">🧑 Gestión ISSI Privadas</h2>
+      <div class="hint" data-i18n="issi_custom_hint">Asocia números ISSI con indicativos o nombres personalizados (para ISSIs especiales no registradas en radioid.net).</div>
+      <div style="margin-top:14px;">
+        <div style="font-size:11px; font-weight:700; color:var(--muted); letter-spacing:.06em; margin-bottom:8px;" data-i18n="issi_custom_subtitle">ENTRADAS</div>
+        <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+          <input id="issiCustomId" type="number" min="1" step="1" placeholder="ISSI"
+            style="width:130px; font-family:monospace; font-size:13px;"
+            onkeydown="if(event.key==='Enter')addCustomIssiName()" />
+          <input id="issiCustomName" type="text" maxlength="64" placeholder="Indicativo / Nombre"
+            style="flex:1; min-width:160px; font-size:13px;"
+            onkeydown="if(event.key==='Enter')addCustomIssiName()" />
+          <button class="btn-secondary" onclick="addCustomIssiName()" data-i18n="issi_custom_add"
+            style="white-space:nowrap;">AÑADIR</button>
+          <button class="btn-secondary" onclick="clearCustomIssiNames()" data-i18n="issi_custom_clear"
+            style="border-color:#e74c3c; color:#e74c3c; white-space:nowrap;">BORRAR TODAS</button>
+        </div>
+        <div id="issiCustomList" style="margin-top:10px;"></div>
+      </div>
+    </section>
   </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
@@ -779,6 +801,12 @@
       tg_custom_add: "ADD",
       tg_custom_none: "No custom names added yet.",
       tg_custom_clear: "CLEAR ALL",
+      issi_custom_title: "🧑 Custom ISSI Names",
+      issi_custom_hint: "Map ISSI numbers to custom callsigns or names (for special ISSIs not registered in radioid.net).",
+      issi_custom_subtitle: "ENTRIES",
+      issi_custom_add: "ADD",
+      issi_custom_clear: "CLEAR ALL",
+      issi_custom_none: "No custom ISSI names yet.",
       apply_title: "Apply to Raspberry Pi",
       config_path_label: "config.toml file path on Raspberry Pi",
       config_path_hint: "Full path to the TOML configuration file on your Raspberry Pi.",
@@ -909,6 +937,12 @@
       tg_custom_add: "新增",
       tg_custom_none: "尚無自定義名稱。",
       tg_custom_clear: "清除全部",
+      issi_custom_title: "🧑 自定義 ISSI 名稱",
+      issi_custom_hint: "將 ISSI 號碼對應到自定義呼號或名稱（適用於未在 radioid.net 註冊的特殊 ISSI）。",
+      issi_custom_subtitle: "條目",
+      issi_custom_add: "添加",
+      issi_custom_clear: "清除全部",
+      issi_custom_none: "尚無自定義 ISSI。",
       apply_title: "套用到 Raspberry Pi",
       config_path_label: "Raspberry Pi 上的 config.toml 檔案路徑",
       config_path_hint: "Raspberry Pi 上 TOML 設定檔的完整路徑。",
@@ -1039,6 +1073,12 @@
       tg_custom_add: "AÑADIR",
       tg_custom_none: "Sin nombres personalizados.",
       tg_custom_clear: "BORRAR TODOS",
+      issi_custom_title: "🧑 Gestión ISSI Privadas",
+      issi_custom_hint: "Asocia números ISSI con indicativos o nombres personalizados (para ISSIs especiales no registradas en radioid.net).",
+      issi_custom_subtitle: "ENTRADAS",
+      issi_custom_add: "AÑADIR",
+      issi_custom_clear: "BORRAR TODAS",
+      issi_custom_none: "Sin ISSIs personalizadas.",
       apply_title: "Aplicar a Raspberry Pi",
       config_path_label: "Ruta del archivo config.toml en la Raspberry Pi",
       config_path_hint: "Ruta completa al archivo de configuración TOML en tu Raspberry Pi.",
@@ -1169,6 +1209,12 @@
       tg_custom_add: "ADICIONAR",
       tg_custom_none: "Nenhum nome personalizado.",
       tg_custom_clear: "LIMPAR TUDO",
+      issi_custom_title: "🧑 ISSIs Personalizadas",
+      issi_custom_hint: "Associa números ISSI a indicativos ou nomes personalizados (para ISSIs especiais não registadas em radioid.net).",
+      issi_custom_subtitle: "ENTRADAS",
+      issi_custom_add: "ADICIONAR",
+      issi_custom_clear: "LIMPAR TUDO",
+      issi_custom_none: "Nenhuma ISSI personalizada.",
       apply_title: "Aplicar ao Raspberry Pi",
       config_path_label: "Caminho do arquivo config.toml no Raspberry Pi",
       config_path_hint: "Caminho completo para o arquivo de configura\u00e7\u00e3o TOML no seu Raspberry Pi.",
@@ -1299,6 +1345,12 @@
       tg_custom_add: "HINZUFÜGEN",
       tg_custom_none: "Keine eigenen Namen vorhanden.",
       tg_custom_clear: "ALLE LÖSCHEN",
+      issi_custom_title: "🧑 Eigene ISSI-Namen",
+      issi_custom_hint: "Weise ISSI-Nummern eigene Rufzeichen oder Namen zu (für spezielle, nicht bei radioid.net registrierte ISSIs).",
+      issi_custom_subtitle: "EINTRÄGE",
+      issi_custom_add: "HINZUFÜGEN",
+      issi_custom_clear: "ALLE LÖSCHEN",
+      issi_custom_none: "Keine eigenen ISSIs.",
       apply_title: "Auf Raspberry Pi anwenden",
       config_path_label: "Pfad zur config.toml auf dem Raspberry Pi",
       config_path_hint: "Vollst\u00e4ndiger Pfad zur TOML-Konfigurationsdatei auf Ihrem Raspberry Pi.",
@@ -1429,6 +1481,12 @@
       tg_custom_add: "AJOUTER",
       tg_custom_none: "Aucun nom personnalisé.",
       tg_custom_clear: "TOUT EFFACER",
+      issi_custom_title: "🧑 ISSIs Personnalisées",
+      issi_custom_hint: "Associez des numéros ISSI à des indicatifs ou noms personnalisés (pour les ISSIs spéciales non enregistrées sur radioid.net).",
+      issi_custom_subtitle: "ENTRÉES",
+      issi_custom_add: "AJOUTER",
+      issi_custom_clear: "TOUT EFFACER",
+      issi_custom_none: "Aucune ISSI personnalisée.",
       apply_title: "Appliquer au Raspberry Pi",
       config_path_label: "Chemin du fichier config.toml sur le Raspberry Pi",
       config_path_hint: "Chemin complet vers le fichier de configuration TOML sur votre Raspberry Pi.",
@@ -1559,6 +1617,12 @@
       tg_custom_add: "AGGIUNGI",
       tg_custom_none: "Nessun nome personalizzato.",
       tg_custom_clear: "CANCELLA TUTTO",
+      issi_custom_title: "🧑 ISSI Personalizzate",
+      issi_custom_hint: "Associa numeri ISSI a nominativi o nomi personalizzati (per ISSI speciali non registrate su radioid.net).",
+      issi_custom_subtitle: "VOCI",
+      issi_custom_add: "AGGIUNGI",
+      issi_custom_clear: "CANCELLA TUTTO",
+      issi_custom_none: "Nessuna ISSI personalizzata.",
       apply_title: "Applica al Raspberry Pi",
       config_path_label: "Percorso del file config.toml sul Raspberry Pi",
       config_path_hint: "Percorso completo del file di configurazione TOML sul tuo Raspberry Pi.",
@@ -1689,6 +1753,12 @@
       tg_custom_add: "TILFØJ",
       tg_custom_none: "Ingen egne navne endnu.",
       tg_custom_clear: "RYD ALLE",
+      issi_custom_title: "🧑 Egne ISSI-navne",
+      issi_custom_hint: "Tilknyt ISSI-numre til egne kaldesignaler eller navne (til specielle ISSI'er, der ikke er registreret på radioid.net).",
+      issi_custom_subtitle: "POSTER",
+      issi_custom_add: "TILFØJ",
+      issi_custom_clear: "RYD ALLE",
+      issi_custom_none: "Ingen egne ISSI'er.",
       apply_title: "Anvend p\u00e5 Raspberry Pi",
       config_path_label: "Sti til config.toml p\u00e5 Raspberry Pi",
       config_path_hint: "Fuld sti til TOML-konfigurationsfilen p\u00e5 din Raspberry Pi.",
@@ -1819,6 +1889,12 @@
       tg_custom_add: "TOEVOEGEN",
       tg_custom_none: "Geen eigen namen.",
       tg_custom_clear: "ALLES WISSEN",
+      issi_custom_title: "🧑 Eigen ISSI-namen",
+      issi_custom_hint: "Koppel ISSI-nummers aan eigen roeptekens of namen (voor speciale ISSI's die niet op radioid.net staan).",
+      issi_custom_subtitle: "ITEMS",
+      issi_custom_add: "TOEVOEGEN",
+      issi_custom_clear: "ALLES WISSEN",
+      issi_custom_none: "Geen eigen ISSI's.",
       apply_title: "Toepassen op Raspberry Pi",
       config_path_label: "Pad naar config.toml op de Raspberry Pi",
       config_path_hint: "Volledig pad naar het TOML-configuratiebestand op uw Raspberry Pi.",
@@ -1949,6 +2025,12 @@
       tg_custom_add: "ADAUGĂ",
       tg_custom_none: "Fără nume personalizate.",
       tg_custom_clear: "ȘTERGE TOATE",
+      issi_custom_title: "🧑 ISSI personalizate",
+      issi_custom_hint: "Asociază numere ISSI cu indicative sau nume personalizate (pentru ISSI-uri speciale neînregistrate pe radioid.net).",
+      issi_custom_subtitle: "INTRĂRI",
+      issi_custom_add: "ADAUGĂ",
+      issi_custom_clear: "ȘTERGE TOATE",
+      issi_custom_none: "Fără ISSI personalizate.",
       apply_title: "Aplică pe Raspberry Pi",
       config_path_label: "Calea către config.toml pe Raspberry Pi",
       config_path_hint: "Calea completă către fișierul de configurare TOML pe Raspberry Pi.",
@@ -3050,6 +3132,55 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     renderCustomTgList();
   }
 
+  // ===== Custom ISSI Names =====
+  function getCustomIssiNames() {
+    try { return JSON.parse(localStorage.getItem("tetra_issi_custom") || "{}"); } catch { return {}; }
+  }
+  function saveCustomIssiNames(data) {
+    localStorage.setItem("tetra_issi_custom", JSON.stringify(data));
+  }
+  function renderCustomIssiList() {
+    const data = getCustomIssiNames();
+    const list = el("issiCustomList");
+    if (!list) return;
+    const keys = Object.keys(data).sort((a, b) => Number(a) - Number(b));
+    const tr = I18N[state.lang] || I18N.en;
+    if (!keys.length) {
+      list.innerHTML = `<span style="color:var(--muted); font-size:12px;">${tr.issi_custom_none || "No custom ISSI names yet."}</span>`;
+      return;
+    }
+    list.innerHTML = keys.map(id =>
+      `<div style="display:flex; align-items:center; gap:8px; padding:5px 0; border-bottom:1px solid var(--border);">
+        <span style="font-family:monospace; font-size:12px; color:var(--accent); min-width:90px; flex-shrink:0;">${escapeHtml(id)}</span>
+        <span style="font-size:13px; flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(data[id])}</span>
+        <button onclick="removeCustomIssiName('${escapeHtml(id)}')"
+          style="font-size:10px; padding:2px 8px; border:1px solid #e74c3c; color:#e74c3c; background:transparent; border-radius:4px; cursor:pointer; flex-shrink:0;">✕</button>
+      </div>`
+    ).join("");
+  }
+  function addCustomIssiName() {
+    const idVal = el("issiCustomId").value.trim();
+    const nameVal = el("issiCustomName").value.trim();
+    if (!idVal || !nameVal) return;
+    const data = getCustomIssiNames();
+    data[idVal] = nameVal;
+    saveCustomIssiNames(data);
+    el("issiCustomId").value = "";
+    el("issiCustomName").value = "";
+    el("issiCustomId").focus();
+    renderCustomIssiList();
+  }
+  function removeCustomIssiName(id) {
+    const data = getCustomIssiNames();
+    delete data[id];
+    saveCustomIssiNames(data);
+    renderCustomIssiList();
+  }
+  function clearCustomIssiNames() {
+    localStorage.removeItem("tetra_issi_custom");
+    renderCustomIssiList();
+  }
+
   // Expose TG functions to global scope so onclick attributes can call them
   window.selectTgSource = selectTgSource;
   window.loadTgNames = loadTgNames;
@@ -3057,6 +3188,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   window.addCustomTgName = addCustomTgName;
   window.removeCustomTgName = removeCustomTgName;
   window.clearCustomTgNames = clearCustomTgNames;
+  window.addCustomIssiName = addCustomIssiName;
+  window.removeCustomIssiName = removeCustomIssiName;
+  window.clearCustomIssiNames = clearCustomIssiNames;
 
   // Init TG source buttons and show cached status
   (function initTgNames() {
@@ -3070,6 +3204,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       } catch { localStorage.removeItem("tetra_tg_names"); }
     }
   })();
+
+  // Init Custom ISSI list
+  renderCustomIssiList();
 
   // toggles
   wireToggle(el("langBtn"), toggleLang);
