@@ -10,7 +10,7 @@ import GpsMap from "@/pages/GpsMap";
 import VpnManager from "@/pages/VpnManager";
 import WifiManager from "@/pages/WifiManager";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, ShieldCheck, Wifi, MapPin } from "lucide-react";
+import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin } from "lucide-react";
 import { SiPaypal } from "react-icons/si";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 import { UpdateChecker } from "@/components/UpdateChecker";
@@ -23,38 +23,52 @@ import { TouchKeyboard, TouchModeToggle } from "@/components/TouchKeyboard";
 import { useState, useEffect } from "react";
 
 const THEME_STORAGE_KEY = "tetra_dashboard_theme";
+type Theme = "dark" | "light" | "blue" | "military";
+const THEMES: Theme[] = ["dark", "light", "blue", "military"];
+const THEME_LABELS: Record<Theme, string> = {
+  dark: "DARK", light: "LIGHT", blue: "NAVY", military: "MIL",
+};
 
-function getStoredTheme(): "dark" | "light" {
+function getStoredTheme(): Theme {
   try {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored === "light" || stored === "dark") return stored;
+    const s = localStorage.getItem(THEME_STORAGE_KEY) as Theme | null;
+    if (s && THEMES.includes(s)) return s;
   } catch {}
   return "dark";
 }
 
 function ThemeToggle() {
-  const [theme, setTheme] = useState<"dark" | "light">(getStoredTheme);
+  const [theme, setTheme] = useState<Theme>(getStoredTheme);
 
   useEffect(() => {
     const html = document.documentElement;
-    if (theme === "light") {
-      html.classList.add("light");
-    } else {
-      html.classList.remove("light");
-    }
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, theme);
-    } catch {}
+    html.classList.remove("light", "theme-blue", "theme-military");
+    if (theme === "light") html.classList.add("light");
+    else if (theme === "blue") html.classList.add("theme-blue");
+    else if (theme === "military") html.classList.add("theme-military");
+    try { localStorage.setItem(THEME_STORAGE_KEY, theme); } catch {}
   }, [theme]);
+
+  function next() {
+    const i = THEMES.indexOf(theme);
+    setTheme(THEMES[(i + 1) % THEMES.length]);
+  }
+
+  const Icon =
+    theme === "dark"     ? Sun :
+    theme === "light"    ? Moon :
+    theme === "blue"     ? Droplet :
+                           Trees;
 
   return (
     <button
-      onClick={() => setTheme(t => t === "dark" ? "light" : "dark")}
+      onClick={next}
       className="inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 hover:text-foreground transition-colors"
-      title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+      title={`Theme: ${THEME_LABELS[theme]} (click to cycle)`}
       data-testid="button-theme-toggle"
     >
-      {theme === "dark" ? <Sun className="w-3 h-3" /> : <Moon className="w-3 h-3" />}
+      <Icon className="w-3 h-3" />
+      <span className="hidden sm:inline">{THEME_LABELS[theme]}</span>
     </button>
   );
 }
