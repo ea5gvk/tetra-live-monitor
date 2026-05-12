@@ -9,8 +9,9 @@ import LogLive from "@/pages/LogLive";
 import GpsMap from "@/pages/GpsMap";
 import VpnManager from "@/pages/VpnManager";
 import WifiManager from "@/pages/WifiManager";
+import FlowstationDash from "@/pages/FlowstationDash";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin } from "lucide-react";
+import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin, Gauge } from "lucide-react";
 import { SiPaypal } from "react-icons/si";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 import { UpdateChecker } from "@/components/UpdateChecker";
@@ -102,6 +103,7 @@ function NavBar() {
     { href: "/gps-map",    label: t("gps_map"),     shortLabel: "GPS",    icon: <MapPin className="w-3.5 h-3.5 flex-shrink-0" />,   testId: "nav-link-gps-map" },
     { href: "/vpn",        label: "VPN",            shortLabel: "VPN",    icon: <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-vpn" },
     { href: "/wifi",       label: t("wifi_manager"),shortLabel: "WIFI",   icon: <Wifi className="w-3.5 h-3.5 flex-shrink-0" />,    testId: "nav-link-wifi" },
+    { href: "/flow-dash",  label: t("flow_dash"),   shortLabel: "FLOW",   icon: <Gauge className="w-3.5 h-3.5 flex-shrink-0" />,   testId: "nav-link-flow-dash" },
   ];
 
   return (
@@ -213,6 +215,7 @@ function Router() {
           <Route path="/gps-map" component={GpsMap} />
           <Route path="/vpn" component={VpnManager} />
           <Route path="/wifi" component={WifiManager} />
+          <Route path="/flow-dash" component={FlowstationDash} />
           <Route component={NotFound} />
         </Switch>
       </div>
