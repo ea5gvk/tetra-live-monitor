@@ -2349,7 +2349,14 @@ ${restartLine}
     });
   });
 
-  const wss = new WebSocketServer({ server: httpServer, path: '/ws' });
+  const wss = new WebSocketServer({ noServer: true });
+  httpServer.on("upgrade", (req, socket, head) => {
+    if (req.url === "/ws" || req.url?.startsWith("/ws?")) {
+      wss.handleUpgrade(req, socket as any, head, (ws) => {
+        wss.emit("connection", ws, req);
+      });
+    }
+  });
 
   function broadcast(data: string) {
     wss.clients.forEach(client => {
