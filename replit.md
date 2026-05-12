@@ -184,6 +184,16 @@ Individual/private calls between two ISSI terminals are detected and displayed:
 - Bluestation upstream **no tiene endpoint de control equivalente**, por eso esta función está limitada a flowstation
 - i18n: claves `sds_send_*` en los 10 idiomas
 
+## Custom ISSI Names
+- Sección "Gestión ISSI Privadas" en la calculadora (`client/public/calculator.html`), debajo de "Talkgroup Names"
+- Permite asociar un número ISSI con un indicativo o nombre personalizado (para ISSIs especiales no registradas en radioid.net)
+- **Storage**: localStorage `tetra_issi_custom` = JSON `{issi: "Indicativo/Nombre"}`
+- **Funciones JS**: `addCustomIssiName`, `removeCustomIssiName`, `clearCustomIssiNames`, `renderCustomIssiList`, `getCustomIssiNames`, `saveCustomIssiNames`
+- **Dashboard**: hook `useIssiCustomNames()` en `client/src/pages/Dashboard.tsx` lee el mapa y se actualiza en cambios via `storage` event. Se mezcla en `issiCallsignMap` con prioridad **menor** que el callsign real (radioid.net), así que el callsign verdadero gana siempre que exista
+- **Visualización**: cuando un terminal NO tiene callsign de radioid.net pero sí tiene nombre personalizado, se muestra `(NOMBRE)` en color ámbar (`text-amber-300`) junto al ISSI, con tooltip "Custom ISSI name". Sin bandera (los nombres custom no son callsigns reales)
+- **PRIV destinations**: la lookup `issiCallsign(id)` también usa el mapa fusionado, así que las ISSIs destino de llamadas privadas también muestran el nombre personalizado si no hay callsign
+- i18n: claves `issi_custom_*` en los 10 idiomas dentro de `I18N` de `calculator.html`
+
 ## Themes
 - Botón de tema en la barra de navegación cicla 4 temas: **DARK** (sol) → **LIGHT** (luna) → **NAVY** (gota azul) → **MIL** (árbol verde militar) → DARK
 - Persistencia: localStorage `tetra_dashboard_theme` (`dark|light|blue|military`)
