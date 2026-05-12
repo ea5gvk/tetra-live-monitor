@@ -1,5 +1,6 @@
 import type { Express } from "express";
 import type { Server } from "http";
+import * as http from "http";
 import { WebSocketServer, WebSocket } from "ws";
 import { api } from "@shared/routes";
 import { spawn, exec, execSync, type ChildProcess } from "child_process";
@@ -939,6 +940,117 @@ ${restartLine}
         flowstation: { ...flow, installed: flowInstalled, dir: STATION_DIR.flowstation, configPath: STATION_CONFIG_PATH.flowstation, service: STATION_SERVICE.flowstation },
       },
     });
+  });
+
+  // ─── Flowstation native dashboard proxy ─────────────────────────────────────
+  // Reads /root/flowstation/config.toml looking for an UNCOMMENTED [dashboard] section
+  // with port = N. Returns enabled=true only when both are present.
+  function getFlowstationDashboardConfig(): { enabled: boolean; port: number } {
+    try {
+      const cfg = fs.readFileSync(STATION_CONFIG_PATH.flowstation, "utf-8");
+      const lines = cfg.split("\n");
+      let inDash = false;
+      let port = 0;
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (!line || line.startsWith("#")) continue;
+        const sec = line.match(/^\[([^\]]+)\]/);
+        if (sec) {
+          inDash = sec[1] === "dashboard";
+          continue;
+        }
+        if (inDash) {
+          const m = line.match(/^port\s*=\s*(\d+)/);
+          if (m) { port = parseInt(m[1], 10); break; }
+        }
+      }
+      return { enabled: port > 0, port };
+    } catch { return { enabled: false, port: 0 }; }
+  }
+
+  app.get("/api/flowstation/dashboard-status", (_req, res) => {
+    const cfg = getFlowstationDashboardConfig();
+    const flowSvc = serviceState(STATION_SERVICE.flowstation);
+    res.json({ enabled: cfg.enabled, port: cfg.port, flowstationActive: flowSvc.active });
+  });
+
+  // HTTP proxy: /flow-iframe/* → http://127.0.0.1:<port>/*
+  // express strips the /flow-iframe prefix from req.url for us.
+  // (Path is intentionally distinct from the React SPA route /flow-dash.)
+  app.use("/flow-iframe", (req, res) => {
+    const cfg = getFlowstationDashboardConfig();
+    if (!cfg.enabled) {
+      return res.status(503).json({ message: "Flowstation [dashboard] no configurado en config.toml" });
+    }
+    const targetPath = req.url || "/";
+    const headers: Record<string, string | string[] | undefined> = { ...req.headers };
+    headers.host = `127.0.0.1:${cfg.port}`;
+    delete headers["accept-encoding"]; // simplify HTML rewrite
+    const proxyReq = http.request({
+      hostname: "127.0.0.1",
+      port: cfg.port,
+      path: targetPath,
+      method: req.method,
+      headers: headers as any,
+    }, (proxyRes) => {
+      const ct = String(proxyRes.headers["content-type"] || "");
+      if (ct.includes("text/html")) {
+        const chunks: Buffer[] = [];
+        proxyRes.on("data", (c) => chunks.push(c));
+        proxyRes.on("end", () => {
+          let body = Buffer.concat(chunks).toString("utf-8");
+          if (!/<base\b/i.test(body)) {
+            body = body.replace(/<head([^>]*)>/i, `<head$1><base href="/flow-iframe/">`);
+          }
+          // Rewrite root-absolute URLs so they go through the proxy
+          body = body.replace(/((?:href|src|action)\s*=\s*["'])\/(?!\/|flow-iframe)/gi, `$1/flow-iframe/`);
+          const outHeaders: Record<string, any> = { ...proxyRes.headers };
+          delete outHeaders["content-length"];
+          delete outHeaders["content-encoding"];
+          res.writeHead(proxyRes.statusCode || 200, outHeaders);
+          res.end(body);
+        });
+      } else {
+        res.writeHead(proxyRes.statusCode || 200, proxyRes.headers as any);
+        proxyRes.pipe(res);
+      }
+    });
+    proxyReq.on("error", (err) => {
+      if (!res.headersSent) {
+        res.status(502).json({ message: "Flowstation dashboard inalcanzable: " + err.message });
+      }
+    });
+    if (req.method !== "GET" && req.method !== "HEAD") (req as any).pipe(proxyReq);
+    else proxyReq.end();
+  });
+
+  // WebSocket upgrade proxy for /flow-iframe/* (e.g. /flow-iframe/ws)
+  httpServer.on("upgrade", (req, socket, head) => {
+    if (!req.url || !req.url.startsWith("/flow-iframe")) return;
+    const cfg = getFlowstationDashboardConfig();
+    if (!cfg.enabled) { socket.destroy(); return; }
+    const targetPath = req.url.substring("/flow-iframe".length) || "/";
+    const proxyReq = http.request({
+      hostname: "127.0.0.1",
+      port: cfg.port,
+      path: targetPath,
+      method: req.method,
+      headers: req.headers,
+    });
+    proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
+      let resHeaders = `HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`;
+      for (const [k, v] of Object.entries(proxyRes.headers)) {
+        if (Array.isArray(v)) for (const vv of v) resHeaders += `${k}: ${vv}\r\n`;
+        else if (v !== undefined) resHeaders += `${k}: ${v}\r\n`;
+      }
+      resHeaders += "\r\n";
+      socket.write(resHeaders);
+      if (proxyHead && proxyHead.length) socket.write(proxyHead);
+      proxySocket.pipe(socket).pipe(proxySocket);
+      proxySocket.on("error", () => socket.destroy());
+    });
+    proxyReq.on("error", () => socket.destroy());
+    proxyReq.end();
   });
 
   // Send SDS through flowstation's dashboard WebSocket (port 8080).
