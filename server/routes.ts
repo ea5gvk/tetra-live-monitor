@@ -1683,7 +1683,7 @@ ${restartLine}
       };
       const ctVals: Record<string, number> = {
         hangtime_secs: clampInt(callTimingConfig?.hangtime_secs, 0, 300, 5),
-        call_timeout_secs: clampInt(callTimingConfig?.call_timeout_secs, 30, 300, 120),
+        call_timeout_secs: clampInt(callTimingConfig?.call_timeout_secs, 0, 600, 120),
         ul_inactivity_secs: clampInt(callTimingConfig?.ul_inactivity_secs, 1, 30, 3),
       };
       const ctKeys = Object.keys(ctVals);
