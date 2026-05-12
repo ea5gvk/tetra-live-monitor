@@ -184,6 +184,15 @@ Individual/private calls between two ISSI terminals are detected and displayed:
 - Bluestation upstream **no tiene endpoint de control equivalente**, por eso esta función está limitada a flowstation
 - i18n: claves `sds_send_*` en los 10 idiomas
 
+## Themes
+- Botón de tema en la barra de navegación cicla 4 temas: **DARK** (sol) → **LIGHT** (luna) → **NAVY** (gota azul) → **MIL** (árbol verde militar) → DARK
+- Persistencia: localStorage `tetra_dashboard_theme` (`dark|light|blue|military`)
+- Implementación: `client/src/App.tsx` (`ThemeToggle`) aplica clases en `<html>`: `light`, `theme-blue`, `theme-military` (dark = sin clase)
+- Variables HSL definidas en `client/src/index.css` por tema (`--background`, `--card`, `--primary`, `--accent`, `--border`, etc.)
+- NAVY: fondo navy profundo (220 50% 7%), primario azul cielo eléctrico (200 95% 62%), acento cian, gradiente radial sutil en body
+- MIL: fondo oliva oscuro (90 18% 8%), primario verde ejército (85 55% 55%), acento caqui/amarillo, gradiente radial sutil en body
+- Los temas dark/blue/military comparten la base "oscura" así que las clases hardcoded `bg-white/5`, `border-white/10`, etc. siguen funcionando; solo `light` necesita las sobreescrituras específicas que ya existen
+
 ## Touch Keyboard
 - Botón **TÁCTIL** (icono Keyboard) en la barra de navegación, junto al selector de tema
 - Al activarlo (color ámbar), aparece un teclado virtual fijo en la parte inferior cuando el usuario hace tap en cualquier `<input>` de tipo text/number/password/email/search/tel/url o `<textarea>`
