@@ -1004,6 +1004,46 @@ ${restartLine}
           }
           // Rewrite root-absolute URLs so they go through the proxy
           body = body.replace(/((?:href|src|action)\s*=\s*["'])\/(?!\/|flow-iframe)/gi, `$1/flow-iframe/`);
+          // Inject a runtime shim that rewrites root-absolute URLs in JS calls
+          // (fetch, XMLHttpRequest, WebSocket) to go through /flow-iframe/.
+          // Without this the dashboard's WS connects to our /ws (TETRA monitor)
+          // and its fetches hit our routes instead of flowstation's.
+          const shim = `<script>(function(){
+  function rewrite(url){
+    try{
+      if(typeof url!=='string') return url;
+      // ws://host/path or wss://host/path
+      var m = url.match(/^(wss?:)\\/\\/([^\\/]+)(\\/.*)?$/i);
+      if(m){
+        var p = m[3]||'/';
+        if(p.indexOf('/flow-iframe')!==0) p='/flow-iframe'+p;
+        return m[1]+'//'+m[2]+p;
+      }
+      // root-absolute path
+      if(url.charAt(0)==='/' && url.indexOf('/flow-iframe')!==0 && url.indexOf('//')!==0){
+        return '/flow-iframe'+url;
+      }
+    }catch(e){}
+    return url;
+  }
+  var OW = window.WebSocket;
+  function PW(url, protocols){ return protocols===undefined ? new OW(rewrite(url)) : new OW(rewrite(url), protocols); }
+  PW.prototype = OW.prototype;
+  PW.CONNECTING=OW.CONNECTING; PW.OPEN=OW.OPEN; PW.CLOSING=OW.CLOSING; PW.CLOSED=OW.CLOSED;
+  window.WebSocket = PW;
+  var OF = window.fetch;
+  if(OF){ window.fetch = function(input, init){
+    if(typeof input==='string') input = rewrite(input);
+    else if(input && input.url){ try{ input = new Request(rewrite(input.url), input); }catch(e){} }
+    return OF.call(this, input, init);
+  }; }
+  var XO = XMLHttpRequest.prototype.open;
+  XMLHttpRequest.prototype.open = function(method, url){
+    arguments[1] = rewrite(url);
+    return XO.apply(this, arguments);
+  };
+})();</script>`;
+          body = body.replace(/<head([^>]*)>/i, `<head$1>${shim}`);
           const outHeaders: Record<string, any> = { ...proxyRes.headers };
           delete outHeaders["content-length"];
           delete outHeaders["content-encoding"];
