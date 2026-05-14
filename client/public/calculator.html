@@ -480,6 +480,20 @@
       </div>
     </section>
   </div>
+  <div id="sectionPeriodicReg" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="periodic_reg_title">⏰ Registro Periódico</h2>
+      <div class="checkbox-row">
+        <input type="checkbox" id="enablePeriodicReg" />
+        <label for="enablePeriodicReg" data-i18n="periodic_reg_enable">Activar registro periódico</label>
+      </div>
+      <div class="hint" data-i18n="periodic_reg_hint">Si está desactivado, la línea se escribe comentada bajo [cell_info]. 0 = los registros no expiran.</div>
+      <div style="margin-top:12px; max-width:360px;">
+        <label for="periodicRegSecs" data-i18n="periodic_reg_label">periodic_registration_secs (0 - 86400)</label>
+        <input id="periodicRegSecs" type="number" min="0" max="86400" value="0" />
+      </div>
+    </section>
+  </div>
   <div id="sectionNeighborCells" style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="ncells_title">🏘️ Neighbor Cells [[cell_info.neighbor_cells_ca]]</h2>
@@ -783,6 +797,10 @@
       timing_hangtime: "hangtime_secs (0 - 300)",
       timing_call_timeout: "call_timeout_secs (0 - 600)",
       timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
+      periodic_reg_title: "⏰ Periodic Registration",
+      periodic_reg_enable: "Enable periodic registration",
+      periodic_reg_hint: "If disabled, the line is written commented under [cell_info]. 0 = registrations never expire.",
+      periodic_reg_label: "periodic_registration_secs (0 - 86400)",
       ncells_title: "🏘️ Neighbor Cells [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Enable neighbor cells",
       ncells_hint: "If disabled, blocks are written commented. cell_identifier_ca and location_area must be unique per cell.",
@@ -919,6 +937,10 @@
       timing_hangtime: "hangtime_secs (0 - 300)",
       timing_call_timeout: "call_timeout_secs (0 - 600)",
       timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
+      periodic_reg_title: "⏰ 周期性注册",
+      periodic_reg_enable: "启用周期性注册",
+      periodic_reg_hint: "如果禁用，该行将作为注释写入 [cell_info]。0 = 注册永不过期。",
+      periodic_reg_label: "periodic_registration_secs (0 - 86400)",
       ncells_title: "🏘️ 相邻小区 [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "启用相邻小区",
       ncells_hint: "如果禁用，块以注释形式写入。每个小区的 cell_identifier_ca 和 location_area 必须唯一。",
@@ -1055,6 +1077,10 @@
       timing_hangtime: "hangtime_secs (0 - 300)",
       timing_call_timeout: "call_timeout_secs (0 - 600)",
       timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
+      periodic_reg_title: "⏰ Registro Periódico",
+      periodic_reg_enable: "Activar registro periódico",
+      periodic_reg_hint: "Si está desactivado, la línea se escribe comentada bajo [cell_info]. 0 = los registros no expiran.",
+      periodic_reg_label: "periodic_registration_secs (0 - 86400)",
       ncells_title: "🏘️ Celdas Vecinas [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Activar celdas vecinas",
       ncells_hint: "Si está desactivado, los bloques se escriben comentados. cell_identifier_ca y location_area deben ser únicos por celda.",
@@ -1191,6 +1217,10 @@
       timing_hangtime: "hangtime_secs (0 - 300)",
       timing_call_timeout: "call_timeout_secs (0 - 600)",
       timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
+      periodic_reg_title: "⏰ Registo Periódico",
+      periodic_reg_enable: "Ativar registo periódico",
+      periodic_reg_hint: "Se desativado, a linha é escrita como comentário sob [cell_info]. 0 = os registos não expiram.",
+      periodic_reg_label: "periodic_registration_secs (0 - 86400)",
       ncells_title: "🏘️ Células Vizinhas [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Ativar células vizinhas",
       ncells_hint: "Se desativado, os blocos são escritos comentados. cell_identifier_ca e location_area devem ser únicos por célula.",
@@ -1327,6 +1357,10 @@
       timing_hangtime: "hangtime_secs (0 - 300)",
       timing_call_timeout: "call_timeout_secs (0 - 600)",
       timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
+      periodic_reg_title: "⏰ Periodische Registrierung",
+      periodic_reg_enable: "Periodische Registrierung aktivieren",
+      periodic_reg_hint: "Wenn deaktiviert, wird die Zeile als Kommentar unter [cell_info] geschrieben. 0 = Registrierungen laufen nie ab.",
+      periodic_reg_label: "periodic_registration_secs (0 - 86400)",
       ncells_title: "🏘️ Nachbarzellen [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Nachbarzellen aktivieren",
       ncells_hint: "Wenn deaktiviert, werden die Blöcke auskommentiert geschrieben. cell_identifier_ca und location_area müssen pro Zelle eindeutig sein.",
@@ -1463,6 +1497,10 @@
       timing_hangtime: "hangtime_secs (0 - 300)",
       timing_call_timeout: "call_timeout_secs (0 - 600)",
       timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
+      periodic_reg_title: "⏰ Enregistrement périodique",
+      periodic_reg_enable: "Activer l'enregistrement périodique",
+      periodic_reg_hint: "Si désactivé, la ligne est écrite en commentaire sous [cell_info]. 0 = les enregistrements n'expirent jamais.",
+      periodic_reg_label: "periodic_registration_secs (0 - 86400)",
       ncells_title: "🏘️ Cellules voisines [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Activer cellules voisines",
       ncells_hint: "Si désactivé, les blocs sont écrits en commentaire. cell_identifier_ca et location_area doivent être uniques par cellule.",
@@ -1599,6 +1637,10 @@
       timing_hangtime: "hangtime_secs (0 - 300)",
       timing_call_timeout: "call_timeout_secs (0 - 600)",
       timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
+      periodic_reg_title: "⏰ Registrazione Periodica",
+      periodic_reg_enable: "Abilita registrazione periodica",
+      periodic_reg_hint: "Se disabilitato, la riga viene scritta come commento sotto [cell_info]. 0 = le registrazioni non scadono mai.",
+      periodic_reg_label: "periodic_registration_secs (0 - 86400)",
       ncells_title: "🏘️ Celle vicine [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Abilita celle vicine",
       ncells_hint: "Se disattivato, i blocchi vengono scritti commentati. cell_identifier_ca e location_area devono essere univoci per cella.",
@@ -1735,6 +1777,10 @@
       timing_hangtime: "hangtime_secs (0 - 300)",
       timing_call_timeout: "call_timeout_secs (0 - 600)",
       timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
+      periodic_reg_title: "⏰ Periodisk Registrering",
+      periodic_reg_enable: "Aktivér periodisk registrering",
+      periodic_reg_hint: "Hvis deaktiveret, skrives linjen som kommentar under [cell_info]. 0 = registreringer udløber aldrig.",
+      periodic_reg_label: "periodic_registration_secs (0 - 86400)",
       ncells_title: "🏘️ Nabo-celler [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Aktivér nabo-celler",
       ncells_hint: "Hvis deaktiveret, skrives blokke som kommentarer. cell_identifier_ca og location_area skal være unikke pr. celle.",
@@ -1871,6 +1917,10 @@
       timing_hangtime: "hangtime_secs (0 - 300)",
       timing_call_timeout: "call_timeout_secs (0 - 600)",
       timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
+      periodic_reg_title: "⏰ Periodieke Registratie",
+      periodic_reg_enable: "Periodieke registratie inschakelen",
+      periodic_reg_hint: "Indien uitgeschakeld wordt de regel als commentaar geschreven onder [cell_info]. 0 = registraties verlopen nooit.",
+      periodic_reg_label: "periodic_registration_secs (0 - 86400)",
       ncells_title: "🏘️ Naburige cellen [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Naburige cellen inschakelen",
       ncells_hint: "Indien uitgeschakeld worden blokken als commentaar geschreven. cell_identifier_ca en location_area moeten uniek zijn per cel.",
@@ -2007,6 +2057,10 @@
       timing_hangtime: "hangtime_secs (0 - 300)",
       timing_call_timeout: "call_timeout_secs (0 - 600)",
       timing_ul_inactivity: "ul_inactivity_secs (1 - 30)",
+      periodic_reg_title: "⏰ Înregistrare Periodică",
+      periodic_reg_enable: "Activează înregistrarea periodică",
+      periodic_reg_hint: "Dacă este dezactivat, linia este scrisă ca un comentariu sub [cell_info]. 0 = înregistrările nu expiră niciodată.",
+      periodic_reg_label: "periodic_registration_secs (0 - 86400)",
       ncells_title: "🏘️ Celule vecine [[cell_info.neighbor_cells_ca]]",
       ncells_enable: "Activează celule vecine",
       ncells_hint: "Dacă este dezactivat, blocurile sunt scrise ca comentarii. cell_identifier_ca și location_area trebuie să fie unice pentru fiecare celulă.",
@@ -2386,6 +2440,14 @@
       lines.push(`${prefix}hangtime_secs = ${hg}`);
       lines.push(`${prefix}call_timeout_secs = ${ct}`);
       lines.push(`${prefix}ul_inactivity_secs = ${ul}`);
+    }
+    // Periodic Registration — single [cell_info] field. Independent toggle.
+    {
+      const prEnabled = el("enablePeriodicReg").checked;
+      const prefix = prEnabled ? "" : "# ";
+      const clamp = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
+      const pr = clamp(el("periodicRegSecs").value, 0, 86400, 0);
+      lines.push(`${prefix}periodic_registration_secs = ${pr}`);
     }
     // Neighbor Cells — emit blocks at end of [cell_info] direct fields, before [net_info]/[brew]/[security]
     {
@@ -2861,6 +2923,31 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         if (ctVals.ul_inactivity_secs !== null) el("ulInactivitySecs").value = String(ctVals.ul_inactivity_secs);
       })();
 
+      // ── Periodic Registration — parse from raw TOML (active or commented under [cell_info])
+      (function() {
+        var prEnabled = false;
+        var prVal = null;
+        var raw = (typeof data._raw === "string") ? data._raw : null;
+        if (raw) {
+          var lines = raw.split("\n");
+          var inCellInfo = false;
+          for (var i = 0; i < lines.length; i++) {
+            var t = lines[i].trim();
+            if (!t) continue;
+            if (/^\[\[[\w.]+\]\]\s*$/.test(t)) continue;
+            var sm = t.match(/^\[([a-zA-Z_][\w.]*)\]\s*$/);
+            if (sm) { inCellInfo = (sm[1].trim() === "cell_info"); continue; }
+            if (!inCellInfo) continue;
+            var am = t.match(/^periodic_registration_secs\s*=\s*(\d+)/);
+            if (am) { prEnabled = true; prVal = parseInt(am[1]); continue; }
+            var cm = t.match(/^#\s*periodic_registration_secs\s*=\s*(\d+)/);
+            if (cm && prVal === null) prVal = parseInt(cm[1]);
+          }
+        }
+        el("enablePeriodicReg").checked = prEnabled;
+        if (prVal !== null) el("periodicRegSecs").value = String(prVal);
+      })();
+
       // ── Net Info (MCC / MNC)
       if (data.net_info.mcc !== null) el("mccVal").value = String(data.net_info.mcc);
       if (data.net_info.mnc !== null) el("mncVal").value = String(data.net_info.mnc);
@@ -2980,6 +3067,12 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       ul_inactivity_secs: clampInt(el("ulInactivitySecs").value, 1, 30, 3),
     };
 
+    // Collect periodic registration options
+    const periodicRegConfig = {
+      enabled: el("enablePeriodicReg").checked,
+      periodic_registration_secs: clampInt(el("periodicRegSecs").value, 0, 86400, 0),
+    };
+
     // Collect brew options
     const brewConfig = el("enableBrew").checked ? {
       enabled: true,
@@ -3025,6 +3118,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           ssiRangesConfig,
           timezoneConfig,
           callTimingConfig,
+          periodicRegConfig,
           brewConfig,
           securityConfig,
           neighborCellsConfig
@@ -3486,7 +3580,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionCallTiming", "sectionNeighborCells", "sectionSecurity"];
+    var flowOnly = ["sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);
