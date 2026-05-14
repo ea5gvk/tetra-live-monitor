@@ -537,6 +537,20 @@
         <div style="height:10px;"></div>
         <div class="row">
           <div>
+            <label for="brewPreset" data-i18n="brew_preset">Preset</label>
+            <select id="brewPreset">
+              <option value="" data-i18n="brew_preset_custom">Custom</option>
+              <option value="tetrabrew">Core TetraBrew EA</option>
+              <option value="tetraflow">Core TetraFlow</option>
+              <option value="tetralink">Core TetraLink</option>
+              <option value="tetrapack">Core TetraPack Online (BM)</option>
+            </select>
+          </div>
+          <div></div>
+        </div>
+        <div style="height:8px;"></div>
+        <div class="row">
+          <div>
             <label for="brewHost" data-i18n="brew_host">Host</label>
             <input id="brewHost" type="text" value="core.tetrapack.online" placeholder="e.g. core.tetrapack.online" />
           </div>
@@ -761,6 +775,8 @@
       mcc_hint: "Country code, e.g. 466=Taiwan, 204=Netherlands",
       mnc_label: "MNC (Mobile Network Code)",
       mnc_hint: "TETRA network code. Ensure legal usage.",
+      brew_preset: "Preset",
+      brew_preset_custom: "Custom",
       location_area_label: "location_area",
       colour_code_label: "colour_code (0–63)",
       system_code_label: "system_code (0–15)",
@@ -901,6 +917,8 @@
       mcc_hint: "國家代碼，例如 466=台灣，204=荷蘭",
       mnc_label: "MNC（移動網絡代碼）",
       mnc_hint: "TETRA 網絡代碼。請確保合法使用。",
+      brew_preset: "預設",
+      brew_preset_custom: "自定義",
       location_area_label: "location_area",
       colour_code_label: "colour_code (0–63)",
       system_code_label: "system_code (0–15)",
@@ -1041,6 +1059,8 @@
       mcc_hint: "Código de país, ej. 214=España, 204=Países Bajos",
       mnc_label: "MNC (Código de Red Móvil)",
       mnc_hint: "Código de red TETRA. Asegúrese del uso legal.",
+      brew_preset: "Predefinido",
+      brew_preset_custom: "Personalizado",
       location_area_label: "location_area",
       colour_code_label: "colour_code (0–63)",
       system_code_label: "system_code (0–15)",
@@ -1181,6 +1201,8 @@
       mcc_hint: "Código de país, ex. 268=Portugal, 204=Países Baixos",
       mnc_label: "MNC (Código de Rede Móvel)",
       mnc_hint: "Código de rede TETRA. Assegure uso legal.",
+      brew_preset: "Predefinição",
+      brew_preset_custom: "Personalizado",
       location_area_label: "location_area",
       colour_code_label: "colour_code (0–63)",
       system_code_label: "system_code (0–15)",
@@ -1321,6 +1343,8 @@
       mcc_hint: "Länderkennzahl, z.B. 262=Deutschland, 204=Niederlande",
       mnc_label: "MNC (Mobilfunk-Netzkennzahl)",
       mnc_hint: "TETRA-Netzkennzahl. Stellen Sie legale Nutzung sicher.",
+      brew_preset: "Voreinstellung",
+      brew_preset_custom: "Benutzerdefiniert",
       location_area_label: "location_area",
       colour_code_label: "colour_code (0–63)",
       system_code_label: "system_code (0–15)",
@@ -1461,6 +1485,8 @@
       mcc_hint: "Code pays, ex. 208=France, 204=Pays-Bas",
       mnc_label: "MNC (Code Réseau Mobile)",
       mnc_hint: "Code réseau TETRA. Assurez-vous de l'utilisation légale.",
+      brew_preset: "Préréglage",
+      brew_preset_custom: "Personnalisé",
       location_area_label: "location_area",
       colour_code_label: "colour_code (0–63)",
       system_code_label: "system_code (0–15)",
@@ -1601,6 +1627,8 @@
       mcc_hint: "Codice paese, es. 222=Italia, 204=Paesi Bassi",
       mnc_label: "MNC (Codice Rete Mobile)",
       mnc_hint: "Codice rete TETRA. Assicurarsi dell'uso legale.",
+      brew_preset: "Preimpostazione",
+      brew_preset_custom: "Personalizzato",
       location_area_label: "location_area",
       colour_code_label: "colour_code (0–63)",
       system_code_label: "system_code (0–15)",
@@ -1741,6 +1769,8 @@
       mcc_hint: "Landekode, f.eks. 238=Danmark, 214=Spanien",
       mnc_label: "MNC (Mobilt Netv\u00e6rkskode)",
       mnc_hint: "TETRA-netv\u00e6rkskode. S\u00f8rg for lovlig brug.",
+      brew_preset: "Forudindstilling",
+      brew_preset_custom: "Brugerdefineret",
       location_area_label: "location_area",
       colour_code_label: "colour_code (0\u201363)",
       system_code_label: "system_code (0\u201315)",
@@ -1881,6 +1911,8 @@
       mcc_hint: "Landcode, bijv. 204=Nederland, 214=Spanje",
       mnc_label: "MNC (Mobiele Netwerkcode)",
       mnc_hint: "TETRA-netwerkcode. Zorg voor legaal gebruik.",
+      brew_preset: "Voorinstelling",
+      brew_preset_custom: "Aangepast",
       location_area_label: "location_area",
       colour_code_label: "colour_code (0\u201363)",
       system_code_label: "system_code (0\u201315)",
@@ -2021,6 +2053,8 @@
       mcc_hint: "Cod de țară, ex. 226=România, 214=Spania",
       mnc_label: "MNC (Cod de Rețea Mobilă)",
       mnc_hint: "Cod de rețea TETRA. Asigurați utilizarea legală.",
+      brew_preset: "Presetare",
+      brew_preset_custom: "Personalizat",
       location_area_label: "location_area",
       colour_code_label: "colour_code (0–63)",
       system_code_label: "system_code (0–15)",
@@ -3500,6 +3534,30 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   // Whitelist toggle
   el("enableWhitelist").addEventListener("change", function(){
     el("whitelistRow").style.display = this.checked ? "block" : "none";
+  });
+
+  // Brew preset selector — auto-fills host/port/TLS
+  const BREW_PRESETS = {
+    tetrabrew: { host: "core.tetra.arsacnp.eu", port: 3003, tls: true },
+    tetraflow: { host: "core.tetraflow.ro",     port: 9000, tls: true },
+    tetralink: { host: "core.tetralink.ro",     port: 443,  tls: true },
+    tetrapack: { host: "core.tetrapack.online", port: 443,  tls: true },
+  };
+  el("brewPreset").addEventListener("change", function(){
+    const p = BREW_PRESETS[this.value];
+    if (!p) return;
+    el("brewHost").value = p.host;
+    el("brewPort").value = p.port;
+    el("brewTls").checked = p.tls;
+    el("brewHost").dispatchEvent(new Event("input", { bubbles: true }));
+    el("brewPort").dispatchEvent(new Event("input", { bubbles: true }));
+    el("brewTls").dispatchEvent(new Event("change", { bubbles: true }));
+    if (lastComputedResult) el("tomlPreview").textContent = buildToml({
+      txHz: lastComputedResult.tx_freq, rxHz: lastComputedResult.rx_freq,
+      band: lastComputedResult.freq_band, mainCarrier: lastComputedResult.main_carrier,
+      freqOffset: lastComputedResult.freq_offset, duplexCodeIdx: lastComputedResult.duplex_spacing,
+      customDuplexHz: lastComputedResult.custom_duplex_spacing, reverse: lastComputedResult.reverse_operation
+    });
   });
 
   // Call Timing toggle + inputs — refresh TOML preview
