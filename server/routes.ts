@@ -1394,6 +1394,7 @@ ${restartLine}
       let brewActive = false;    // true if [brew] header is active
       let securityActive = false; // true if [security] header is active
       let ctActive = false;      // true if any CT key appears as active (not commented) under [cell_info]
+      let prActive = false;      // true if periodic_registration_secs appears as active under [cell_info]
       const sections: Record<string, Record<string, string>> = {};
 
       for (const raw of lines) {
@@ -1442,6 +1443,14 @@ ${restartLine}
               sections['cell_info'][ctM[1]] = ctM[2];
             }
           }
+          // Parse commented # periodic_registration_secs = N in [cell_info]
+          if (currentSection === 'cell_info') {
+            const prM = line.match(/^#\s*periodic_registration_secs\s*=\s*([0-9]+)/);
+            if (prM && !sections['cell_info']?.['periodic_registration_secs']) {
+              sections['cell_info'] = sections['cell_info'] || {};
+              sections['cell_info']['periodic_registration_secs'] = prM[1];
+            }
+          }
           continue;
         }
 
@@ -1471,6 +1480,10 @@ ${restartLine}
           // Track active (non-commented) call timing keys under [cell_info]
           if (currentSection === 'cell_info' && (kk === 'hangtime_secs' || kk === 'call_timeout_secs' || kk === 'ul_inactivity_secs')) {
             ctActive = true;
+          }
+          // Track active periodic_registration_secs under [cell_info]
+          if (currentSection === 'cell_info' && kk === 'periodic_registration_secs') {
+            prActive = true;
           }
         }
       }
@@ -1613,6 +1626,10 @@ ${restartLine}
             call_timeout_secs: num('cell_info', 'call_timeout_secs'),
             ul_inactivity_secs: num('cell_info', 'ul_inactivity_secs'),
           },
+          periodic_reg: {
+            enabled: prActive,
+            periodic_registration_secs: num('cell_info', 'periodic_registration_secs'),
+          },
         },
         net_info: {
           mcc: num('net_info', 'mcc'),
@@ -1639,7 +1656,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, brewConfig, securityConfig, neighborCellsConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -1729,6 +1746,11 @@ ${restartLine}
       const ctKeys = Object.keys(ctVals);
       const ctFound: Record<string, boolean> = { hangtime_secs: false, call_timeout_secs: false, ul_inactivity_secs: false };
 
+      // Periodic Registration — single [cell_info] field with independent toggle.
+      const prEnabled = periodicRegConfig?.enabled === true;
+      const prVal = clampInt(periodicRegConfig?.periodic_registration_secs, 0, 86400, 0);
+      let prFound = false;
+
       const hasCustomDuplex = !!(sectionUpdates["cell_info"]["custom_duplex_spacing"]);
 
       // Build brew section update map
@@ -1781,6 +1803,16 @@ ${restartLine}
               ? `${commentedCtMatch[1]}${k} = ${v}`
               : `${commentedCtMatch[1]}# ${k} = ${v}`;
             ctFound[k] = true;
+            continue;
+          }
+          // Handle commented # periodic_registration_secs = N line
+          const commentedPrMatch = lines[i].match(/^(\s*)#\s*periodic_registration_secs\s*=\s*([0-9]+)/);
+          if (commentedPrMatch) {
+            if (prFound) { lines.splice(i, 1); i--; continue; }
+            lines[i] = prEnabled
+              ? `${commentedPrMatch[1]}periodic_registration_secs = ${prVal}`
+              : `${commentedPrMatch[1]}# periodic_registration_secs = ${prVal}`;
+            prFound = true;
             continue;
           }
           // Handle commented # timezone = "..." line
@@ -1841,6 +1873,14 @@ ${restartLine}
               ctFound[k] = true;
               continue;
             }
+            if (k === "periodic_registration_secs") {
+              if (prFound) { lines.splice(i, 1); i--; continue; }
+              lines[i] = prEnabled
+                ? `${keyMatch[1]}periodic_registration_secs${keyMatch[3]}${prVal}`
+                : `${keyMatch[1]}# periodic_registration_secs = ${prVal}`;
+              prFound = true;
+              continue;
+            }
           }
         }
 
@@ -1861,7 +1901,7 @@ ${restartLine}
             const keyName = keyMatch[2];
             const val = sectionUpdates[currentSection][keyName];
             if (val !== undefined && val !== "__REMOVE__") {
-              if (!["custom_duplex_spacing","timezone_broadcast","timezone","hangtime_secs","call_timeout_secs","ul_inactivity_secs"].includes(keyName)) {
+              if (!["custom_duplex_spacing","timezone_broadcast","timezone","hangtime_secs","call_timeout_secs","ul_inactivity_secs","periodic_registration_secs"].includes(keyName)) {
                 lines[i] = `${keyMatch[1]}${keyName}${keyMatch[3]}${val}`;
               }
             }
@@ -1925,6 +1965,25 @@ ${restartLine}
               }
               break;
             }
+          }
+        }
+      }
+
+      // Insert periodic_registration_secs at end of [cell_info] direct fields if missing
+      if (!prFound) {
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[cell_info\]\s*$/)) {
+            let insertAt = i + 1;
+            let inArray = 0;
+            while (insertAt < lines.length) {
+              const t = lines[insertAt];
+              if (inArray === 0 && t.match(/^\s*\[/)) break;
+              for (const ch of t) { if (ch === '[') inArray++; else if (ch === ']') inArray--; }
+              insertAt++;
+            }
+            while (insertAt > i + 1 && lines[insertAt - 1].trim() === "") insertAt--;
+            lines.splice(insertAt, 0, prEnabled ? `periodic_registration_secs = ${prVal}` : `# periodic_registration_secs = ${prVal}`);
+            break;
           }
         }
       }
