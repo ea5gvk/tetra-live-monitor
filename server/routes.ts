@@ -1783,15 +1783,12 @@ ${restartLine}
         sectionUpdates["cell_info"]["custom_duplex_spacing"] = String(values.custom_duplex_spacing);
       }
 
-      // Timezone broadcast (goes under [cell_info])
+      // Timezone (goes under [cell_info]). When enabled, writes `timezone = "..."` active.
+      // When disabled, the line is commented out. Note: flowstation/bluestation use the
+      // mere presence of an active `timezone` key — there is NO `timezone_broadcast` field,
+      // so we always strip any stale `timezone_broadcast` line.
       const tzEnabled = timezoneConfig?.enabled === true;
       const tzValue = timezoneConfig?.timezone || "";
-      if (tzEnabled && tzValue) {
-        sectionUpdates["cell_info"]["timezone_broadcast"] = "true";
-      } else {
-        sectionUpdates["cell_info"]["timezone_broadcast"] = "__REMOVE__";
-      }
-      // timezone key itself is handled by targeted pass below (active or commented)
 
       // Call Timing — 3 fields under [cell_info]. Active or commented depending on toggle.
       const ctEnabled = callTimingConfig?.enabled === true;
@@ -1838,7 +1835,6 @@ ${restartLine}
       const lines = content.split("\n");
       let currentSection = "";
       let customDuplexFound = false;
-      let tzBroadcastFound = false;
       let tzFound = false;
       const netInfoKeyFound: Record<string, boolean> = {};
       let netInfoSectionExists = false;
@@ -1908,12 +1904,8 @@ ${restartLine}
               continue;
             }
             if (k === "timezone_broadcast") {
-              if (tzEnabled) {
-                lines[i] = `${keyMatch[1]}timezone_broadcast${keyMatch[3]}true`;
-                tzBroadcastFound = true;
-              } else {
-                lines.splice(i, 1); i--;
-              }
+              // Legacy/invalid field — always remove it. Flowstation rejects it.
+              lines.splice(i, 1); i--;
               continue;
             }
             if (k === "timezone") {
@@ -1988,16 +1980,13 @@ ${restartLine}
         }
       }
 
-      // Insert timezone keys under cell_info if not found
-      if (tzValue || tzEnabled) {
+      // Insert timezone key under cell_info if not found
+      if (tzValue && !tzFound) {
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[cell_info\]/)) {
+          if (lines[i].match(/^\s*\[cell_info\]\s*$/)) {
             let insertAt = i + 1;
             while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") insertAt++;
-            if (!tzFound && tzValue) {
-              lines.splice(insertAt, 0, tzEnabled ? `timezone = "${tzValue}"` : `# timezone = "${tzValue}"`);
-            }
-            if (!tzBroadcastFound && tzEnabled) lines.splice(insertAt, 0, `timezone_broadcast = true`);
+            lines.splice(insertAt, 0, tzEnabled ? `timezone = "${tzValue}"` : `# timezone = "${tzValue}"`);
             break;
           }
         }
