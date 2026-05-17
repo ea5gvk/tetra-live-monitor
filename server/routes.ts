@@ -1390,10 +1390,12 @@ ${restartLine}
       let currentSection = '';
       let inCommentedBrew = false;
       let inCommentedSecurity = false;
+      let inCommentedDashboard = false;
       let brewCommented = false; // true if [brew] header is commented out
       let brewActive = false;    // true if [brew] header is active
       let rssiExportActive = false; // true if feature_rssi_export appears as active under [brew]
       let securityActive = false; // true if [security] header is active
+      let dashboardActive = false; // true if [dashboard] header is active
       let ctActive = false;      // true if any CT key appears as active (not commented) under [cell_info]
       let prActive = false;      // true if periodic_registration_secs appears as active under [cell_info]
       const sections: Record<string, Record<string, string>> = {};
@@ -1414,7 +1416,16 @@ ${restartLine}
         if (line.match(/^#\s*\[security\]/)) {
           inCommentedSecurity = true;
           inCommentedBrew = false;
+          inCommentedDashboard = false;
           sections['security'] = sections['security'] || {};
+          continue;
+        }
+        // Detect #[dashboard] (disabled dashboard section header)
+        if (line.match(/^#\s*\[dashboard\]/)) {
+          inCommentedDashboard = true;
+          inCommentedBrew = false;
+          inCommentedSecurity = false;
+          sections['dashboard'] = sections['dashboard'] || {};
           continue;
         }
 
@@ -1439,6 +1450,10 @@ ${restartLine}
           if (inCommentedSecurity) {
             const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
             if (ckv) sections['security'][ckv[1].trim()] = ckv[2].trim();
+          }
+          if (inCommentedDashboard) {
+            const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
+            if (ckv) sections['dashboard'][ckv[1].trim()] = ckv[2].trim();
           }
           // Parse commented timezone in [cell_info] so it loads even when disabled
           if (inCellInfoCtx && !sections['cell_info']?.['timezone']) {
@@ -1477,6 +1492,7 @@ ${restartLine}
           currentSection = sectionMatch[1];
           if (currentSection === 'brew') brewActive = true;
           if (currentSection === 'security') securityActive = true;
+          if (currentSection === 'dashboard') dashboardActive = true;
           sections[currentSection] = sections[currentSection] || {};
           continue;
         }
@@ -1735,6 +1751,10 @@ ${restartLine}
           enabled: securityActive,
           issi_whitelist: securityIssiWhitelist,
         },
+        dashboard: {
+          enabled: dashboardActive,
+          port: num('dashboard', 'port'),
+        },
       });
     } catch (err: any) {
       res.status(500).json({ message: `Error leyendo config: ${err.message}` });
@@ -1742,7 +1762,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, dashboardConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -2530,6 +2550,59 @@ ${restartLine}
             }
           }
           if (!foundWl) lines.splice(secHeaderIdx + 1, 0, valueLine);
+        }
+      }
+
+      // ── DASHBOARD SECTION: comment/uncomment block (header + port) ──
+      // Only touch when client explicitly sends dashboardConfig (Flowstation only).
+      if (dashboardConfig && typeof dashboardConfig === "object") {
+        const dashEnabled = dashboardConfig.enabled === true;
+        const portN = Number(dashboardConfig.port);
+        const dashPort = Number.isFinite(portN) && portN >= 1 && portN <= 65535 ? Math.round(portN) : 8080;
+        const portLine = `port = ${dashPort}`;
+
+        let dashHeaderIdx = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[dashboard\]/)) { dashHeaderIdx = i; break; }
+          if (lines[i].match(/^\s*#\s*\[dashboard\]/)) { dashHeaderIdx = i; break; }
+        }
+        const getDashEnd = (start: number): number => {
+          for (let j = start + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/)) return j;
+            if (lines[j].match(/^\s*#\s*\[[^\]]+\]/)) return j;
+          }
+          return lines.length;
+        };
+        const headerLine = dashEnabled ? "[dashboard]" : "# [dashboard]";
+        const valueLine = dashEnabled ? portLine : `# ${portLine}`;
+
+        if (dashHeaderIdx === -1) {
+          // Insert before [brew]/#[brew], else end-of-file
+          let brewIdx = -1;
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].match(/^\s*\[brew\]/) || lines[i].match(/^\s*#\s*\[brew\]/)) { brewIdx = i; break; }
+          }
+          if (brewIdx === -1) {
+            if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+            lines.push(headerLine);
+            lines.push(valueLine);
+          } else {
+            const block = [headerLine, valueLine, ""];
+            if (brewIdx > 0 && lines[brewIdx - 1].trim() !== "") block.unshift("");
+            lines.splice(brewIdx, 0, ...block);
+          }
+        } else {
+          lines[dashHeaderIdx] = headerLine;
+          const dashEnd = getDashEnd(dashHeaderIdx);
+          let foundPort = false;
+          for (let i = dashHeaderIdx + 1; i < dashEnd; i++) {
+            if (lines[i].match(/^\s*#?\s*port\s*=/)) {
+              lines[i] = valueLine;
+              foundPort = true;
+              break;
+            }
+          }
+          if (!foundPort) lines.splice(dashHeaderIdx + 1, 0, valueLine);
         }
       }
 
