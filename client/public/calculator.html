@@ -2623,9 +2623,8 @@
         lines.push(`local_ssi_ranges = [${ranges.map(r=>`[${r[0]}, ${r[1]}]`).join(", ")}]`);
       }
     }
-    // Timezone broadcast
+    // Timezone — only writes `timezone = "..."` when enabled.
     if (el("enableTimezone").checked){
-      lines.push(`timezone_broadcast = true`);
       lines.push(`timezone = "${el("timezoneVal").value}"`);
     }
     // Call Timing — 3 [cell_info] direct fields. Active or commented depending on toggle.
@@ -3092,12 +3091,27 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       if (data.cell_info.colour_code !== null) el("colourCode").value = String(data.cell_info.colour_code);
       if (data.cell_info.system_code !== null) el("systemCode").value = String(data.cell_info.system_code);
 
-      // ── Timezone broadcast (load value even when disabled/commented)
-      const tzEnabled = data.cell_info.timezone_broadcast === true;
-      el("enableTimezone").checked = tzEnabled;
-      el("enableTimezone").dispatchEvent(new Event("change"));
-      if (data.cell_info.timezone) {
-        el("timezoneVal").value = data.cell_info.timezone;
+      // ── Timezone — enabled state is detected by parsing the raw TOML for an
+      // active (non-commented) `timezone = "..."` line under [cell_info]. The
+      // value is loaded whether active or commented so the dropdown remembers it.
+      {
+        const raw = data._raw || "";
+        const rawLines = raw.split("\n");
+        let inCell = false;
+        let tzActive = false;
+        let tzVal = "";
+        for (const ln of rawLines) {
+          const hdr = ln.match(/^\s*\[([a-zA-Z_][\w.]*)\]\s*$/);
+          if (hdr) { inCell = (hdr[1].trim() === "cell_info"); continue; }
+          if (!inCell) continue;
+          const mActive = ln.match(/^\s*timezone\s*=\s*"([^"]*)"/);
+          if (mActive) { tzActive = true; tzVal = mActive[1]; break; }
+          const mCmt = ln.match(/^\s*#\s*timezone\s*=\s*"([^"]*)"/);
+          if (mCmt && !tzVal) { tzVal = mCmt[1]; }
+        }
+        el("enableTimezone").checked = tzActive;
+        el("enableTimezone").dispatchEvent(new Event("change"));
+        if (tzVal) el("timezoneVal").value = tzVal;
       }
 
       // ── Call Timing — parse client-side from raw TOML for maximum reliability.
