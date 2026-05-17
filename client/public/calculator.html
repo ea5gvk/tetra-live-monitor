@@ -594,6 +594,20 @@
             <div class="hint" data-i18n="brew_whitelist_hint">Only listed SSIs will be transmitted over Brew. Leave empty to allow all.</div>
           </div>
         </div>
+        <div id="brewRssiSubsection" class="subsection">
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableRssiExport" />
+            <label for="enableRssiExport" data-i18n="brew_rssi_enable">Enable feature_rssi_export</label>
+          </div>
+          <div class="hint" data-i18n="brew_rssi_hint">Exports per-ISSI RSSI measurements to the Brew server. When disabled the line is written commented out.</div>
+          <div style="margin-top:10px;">
+            <label for="rssiExportValue" data-i18n="brew_rssi_value">Value</label>
+            <select id="rssiExportValue">
+              <option value="true">true</option>
+              <option value="false">false</option>
+            </select>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -791,6 +805,9 @@
       timezone_hint: "Broadcasts UTC time and local offset once per hyperframe (~61 s). DST handled automatically.",
       timezone_label: "Timezone (IANA)",
       brew_title: "🍺 Homebrew Protocol [brew]",
+      brew_rssi_enable: "Enable feature_rssi_export",
+      brew_rssi_hint: "Exports per-ISSI RSSI measurements to the Brew server. When disabled the line is written commented out.",
+      brew_rssi_value: "Value",
       brew_enable: "Enable Brew Connection",
       brew_hint: "Enables connection to a Homebrew/DMR+ repeater. Writes [brew] section in config.toml.",
       brew_host: "Host",
@@ -933,6 +950,9 @@
       timezone_hint: "每超幀（~61秒）廣播一次UTC時間和本地偏移，DST自動處理。",
       timezone_label: "時區（IANA）",
       brew_title: "🍺 Homebrew協議 [brew]",
+      brew_rssi_enable: "啟用 feature_rssi_export",
+      brew_rssi_hint: "將每個 ISSI 的 RSSI 測量值匯出到 Brew 伺服器。停用時該行會被註解。",
+      brew_rssi_value: "值",
       brew_enable: "啟用 Brew 連接",
       brew_hint: "啟用到 Homebrew/DMR+ 中繼台的連接，寫入 config.toml 的 [brew] 部分。",
       brew_host: "主機",
@@ -1075,6 +1095,9 @@
       timezone_hint: "Difunde la hora UTC y el desfase local una vez por superhipertrama (~61 s). DST gestionado automáticamente.",
       timezone_label: "Zona horaria (IANA)",
       brew_title: "🍺 Protocolo Homebrew [brew]",
+      brew_rssi_enable: "Activar feature_rssi_export",
+      brew_rssi_hint: "Exporta las mediciones RSSI por ISSI al servidor Brew. Cuando está desactivado, la línea se escribe comentada.",
+      brew_rssi_value: "Valor",
       brew_enable: "Activar conexión Brew",
       brew_hint: "Habilita la conexión a un repetidor Homebrew/DMR+. Escribe la sección [brew] en config.toml.",
       brew_host: "Host",
@@ -1217,6 +1240,9 @@
       timezone_hint: "Transmite hora UTC e desfasamento local uma vez por super-trama (~61 s). DST tratado automaticamente.",
       timezone_label: "Fuso horário (IANA)",
       brew_title: "🍺 Protocolo Homebrew [brew]",
+      brew_rssi_enable: "Ativar feature_rssi_export",
+      brew_rssi_hint: "Exporta as medições de RSSI por ISSI para o servidor Brew. Quando desativado, a linha é escrita comentada.",
+      brew_rssi_value: "Valor",
       brew_enable: "Ativar conexão Brew",
       brew_hint: "Ativa a ligação a um repetidor Homebrew/DMR+. Escreve a secção [brew] em config.toml.",
       brew_host: "Host",
@@ -1359,6 +1385,9 @@
       timezone_hint: "Überträgt UTC-Zeit und lokalen Offset einmal pro Super-Hyperframe (~61 s). DST wird automatisch verarbeitet.",
       timezone_label: "Zeitzone (IANA)",
       brew_title: "🍺 Homebrew-Protokoll [brew]",
+      brew_rssi_enable: "feature_rssi_export aktivieren",
+      brew_rssi_hint: "Exportiert die RSSI-Messwerte pro ISSI an den Brew-Server. Wenn deaktiviert, wird die Zeile auskommentiert geschrieben.",
+      brew_rssi_value: "Wert",
       brew_enable: "Brew-Verbindung aktivieren",
       brew_hint: "Aktiviert die Verbindung zu einem Homebrew/DMR+ Relais. Schreibt den [brew]-Abschnitt in config.toml.",
       brew_host: "Host",
@@ -1501,6 +1530,9 @@
       timezone_hint: "Diffuse l'heure UTC et le décalage local une fois par super-hypertrame (~61 s). L'heure d'été est gérée automatiquement.",
       timezone_label: "Fuseau horaire (IANA)",
       brew_title: "🍺 Protocole Homebrew [brew]",
+      brew_rssi_enable: "Activer feature_rssi_export",
+      brew_rssi_hint: "Exporte les mesures RSSI par ISSI vers le serveur Brew. Lorsque désactivé, la ligne est écrite en commentaire.",
+      brew_rssi_value: "Valeur",
       brew_enable: "Activer la connexion Brew",
       brew_hint: "Active la connexion à un relais Homebrew/DMR+. Écrit la section [brew] dans config.toml.",
       brew_host: "Hôte",
@@ -1643,6 +1675,9 @@
       timezone_hint: "Trasmette ora UTC e offset locale una volta per super-ipertrama (~61 s). DST gestito automaticamente.",
       timezone_label: "Fuso orario (IANA)",
       brew_title: "🍺 Protocollo Homebrew [brew]",
+      brew_rssi_enable: "Attiva feature_rssi_export",
+      brew_rssi_hint: "Esporta le misurazioni RSSI per ISSI al server Brew. Se disattivato, la riga viene scritta come commento.",
+      brew_rssi_value: "Valore",
       brew_enable: "Abilita connessione Brew",
       brew_hint: "Abilita la connessione a un ripetitore Homebrew/DMR+. Scrive la sezione [brew] in config.toml.",
       brew_host: "Host",
@@ -1785,6 +1820,9 @@
       timezone_hint: "Udsender UTC-tid og lokalt offset \u00e9n gang pr. super-hyperramme (~61 s). Sommertid h\u00e5ndteres automatisk.",
       timezone_label: "Tidszone (IANA)",
       brew_title: "\ud83c\udf7a Homebrew-protokol [brew]",
+      brew_rssi_enable: "Aktivér feature_rssi_export",
+      brew_rssi_hint: "Eksporterer RSSI-målinger pr. ISSI til Brew-serveren. Når deaktiveret, skrives linjen som kommentar.",
+      brew_rssi_value: "Værdi",
       brew_enable: "Aktiv\u00e9r Brew-forbindelse",
       brew_hint: "Aktiv\u00e9r forbindelsen til en Homebrew/DMR+-repeater. Skriver [brew]-sektionen i config.toml.",
       brew_host: "V\u00e6rt",
@@ -1927,6 +1965,9 @@
       timezone_hint: "Zendt UTC-tijd en lokale offset eenmaal per super-hyperframe (~61 s) uit. Zomertijd wordt automatisch verwerkt.",
       timezone_label: "Tijdzone (IANA)",
       brew_title: "\ud83c\udf7a Homebrew-protocol [brew]",
+      brew_rssi_enable: "feature_rssi_export inschakelen",
+      brew_rssi_hint: "Exporteert RSSI-metingen per ISSI naar de Brew-server. Indien uitgeschakeld wordt de regel als commentaar geschreven.",
+      brew_rssi_value: "Waarde",
       brew_enable: "Brew-verbinding inschakelen",
       brew_hint: "Schakel verbinding met een Homebrew/DMR+-repeater in. Schrijft de sectie [brew] naar config.toml.",
       brew_host: "Host",
@@ -2069,6 +2110,9 @@
       timezone_hint: "Difuzează ora UTC și offset-ul local o dată per super-hyperframe (~61 s). DST este gestionat automat.",
       timezone_label: "Fus orar (IANA)",
       brew_title: "🍺 Protocol Homebrew [brew]",
+      brew_rssi_enable: "Activează feature_rssi_export",
+      brew_rssi_hint: "Exportă măsurătorile RSSI per ISSI către serverul Brew. Când este dezactivat, linia este scrisă comentată.",
+      brew_rssi_value: "Valoare",
       brew_enable: "Activează conexiunea Brew",
       brew_hint: "Activează conexiunea către un repetor Homebrew/DMR+. Scrie secțiunea [brew] în config.toml.",
       brew_host: "Host",
@@ -2525,6 +2569,12 @@
       if (el("enableWhitelist").checked && el("brewWhitelist").value.trim()){
         const ssis = el("brewWhitelist").value.trim().split(",").map(s => s.trim()).filter(Boolean);
         lines.push(`whitelisted_ssis = [${ssis.join(", ")}]`);
+      }
+      // feature_rssi_export — only emit if subsection is visible (Flowstation)
+      if (document.getElementById("brewRssiSubsection")?.style.display !== "none") {
+        const rssiEnabled = el("enableRssiExport").checked;
+        const rssiVal = el("rssiExportValue").value === "false" ? "false" : "true";
+        lines.push(`${rssiEnabled ? "" : "# "}feature_rssi_export = ${rssiVal}`);
       }
     }
     // Security whitelist (digits only — invalid tokens silently dropped)
@@ -3012,6 +3062,13 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           el("brewWhitelist").value = data.brew.whitelisted_ssis.join(", ");
         }
       }
+      // feature_rssi_export (works whether brew enabled or commented)
+      if (data.brew.feature_rssi_export_enabled !== undefined) {
+        el("enableRssiExport").checked = !!data.brew.feature_rssi_export_enabled;
+      }
+      if (data.brew.feature_rssi_export !== undefined && data.brew.feature_rssi_export !== null) {
+        el("rssiExportValue").value = data.brew.feature_rssi_export === true || data.brew.feature_rssi_export === "true" ? "true" : "false";
+      }
 
       // ── Neighbor Cells (loads cells even when commented/disabled)
       const ncellsList = (data.cell_info && Array.isArray(data.cell_info.neighbor_cells)) ? data.cell_info.neighbor_cells : [];
@@ -3108,6 +3165,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     };
 
     // Collect brew options
+    const isFlowstation = document.getElementById("brewRssiSubsection")?.style.display !== "none";
     const brewConfig = el("enableBrew").checked ? {
       enabled: true,
       host: el("brewHost").value.trim(),
@@ -3116,6 +3174,10 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       password: el("brewPassword").value,
       tls: el("brewTls").checked,
       reconnect_delay_secs: Number(el("brewReconnect").value) || 15,
+      rssiExport: isFlowstation ? {
+        enabled: el("enableRssiExport").checked,
+        value: el("rssiExportValue").value === "false" ? false : true,
+      } : null,
       whitelistEnabled: el("enableWhitelist").checked,
       whitelisted_ssis: el("enableWhitelist").checked && el("brewWhitelist").value.trim()
         ? el("brewWhitelist").value.trim().split(",").map(s => s.trim()).filter(Boolean)
@@ -3543,6 +3605,18 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     tetralink: { host: "core.tetralink.ro",     port: 443,  tls: true },
     tetrapack: { host: "core.tetrapack.online", port: 443,  tls: true },
   };
+  // RSSI export controls — refresh TOML preview
+  ["enableRssiExport","rssiExportValue"].forEach(id => {
+    el(id).addEventListener(id === "enableRssiExport" ? "change" : "change", function(){
+      if (lastComputedResult) el("tomlPreview").textContent = buildToml({
+        txHz: lastComputedResult.tx_freq, rxHz: lastComputedResult.rx_freq,
+        band: lastComputedResult.freq_band, mainCarrier: lastComputedResult.main_carrier,
+        freqOffset: lastComputedResult.freq_offset, duplexCodeIdx: lastComputedResult.duplex_spacing,
+        customDuplexHz: lastComputedResult.custom_duplex_spacing, reverse: lastComputedResult.reverse_operation
+      });
+    });
+  });
+
   el("brewPreset").addEventListener("change", function(){
     const p = BREW_PRESETS[this.value];
     if (!p) return;
@@ -3638,7 +3712,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity"];
+    var flowOnly = ["sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "brewRssiSubsection"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);
