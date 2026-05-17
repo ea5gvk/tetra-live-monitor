@@ -3102,7 +3102,11 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         let tzVal = "";
         for (const ln of rawLines) {
           const hdr = ln.match(/^\s*\[([a-zA-Z_][\w.]*)\]\s*$/);
-          if (hdr) { inCell = (hdr[1].trim() === "cell_info"); continue; }
+          if (hdr) {
+            const hn = hdr[1].trim();
+            inCell = (hn === "cell_info" || hn.indexOf("cell_info.") === 0);
+            continue;
+          }
           if (!inCell) continue;
           const mActive = ln.match(/^\s*timezone\s*=\s*"([^"]*)"/);
           if (mActive) { tzActive = true; tzVal = mActive[1]; break; }
@@ -3132,7 +3136,11 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
             // Top-level [section] headers — STRICT match so `[0, 7],` (array
             // continuation inside local_ssi_ranges) is NOT treated as a section
             var sm = t.match(/^\[([a-zA-Z_][\w.]*)\]\s*$/);
-            if (sm) { inCellInfo = (sm[1].trim() === "cell_info"); continue; }
+            if (sm) {
+              var sn = sm[1].trim();
+              inCellInfo = (sn === "cell_info" || sn.indexOf("cell_info.") === 0);
+              continue;
+            }
             if (!inCellInfo) continue;
             // Active line: hangtime_secs = N
             var am = t.match(/^(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=\s*(\d+)/);
@@ -3173,7 +3181,11 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
             if (!t) continue;
             if (/^\[\[[\w.]+\]\]\s*$/.test(t)) continue;
             var sm = t.match(/^\[([a-zA-Z_][\w.]*)\]\s*$/);
-            if (sm) { inCellInfo = (sm[1].trim() === "cell_info"); continue; }
+            if (sm) {
+              var sn = sm[1].trim();
+              inCellInfo = (sn === "cell_info" || sn.indexOf("cell_info.") === 0);
+              continue;
+            }
             if (!inCellInfo) continue;
             var am = t.match(/^periodic_registration_secs\s*=\s*(\d+)/);
             if (am) { prEnabled = true; prVal = parseInt(am[1]); continue; }
