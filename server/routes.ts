@@ -2150,12 +2150,25 @@ ${restartLine}
         if (newSsiLines.length > 0) {
           for (let i = 0; i < lines.length; i++) {
             if (lines[i].match(/^\s*\[cell_info\]\s*$/)) {
-              let insertAt = i + 1;
-              // Walk until we hit ANY section header — including [cell_info.X]
-              // subsection and [[cell_info.X]] sub-table — or end of file.
-              while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/)) insertAt++;
-              // Trim trailing blank lines so the block sits flush with last direct field.
-              while (insertAt > i + 1 && lines[insertAt - 1].trim() === "") insertAt--;
+              // Preferred position: right after the `timezone = "..."` line
+              // (active OR commented) under [cell_info]. Walk only until the
+              // first section header (active or commented) so we don't escape
+              // into [cell_info.home_mode_display] / [[neighbor_cells_ca]] / etc.
+              let timezoneIdx = -1;
+              let sectionEndIdx = lines.length;
+              for (let j = i + 1; j < lines.length; j++) {
+                const tj = lines[j];
+                if (tj.match(/^\s*\[/) || tj.match(/^\s*#\s*\[/)) { sectionEndIdx = j; break; }
+                if (tj.match(/^\s*#?\s*timezone\s*=/)) timezoneIdx = j;
+              }
+              let insertAt: number;
+              if (timezoneIdx !== -1) {
+                insertAt = timezoneIdx + 1;
+              } else {
+                // Fallback: end of direct fields, before first (active or commented) header.
+                insertAt = sectionEndIdx;
+                while (insertAt > i + 1 && lines[insertAt - 1].trim() === "") insertAt--;
+              }
               lines.splice(insertAt, 0, ...newSsiLines);
               break;
             }
