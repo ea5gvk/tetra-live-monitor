@@ -451,6 +451,47 @@
       </div>
     </section>
   </div>
+  <div id="sectionHomeModeDisplay" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="hmd_title">🏠 Home Mode Display</h2>
+      <div class="checkbox-row">
+        <input type="checkbox" id="enableHomeModeDisplay" />
+        <label for="enableHomeModeDisplay" data-i18n="hmd_enable">Activar Home Mode Display</label>
+      </div>
+      <div class="hint" data-i18n="hmd_hint">Difunde periódicamente un texto a todas las MS de la celda vía D-SDS-DATA (PID 220). La radio lo muestra en su pantalla principal. Si está desactivado, el bloque se escribe comentado.</div>
+      <div id="hmdFields" style="margin-top:12px;">
+        <div class="row">
+          <div>
+            <label for="hmdSourceIssi" data-i18n="hmd_source_issi">source_issi</label>
+            <input id="hmdSourceIssi" type="number" min="0" max="16777215" value="16777215" />
+          </div>
+          <div>
+            <label for="hmdInterval" data-i18n="hmd_interval">interval_multiframes</label>
+            <input id="hmdInterval" type="number" min="1" max="65535" value="96" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div>
+            <label for="hmdProtocolId" data-i18n="hmd_protocol_id">protocol_id</label>
+            <input id="hmdProtocolId" type="number" min="0" max="255" value="220" />
+          </div>
+          <div>
+            <label for="hmdCoding" data-i18n="hmd_coding">text_coding_scheme</label>
+            <select id="hmdCoding">
+              <option value="LATIN">LATIN</option>
+              <option value="UTF16">UTF16</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div style="grid-column: 1 / -1;">
+            <label for="hmdText" data-i18n="hmd_text">text</label>
+            <input id="hmdText" type="text" maxlength="64" value="Flow0-EA5GVK" />
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
   <div id="sectionCallTiming" style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="timing_title">⏱️ Tiempo de Llamadas</h2>
@@ -805,6 +846,14 @@
       timezone_hint: "Broadcasts UTC time and local offset once per hyperframe (~61 s). DST handled automatically.",
       timezone_label: "Timezone (IANA)",
       brew_title: "🍺 Homebrew Protocol [brew]",
+      hmd_title: "🏠 Home Mode Display",
+      hmd_enable: "Enable Home Mode Display",
+      hmd_hint: "Periodically broadcasts a text string to all MSs on the cell via D-SDS-DATA (PID 220). The radio shows it on its home screen. If disabled, the block is written commented.",
+      hmd_source_issi: "source_issi",
+      hmd_interval: "interval_multiframes",
+      hmd_protocol_id: "protocol_id",
+      hmd_coding: "text_coding_scheme",
+      hmd_text: "text",
       brew_rssi_enable: "Enable feature_rssi_export",
       brew_rssi_hint: "Exports per-ISSI RSSI measurements to the Brew server. When disabled the line is written commented out.",
       brew_rssi_value: "Value",
@@ -950,6 +999,14 @@
       timezone_hint: "每超幀（~61秒）廣播一次UTC時間和本地偏移，DST自動處理。",
       timezone_label: "時區（IANA）",
       brew_title: "🍺 Homebrew協議 [brew]",
+      hmd_title: "🏠 主畫面顯示",
+      hmd_enable: "啟用主畫面顯示",
+      hmd_hint: "通過 D-SDS-DATA（PID 220）定期向小區內所有 MS 廣播文字。無線電會在主畫面上顯示該文字。停用時整個區塊會被註解。",
+      hmd_source_issi: "source_issi",
+      hmd_interval: "interval_multiframes",
+      hmd_protocol_id: "protocol_id",
+      hmd_coding: "text_coding_scheme",
+      hmd_text: "text",
       brew_rssi_enable: "啟用 feature_rssi_export",
       brew_rssi_hint: "將每個 ISSI 的 RSSI 測量值匯出到 Brew 伺服器。停用時該行會被註解。",
       brew_rssi_value: "值",
@@ -1095,6 +1152,14 @@
       timezone_hint: "Difunde la hora UTC y el desfase local una vez por superhipertrama (~61 s). DST gestionado automáticamente.",
       timezone_label: "Zona horaria (IANA)",
       brew_title: "🍺 Protocolo Homebrew [brew]",
+      hmd_title: "🏠 Home Mode Display",
+      hmd_enable: "Activar Home Mode Display",
+      hmd_hint: "Difunde periódicamente un texto a todas las MS de la celda vía D-SDS-DATA (PID 220). La radio lo muestra en su pantalla principal. Si está desactivado, el bloque se escribe comentado.",
+      hmd_source_issi: "source_issi",
+      hmd_interval: "interval_multiframes",
+      hmd_protocol_id: "protocol_id",
+      hmd_coding: "text_coding_scheme",
+      hmd_text: "text",
       brew_rssi_enable: "Activar feature_rssi_export",
       brew_rssi_hint: "Exporta las mediciones RSSI por ISSI al servidor Brew. Cuando está desactivado, la línea se escribe comentada.",
       brew_rssi_value: "Valor",
@@ -1240,6 +1305,14 @@
       timezone_hint: "Transmite hora UTC e desfasamento local uma vez por super-trama (~61 s). DST tratado automaticamente.",
       timezone_label: "Fuso horário (IANA)",
       brew_title: "🍺 Protocolo Homebrew [brew]",
+      hmd_title: "🏠 Home Mode Display",
+      hmd_enable: "Ativar Home Mode Display",
+      hmd_hint: "Difunde periodicamente um texto a todas as MS da célula via D-SDS-DATA (PID 220). O rádio mostra-o no ecrã principal. Se desativado, o bloco é escrito comentado.",
+      hmd_source_issi: "source_issi",
+      hmd_interval: "interval_multiframes",
+      hmd_protocol_id: "protocol_id",
+      hmd_coding: "text_coding_scheme",
+      hmd_text: "text",
       brew_rssi_enable: "Ativar feature_rssi_export",
       brew_rssi_hint: "Exporta as medições de RSSI por ISSI para o servidor Brew. Quando desativado, a linha é escrita comentada.",
       brew_rssi_value: "Valor",
@@ -1385,6 +1458,14 @@
       timezone_hint: "Überträgt UTC-Zeit und lokalen Offset einmal pro Super-Hyperframe (~61 s). DST wird automatisch verarbeitet.",
       timezone_label: "Zeitzone (IANA)",
       brew_title: "🍺 Homebrew-Protokoll [brew]",
+      hmd_title: "🏠 Home Mode Display",
+      hmd_enable: "Home Mode Display aktivieren",
+      hmd_hint: "Sendet periodisch einen Text an alle MS der Zelle über D-SDS-DATA (PID 220). Das Funkgerät zeigt ihn im Hauptbildschirm an. Wenn deaktiviert, wird der Block auskommentiert geschrieben.",
+      hmd_source_issi: "source_issi",
+      hmd_interval: "interval_multiframes",
+      hmd_protocol_id: "protocol_id",
+      hmd_coding: "text_coding_scheme",
+      hmd_text: "text",
       brew_rssi_enable: "feature_rssi_export aktivieren",
       brew_rssi_hint: "Exportiert die RSSI-Messwerte pro ISSI an den Brew-Server. Wenn deaktiviert, wird die Zeile auskommentiert geschrieben.",
       brew_rssi_value: "Wert",
@@ -1530,6 +1611,14 @@
       timezone_hint: "Diffuse l'heure UTC et le décalage local une fois par super-hypertrame (~61 s). L'heure d'été est gérée automatiquement.",
       timezone_label: "Fuseau horaire (IANA)",
       brew_title: "🍺 Protocole Homebrew [brew]",
+      hmd_title: "🏠 Home Mode Display",
+      hmd_enable: "Activer Home Mode Display",
+      hmd_hint: "Diffuse périodiquement un texte à toutes les MS de la cellule via D-SDS-DATA (PID 220). La radio l'affiche sur son écran principal. Si désactivé, le bloc est écrit en commentaire.",
+      hmd_source_issi: "source_issi",
+      hmd_interval: "interval_multiframes",
+      hmd_protocol_id: "protocol_id",
+      hmd_coding: "text_coding_scheme",
+      hmd_text: "text",
       brew_rssi_enable: "Activer feature_rssi_export",
       brew_rssi_hint: "Exporte les mesures RSSI par ISSI vers le serveur Brew. Lorsque désactivé, la ligne est écrite en commentaire.",
       brew_rssi_value: "Valeur",
@@ -1675,6 +1764,14 @@
       timezone_hint: "Trasmette ora UTC e offset locale una volta per super-ipertrama (~61 s). DST gestito automaticamente.",
       timezone_label: "Fuso orario (IANA)",
       brew_title: "🍺 Protocollo Homebrew [brew]",
+      hmd_title: "🏠 Home Mode Display",
+      hmd_enable: "Attiva Home Mode Display",
+      hmd_hint: "Trasmette periodicamente un testo a tutte le MS della cella tramite D-SDS-DATA (PID 220). La radio lo mostra sulla schermata principale. Se disattivato, il blocco viene scritto come commento.",
+      hmd_source_issi: "source_issi",
+      hmd_interval: "interval_multiframes",
+      hmd_protocol_id: "protocol_id",
+      hmd_coding: "text_coding_scheme",
+      hmd_text: "text",
       brew_rssi_enable: "Attiva feature_rssi_export",
       brew_rssi_hint: "Esporta le misurazioni RSSI per ISSI al server Brew. Se disattivato, la riga viene scritta come commento.",
       brew_rssi_value: "Valore",
@@ -1820,6 +1917,14 @@
       timezone_hint: "Udsender UTC-tid og lokalt offset \u00e9n gang pr. super-hyperramme (~61 s). Sommertid h\u00e5ndteres automatisk.",
       timezone_label: "Tidszone (IANA)",
       brew_title: "\ud83c\udf7a Homebrew-protokol [brew]",
+      hmd_title: "🏠 Home Mode Display",
+      hmd_enable: "Aktivér Home Mode Display",
+      hmd_hint: "Udsender periodisk en tekst til alle MS i cellen via D-SDS-DATA (PID 220). Radioen viser den på hovedskærmen. Når deaktiveret, skrives blokken som kommentar.",
+      hmd_source_issi: "source_issi",
+      hmd_interval: "interval_multiframes",
+      hmd_protocol_id: "protocol_id",
+      hmd_coding: "text_coding_scheme",
+      hmd_text: "text",
       brew_rssi_enable: "Aktivér feature_rssi_export",
       brew_rssi_hint: "Eksporterer RSSI-målinger pr. ISSI til Brew-serveren. Når deaktiveret, skrives linjen som kommentar.",
       brew_rssi_value: "Værdi",
@@ -1965,6 +2070,14 @@
       timezone_hint: "Zendt UTC-tijd en lokale offset eenmaal per super-hyperframe (~61 s) uit. Zomertijd wordt automatisch verwerkt.",
       timezone_label: "Tijdzone (IANA)",
       brew_title: "\ud83c\udf7a Homebrew-protocol [brew]",
+      hmd_title: "🏠 Home Mode Display",
+      hmd_enable: "Home Mode Display inschakelen",
+      hmd_hint: "Zendt periodiek een tekst naar alle MS in de cel via D-SDS-DATA (PID 220). De radio toont deze op het hoofdscherm. Indien uitgeschakeld wordt het blok als commentaar geschreven.",
+      hmd_source_issi: "source_issi",
+      hmd_interval: "interval_multiframes",
+      hmd_protocol_id: "protocol_id",
+      hmd_coding: "text_coding_scheme",
+      hmd_text: "text",
       brew_rssi_enable: "feature_rssi_export inschakelen",
       brew_rssi_hint: "Exporteert RSSI-metingen per ISSI naar de Brew-server. Indien uitgeschakeld wordt de regel als commentaar geschreven.",
       brew_rssi_value: "Waarde",
@@ -2110,6 +2223,14 @@
       timezone_hint: "Difuzează ora UTC și offset-ul local o dată per super-hyperframe (~61 s). DST este gestionat automat.",
       timezone_label: "Fus orar (IANA)",
       brew_title: "🍺 Protocol Homebrew [brew]",
+      hmd_title: "🏠 Home Mode Display",
+      hmd_enable: "Activează Home Mode Display",
+      hmd_hint: "Difuzează periodic un text către toate MS din celulă prin D-SDS-DATA (PID 220). Radioul îl afișează pe ecranul principal. Când este dezactivat, blocul este scris comentat.",
+      hmd_source_issi: "source_issi",
+      hmd_interval: "interval_multiframes",
+      hmd_protocol_id: "protocol_id",
+      hmd_coding: "text_coding_scheme",
+      hmd_text: "text",
       brew_rssi_enable: "Activează feature_rssi_export",
       brew_rssi_hint: "Exportă măsurătorile RSSI per ISSI către serverul Brew. Când este dezactivat, linia este scrisă comentată.",
       brew_rssi_value: "Valoare",
@@ -2546,6 +2667,24 @@
           lines.push(`${prefix}location_area = ${Number(c.location_area ?? 0)}`);
         });
       }
+    }
+    // Home Mode Display — single [cell_info.home_mode_display] sub-table (Flowstation only)
+    if (document.getElementById("sectionHomeModeDisplay")?.style.display !== "none") {
+      const hmdEnabled = el("enableHomeModeDisplay").checked;
+      const px = hmdEnabled ? "" : "#";
+      const clmp = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
+      const hSrc = clmp(el("hmdSourceIssi").value, 0, 16777215, 16777215);
+      const hInt = clmp(el("hmdInterval").value, 1, 65535, 96);
+      const hPid = clmp(el("hmdProtocolId").value, 0, 255, 220);
+      const hCod = el("hmdCoding").value === "UTF16" ? "UTF16" : "LATIN";
+      const hTxt = (el("hmdText").value || "").replace(/"/g, '\\"');
+      lines.push("");
+      lines.push(`${px}[cell_info.home_mode_display]`);
+      lines.push(`${px}source_issi = ${hSrc}          # ISSI shown as sender on the radio (default: 16777215)`);
+      lines.push(`${px}interval_multiframes = ${hInt}       # Broadcast interval (1 MF ≈ 1s; default: 96 ≈ 96s)`);
+      lines.push(`${px}protocol_id = ${hPid}               # SDS protocol ID for Home Mode Display (default: 220)`);
+      lines.push(`${px}text_coding_scheme = "${hCod}"    # "LATIN" = ISO-8859-1, "UTF16" = UCS-2/UTF-16BE`);
+      lines.push(`${px}text = "${hTxt}"            # Text shown on radio display`);
     }
     // net_info section
     const mcc = el("mccVal").value.trim();
@@ -3032,6 +3171,17 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         if (prVal !== null) el("periodicRegSecs").value = String(prVal);
       })();
 
+      // ── Home Mode Display ([cell_info.home_mode_display] block, active or commented)
+      if (data.cell_info && data.cell_info.home_mode_display) {
+        const hmd = data.cell_info.home_mode_display;
+        el("enableHomeModeDisplay").checked = !!hmd.enabled;
+        if (hmd.source_issi !== null && hmd.source_issi !== undefined) el("hmdSourceIssi").value = String(hmd.source_issi);
+        if (hmd.interval_multiframes !== null && hmd.interval_multiframes !== undefined) el("hmdInterval").value = String(hmd.interval_multiframes);
+        if (hmd.protocol_id !== null && hmd.protocol_id !== undefined) el("hmdProtocolId").value = String(hmd.protocol_id);
+        if (hmd.text_coding_scheme) el("hmdCoding").value = hmd.text_coding_scheme === "UTF16" ? "UTF16" : "LATIN";
+        if (typeof hmd.text === "string") el("hmdText").value = hmd.text;
+      }
+
       // ── Net Info (MCC / MNC)
       if (data.net_info.mcc !== null) el("mccVal").value = String(data.net_info.mcc);
       if (data.net_info.mnc !== null) el("mncVal").value = String(data.net_info.mnc);
@@ -3193,6 +3343,17 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       enabled: el("enableSecurity").checked,
       issi_whitelist: secParsed.length > 0 ? secParsed : ["1030299","1030036","2145007"]
     };
+
+    // Collect Home Mode Display options (Flowstation only — null in bluestation)
+    const hmdIsFlow = document.getElementById("sectionHomeModeDisplay")?.style.display !== "none";
+    const homeModeDisplayConfig = hmdIsFlow ? {
+      enabled: el("enableHomeModeDisplay").checked,
+      source_issi: clampInt(el("hmdSourceIssi").value, 0, 16777215, 16777215),
+      interval_multiframes: clampInt(el("hmdInterval").value, 1, 65535, 96),
+      protocol_id: clampInt(el("hmdProtocolId").value, 0, 255, 220),
+      text_coding_scheme: el("hmdCoding").value === "UTF16" ? "UTF16" : "LATIN",
+      text: el("hmdText").value || "",
+    } : null;
 
     // Collect neighbor cells (always send so server can write commented when disabled)
     const neighborCellsConfig = {
@@ -3634,6 +3795,19 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     });
   });
 
+  // Home Mode Display toggle + inputs — refresh TOML preview
+  ["enableHomeModeDisplay","hmdSourceIssi","hmdInterval","hmdProtocolId","hmdCoding","hmdText"].forEach(id => {
+    const ev = (id === "enableHomeModeDisplay" || id === "hmdCoding") ? "change" : "input";
+    el(id).addEventListener(ev, function(){
+      if (lastComputedResult) el("tomlPreview").textContent = buildToml({
+        txHz: lastComputedResult.tx_freq, rxHz: lastComputedResult.rx_freq,
+        band: lastComputedResult.freq_band, mainCarrier: lastComputedResult.main_carrier,
+        freqOffset: lastComputedResult.freq_offset, duplexCodeIdx: lastComputedResult.duplex_spacing,
+        customDuplexHz: lastComputedResult.custom_duplex_spacing, reverse: lastComputedResult.reverse_operation
+      });
+    });
+  });
+
   // Call Timing toggle + inputs — refresh TOML preview
   ["enableCallTiming","hangtimeSecs","callTimeoutSecs","ulInactivitySecs"].forEach(id => {
     el(id).addEventListener(id === "enableCallTiming" ? "change" : "input", function(){
@@ -3712,7 +3886,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "brewRssiSubsection"];
+    var flowOnly = ["sectionHomeModeDisplay", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "brewRssiSubsection"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);
