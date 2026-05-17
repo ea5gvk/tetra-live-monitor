@@ -1877,7 +1877,11 @@ ${restartLine}
         // [[sub-table]] headers — skip without changing currentSection
         if (/^\s*\[\[[\w.]+\]\]\s*$/.test(lines[i])) continue;
 
-        if (currentSection === "cell_info") {
+        // Treat any [cell_info.X] subsection as cell_info for direct-field updates.
+        // Upstream flowstation example_config places [cell_info.home_mode_display]
+        // before local_ssi_ranges/hangtime_secs/etc., so those fields end up scoped
+        // to the subsection in strict TOML. We update them in place regardless.
+        if (currentSection === "cell_info" || currentSection.startsWith("cell_info.")) {
           // Handle commented # <call_timing_key> = N lines (active or commented depending on toggle)
           const commentedCtMatch = lines[i].match(/^(\s*)#\s*(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=\s*([0-9]+)/);
           if (commentedCtMatch) {
@@ -2077,7 +2081,7 @@ ${restartLine}
           if (/^\[\[[\w.]+\]\]\s*$/.test(t)) continue;
           const secM = t.match(/^\[([a-zA-Z_][\w.]*)\]\s*$/);
           if (secM) { ssiSec = secM[1]; continue; }
-          if (ssiSec !== "cell_info") continue;
+          if (ssiSec !== "cell_info" && !ssiSec.startsWith("cell_info.")) continue;
           const isActive = t.match(/^local_ssi_ranges\s*=/);
           const isCommented = t.match(/^#\s*local_ssi_ranges\s*=/);
           if (isActive || isCommented) {
