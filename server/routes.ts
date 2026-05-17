@@ -1418,6 +1418,10 @@ ${restartLine}
           continue;
         }
 
+        // "In cell_info" includes any [cell_info.X] subsection — see SSI parser
+        // for why this matters (upstream example_config ordering).
+        const inCellInfoCtx = (currentSection === 'cell_info' || currentSection.startsWith('cell_info.'));
+
         if (line.startsWith('#')) {
           // Read commented key=value lines inside a commented [brew] section
           if (inCommentedBrew) {
@@ -1437,7 +1441,7 @@ ${restartLine}
             if (ckv) sections['security'][ckv[1].trim()] = ckv[2].trim();
           }
           // Parse commented timezone in [cell_info] so it loads even when disabled
-          if (currentSection === 'cell_info' && !sections['cell_info']?.['timezone']) {
+          if (inCellInfoCtx && !sections['cell_info']?.['timezone']) {
             const tzM = line.match(/^#\s*timezone\s*=\s*"(.*)"/);
             if (tzM) {
               sections['cell_info'] = sections['cell_info'] || {};
@@ -1445,7 +1449,7 @@ ${restartLine}
             }
           }
           // Parse commented call timing fields in [cell_info] so they load even when disabled
-          if (currentSection === 'cell_info') {
+          if (inCellInfoCtx) {
             const ctM = line.match(/^#\s*(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=\s*([0-9]+)/);
             if (ctM && !sections['cell_info']?.[ctM[1]]) {
               sections['cell_info'] = sections['cell_info'] || {};
@@ -1453,7 +1457,7 @@ ${restartLine}
             }
           }
           // Parse commented # periodic_registration_secs = N in [cell_info]
-          if (currentSection === 'cell_info') {
+          if (inCellInfoCtx) {
             const prM = line.match(/^#\s*periodic_registration_secs\s*=\s*([0-9]+)/);
             if (prM && !sections['cell_info']?.['periodic_registration_secs']) {
               sections['cell_info'] = sections['cell_info'] || {};
@@ -1486,12 +1490,24 @@ ${restartLine}
         if (kvMatch && currentSection) {
           const kk = kvMatch[1].trim();
           sections[currentSection][kk] = kvMatch[2].trim();
-          // Track active (non-commented) call timing keys under [cell_info]
-          if (currentSection === 'cell_info' && (kk === 'hangtime_secs' || kk === 'call_timeout_secs' || kk === 'ul_inactivity_secs')) {
+          // Known cell_info-level keys are also mirrored into cell_info even if they
+          // appear under a [cell_info.X] subsection — this matches upstream flowstation
+          // example_config layout and how the calculator presents these fields.
+          const cellInfoKeys = new Set([
+            'hangtime_secs','call_timeout_secs','ul_inactivity_secs',
+            'periodic_registration_secs','timezone','location_area','colour_code',
+            'system_code','local_ssi_ranges'
+          ]);
+          if (inCellInfoCtx && currentSection !== 'cell_info' && cellInfoKeys.has(kk)) {
+            sections['cell_info'] = sections['cell_info'] || {};
+            if (!sections['cell_info'][kk]) sections['cell_info'][kk] = kvMatch[2].trim();
+          }
+          // Track active (non-commented) call timing keys under [cell_info] (or subsection)
+          if (inCellInfoCtx && (kk === 'hangtime_secs' || kk === 'call_timeout_secs' || kk === 'ul_inactivity_secs')) {
             ctActive = true;
           }
-          // Track active periodic_registration_secs under [cell_info]
-          if (currentSection === 'cell_info' && kk === 'periodic_registration_secs') {
+          // Track active periodic_registration_secs under [cell_info] (or subsection)
+          if (inCellInfoCtx && kk === 'periodic_registration_secs') {
             prActive = true;
           }
           // Track active feature_rssi_export under [brew]
@@ -1524,7 +1540,16 @@ ${restartLine}
           if (!inSsiBlock) {
             if (/^\[\[[\w.]+\]\]\s*$/.test(t)) continue;
             const secM = t.match(/^\[([a-zA-Z_][\w.]*)\]\s*$/);
-            if (secM) { ssiInCellInfo = secM[1] === "cell_info"; continue; }
+            if (secM) {
+              // Treat cell_info AND any [cell_info.X] subsection as "in cell_info" for
+              // direct-field lookups. Upstream flowstation example_config places
+              // [cell_info.home_mode_display] before local_ssi_ranges/hangtime_secs/etc.,
+              // which in strict TOML would scope those to home_mode_display. We
+              // intentionally read them as cell_info-level since that's their semantic intent.
+              const s = secM[1];
+              ssiInCellInfo = (s === "cell_info" || s.startsWith("cell_info."));
+              continue;
+            }
             if (!ssiInCellInfo) continue;
             const activeM = t.match(/^local_ssi_ranges\s*=\s*(.*)/);
             const commentedM = t.match(/^#\s*local_ssi_ranges\s*=\s*(.*)/);
