@@ -2132,15 +2132,30 @@ ${restartLine}
           }
         }
 
+        // Always REMOVE any existing block (wherever it is) and re-insert at the
+        // canonical position: end of cell_info DIRECT fields, before the first
+        // [cell_info.X] subsection or [[cell_info.X]] sub-table. This guarantees
+        // local_ssi_ranges sits after timezone/hangtime/etc. and BEFORE
+        // [cell_info.home_mode_display] — required for flowstation to apply it.
         if (ssiBlockStart !== -1) {
           const deleteCount = ssiBlockEnd !== -1 ? ssiBlockEnd - ssiBlockStart + 1 : 1;
-          lines.splice(ssiBlockStart, deleteCount, ...newSsiLines);
-        } else if (newSsiLines.length > 0) {
-          // Not found in file: insert at end of [cell_info] section
+          lines.splice(ssiBlockStart, deleteCount);
+          // Also remove a single trailing blank line if the deletion left two
+          // consecutive blanks where there was one before.
+          if (ssiBlockStart < lines.length && ssiBlockStart > 0
+              && lines[ssiBlockStart].trim() === "" && lines[ssiBlockStart - 1].trim() === "") {
+            lines.splice(ssiBlockStart, 1);
+          }
+        }
+        if (newSsiLines.length > 0) {
           for (let i = 0; i < lines.length; i++) {
-            if (lines[i].match(/^\s*\[cell_info\]/)) {
+            if (lines[i].match(/^\s*\[cell_info\]\s*$/)) {
               let insertAt = i + 1;
-              while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/) && lines[insertAt].trim() !== "") insertAt++;
+              // Walk until we hit ANY section header — including [cell_info.X]
+              // subsection and [[cell_info.X]] sub-table — or end of file.
+              while (insertAt < lines.length && !lines[insertAt].match(/^\s*\[/)) insertAt++;
+              // Trim trailing blank lines so the block sits flush with last direct field.
+              while (insertAt > i + 1 && lines[insertAt - 1].trim() === "") insertAt--;
               lines.splice(insertAt, 0, ...newSsiLines);
               break;
             }
