@@ -2152,17 +2152,34 @@ ${restartLine}
 
         // 1) Remove all existing neighbor_cells_ca blocks (active and commented).
         //    Block = header line + following key=value lines (active or commented)
-        //    until the next section/sub-table header.
+        //    until the next section/sub-table header. inArray depth tracking so
+        //    multi-line value arrays don't get treated as section headers.
         for (let i = 0; i < lines.length; ) {
           const t = lines[i].trim();
           const isHdr = !!t.match(/^\[\[\s*cell_info\.neighbor_cells_ca\s*\]\]/) ||
                         !!t.match(/^#\s*\[\[\s*cell_info\.neighbor_cells_ca\s*\]\]/);
           if (!isHdr) { i++; continue; }
           let j = i + 1;
+          let inArr = 0;
+          const strip = (s: string) => s.replace(/^#\s*/, "");
           while (j < lines.length) {
             const tj = lines[j].trim();
             if (tj === "") { j++; continue; }
-            if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+            const body = strip(tj);
+            if (inArr === 0) {
+              if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+              const eq = body.match(/^[A-Za-z_][\w.]*\s*=\s*(.*)$/);
+              if (eq) {
+                const opens = (eq[1].match(/\[/g) || []).length;
+                const closes = (eq[1].match(/\]/g) || []).length;
+                if (opens > closes) inArr += (opens - closes);
+              }
+            } else {
+              const opens = (body.match(/\[/g) || []).length;
+              const closes = (body.match(/\]/g) || []).length;
+              inArr += opens - closes;
+              if (inArr < 0) inArr = 0;
+            }
             j++;
           }
           // Trim trailing blank lines we'd otherwise leave behind
@@ -2248,16 +2265,36 @@ ${restartLine}
         const hTxt = String(homeModeDisplayConfig.text ?? "").replace(/"/g, '\\"');
 
         // 1) Remove all existing home_mode_display blocks (active and commented).
+        //    Use inArray depth tracking so multi-line value arrays like
+        //    `local_ssi_ranges = [\n[0,7],\n]` are not mistaken for section headers.
         for (let i = 0; i < lines.length; ) {
           const t = lines[i].trim();
           const isHdr = !!t.match(/^\[\s*cell_info\.home_mode_display\s*\]/) ||
                         !!t.match(/^#\s*\[\s*cell_info\.home_mode_display\s*\]/);
           if (!isHdr) { i++; continue; }
           let j = i + 1;
+          let inArr = 0;
+          const strip = (s: string) => s.replace(/^#\s*/, "");
           while (j < lines.length) {
             const tj = lines[j].trim();
             if (tj === "") { j++; continue; }
-            if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+            const body = strip(tj);
+            if (inArr === 0) {
+              // Section header (active or commented) ends the block
+              if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+              // Detect opening of a multi-line array: key = [...
+              const eq = body.match(/^[A-Za-z_][\w.]*\s*=\s*(.*)$/);
+              if (eq) {
+                const opens = (eq[1].match(/\[/g) || []).length;
+                const closes = (eq[1].match(/\]/g) || []).length;
+                if (opens > closes) inArr += (opens - closes);
+              }
+            } else {
+              const opens = (body.match(/\[/g) || []).length;
+              const closes = (body.match(/\]/g) || []).length;
+              inArr += opens - closes;
+              if (inArr < 0) inArr = 0;
+            }
             j++;
           }
           while (j > i + 1 && lines[j - 1].trim() === "") j--;
