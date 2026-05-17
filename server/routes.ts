@@ -2088,9 +2088,9 @@ ${restartLine}
             for (const r of ssiRanges) newSsiLines.push(`[${r[0]}, ${r[1]}],`);
             newSsiLines.push("]");
           } else {
-            newSsiLines.push("#local_ssi_ranges = [");
-            for (const r of ssiRanges) newSsiLines.push(`#[${r[0]}, ${r[1]}],`);
-            newSsiLines.push("#]");
+            newSsiLines.push("# local_ssi_ranges = [");
+            for (const r of ssiRanges) newSsiLines.push(`# [${r[0]}, ${r[1]}],`);
+            newSsiLines.push("# ]");
           }
         }
 
