@@ -672,6 +672,25 @@
       </div>
     </section>
   </div>
+  <div id="sectionDashboard" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="dashboard_title">🖥️ Dashboard Web [dashboard]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableDashboard" />
+            <label for="enableDashboard" data-i18n="dashboard_enable">Enable web dashboard</label>
+          </div>
+          <div class="hint" data-i18n="dashboard_hint">Live view of terminals, calls and log at http://&lt;BTS-IP&gt;:PORT (FlowStation only). Required for SDS/KICK from this panel.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="dashboardFields" style="margin-top:10px; max-width:360px;">
+        <label for="dashboardPort" data-i18n="dashboard_port_label">port (1 - 65535)</label>
+        <input id="dashboardPort" type="number" min="1" max="65535" value="8080" />
+      </div>
+    </section>
+  </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="tg_names_title">📡 Talkgroup Names</h2>
@@ -873,6 +892,10 @@
       security_hint: "If disabled, both lines are written as comments. If enabled, only listed ISSIs can connect.",
       security_whitelist_label: "issi_whitelist (comma-separated)",
       security_whitelist_hint: "List of allowed ISSIs, e.g.: 1030299, 1030036, 2145007",
+      dashboard_title: "🖥️ Web Dashboard [dashboard]",
+      dashboard_enable: "Enable web dashboard",
+      dashboard_hint: "Live view of terminals, calls and log at http://<BTS-IP>:PORT (FlowStation only). Required for SDS/KICK from this panel.",
+      dashboard_port_label: "port (1 - 65535)",
       timing_title: "⏱️ Call Timing",
       timing_enable: "Enable call timing parameters",
       timing_hint: "If disabled, all three fields are written as comments under [cell_info].",
@@ -1026,6 +1049,10 @@
       security_hint: "禁用時，兩行均寫為註釋。啟用時，僅列出的 ISSI 可連接。",
       security_whitelist_label: "issi_whitelist（逗號分隔）",
       security_whitelist_hint: "允許的 ISSI 列表，例如：1030299, 1030036, 2145007",
+      dashboard_title: "🖥️ 網頁儀表板 [dashboard]",
+      dashboard_enable: "啟用網頁儀表板",
+      dashboard_hint: "在 http://<BTS-IP>:PORT 即時查看終端、通話與日誌（僅 FlowStation）。從此面板使用 SDS/KICK 需要啟用。",
+      dashboard_port_label: "端口 (1 - 65535)",
       timing_title: "⏱️ 通话时间",
       timing_enable: "启用通话时间参数",
       timing_hint: "如果禁用，三个字段将作为注释写入 [cell_info]。",
@@ -1179,6 +1206,10 @@
       security_hint: "Si está desactivada, ambas líneas se escriben como comentario. Si se activa, solo las ISSI listadas pueden conectarse.",
       security_whitelist_label: "issi_whitelist (separadas por coma)",
       security_whitelist_hint: "Lista de ISSI permitidas, ej: 1030299, 1030036, 2145007",
+      dashboard_title: "🖥️ Dashboard Web [dashboard]",
+      dashboard_enable: "Activar dashboard web",
+      dashboard_hint: "Vista en vivo de terminales, llamadas y log en http://<BTS-IP>:PUERTO (solo FlowStation). Necesario para SDS/KICK desde este panel.",
+      dashboard_port_label: "puerto (1 - 65535)",
       timing_title: "⏱️ Tiempo de Llamadas",
       timing_enable: "Activar parámetros de tiempo de llamada",
       timing_hint: "Si está desactivado, los tres campos se escriben comentados bajo [cell_info].",
@@ -1332,6 +1363,10 @@
       security_hint: "Se desativada, ambas as linhas são escritas como comentário. Se ativada, apenas os ISSI listados podem conectar.",
       security_whitelist_label: "issi_whitelist (separados por vírgula)",
       security_whitelist_hint: "Lista de ISSI permitidos, ex: 1030299, 1030036, 2145007",
+      dashboard_title: "🖥️ Painel Web [dashboard]",
+      dashboard_enable: "Ativar painel web",
+      dashboard_hint: "Vista ao vivo de terminais, chamadas e log em http://<BTS-IP>:PORTA (apenas FlowStation). Necessário para SDS/KICK deste painel.",
+      dashboard_port_label: "porta (1 - 65535)",
       timing_title: "⏱️ Tempo de Chamadas",
       timing_enable: "Ativar parâmetros de tempo de chamada",
       timing_hint: "Se desativado, os três campos são escritos como comentários sob [cell_info].",
@@ -1485,6 +1520,10 @@
       security_hint: "Wenn deaktiviert, werden beide Zeilen als Kommentar geschrieben. Wenn aktiviert, können nur gelistete ISSIs verbinden.",
       security_whitelist_label: "issi_whitelist (kommagetrennt)",
       security_whitelist_hint: "Liste erlaubter ISSIs, z.B.: 1030299, 1030036, 2145007",
+      dashboard_title: "🖥️ Web-Dashboard [dashboard]",
+      dashboard_enable: "Web-Dashboard aktivieren",
+      dashboard_hint: "Live-Ansicht von Terminals, Anrufen und Log unter http://<BTS-IP>:PORT (nur FlowStation). Erforderlich für SDS/KICK aus diesem Panel.",
+      dashboard_port_label: "Port (1 - 65535)",
       timing_title: "⏱️ Anrufzeit",
       timing_enable: "Anrufzeit-Parameter aktivieren",
       timing_hint: "Wenn deaktiviert, werden alle drei Felder als Kommentare unter [cell_info] geschrieben.",
@@ -1638,6 +1677,10 @@
       security_hint: "Si désactivée, les deux lignes sont écrites en commentaire. Si activée, seuls les ISSI listés peuvent se connecter.",
       security_whitelist_label: "issi_whitelist (séparés par virgule)",
       security_whitelist_hint: "Liste des ISSI autorisés, ex: 1030299, 1030036, 2145007",
+      dashboard_title: "🖥️ Tableau de bord web [dashboard]",
+      dashboard_enable: "Activer le tableau de bord web",
+      dashboard_hint: "Vue en direct des terminaux, appels et log sur http://<BTS-IP>:PORT (FlowStation uniquement). Requis pour SDS/KICK depuis ce panneau.",
+      dashboard_port_label: "port (1 - 65535)",
       timing_title: "⏱️ Temps d'appel",
       timing_enable: "Activer les paramètres de temps d'appel",
       timing_hint: "Si désactivé, les trois champs sont écrits en commentaires sous [cell_info].",
@@ -1791,6 +1834,10 @@
       security_hint: "Se disattivata, entrambe le righe sono scritte come commento. Se attivata, solo gli ISSI elencati possono connettersi.",
       security_whitelist_label: "issi_whitelist (separati da virgola)",
       security_whitelist_hint: "Elenco degli ISSI consentiti, es: 1030299, 1030036, 2145007",
+      dashboard_title: "🖥️ Dashboard Web [dashboard]",
+      dashboard_enable: "Abilita dashboard web",
+      dashboard_hint: "Vista live di terminali, chiamate e log su http://<BTS-IP>:PORTA (solo FlowStation). Richiesto per SDS/KICK da questo pannello.",
+      dashboard_port_label: "porta (1 - 65535)",
       timing_title: "⏱️ Tempo di Chiamata",
       timing_enable: "Attiva parametri di tempo di chiamata",
       timing_hint: "Se disattivato, i tre campi sono scritti come commenti sotto [cell_info].",
@@ -1944,6 +1991,10 @@
       security_hint: "Hvis deaktiveret skrives begge linjer som kommentar. Hvis aktiveret kan kun de angivne ISSIer forbinde.",
       security_whitelist_label: "issi_whitelist (kommasepareret)",
       security_whitelist_hint: "Liste over tilladte ISSIer, f.eks.: 1030299, 1030036, 2145007",
+      dashboard_title: "🖥️ Web-dashboard [dashboard]",
+      dashboard_enable: "Aktivér web-dashboard",
+      dashboard_hint: "Live-visning af terminaler, opkald og log på http://<BTS-IP>:PORT (kun FlowStation). Påkrævet for SDS/KICK fra dette panel.",
+      dashboard_port_label: "port (1 - 65535)",
       timing_title: "⏱️ Opkaldstid",
       timing_enable: "Aktivér opkaldstidsparametre",
       timing_hint: "Hvis deaktiveret, skrives alle tre felter som kommentarer under [cell_info].",
@@ -2097,6 +2148,10 @@
       security_hint: "Indien uitgeschakeld worden beide regels als commentaar geschreven. Indien ingeschakeld kunnen alleen vermelde ISSIs verbinden.",
       security_whitelist_label: "issi_whitelist (kommagescheiden)",
       security_whitelist_hint: "Lijst van toegestane ISSIs, bv: 1030299, 1030036, 2145007",
+      dashboard_title: "🖥️ Web-dashboard [dashboard]",
+      dashboard_enable: "Web-dashboard inschakelen",
+      dashboard_hint: "Live weergave van terminals, oproepen en log op http://<BTS-IP>:POORT (alleen FlowStation). Vereist voor SDS/KICK vanuit dit paneel.",
+      dashboard_port_label: "poort (1 - 65535)",
       timing_title: "⏱️ Gesprekstijd",
       timing_enable: "Gesprekstijd-parameters inschakelen",
       timing_hint: "Indien uitgeschakeld worden alle drie velden als commentaar onder [cell_info] geschreven.",
@@ -2250,6 +2305,10 @@
       security_hint: "Dacă este dezactivat, ambele linii sunt scrise ca comentarii. Dacă este activat, doar ISSI-urile listate se pot conecta.",
       security_whitelist_label: "issi_whitelist (separate prin virgulă)",
       security_whitelist_hint: "Listă de ISSI-uri permise, ex.: 1030299, 1030036, 2145007",
+      dashboard_title: "🖥️ Tablou de bord web [dashboard]",
+      dashboard_enable: "Activează tabloul de bord web",
+      dashboard_hint: "Vizualizare live a terminalelor, apelurilor și log-ului la http://<BTS-IP>:PORT (doar FlowStation). Necesar pentru SDS/KICK din acest panou.",
+      dashboard_port_label: "port (1 - 65535)",
       timing_title: "⏱️ Timp Apeluri",
       timing_enable: "Activează parametrii de timp ai apelului",
       timing_hint: "Dacă este dezactivat, toate cele trei câmpuri sunt scrise ca comentarii sub [cell_info].",
@@ -2729,6 +2788,18 @@
       } else {
         lines.push("# [security]");
         lines.push(`# issi_whitelist = [${ssis.join(", ")}]`);
+      }
+    }
+    // Dashboard [dashboard] (Flowstation only)
+    if (document.getElementById("sectionDashboard")?.style.display !== "none") {
+      const dashPort = Number(el("dashboardPort").value) || 8080;
+      lines.push("");
+      if (el("enableDashboard").checked) {
+        lines.push("[dashboard]");
+        lines.push(`port = ${dashPort}`);
+      } else {
+        lines.push("# [dashboard]");
+        lines.push(`# port = ${dashPort}`);
       }
     }
     return lines.join("\n");
@@ -3272,6 +3343,14 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         el("enableSecurity").dispatchEvent(new Event("change"));
       }
 
+      // ── Dashboard [dashboard]
+      if (data.dashboard) {
+        el("enableDashboard").checked = !!data.dashboard.enabled;
+        if (data.dashboard.port !== null && data.dashboard.port !== undefined) {
+          el("dashboardPort").value = String(data.dashboard.port);
+        }
+      }
+
       statusEl.innerHTML = `<span style="color:var(--ok)">✅ Config cargada correctamente desde ${escapeHtml(configPath)}</span>`;
     } catch(e) {
       statusEl.innerHTML = `<span class="warn">❌ Error: ${escapeHtml(String(e))}</span>`;
@@ -3370,6 +3449,13 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       issi_whitelist: secParsed.length > 0 ? secParsed : ["1030299","1030036","2145007"]
     };
 
+    // Collect Dashboard options (Flowstation only — null in bluestation)
+    const dashIsFlow = document.getElementById("sectionDashboard")?.style.display !== "none";
+    const dashboardConfig = dashIsFlow ? {
+      enabled: el("enableDashboard").checked,
+      port: clampInt(el("dashboardPort").value, 1, 65535, 8080),
+    } : null;
+
     // Collect Home Mode Display options (Flowstation only — null in bluestation)
     const hmdIsFlow = document.getElementById("sectionHomeModeDisplay")?.style.display !== "none";
     const homeModeDisplayConfig = hmdIsFlow ? {
@@ -3405,7 +3491,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           brewConfig,
           securityConfig,
           neighborCellsConfig,
-          homeModeDisplayConfig
+          homeModeDisplayConfig,
+          dashboardConfig
         })
       });
       const data = await res.json();
@@ -3913,7 +4000,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionHomeModeDisplay", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "brewRssiSubsection"];
+    var flowOnly = ["sectionHomeModeDisplay", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "brewRssiSubsection"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);
