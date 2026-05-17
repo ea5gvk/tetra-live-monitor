@@ -2152,40 +2152,33 @@ ${restartLine}
         const cells: any[] = Array.isArray(neighborCellsConfig?.cells) ? neighborCellsConfig.cells : [];
 
         // 1) Remove all existing neighbor_cells_ca blocks (active and commented).
-        //    Block = header line + following key=value lines (active or commented)
-        //    until the next section/sub-table header. inArray depth tracking so
-        //    multi-line value arrays don't get treated as section headers.
+        //    Only consume the header + contiguous lines matching one of the
+        //    expected neighbor_cells_ca field names (active or commented). Stop
+        //    at the first non-matching line — this prevents the walk from eating
+        //    unrelated documentation/separators/active settings that follow.
+        const ncKeys = new Set([
+          "cell_identifier_ca", "cell_reselection_types_supported",
+          "neighbor_cell_synchronized", "cell_load_ca",
+          "main_carrier_number", "main_carrier_number_extension",
+          "mcc", "mnc", "location_area",
+          "maximum_ms_transmit_power", "minimum_rx_access_level",
+          "subscriber_class", "tdma_frame_offset",
+        ]);
         for (let i = 0; i < lines.length; ) {
           const t = lines[i].trim();
           const isHdr = !!t.match(/^\[\[\s*cell_info\.neighbor_cells_ca\s*\]\]/) ||
                         !!t.match(/^#\s*\[\[\s*cell_info\.neighbor_cells_ca\s*\]\]/);
           if (!isHdr) { i++; continue; }
           let j = i + 1;
-          let inArr = 0;
-          const strip = (s: string) => s.replace(/^#\s*/, "");
           while (j < lines.length) {
             const tj = lines[j].trim();
-            if (tj === "") { j++; continue; }
-            const body = strip(tj);
-            if (inArr === 0) {
-              if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
-              const eq = body.match(/^[A-Za-z_][\w.]*\s*=\s*(.*)$/);
-              if (eq) {
-                const opens = (eq[1].match(/\[/g) || []).length;
-                const closes = (eq[1].match(/\]/g) || []).length;
-                if (opens > closes) inArr += (opens - closes);
-              }
-            } else {
-              const opens = (body.match(/\[/g) || []).length;
-              const closes = (body.match(/\]/g) || []).length;
-              inArr += opens - closes;
-              if (inArr < 0) inArr = 0;
-            }
+            if (tj === "") break;
+            const body = tj.replace(/^#\s*/, "");
+            const km = body.match(/^([A-Za-z_][\w]*)\s*=/);
+            if (!km || !ncKeys.has(km[1])) break;
             j++;
           }
-          // Trim trailing blank lines we'd otherwise leave behind
-          while (j > i + 1 && lines[j - 1].trim() === "") j--;
-          // Also drop one leading blank line right before the block (if any)
+          // Drop one leading blank line right before the block (if any)
           let start = i;
           if (start > 0 && lines[start - 1].trim() === "") start = start - 1;
           lines.splice(start, j - start);
@@ -2266,39 +2259,28 @@ ${restartLine}
         const hTxt = String(homeModeDisplayConfig.text ?? "").replace(/"/g, '\\"');
 
         // 1) Remove all existing home_mode_display blocks (active and commented).
-        //    Use inArray depth tracking so multi-line value arrays like
-        //    `local_ssi_ranges = [\n[0,7],\n]` are not mistaken for section headers.
+        //    Only consume the header + contiguous lines whose key name is one of
+        //    the expected home_mode_display fields (active or commented). Stop at
+        //    the first non-matching line — this prevents the walk from eating
+        //    unrelated documentation/separators/active settings that follow.
+        const hmdKeys = new Set([
+          "source_issi", "interval_multiframes", "protocol_id",
+          "text_coding_scheme", "text",
+        ]);
         for (let i = 0; i < lines.length; ) {
           const t = lines[i].trim();
           const isHdr = !!t.match(/^\[\s*cell_info\.home_mode_display\s*\]/) ||
                         !!t.match(/^#\s*\[\s*cell_info\.home_mode_display\s*\]/);
           if (!isHdr) { i++; continue; }
           let j = i + 1;
-          let inArr = 0;
-          const strip = (s: string) => s.replace(/^#\s*/, "");
           while (j < lines.length) {
             const tj = lines[j].trim();
-            if (tj === "") { j++; continue; }
-            const body = strip(tj);
-            if (inArr === 0) {
-              // Section header (active or commented) ends the block
-              if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
-              // Detect opening of a multi-line array: key = [...
-              const eq = body.match(/^[A-Za-z_][\w.]*\s*=\s*(.*)$/);
-              if (eq) {
-                const opens = (eq[1].match(/\[/g) || []).length;
-                const closes = (eq[1].match(/\]/g) || []).length;
-                if (opens > closes) inArr += (opens - closes);
-              }
-            } else {
-              const opens = (body.match(/\[/g) || []).length;
-              const closes = (body.match(/\]/g) || []).length;
-              inArr += opens - closes;
-              if (inArr < 0) inArr = 0;
-            }
+            if (tj === "") break;
+            const body = tj.replace(/^#\s*/, "");
+            const km = body.match(/^([A-Za-z_][\w]*)\s*=/);
+            if (!km || !hmdKeys.has(km[1])) break;
             j++;
           }
-          while (j > i + 1 && lines[j - 1].trim() === "") j--;
           let start = i;
           if (start > 0 && lines[start - 1].trim() === "") start = start - 1;
           lines.splice(start, j - start);
