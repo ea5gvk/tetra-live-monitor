@@ -1392,6 +1392,7 @@ ${restartLine}
       let inCommentedSecurity = false;
       let brewCommented = false; // true if [brew] header is commented out
       let brewActive = false;    // true if [brew] header is active
+      let rssiExportActive = false; // true if feature_rssi_export appears as active under [brew]
       let securityActive = false; // true if [security] header is active
       let ctActive = false;      // true if any CT key appears as active (not commented) under [cell_info]
       let prActive = false;      // true if periodic_registration_secs appears as active under [cell_info]
@@ -1422,6 +1423,14 @@ ${restartLine}
           if (inCommentedBrew) {
             const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
             if (ckv) sections['brew'][ckv[1].trim()] = ckv[2].trim();
+          }
+          // Parse commented # feature_rssi_export = <bool> inside an ACTIVE [brew] section
+          if (currentSection === 'brew' && !inCommentedBrew) {
+            const rxM = line.match(/^#\s*feature_rssi_export\s*=\s*(true|false)/i);
+            if (rxM && !sections['brew']?.['feature_rssi_export']) {
+              sections['brew'] = sections['brew'] || {};
+              sections['brew']['feature_rssi_export'] = rxM[1].toLowerCase();
+            }
           }
           if (inCommentedSecurity) {
             const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
@@ -1484,6 +1493,10 @@ ${restartLine}
           // Track active periodic_registration_secs under [cell_info]
           if (currentSection === 'cell_info' && kk === 'periodic_registration_secs') {
             prActive = true;
+          }
+          // Track active feature_rssi_export under [brew]
+          if (currentSection === 'brew' && kk === 'feature_rssi_export') {
+            rssiExportActive = true;
           }
         }
       }
@@ -1644,6 +1657,8 @@ ${restartLine}
           tls: bool('brew', 'tls'),
           reconnect_delay_secs: num('brew', 'reconnect_delay_secs'),
           whitelisted_ssis: whitelistedSsis,
+          feature_rssi_export: bool('brew', 'feature_rssi_export'),
+          feature_rssi_export_enabled: rssiExportActive,
         },
         security: {
           enabled: securityActive,
@@ -1757,6 +1772,10 @@ ${restartLine}
       const brewEnabled = brewConfig?.enabled === true;
       const whitelistEnabled = brewEnabled && brewConfig.whitelistEnabled === true;
       const tlsValue = brewConfig?.tls === true ? "true" : "false"; // always available
+      // RSSI export: only managed when brewConfig.rssiExport is present (Flowstation only)
+      const rssiExportPresent = brewConfig && brewConfig.rssiExport && typeof brewConfig.rssiExport === 'object';
+      const rssiExportEnabled = rssiExportPresent && brewConfig.rssiExport.enabled === true;
+      const rssiExportValue = rssiExportPresent && brewConfig.rssiExport.value === false ? "false" : "true";
       const brewUpdates: Record<string, string> = {};
       if (brewEnabled) {
         brewUpdates["host"] = `"${brewConfig.host || ""}"`;
@@ -2194,11 +2213,15 @@ ${restartLine}
           for (const [k, v] of Object.entries(brewUpdates)) {
             lines.push(`${k} = ${v}`);
           }
+          if (rssiExportPresent) {
+            lines.push(rssiExportEnabled ? `feature_rssi_export = ${rssiExportValue}` : `# feature_rssi_export = ${rssiExportValue}`);
+          }
         } else {
           // Uncomment header if needed
           if (!brewIsActive) lines[brewHeaderIdx] = "[brew]";
           const brewEnd = getBrewEnd(brewHeaderIdx);
           const found: Record<string, boolean> = {};
+          let rssiFound = false;
           for (let i = brewHeaderIdx + 1; i < brewEnd; i++) {
             const line = lines[i];
             // Match commented key=value: #key = value  (not pure comment lines like # text)
@@ -2207,6 +2230,14 @@ ${restartLine}
               const k = commentedKV[1];
               if (k === 'whitelisted_ssis' && !whitelistEnabled) {
                 // Keep commented — whitelist disabled
+              } else if (k === 'feature_rssi_export' && rssiExportPresent) {
+                if (rssiFound) { lines.splice(i, 1); i--; continue; }
+                lines[i] = rssiExportEnabled
+                  ? `feature_rssi_export = ${rssiExportValue}`
+                  : `# feature_rssi_export = ${rssiExportValue}`;
+                rssiFound = true;
+              } else if (k === 'feature_rssi_export') {
+                // bluestation: leave as-is
               } else if (brewUpdates[k] !== undefined) {
                 lines[i] = `${k} = ${brewUpdates[k]}`; // uncomment + update value
                 found[k] = true;
@@ -2219,7 +2250,13 @@ ${restartLine}
             const activeKV = line.match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
             if (activeKV) {
               const k = activeKV[2];
-              if (brewUpdates[k] !== undefined) {
+              if (k === 'feature_rssi_export' && rssiExportPresent) {
+                if (rssiFound) { lines.splice(i, 1); i--; continue; }
+                lines[i] = rssiExportEnabled
+                  ? `${activeKV[1]}feature_rssi_export${activeKV[3]}${rssiExportValue}`
+                  : `${activeKV[1]}# feature_rssi_export = ${rssiExportValue}`;
+                rssiFound = true;
+              } else if (brewUpdates[k] !== undefined) {
                 lines[i] = `${activeKV[1]}${k}${activeKV[3]}${brewUpdates[k]}`;
                 found[k] = true;
               } else if (k === 'whitelisted_ssis' && !whitelistEnabled) {
@@ -2232,6 +2269,11 @@ ${restartLine}
           let insertAt = getBrewEnd(brewHeaderIdx);
           for (const [k, v] of Object.entries(brewUpdates)) {
             if (!found[k]) { lines.splice(insertAt, 0, `${k} = ${v}`); insertAt++; }
+          }
+          if (rssiExportPresent && !rssiFound) {
+            lines.splice(insertAt, 0, rssiExportEnabled
+              ? `feature_rssi_export = ${rssiExportValue}`
+              : `# feature_rssi_export = ${rssiExportValue}`);
           }
         }
       } else {
