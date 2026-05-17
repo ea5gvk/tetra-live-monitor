@@ -1592,6 +1592,51 @@ ${restartLine}
         flush();
       }
 
+      // Parse [cell_info.home_mode_display] sub-table (active or commented)
+      let homeModeDisplay: Record<string, any> = {
+        enabled: false,
+        source_issi: null,
+        interval_multiframes: null,
+        protocol_id: null,
+        text_coding_scheme: null,
+        text: null,
+      };
+      {
+        let inHmd = false;
+        let hmdCommented = false;
+        for (const raw of lines) {
+          const t = raw.trim();
+          if (!t) continue;
+          if (t.match(/^\[\s*cell_info\.home_mode_display\s*\]/)) {
+            inHmd = true; hmdCommented = false; homeModeDisplay.enabled = true; continue;
+          }
+          if (t.match(/^#\s*\[\s*cell_info\.home_mode_display\s*\]/)) {
+            inHmd = true; hmdCommented = true; continue;
+          }
+          if (t.match(/^\[/) || t.match(/^#\s*\[/)) { inHmd = false; continue; }
+          if (!inHmd) continue;
+          const stripped = hmdCommented ? t.replace(/^#\s*/, "") : t;
+          // Drop inline comments after the value (but keep # inside quoted strings — naive: split on first # outside quotes)
+          let body = stripped;
+          let inStr = false;
+          for (let i = 0; i < body.length; i++) {
+            const ch = body[i];
+            if (ch === '"') inStr = !inStr;
+            else if (ch === '#' && !inStr) { body = body.slice(0, i).trim(); break; }
+          }
+          const kvM = body.match(/^([\w]+)\s*=\s*(.+)$/);
+          if (!kvM) continue;
+          const k = kvM[1];
+          const v = kvM[2].trim();
+          if (k === 'source_issi' || k === 'interval_multiframes' || k === 'protocol_id') {
+            const n = parseInt(v);
+            if (!isNaN(n)) homeModeDisplay[k] = n;
+          } else if (k === 'text_coding_scheme' || k === 'text') {
+            homeModeDisplay[k] = v.replace(/^"(.*)"$/, '$1');
+          }
+        }
+      }
+
       // Parse whitelisted_ssis: [id, id, ...]
       let whitelistedSsis: number[] = [];
       const rawWl = get('brew', 'whitelisted_ssis');
@@ -1630,6 +1675,7 @@ ${restartLine}
           ssi_ranges_enabled: ssiRangesEnabled,
           neighbor_cells: neighborCells,
           neighbor_cells_enabled: neighborCellsActive,
+          home_mode_display: homeModeDisplay,
           call_timing: {
             // Enabled = at least one of the 3 keys appears as an ACTIVE assignment under [cell_info].
             // Scan lines directly to distinguish active from commented (commented values are
@@ -1671,7 +1717,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -2185,6 +2231,88 @@ ${restartLine}
             while (insertAt > cellInfoIdx + 1 && lines[insertAt - 1].trim() === "") insertAt--;
             lines.splice(insertAt, 0, ...newBlock);
           }
+        }
+      }
+
+      // ── HOME MODE DISPLAY: replace [cell_info.home_mode_display] block ──
+      // Only managed when homeModeDisplayConfig is present (Flowstation only).
+      if (homeModeDisplayConfig && typeof homeModeDisplayConfig === 'object') {
+        const hmdEnabled = homeModeDisplayConfig.enabled === true;
+        const clampI = (v: any, lo: number, hi: number, def: number) => {
+          const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n)));
+        };
+        const hSrc = clampI(homeModeDisplayConfig.source_issi, 0, 16777215, 16777215);
+        const hInt = clampI(homeModeDisplayConfig.interval_multiframes, 1, 65535, 96);
+        const hPid = clampI(homeModeDisplayConfig.protocol_id, 0, 255, 220);
+        const hCod = homeModeDisplayConfig.text_coding_scheme === "UTF16" ? "UTF16" : "LATIN";
+        const hTxt = String(homeModeDisplayConfig.text ?? "").replace(/"/g, '\\"');
+
+        // 1) Remove all existing home_mode_display blocks (active and commented).
+        for (let i = 0; i < lines.length; ) {
+          const t = lines[i].trim();
+          const isHdr = !!t.match(/^\[\s*cell_info\.home_mode_display\s*\]/) ||
+                        !!t.match(/^#\s*\[\s*cell_info\.home_mode_display\s*\]/);
+          if (!isHdr) { i++; continue; }
+          let j = i + 1;
+          while (j < lines.length) {
+            const tj = lines[j].trim();
+            if (tj === "") { j++; continue; }
+            if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+            j++;
+          }
+          while (j > i + 1 && lines[j - 1].trim() === "") j--;
+          let start = i;
+          if (start > 0 && lines[start - 1].trim() === "") start = start - 1;
+          lines.splice(start, j - start);
+          i = start;
+        }
+
+        // 2) Build new block (active or fully commented)
+        const px = hmdEnabled ? "" : "#";
+        const newBlock: string[] = [
+          "",
+          `${px}[cell_info.home_mode_display]`,
+          `${px}source_issi = ${hSrc}          # ISSI shown as sender on the radio (default: 16777215)`,
+          `${px}interval_multiframes = ${hInt}       # Broadcast interval (1 MF ≈ 1s; default: 96 ≈ 96s)`,
+          `${px}protocol_id = ${hPid}               # SDS protocol ID for Home Mode Display (default: 220)`,
+          `${px}text_coding_scheme = "${hCod}"    # "LATIN" = ISO-8859-1, "UTF16" = UCS-2/UTF-16BE`,
+          `${px}text = "${hTxt}"            # Text shown on radio display`,
+        ];
+
+        // 3) Insert at end of [cell_info] direct fields (before any next section/sub-table header).
+        let cellInfoIdx = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[cell_info\]/)) { cellInfoIdx = i; break; }
+        }
+        if (cellInfoIdx === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...newBlock);
+        } else {
+          let insertAt = cellInfoIdx + 1;
+          let inArray = 0;
+          const stripComment = (s: string) => s.replace(/^#\s*/, "");
+          while (insertAt < lines.length) {
+            const raw = lines[insertAt];
+            const tj = raw.trim();
+            const body = stripComment(tj);
+            if (inArray === 0) {
+              if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+              const eq = body.match(/^[A-Za-z_][\w.]*\s*=\s*(.*)$/);
+              if (eq) {
+                const opens = (eq[1].match(/\[/g) || []).length;
+                const closes = (eq[1].match(/\]/g) || []).length;
+                if (opens > closes) inArray += (opens - closes);
+              }
+            } else {
+              const opens = (body.match(/\[/g) || []).length;
+              const closes = (body.match(/\]/g) || []).length;
+              inArray += opens - closes;
+              if (inArray < 0) inArray = 0;
+            }
+            insertAt++;
+          }
+          while (insertAt > cellInfoIdx + 1 && lines[insertAt - 1].trim() === "") insertAt--;
+          lines.splice(insertAt, 0, ...newBlock);
         }
       }
 
