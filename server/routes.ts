@@ -2073,7 +2073,8 @@ ${restartLine}
             for (let j = i + 1; j < lines.length; j++) {
               const tj = lines[j].trim();
               if (tj === "]" || tj === "#]" || tj.match(/^#\s*\]$/)) { ssiBlockEnd = j; break; }
-              if (tj.match(/^\[[a-zA-Z0-9_.]+\]/) && !tj.startsWith("#")) break;
+              // Safety: stop at any active section/sub-table header (e.g. [net_info] or [[cell_info.neighbor_cells_ca]])
+              if (tj.match(/^\[\[?[a-zA-Z_]/)) break;
             }
             break;
           }
