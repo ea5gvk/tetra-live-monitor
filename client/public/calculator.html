@@ -492,6 +492,67 @@
       </div>
     </section>
   </div>
+  <div id="sectionSdsBroadcast" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="sds_brc_title">📢 SDS Broadcast [cell_info.sds_broadcast]</h2>
+      <div class="checkbox-row">
+        <input type="checkbox" id="enableSdsBroadcast" />
+        <label for="enableSdsBroadcast" data-i18n="sds_brc_enable">Activar SDS Broadcast</label>
+      </div>
+      <div class="hint" data-i18n="sds_brc_hint">Difunde periódicamente un texto SDS a todas las MS de la celda. Si está desactivado, el bloque se escribe comentado.</div>
+      <div id="sdsBroadcastFields" style="margin-top:12px;">
+        <div class="row">
+          <div>
+            <label for="sdsBrcSourceIssi" data-i18n="sds_brc_source_issi">source_issi</label>
+            <input id="sdsBrcSourceIssi" type="number" min="0" max="16777215" value="16777215" />
+          </div>
+          <div>
+            <label for="sdsBrcInterval" data-i18n="sds_brc_interval">interval_multiframes</label>
+            <input id="sdsBrcInterval" type="number" min="1" max="65535" value="96" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div>
+            <label for="sdsBrcProtocolId" data-i18n="sds_brc_protocol_id">protocol_id</label>
+            <input id="sdsBrcProtocolId" type="number" min="0" max="255" value="130" />
+          </div>
+          <div>
+            <label for="sdsBrcCoding" data-i18n="sds_brc_coding">text_coding_scheme</label>
+            <select id="sdsBrcCoding">
+              <option value="LATIN">LATIN</option>
+              <option value="UTF16">UTF16</option>
+            </select>
+          </div>
+        </div>
+        <div class="row" style="margin-top:8px;">
+          <div style="grid-column: 1 / -1;">
+            <label for="sdsBrcText" data-i18n="sds_brc_text">text</label>
+            <input id="sdsBrcText" type="text" maxlength="64" value="YO6RZV" />
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div id="sectionSdsCommandControl" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="sds_cc_title">🎮 SDS Command Control [cell_info.sds_command_control]</h2>
+      <div class="checkbox-row">
+        <input type="checkbox" id="enableSdsCommandControl" />
+        <label for="enableSdsCommandControl" data-i18n="sds_cc_enable">Activar Command Control</label>
+      </div>
+      <div class="hint" data-i18n="sds_cc_hint">Permite que ISSIs autorizadas envíen comandos U-STATUS a la BS (reiniciar, apagar, kick_all...). Si está desactivado, todo el bloque (header + sub-tables) se escribe comentado.</div>
+      <div id="sdsCommandControlFields" style="margin-top:12px;">
+        <label for="sdsCcAuthorized" data-i18n="sds_cc_authorized">authorized_issis (comma-separated)</label>
+        <input id="sdsCcAuthorized" type="text" placeholder="2260570, 2260571" />
+        <div class="hint" data-i18n="sds_cc_authorized_hint">ISSIs autorizadas a enviar comandos, p. ej.: 2260570, 2260571</div>
+        <div style="margin-top:14px;">
+          <div style="font-size:11px; font-weight:700; color:var(--muted); letter-spacing:.06em; margin-bottom:8px;" data-i18n="sds_cc_commands_label">COMMANDS</div>
+          <div id="sdsCcList"></div>
+          <button type="button" id="sdsCcAddBtn" class="btn-secondary" data-i18n="sds_cc_add_cmd" style="margin-top:8px;">+ Add command</button>
+        </div>
+      </div>
+    </section>
+  </div>
   <div id="sectionCallTiming" style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="timing_title">⏱️ Tiempo de Llamadas</h2>
@@ -873,6 +934,24 @@
       hmd_protocol_id: "protocol_id",
       hmd_coding: "text_coding_scheme",
       hmd_text: "text",
+      sds_brc_title: "📢 SDS Broadcast [cell_info.sds_broadcast]",
+      sds_brc_enable: "Enable SDS Broadcast",
+      sds_brc_hint: "Periodically broadcasts an SDS text to all MSs on the cell. If disabled, the block is written commented.",
+      sds_brc_source_issi: "source_issi",
+      sds_brc_interval: "interval_multiframes",
+      sds_brc_protocol_id: "protocol_id",
+      sds_brc_coding: "text_coding_scheme",
+      sds_brc_text: "text",
+      sds_cc_title: "🎮 SDS Command Control [cell_info.sds_command_control]",
+      sds_cc_enable: "Enable Command Control",
+      sds_cc_hint: "Allows authorized ISSIs to send U-STATUS commands to the BS (restart, shutdown, kick_all...). If disabled, the whole block (header + sub-tables) is written commented.",
+      sds_cc_authorized: "authorized_issis (comma-separated)",
+      sds_cc_authorized_hint: "ISSIs authorized to send commands, e.g.: 2260570, 2260571",
+      sds_cc_commands_label: "COMMANDS",
+      sds_cc_add_cmd: "+ Add command",
+      sds_cc_status_code: "status_code",
+      sds_cc_action: "action",
+      sds_cc_remove: "Remove",
       brew_rssi_enable: "Enable feature_rssi_export",
       brew_rssi_hint: "Exports per-ISSI RSSI measurements to the Brew server. When disabled the line is written commented out.",
       brew_rssi_value: "Value",
@@ -1030,6 +1109,24 @@
       hmd_protocol_id: "protocol_id",
       hmd_coding: "text_coding_scheme",
       hmd_text: "text",
+      sds_brc_title: "📢 SDS 廣播 [cell_info.sds_broadcast]",
+      sds_brc_enable: "啟用 SDS 廣播",
+      sds_brc_hint: "定期向小區內所有 MS 廣播 SDS 文字。停用時整個區塊會被註解。",
+      sds_brc_source_issi: "source_issi",
+      sds_brc_interval: "interval_multiframes",
+      sds_brc_protocol_id: "protocol_id",
+      sds_brc_coding: "text_coding_scheme",
+      sds_brc_text: "text",
+      sds_cc_title: "🎮 SDS 指令控制 [cell_info.sds_command_control]",
+      sds_cc_enable: "啟用指令控制",
+      sds_cc_hint: "允許授權的 ISSI 向基地台發送 U-STATUS 指令(重啟、關機、kick_all...)。停用時整個區塊(標頭 + 子表)都會被註解。",
+      sds_cc_authorized: "authorized_issis(以逗號分隔)",
+      sds_cc_authorized_hint: "授權發送指令的 ISSI,例如:2260570, 2260571",
+      sds_cc_commands_label: "指令",
+      sds_cc_add_cmd: "+ 新增指令",
+      sds_cc_status_code: "status_code",
+      sds_cc_action: "action",
+      sds_cc_remove: "移除",
       brew_rssi_enable: "啟用 feature_rssi_export",
       brew_rssi_hint: "將每個 ISSI 的 RSSI 測量值匯出到 Brew 伺服器。停用時該行會被註解。",
       brew_rssi_value: "值",
@@ -1187,6 +1284,24 @@
       hmd_protocol_id: "protocol_id",
       hmd_coding: "text_coding_scheme",
       hmd_text: "text",
+      sds_brc_title: "📢 SDS Broadcast [cell_info.sds_broadcast]",
+      sds_brc_enable: "Activar SDS Broadcast",
+      sds_brc_hint: "Difunde periódicamente un texto SDS a todas las MS de la celda. Si está desactivado, el bloque se escribe comentado.",
+      sds_brc_source_issi: "source_issi",
+      sds_brc_interval: "interval_multiframes",
+      sds_brc_protocol_id: "protocol_id",
+      sds_brc_coding: "text_coding_scheme",
+      sds_brc_text: "text",
+      sds_cc_title: "🎮 SDS Command Control [cell_info.sds_command_control]",
+      sds_cc_enable: "Activar Command Control",
+      sds_cc_hint: "Permite que ISSIs autorizadas envíen comandos U-STATUS a la BS (reiniciar, apagar, kick_all...). Si está desactivado, todo el bloque (header + sub-tables) se escribe comentado.",
+      sds_cc_authorized: "authorized_issis (separadas por coma)",
+      sds_cc_authorized_hint: "ISSIs autorizadas a enviar comandos, p. ej.: 2260570, 2260571",
+      sds_cc_commands_label: "COMANDOS",
+      sds_cc_add_cmd: "+ Añadir comando",
+      sds_cc_status_code: "status_code",
+      sds_cc_action: "action",
+      sds_cc_remove: "Quitar",
       brew_rssi_enable: "Activar feature_rssi_export",
       brew_rssi_hint: "Exporta las mediciones RSSI por ISSI al servidor Brew. Cuando está desactivado, la línea se escribe comentada.",
       brew_rssi_value: "Valor",
@@ -1344,6 +1459,24 @@
       hmd_protocol_id: "protocol_id",
       hmd_coding: "text_coding_scheme",
       hmd_text: "text",
+      sds_brc_title: "📢 SDS Broadcast [cell_info.sds_broadcast]",
+      sds_brc_enable: "Ativar SDS Broadcast",
+      sds_brc_hint: "Difunde periodicamente um texto SDS a todas as MS da célula. Se desativado, o bloco é escrito comentado.",
+      sds_brc_source_issi: "source_issi",
+      sds_brc_interval: "interval_multiframes",
+      sds_brc_protocol_id: "protocol_id",
+      sds_brc_coding: "text_coding_scheme",
+      sds_brc_text: "text",
+      sds_cc_title: "🎮 SDS Command Control [cell_info.sds_command_control]",
+      sds_cc_enable: "Ativar Command Control",
+      sds_cc_hint: "Permite que ISSIs autorizadas enviem comandos U-STATUS à BS (reiniciar, desligar, kick_all...). Se desativado, todo o bloco (header + sub-tabelas) é escrito comentado.",
+      sds_cc_authorized: "authorized_issis (separados por vírgula)",
+      sds_cc_authorized_hint: "ISSIs autorizadas a enviar comandos, ex.: 2260570, 2260571",
+      sds_cc_commands_label: "COMANDOS",
+      sds_cc_add_cmd: "+ Adicionar comando",
+      sds_cc_status_code: "status_code",
+      sds_cc_action: "action",
+      sds_cc_remove: "Remover",
       brew_rssi_enable: "Ativar feature_rssi_export",
       brew_rssi_hint: "Exporta as medições de RSSI por ISSI para o servidor Brew. Quando desativado, a linha é escrita comentada.",
       brew_rssi_value: "Valor",
@@ -1501,6 +1634,24 @@
       hmd_protocol_id: "protocol_id",
       hmd_coding: "text_coding_scheme",
       hmd_text: "text",
+      sds_brc_title: "📢 SDS-Broadcast [cell_info.sds_broadcast]",
+      sds_brc_enable: "SDS-Broadcast aktivieren",
+      sds_brc_hint: "Sendet regelmäßig einen SDS-Text an alle MS der Zelle. Wenn deaktiviert, wird der Block auskommentiert.",
+      sds_brc_source_issi: "source_issi",
+      sds_brc_interval: "interval_multiframes",
+      sds_brc_protocol_id: "protocol_id",
+      sds_brc_coding: "text_coding_scheme",
+      sds_brc_text: "text",
+      sds_cc_title: "🎮 SDS Command Control [cell_info.sds_command_control]",
+      sds_cc_enable: "Command Control aktivieren",
+      sds_cc_hint: "Erlaubt autorisierten ISSIs, U-STATUS-Befehle an die BS zu senden (Neustart, Herunterfahren, kick_all...). Wenn deaktiviert, wird der gesamte Block (Header + Untertabellen) auskommentiert.",
+      sds_cc_authorized: "authorized_issis (kommagetrennt)",
+      sds_cc_authorized_hint: "ISSIs, die Befehle senden dürfen, z.B.: 2260570, 2260571",
+      sds_cc_commands_label: "BEFEHLE",
+      sds_cc_add_cmd: "+ Befehl hinzufügen",
+      sds_cc_status_code: "status_code",
+      sds_cc_action: "action",
+      sds_cc_remove: "Entfernen",
       brew_rssi_enable: "feature_rssi_export aktivieren",
       brew_rssi_hint: "Exportiert die RSSI-Messwerte pro ISSI an den Brew-Server. Wenn deaktiviert, wird die Zeile auskommentiert geschrieben.",
       brew_rssi_value: "Wert",
@@ -1658,6 +1809,24 @@
       hmd_protocol_id: "protocol_id",
       hmd_coding: "text_coding_scheme",
       hmd_text: "text",
+      sds_brc_title: "📢 SDS Broadcast [cell_info.sds_broadcast]",
+      sds_brc_enable: "Activer SDS Broadcast",
+      sds_brc_hint: "Diffuse périodiquement un texte SDS à toutes les MS de la cellule. Si désactivé, le bloc est écrit en commentaire.",
+      sds_brc_source_issi: "source_issi",
+      sds_brc_interval: "interval_multiframes",
+      sds_brc_protocol_id: "protocol_id",
+      sds_brc_coding: "text_coding_scheme",
+      sds_brc_text: "text",
+      sds_cc_title: "🎮 SDS Command Control [cell_info.sds_command_control]",
+      sds_cc_enable: "Activer Command Control",
+      sds_cc_hint: "Permet aux ISSI autorisées d'envoyer des commandes U-STATUS à la BS (redémarrage, arrêt, kick_all...). Si désactivé, tout le bloc (en-tête + sous-tables) est écrit en commentaire.",
+      sds_cc_authorized: "authorized_issis (séparés par virgule)",
+      sds_cc_authorized_hint: "ISSI autorisés à envoyer des commandes, ex.: 2260570, 2260571",
+      sds_cc_commands_label: "COMMANDES",
+      sds_cc_add_cmd: "+ Ajouter commande",
+      sds_cc_status_code: "status_code",
+      sds_cc_action: "action",
+      sds_cc_remove: "Supprimer",
       brew_rssi_enable: "Activer feature_rssi_export",
       brew_rssi_hint: "Exporte les mesures RSSI par ISSI vers le serveur Brew. Lorsque désactivé, la ligne est écrite en commentaire.",
       brew_rssi_value: "Valeur",
@@ -1815,6 +1984,24 @@
       hmd_protocol_id: "protocol_id",
       hmd_coding: "text_coding_scheme",
       hmd_text: "text",
+      sds_brc_title: "📢 SDS Broadcast [cell_info.sds_broadcast]",
+      sds_brc_enable: "Attiva SDS Broadcast",
+      sds_brc_hint: "Trasmette periodicamente un testo SDS a tutte le MS della cella. Se disattivato, il blocco viene scritto commentato.",
+      sds_brc_source_issi: "source_issi",
+      sds_brc_interval: "interval_multiframes",
+      sds_brc_protocol_id: "protocol_id",
+      sds_brc_coding: "text_coding_scheme",
+      sds_brc_text: "text",
+      sds_cc_title: "🎮 SDS Command Control [cell_info.sds_command_control]",
+      sds_cc_enable: "Attiva Command Control",
+      sds_cc_hint: "Permette agli ISSI autorizzati di inviare comandi U-STATUS alla BS (riavvio, spegnimento, kick_all...). Se disattivato, l'intero blocco (header + sub-tables) viene scritto commentato.",
+      sds_cc_authorized: "authorized_issis (separati da virgola)",
+      sds_cc_authorized_hint: "ISSI autorizzati a inviare comandi, es.: 2260570, 2260571",
+      sds_cc_commands_label: "COMANDI",
+      sds_cc_add_cmd: "+ Aggiungi comando",
+      sds_cc_status_code: "status_code",
+      sds_cc_action: "action",
+      sds_cc_remove: "Rimuovi",
       brew_rssi_enable: "Attiva feature_rssi_export",
       brew_rssi_hint: "Esporta le misurazioni RSSI per ISSI al server Brew. Se disattivato, la riga viene scritta come commento.",
       brew_rssi_value: "Valore",
@@ -1972,6 +2159,24 @@
       hmd_protocol_id: "protocol_id",
       hmd_coding: "text_coding_scheme",
       hmd_text: "text",
+      sds_brc_title: "📢 SDS-Broadcast [cell_info.sds_broadcast]",
+      sds_brc_enable: "Aktivér SDS Broadcast",
+      sds_brc_hint: "Sender periodisk en SDS-tekst til alle MS i cellen. Hvis deaktiveret, skrives blokken som kommentar.",
+      sds_brc_source_issi: "source_issi",
+      sds_brc_interval: "interval_multiframes",
+      sds_brc_protocol_id: "protocol_id",
+      sds_brc_coding: "text_coding_scheme",
+      sds_brc_text: "text",
+      sds_cc_title: "🎮 SDS Command Control [cell_info.sds_command_control]",
+      sds_cc_enable: "Aktivér Command Control",
+      sds_cc_hint: "Tillader autoriserede ISSI'er at sende U-STATUS kommandoer til BS (genstart, sluk, kick_all...). Hvis deaktiveret, skrives hele blokken (header + sub-tabeller) som kommentar.",
+      sds_cc_authorized: "authorized_issis (kommasepareret)",
+      sds_cc_authorized_hint: "ISSI'er der må sende kommandoer, f.eks.: 2260570, 2260571",
+      sds_cc_commands_label: "KOMMANDOER",
+      sds_cc_add_cmd: "+ Tilføj kommando",
+      sds_cc_status_code: "status_code",
+      sds_cc_action: "action",
+      sds_cc_remove: "Fjern",
       brew_rssi_enable: "Aktivér feature_rssi_export",
       brew_rssi_hint: "Eksporterer RSSI-målinger pr. ISSI til Brew-serveren. Når deaktiveret, skrives linjen som kommentar.",
       brew_rssi_value: "Værdi",
@@ -2129,6 +2334,24 @@
       hmd_protocol_id: "protocol_id",
       hmd_coding: "text_coding_scheme",
       hmd_text: "text",
+      sds_brc_title: "📢 SDS Broadcast [cell_info.sds_broadcast]",
+      sds_brc_enable: "SDS Broadcast inschakelen",
+      sds_brc_hint: "Verzendt periodiek een SDS-tekst naar alle MS'en in de cel. Indien uitgeschakeld wordt het blok als commentaar geschreven.",
+      sds_brc_source_issi: "source_issi",
+      sds_brc_interval: "interval_multiframes",
+      sds_brc_protocol_id: "protocol_id",
+      sds_brc_coding: "text_coding_scheme",
+      sds_brc_text: "text",
+      sds_cc_title: "🎮 SDS Command Control [cell_info.sds_command_control]",
+      sds_cc_enable: "Command Control inschakelen",
+      sds_cc_hint: "Staat geautoriseerde ISSI's toe U-STATUS commando's naar het basisstation te sturen (herstarten, afsluiten, kick_all...). Indien uitgeschakeld wordt het hele blok (header + subtabellen) als commentaar geschreven.",
+      sds_cc_authorized: "authorized_issis (komma-gescheiden)",
+      sds_cc_authorized_hint: "ISSI's die commando's mogen sturen, bv.: 2260570, 2260571",
+      sds_cc_commands_label: "COMMANDO'S",
+      sds_cc_add_cmd: "+ Commando toevoegen",
+      sds_cc_status_code: "status_code",
+      sds_cc_action: "action",
+      sds_cc_remove: "Verwijderen",
       brew_rssi_enable: "feature_rssi_export inschakelen",
       brew_rssi_hint: "Exporteert RSSI-metingen per ISSI naar de Brew-server. Indien uitgeschakeld wordt de regel als commentaar geschreven.",
       brew_rssi_value: "Waarde",
@@ -2286,6 +2509,24 @@
       hmd_protocol_id: "protocol_id",
       hmd_coding: "text_coding_scheme",
       hmd_text: "text",
+      sds_brc_title: "📢 SDS Broadcast [cell_info.sds_broadcast]",
+      sds_brc_enable: "Activează SDS Broadcast",
+      sds_brc_hint: "Difuzează periodic un text SDS către toate MS din celulă. Dacă este dezactivat, blocul este scris comentat.",
+      sds_brc_source_issi: "source_issi",
+      sds_brc_interval: "interval_multiframes",
+      sds_brc_protocol_id: "protocol_id",
+      sds_brc_coding: "text_coding_scheme",
+      sds_brc_text: "text",
+      sds_cc_title: "🎮 SDS Command Control [cell_info.sds_command_control]",
+      sds_cc_enable: "Activează Command Control",
+      sds_cc_hint: "Permite ISSI-urilor autorizate să trimită comenzi U-STATUS către BS (restart, oprire, kick_all...). Dacă este dezactivat, întregul bloc (header + sub-tabele) este scris comentat.",
+      sds_cc_authorized: "authorized_issis (separate prin virgulă)",
+      sds_cc_authorized_hint: "ISSI-uri autorizate să trimită comenzi, ex.: 2260570, 2260571",
+      sds_cc_commands_label: "COMENZI",
+      sds_cc_add_cmd: "+ Adaugă comandă",
+      sds_cc_status_code: "status_code",
+      sds_cc_action: "action",
+      sds_cc_remove: "Elimină",
       brew_rssi_enable: "Activează feature_rssi_export",
       brew_rssi_hint: "Exportă măsurătorile RSSI per ISSI către serverul Brew. Când este dezactivat, linia este scrisă comentată.",
       brew_rssi_value: "Valoare",
@@ -2743,6 +2984,42 @@
       lines.push(`${px}protocol_id = ${hPid}               # SDS protocol ID for Home Mode Display (default: 220)`);
       lines.push(`${px}text_coding_scheme = "${hCod}"    # "LATIN" = ISO-8859-1, "UTF16" = UCS-2/UTF-16BE`);
       lines.push(`${px}text = "${hTxt}"            # Text shown on radio display`);
+    }
+    // SDS Broadcast — [cell_info.sds_broadcast] (Flowstation only)
+    if (document.getElementById("sectionSdsBroadcast")?.style.display !== "none") {
+      const sbEnabled = el("enableSdsBroadcast").checked;
+      const px = sbEnabled ? "" : "#";
+      const clmp = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
+      const sSrc = clmp(el("sdsBrcSourceIssi").value, 0, 16777215, 16777215);
+      const sInt = clmp(el("sdsBrcInterval").value, 1, 65535, 96);
+      const sPid = clmp(el("sdsBrcProtocolId").value, 0, 255, 130);
+      const sCod = el("sdsBrcCoding").value === "UTF16" ? "UTF16" : "LATIN";
+      const sTxt = (el("sdsBrcText").value || "").replace(/"/g, '\\"');
+      lines.push("");
+      lines.push(`${px}[cell_info.sds_broadcast]`);
+      lines.push(`${px}source_issi = ${sSrc}          # ISSI shown as sender on the radio (default: 0)`);
+      lines.push(`${px}interval_multiframes = ${sInt}       # Broadcast interval (1 MF ≈ 1s; default: 96 ≈ 96s)`);
+      lines.push(`${px}protocol_id = ${sPid}               # SDS protocol ID (default: 220 — change to avoid conflict)`);
+      lines.push(`${px}text_coding_scheme = "${sCod}"    # "LATIN" = ISO-8859-1, "UTF16" = UCS-2/UTF-16BE`);
+      lines.push(`${px}text = "${sTxt}"            # Text payload to broadcast`);
+    }
+    // SDS Command Control — [cell_info.sds_command_control] + [[..commands]] sub-tables (Flowstation only)
+    if (document.getElementById("sectionSdsCommandControl")?.style.display !== "none") {
+      const ccEnabled = el("enableSdsCommandControl").checked;
+      const px = ccEnabled ? "" : "# ";
+      const rawAuth = (el("sdsCcAuthorized").value || "").trim();
+      const authParsed = rawAuth ? rawAuth.split(",").map(s => s.trim()).filter(s => /^\d+$/.test(s)) : [];
+      const authList = authParsed.length > 0 ? authParsed : ["2260570", "2260571"];
+      const cmds = getSdsCommands();
+      lines.push("");
+      lines.push(`${px}[cell_info.sds_command_control]`);
+      lines.push(`${px}authorized_issis = [${authList.join(", ")}]   # ISSIs allowed to send commands`);
+      cmds.forEach(c => {
+        lines.push(`${px}`);
+        lines.push(`${px}[[cell_info.sds_command_control.commands]]`);
+        lines.push(`${px}status_code = ${Number(c.status_code) || 0}`);
+        lines.push(`${px}action = "${String(c.action || "").replace(/"/g, '\\"')}"`);
+      });
     }
     // net_info section
     const mcc = el("mccVal").value.trim();
@@ -3343,6 +3620,31 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         el("enableSecurity").dispatchEvent(new Event("change"));
       }
 
+      // ── [cell_info.sds_broadcast] block
+      if (data.cell_info && data.cell_info.sds_broadcast) {
+        const sb = data.cell_info.sds_broadcast;
+        el("enableSdsBroadcast").checked = !!sb.enabled;
+        if (sb.source_issi !== null && sb.source_issi !== undefined) el("sdsBrcSourceIssi").value = String(sb.source_issi);
+        if (sb.interval_multiframes !== null && sb.interval_multiframes !== undefined) el("sdsBrcInterval").value = String(sb.interval_multiframes);
+        if (sb.protocol_id !== null && sb.protocol_id !== undefined) el("sdsBrcProtocolId").value = String(sb.protocol_id);
+        if (sb.text_coding_scheme) el("sdsBrcCoding").value = sb.text_coding_scheme === "UTF16" ? "UTF16" : "LATIN";
+        if (typeof sb.text === "string") el("sdsBrcText").value = sb.text;
+      }
+
+      // ── [cell_info.sds_command_control] block (+ commands sub-tables)
+      if (data.cell_info && data.cell_info.sds_command_control) {
+        const cc = data.cell_info.sds_command_control;
+        el("enableSdsCommandControl").checked = !!cc.enabled;
+        if (Array.isArray(cc.authorized_issis) && cc.authorized_issis.length > 0) {
+          el("sdsCcAuthorized").value = cc.authorized_issis.join(", ");
+        }
+        // Rebuild commands list from loaded data
+        el("sdsCcList").innerHTML = "";
+        const cmds = Array.isArray(cc.commands) ? cc.commands : [];
+        if (cmds.length > 0) cmds.forEach(c => addSdsCommandRow(c));
+        else { addSdsCommandRow({status_code: 32001, action: "restart"}); }
+      }
+
       // ── Dashboard [dashboard]
       if (data.dashboard) {
         el("enableDashboard").checked = !!data.dashboard.enabled;
@@ -3456,6 +3758,30 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       port: clampInt(el("dashboardPort").value, 1, 65535, 8080),
     } : null;
 
+    // Collect SDS Broadcast options (Flowstation only — null in bluestation)
+    const sbIsFlow = document.getElementById("sectionSdsBroadcast")?.style.display !== "none";
+    const sdsBroadcastConfig = sbIsFlow ? {
+      enabled: el("enableSdsBroadcast").checked,
+      source_issi: clampInt(el("sdsBrcSourceIssi").value, 0, 16777215, 16777215),
+      interval_multiframes: clampInt(el("sdsBrcInterval").value, 1, 65535, 96),
+      protocol_id: clampInt(el("sdsBrcProtocolId").value, 0, 255, 130),
+      text_coding_scheme: el("sdsBrcCoding").value === "UTF16" ? "UTF16" : "LATIN",
+      text: el("sdsBrcText").value || "",
+    } : null;
+
+    // Collect SDS Command Control options (Flowstation only — null in bluestation)
+    const ccIsFlow = document.getElementById("sectionSdsCommandControl")?.style.display !== "none";
+    let sdsCommandControlConfig = null;
+    if (ccIsFlow) {
+      const ccRaw = (el("sdsCcAuthorized").value || "").trim();
+      const ccParsed = ccRaw ? ccRaw.split(",").map(s => s.trim()).filter(s => /^\d+$/.test(s)) : [];
+      sdsCommandControlConfig = {
+        enabled: el("enableSdsCommandControl").checked,
+        authorized_issis: ccParsed.length > 0 ? ccParsed : ["2260570", "2260571"],
+        commands: getSdsCommands(),
+      };
+    }
+
     // Collect Home Mode Display options (Flowstation only — null in bluestation)
     const hmdIsFlow = document.getElementById("sectionHomeModeDisplay")?.style.display !== "none";
     const homeModeDisplayConfig = hmdIsFlow ? {
@@ -3492,6 +3818,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           securityConfig,
           neighborCellsConfig,
           homeModeDisplayConfig,
+          sdsBroadcastConfig,
+          sdsCommandControlConfig,
           dashboardConfig
         })
       });
@@ -3909,6 +4237,89 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     });
   });
 
+  // ===== SDS Command Control helpers =====
+  let sdsCcAutoIdx = 0;
+  function addSdsCommandRow(prefilled){
+    const idx = ++sdsCcAutoIdx;
+    const list = el("sdsCcList");
+    const num = list.querySelectorAll(".sdscc-row").length + 1;
+    const lang = state.lang || "en";
+    const dict = (I18N[lang] || I18N.en);
+    const row = document.createElement("div");
+    row.className = "sdscc-row";
+    row.dataset.rid = idx;
+    row.style.cssText = "border:1px solid var(--border); padding:10px; border-radius:8px; margin-bottom:10px;";
+    const sc = prefilled?.status_code ?? (32000 + num);
+    const ac = prefilled?.action ?? "restart";
+    row.innerHTML = `
+      <div style="font-size:11px; font-weight:700; color:var(--muted); letter-spacing:.06em; margin-bottom:8px; display:flex; justify-content:space-between; align-items:center;">
+        <span>#${num}</span>
+        <button type="button" data-rm style="border:none; background:transparent; color:#e74c3c; cursor:pointer; font-size:14px; padding:2px 6px;" title="${dict.sds_cc_remove || "Remove"}">✕</button>
+      </div>
+      <div class="row">
+        <div><label style="font-size:11px;color:var(--muted)">${dict.sds_cc_status_code || "status_code"}</label><input type="number" data-k="status_code" min="0" value="${sc}"/></div>
+        <div>
+          <label style="font-size:11px;color:var(--muted)">${dict.sds_cc_action || "action"}</label>
+          <input type="text" data-k="action" list="sdsCcActionList" value="${String(ac).replace(/"/g,"&quot;")}" placeholder="restart / shutdown / kick_all" />
+        </div>
+      </div>
+    `;
+    row.querySelector("[data-rm]").addEventListener("click", () => {
+      row.remove();
+      updateTomlFromNew();
+    });
+    row.querySelectorAll("input").forEach(inp => {
+      inp.addEventListener("input", updateTomlFromNew);
+      inp.addEventListener("change", updateTomlFromNew);
+    });
+    list.appendChild(row);
+  }
+  function getSdsCommands(){
+    const out = [];
+    el("sdsCcList").querySelectorAll(".sdscc-row").forEach(row => {
+      const cmd = {};
+      row.querySelectorAll("[data-k]").forEach(inp => {
+        const k = inp.dataset.k;
+        if (k === "status_code") {
+          const v = inp.value.trim();
+          cmd[k] = v === "" ? 0 : Number(v);
+        } else {
+          cmd[k] = inp.value;
+        }
+      });
+      out.push(cmd);
+    });
+    return out;
+  }
+  // datalist for action autocomplete
+  (function(){
+    if (!document.getElementById("sdsCcActionList")) {
+      const dl = document.createElement("datalist");
+      dl.id = "sdsCcActionList";
+      dl.innerHTML = `<option value="restart"><option value="shutdown"><option value="kick_all">`;
+      document.body.appendChild(dl);
+    }
+  })();
+  el("enableSdsCommandControl").addEventListener("change", function(){
+    el("sdsCommandControlFields").style.opacity = this.checked ? "1" : "0.55";
+    if (this.checked && el("sdsCcList").children.length === 0) {
+      addSdsCommandRow({status_code: 32001, action: "restart"});
+      addSdsCommandRow({status_code: 32002, action: "shutdown"});
+      addSdsCommandRow({status_code: 32003, action: "kick_all"});
+    }
+    updateTomlFromNew();
+  });
+  el("sdsCcAddBtn").addEventListener("click", function(){
+    addSdsCommandRow();
+    updateTomlFromNew();
+  });
+  ["enableSdsBroadcast","sdsBrcSourceIssi","sdsBrcInterval","sdsBrcProtocolId","sdsBrcCoding","sdsBrcText","sdsCcAuthorized"].forEach(id => {
+    const node = el(id);
+    if (!node) return;
+    const ev = (id === "enableSdsBroadcast" || id === "sdsBrcCoding") ? "change" : "input";
+    node.addEventListener(ev, updateTomlFromNew);
+  });
+
   // Home Mode Display toggle + inputs — refresh TOML preview
   ["enableHomeModeDisplay","hmdSourceIssi","hmdInterval","hmdProtocolId","hmdCoding","hmdText"].forEach(id => {
     const ev = (id === "enableHomeModeDisplay" || id === "hmdCoding") ? "change" : "input";
@@ -4000,7 +4411,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionHomeModeDisplay", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "brewRssiSubsection"];
+    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "brewRssiSubsection"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);
