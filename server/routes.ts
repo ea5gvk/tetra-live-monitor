@@ -1678,6 +1678,100 @@ ${restartLine}
         }
       }
 
+      // Parse [cell_info.sds_broadcast] sub-table (active or commented) — Flowstation
+      let sdsBroadcast: Record<string, any> = {
+        enabled: false, source_issi: null, interval_multiframes: null,
+        protocol_id: null, text_coding_scheme: null, text: null,
+      };
+      {
+        let inBlk = false; let blkComm = false;
+        for (const raw of lines) {
+          const t = raw.trim();
+          if (!t) continue;
+          if (t.match(/^\[\s*cell_info\.sds_broadcast\s*\]/)) {
+            inBlk = true; blkComm = false; sdsBroadcast.enabled = true; continue;
+          }
+          if (t.match(/^#\s*\[\s*cell_info\.sds_broadcast\s*\]/)) {
+            inBlk = true; blkComm = true; continue;
+          }
+          if (t.match(/^\[/) || t.match(/^#\s*\[/)) { inBlk = false; continue; }
+          if (!inBlk) continue;
+          const stripped = blkComm ? t.replace(/^#\s*/, "") : t;
+          let body = stripped;
+          let inStr = false;
+          for (let i = 0; i < body.length; i++) {
+            const ch = body[i];
+            if (ch === '"') inStr = !inStr;
+            else if (ch === '#' && !inStr) { body = body.slice(0, i).trim(); break; }
+          }
+          const kvM = body.match(/^([\w]+)\s*=\s*(.+)$/);
+          if (!kvM) continue;
+          const k = kvM[1]; const v = kvM[2].trim();
+          if (k === 'source_issi' || k === 'interval_multiframes' || k === 'protocol_id') {
+            const n = parseInt(v); if (!isNaN(n)) sdsBroadcast[k] = n;
+          } else if (k === 'text_coding_scheme' || k === 'text') {
+            sdsBroadcast[k] = v.replace(/^"(.*)"$/, '$1');
+          }
+        }
+      }
+
+      // Parse [cell_info.sds_command_control] (+ [[cell_info.sds_command_control.commands]]) — Flowstation
+      let sdsCommandControl: Record<string, any> = {
+        enabled: false, authorized_issis: [] as number[], commands: [] as Array<Record<string, any>>,
+      };
+      {
+        let mode: "none" | "header" | "command" = "none";
+        let modeComm = false;
+        let curCmd: Record<string, any> = {};
+        const flushCmd = () => {
+          if (Object.keys(curCmd).length > 0) sdsCommandControl.commands.push(curCmd);
+          curCmd = {};
+        };
+        for (const raw of lines) {
+          const t = raw.trim();
+          if (!t) continue;
+          if (t.match(/^\[\[\s*cell_info\.sds_command_control\.commands\s*\]\]/)) {
+            flushCmd(); mode = "command"; modeComm = false; continue;
+          }
+          if (t.match(/^#\s*\[\[\s*cell_info\.sds_command_control\.commands\s*\]\]/)) {
+            flushCmd(); mode = "command"; modeComm = true; continue;
+          }
+          if (t.match(/^\[\s*cell_info\.sds_command_control\s*\]/)) {
+            flushCmd(); mode = "header"; modeComm = false; sdsCommandControl.enabled = true; continue;
+          }
+          if (t.match(/^#\s*\[\s*cell_info\.sds_command_control\s*\]/)) {
+            flushCmd(); mode = "header"; modeComm = true; continue;
+          }
+          if (t.match(/^\[/) || t.match(/^#\s*\[/)) { flushCmd(); mode = "none"; continue; }
+          if (mode === "none") continue;
+          const stripped = modeComm ? t.replace(/^#\s*/, "") : t;
+          let body = stripped;
+          let inStr = false;
+          for (let i = 0; i < body.length; i++) {
+            const ch = body[i];
+            if (ch === '"') inStr = !inStr;
+            else if (ch === '#' && !inStr) { body = body.slice(0, i).trim(); break; }
+          }
+          if (!body) continue;
+          const kvM = body.match(/^([\w]+)\s*=\s*(.+)$/);
+          if (!kvM) continue;
+          const k = kvM[1]; const v = kvM[2].trim();
+          if (mode === "header") {
+            if (k === 'authorized_issis') {
+              const nums = v.replace(/[\[\]]/g, '').split(',').map(s => parseInt(s.trim())).filter(n => !isNaN(n));
+              sdsCommandControl.authorized_issis = nums;
+            }
+          } else if (mode === "command") {
+            if (k === 'status_code') {
+              const n = parseInt(v); if (!isNaN(n)) curCmd[k] = n;
+            } else if (k === 'action') {
+              curCmd[k] = v.replace(/^"(.*)"$/, '$1');
+            }
+          }
+        }
+        flushCmd();
+      }
+
       // Parse whitelisted_ssis: [id, id, ...]
       let whitelistedSsis: number[] = [];
       const rawWl = get('brew', 'whitelisted_ssis');
@@ -1717,6 +1811,8 @@ ${restartLine}
           neighbor_cells: neighborCells,
           neighbor_cells_enabled: neighborCellsActive,
           home_mode_display: homeModeDisplay,
+          sds_broadcast: sdsBroadcast,
+          sds_command_control: sdsCommandControl,
           call_timing: {
             // Enabled = at least one of the 3 keys appears as an ACTIVE assignment under [cell_info].
             // Scan lines directly to distinguish active from commented (commented values are
@@ -1762,7 +1858,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, dashboardConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -2364,6 +2460,197 @@ ${restartLine}
           `${px}text_coding_scheme = "${hCod}"    # "LATIN" = ISO-8859-1, "UTF16" = UCS-2/UTF-16BE`,
           `${px}text = "${hTxt}"            # Text shown on radio display`,
         ];
+
+        // 3) Insert at end of [cell_info] direct fields (before any next section/sub-table header).
+        let cellInfoIdx = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[cell_info\]/)) { cellInfoIdx = i; break; }
+        }
+        if (cellInfoIdx === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...newBlock);
+        } else {
+          let insertAt = cellInfoIdx + 1;
+          let inArray = 0;
+          const stripComment = (s: string) => s.replace(/^#\s*/, "");
+          while (insertAt < lines.length) {
+            const raw = lines[insertAt];
+            const tj = raw.trim();
+            const body = stripComment(tj);
+            if (inArray === 0) {
+              if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+              const eq = body.match(/^[A-Za-z_][\w.]*\s*=\s*(.*)$/);
+              if (eq) {
+                const opens = (eq[1].match(/\[/g) || []).length;
+                const closes = (eq[1].match(/\]/g) || []).length;
+                if (opens > closes) inArray += (opens - closes);
+              }
+            } else {
+              const opens = (body.match(/\[/g) || []).length;
+              const closes = (body.match(/\]/g) || []).length;
+              inArray += opens - closes;
+              if (inArray < 0) inArray = 0;
+            }
+            insertAt++;
+          }
+          while (insertAt > cellInfoIdx + 1 && lines[insertAt - 1].trim() === "") insertAt--;
+          lines.splice(insertAt, 0, ...newBlock);
+        }
+      }
+
+      // ── SDS BROADCAST: replace [cell_info.sds_broadcast] block ──
+      // Only managed when sdsBroadcastConfig is present (Flowstation only).
+      if (sdsBroadcastConfig && typeof sdsBroadcastConfig === 'object') {
+        const sbEnabled = sdsBroadcastConfig.enabled === true;
+        const clampI = (v: any, lo: number, hi: number, def: number) => {
+          const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n)));
+        };
+        const sSrc = clampI(sdsBroadcastConfig.source_issi, 0, 16777215, 16777215);
+        const sInt = clampI(sdsBroadcastConfig.interval_multiframes, 1, 65535, 96);
+        const sPid = clampI(sdsBroadcastConfig.protocol_id, 0, 255, 130);
+        const sCod = sdsBroadcastConfig.text_coding_scheme === "UTF16" ? "UTF16" : "LATIN";
+        const sTxt = String(sdsBroadcastConfig.text ?? "").replace(/"/g, '\\"');
+
+        // 1) Remove existing sds_broadcast block(s) — header + contiguous matching field lines.
+        const sbKeys = new Set([
+          "source_issi", "interval_multiframes", "protocol_id",
+          "text_coding_scheme", "text",
+        ]);
+        for (let i = 0; i < lines.length; ) {
+          const t = lines[i].trim();
+          const isHdr = !!t.match(/^\[\s*cell_info\.sds_broadcast\s*\]/) ||
+                        !!t.match(/^#\s*\[\s*cell_info\.sds_broadcast\s*\]/);
+          if (!isHdr) { i++; continue; }
+          let j = i + 1;
+          while (j < lines.length) {
+            const tj = lines[j].trim();
+            if (tj === "") break;
+            const body = tj.replace(/^#\s*/, "");
+            const km = body.match(/^([A-Za-z_][\w]*)\s*=/);
+            if (!km || !sbKeys.has(km[1])) break;
+            j++;
+          }
+          let start = i;
+          if (start > 0 && lines[start - 1].trim() === "") start = start - 1;
+          lines.splice(start, j - start);
+          i = start;
+        }
+
+        // 2) Build new block (active or fully commented)
+        const px = sbEnabled ? "" : "#";
+        const newBlock: string[] = [
+          "",
+          `${px}[cell_info.sds_broadcast]`,
+          `${px}source_issi = ${sSrc}          # ISSI shown as sender on the radio (default: 0)`,
+          `${px}interval_multiframes = ${sInt}       # Broadcast interval (1 MF ≈ 1s; default: 96 ≈ 96s)`,
+          `${px}protocol_id = ${sPid}               # SDS protocol ID (default: 220 — change to avoid conflict)`,
+          `${px}text_coding_scheme = "${sCod}"    # "LATIN" = ISO-8859-1, "UTF16" = UCS-2/UTF-16BE`,
+          `${px}text = "${sTxt}"            # Text payload to broadcast`,
+        ];
+
+        // 3) Insert at end of [cell_info] direct fields (before any next section/sub-table header).
+        let cellInfoIdx = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[cell_info\]/)) { cellInfoIdx = i; break; }
+        }
+        if (cellInfoIdx === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...newBlock);
+        } else {
+          let insertAt = cellInfoIdx + 1;
+          let inArray = 0;
+          const stripComment = (s: string) => s.replace(/^#\s*/, "");
+          while (insertAt < lines.length) {
+            const raw = lines[insertAt];
+            const tj = raw.trim();
+            const body = stripComment(tj);
+            if (inArray === 0) {
+              if (tj.match(/^\[/) || tj.match(/^#\s*\[/)) break;
+              const eq = body.match(/^[A-Za-z_][\w.]*\s*=\s*(.*)$/);
+              if (eq) {
+                const opens = (eq[1].match(/\[/g) || []).length;
+                const closes = (eq[1].match(/\]/g) || []).length;
+                if (opens > closes) inArray += (opens - closes);
+              }
+            } else {
+              const opens = (body.match(/\[/g) || []).length;
+              const closes = (body.match(/\]/g) || []).length;
+              inArray += opens - closes;
+              if (inArray < 0) inArray = 0;
+            }
+            insertAt++;
+          }
+          while (insertAt > cellInfoIdx + 1 && lines[insertAt - 1].trim() === "") insertAt--;
+          lines.splice(insertAt, 0, ...newBlock);
+        }
+      }
+
+      // ── SDS COMMAND CONTROL: replace [cell_info.sds_command_control] + [[..commands]] ──
+      // Only managed when sdsCommandControlConfig is present (Flowstation only).
+      if (sdsCommandControlConfig && typeof sdsCommandControlConfig === 'object') {
+        const ccEnabled = sdsCommandControlConfig.enabled === true;
+        const rawAuth: any[] = Array.isArray(sdsCommandControlConfig.authorized_issis)
+          ? sdsCommandControlConfig.authorized_issis : [];
+        const authList = rawAuth.map(x => String(x).trim()).filter(s => /^\d+$/.test(s));
+        const finalAuth = authList.length > 0 ? authList : ["2260570", "2260571"];
+        const cmdsIn: any[] = Array.isArray(sdsCommandControlConfig.commands)
+          ? sdsCommandControlConfig.commands : [];
+
+        // 1) Remove all existing sds_command_control header + .commands sub-tables.
+        //    Strategy: walk lines, when we hit any sds_command_control header (active
+        //    or commented, parent or sub-table), consume contiguous matching field
+        //    lines (status_code/action/authorized_issis), then continue scanning.
+        const ccKeys = new Set(["authorized_issis", "status_code", "action"]);
+        const isAnyCcHdr = (t: string) =>
+          /^\[\s*cell_info\.sds_command_control\s*\]/.test(t) ||
+          /^#\s*\[\s*cell_info\.sds_command_control\s*\]/.test(t) ||
+          /^\[\[\s*cell_info\.sds_command_control\.commands\s*\]\]/.test(t) ||
+          /^#\s*\[\[\s*cell_info\.sds_command_control\.commands\s*\]\]/.test(t);
+
+        for (let i = 0; i < lines.length; ) {
+          const t = lines[i].trim();
+          if (!isAnyCcHdr(t)) { i++; continue; }
+          // Consume this header + following matching field lines + any directly-adjacent
+          // sub-table headers and their fields (so the whole cc region is wiped contiguously).
+          let j = i + 1;
+          while (j < lines.length) {
+            const tj = lines[j].trim();
+            if (tj === "") {
+              // Look ahead: if next non-empty is another cc header, keep going (include blank).
+              let k = j + 1;
+              while (k < lines.length && lines[k].trim() === "") k++;
+              if (k < lines.length && isAnyCcHdr(lines[k].trim())) { j = k; continue; }
+              break;
+            }
+            if (isAnyCcHdr(tj)) { j++; continue; }
+            const body = tj.replace(/^#\s*/, "");
+            const km = body.match(/^([A-Za-z_][\w]*)\s*=/);
+            if (!km || !ccKeys.has(km[1])) break;
+            j++;
+          }
+          let start = i;
+          if (start > 0 && lines[start - 1].trim() === "") start = start - 1;
+          lines.splice(start, j - start);
+          i = start;
+        }
+
+        // 2) Build new block (active or fully commented). Skip if nothing to write
+        //    (no authorized ISSIs AND no commands AND disabled — but we always
+        //    emit defaults so the user has something to uncomment later).
+        const px = ccEnabled ? "" : "# ";
+        const newBlock: string[] = [];
+        newBlock.push("");
+        newBlock.push(`${px}[cell_info.sds_command_control]`);
+        newBlock.push(`${px}authorized_issis = [${finalAuth.join(", ")}]   # ISSIs allowed to send commands`);
+        cmdsIn.forEach((c: any) => {
+          const sc = Number(c?.status_code);
+          const ac = String(c?.action ?? "").replace(/"/g, '\\"');
+          if (!Number.isFinite(sc)) return;
+          newBlock.push(`${px.trim()}`);  // blank-ish separator (just `#` when commented, empty when active)
+          newBlock.push(`${px}[[cell_info.sds_command_control.commands]]`);
+          newBlock.push(`${px}status_code = ${Math.round(sc)}`);
+          newBlock.push(`${px}action = "${ac}"`);
+        });
 
         // 3) Insert at end of [cell_info] direct fields (before any next section/sub-table header).
         let cellInfoIdx = -1;
