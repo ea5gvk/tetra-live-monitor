@@ -1132,7 +1132,7 @@ ${restartLine}
     }, 5000);
     let ws: WebSocket;
     try {
-      ws = new WebSocket("ws://127.0.0.1:8080/ws");
+      ws = new WebSocket("ws://127.0.0.1:8080/ws", getFlowstationWsOptions());
     } catch (e: any) {
       clearTimeout(timer);
       return res.status(502).json({ ok: false, message: `Error WS: ${e?.message || e}` });
@@ -1182,7 +1182,7 @@ ${restartLine}
     }, 5000);
     let ws: WebSocket;
     try {
-      ws = new WebSocket("ws://127.0.0.1:8080/ws");
+      ws = new WebSocket("ws://127.0.0.1:8080/ws", getFlowstationWsOptions());
     } catch (e: any) {
       clearTimeout(timer);
       return res.status(502).json({ ok: false, message: `Error WS: ${e?.message || e}` });
@@ -3218,6 +3218,35 @@ ${restartLine}
       broadcast(JSON.stringify({ type: 'update_terminal', payload: t }));
     }
   };
+  // Read flowstation dashboard Basic Auth credentials from its config.toml.
+  // Returns WebSocket options with Authorization header if credentials are configured.
+  function getFlowstationWsOptions(): { headers?: Record<string, string> } {
+    try {
+      const cfgPath = STATION_CONFIG_PATH.flowstation;
+      if (!fs.existsSync(cfgPath)) return {};
+      const lines = fs.readFileSync(cfgPath, 'utf-8').split('\n');
+      let inDash = false;
+      let username: string | null = null;
+      let password: string | null = null;
+      for (const raw of lines) {
+        const line = raw.trim();
+        if (line.match(/^\[dashboard\]/)) { inDash = true; continue; }
+        if (line.match(/^\[/) && !line.match(/^\[dashboard\]/)) { inDash = false; continue; }
+        if (inDash) {
+          const um = line.match(/^username\s*=\s*"(.+)"/);
+          if (um) username = um[1];
+          const pm = line.match(/^password\s*=\s*"(.+)"/);
+          if (pm) password = pm[1];
+        }
+      }
+      if (username && password) {
+        const token = Buffer.from(`${username}:${password}`).toString('base64');
+        return { headers: { Authorization: `Basic ${token}` } };
+      }
+    } catch { /* ignore — no auth needed */ }
+    return {};
+  }
+
   let fsWsCallDataActive = false;
   let fsDashboardActive = false;
   let fsWs: WebSocket | null = null;
@@ -3225,7 +3254,7 @@ ${restartLine}
   const FS_BACKOFF_MAX = 30000;
   function connectFlowstationWs() {
     try {
-      fsWs = new WebSocket('ws://127.0.0.1:8080/ws');
+      fsWs = new WebSocket('ws://127.0.0.1:8080/ws', getFlowstationWsOptions());
     } catch {
       setTimeout(connectFlowstationWs, fsBackoff);
       fsBackoff = Math.min(fsBackoff * 2, FS_BACKOFF_MAX);
