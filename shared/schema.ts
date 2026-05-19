@@ -21,6 +21,7 @@ export interface Terminal {
   isLocal: boolean;
   isActive?: boolean;
   rssiDbfs?: number | null;
+  energySaving?: string | null;
 }
 
 export interface CallLog {
