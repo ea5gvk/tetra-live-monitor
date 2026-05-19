@@ -1850,6 +1850,9 @@ ${restartLine}
         dashboard: {
           enabled: dashboardActive,
           port: num('dashboard', 'port'),
+          bind: str('dashboard', 'bind'),
+          username: str('dashboard', 'username'),
+          password: str('dashboard', 'password'),
         },
       });
     } catch (err: any) {
@@ -2874,7 +2877,23 @@ ${restartLine}
         const dashEnabled = dashboardConfig.enabled === true;
         const portN = Number(dashboardConfig.port);
         const dashPort = Number.isFinite(portN) && portN >= 1 && portN <= 65535 ? Math.round(portN) : 8080;
-        const portLine = `port = ${dashPort}`;
+        const dashBind = (typeof dashboardConfig.bind === "string" && dashboardConfig.bind.trim()) ? dashboardConfig.bind.trim() : "0.0.0.0";
+        const dashUser = typeof dashboardConfig.username === "string" ? dashboardConfig.username.trim() : "";
+        const dashPass = typeof dashboardConfig.password === "string" ? dashboardConfig.password.trim() : "";
+
+        const portLine   = `port = ${dashPort}`;
+        const bindLine   = `bind = "${dashBind}"`;
+        const userLine   = dashUser ? `username = "${dashUser}"` : `# username = "admin"`;
+        const passLine   = dashPass ? `password = "${dashPass}"` : `# password = "changeme"`;
+
+        // Build final value lines (commented or active depending on section enabled state)
+        const mkLine = (l: string) => dashEnabled ? l : `# ${l.startsWith("# ") ? l.slice(2) : l}`;
+        const finalPort = mkLine(portLine);
+        const finalBind = mkLine(bindLine);
+        // username/password keep their own # logic regardless of section state, but if section
+        // disabled we ensure they're commented.
+        const finalUser = dashEnabled ? userLine : `# username = "${dashUser || 'admin'}"`;
+        const finalPass = dashEnabled ? passLine : `# password = "${dashPass || 'changeme'}"`;
 
         let dashHeaderIdx = -1;
         for (let i = 0; i < lines.length; i++) {
@@ -2889,7 +2908,6 @@ ${restartLine}
           return lines.length;
         };
         const headerLine = dashEnabled ? "[dashboard]" : "# [dashboard]";
-        const valueLine = dashEnabled ? portLine : `# ${portLine}`;
 
         if (dashHeaderIdx === -1) {
           // Insert before [brew]/#[brew], else end-of-file
@@ -2897,27 +2915,55 @@ ${restartLine}
           for (let i = 0; i < lines.length; i++) {
             if (lines[i].match(/^\s*\[brew\]/) || lines[i].match(/^\s*#\s*\[brew\]/)) { brewIdx = i; break; }
           }
+          const block = [headerLine, finalPort, finalBind, finalUser, finalPass];
           if (brewIdx === -1) {
             if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
-            lines.push(headerLine);
-            lines.push(valueLine);
+            lines.push(...block);
           } else {
-            const block = [headerLine, valueLine, ""];
             if (brewIdx > 0 && lines[brewIdx - 1].trim() !== "") block.unshift("");
+            block.push("");
             lines.splice(brewIdx, 0, ...block);
           }
         } else {
           lines[dashHeaderIdx] = headerLine;
           const dashEnd = getDashEnd(dashHeaderIdx);
-          let foundPort = false;
-          for (let i = dashHeaderIdx + 1; i < dashEnd; i++) {
-            if (lines[i].match(/^\s*#?\s*port\s*=/)) {
-              lines[i] = valueLine;
-              foundPort = true;
-              break;
+
+          // Helper: find & replace or insert a key within the dashboard section
+          const upsertDashLine = (pattern: RegExp, newVal: string, insertAfterIdx: number) => {
+            for (let i = dashHeaderIdx + 1; i < dashEnd; i++) {
+              if (lines[i].match(pattern)) { lines[i] = newVal; return; }
             }
+            lines.splice(insertAfterIdx + 1, 0, newVal);
+          };
+
+          // Process in order: port, bind, username, password
+          let portIdx = -1, bindIdx = -1, userIdx = -1;
+          for (let i = dashHeaderIdx + 1; i < dashEnd; i++) {
+            if (lines[i].match(/^\s*#?\s*port\s*=/) && portIdx === -1) portIdx = i;
+            if (lines[i].match(/^\s*#?\s*bind\s*=/) && bindIdx === -1) bindIdx = i;
+            if (lines[i].match(/^\s*#?\s*username\s*=/) && userIdx === -1) userIdx = i;
           }
-          if (!foundPort) lines.splice(dashHeaderIdx + 1, 0, valueLine);
+
+          if (portIdx !== -1) lines[portIdx] = finalPort;
+          else { lines.splice(dashHeaderIdx + 1, 0, finalPort); portIdx = dashHeaderIdx + 1; }
+
+          const afterPort = portIdx;
+          if (bindIdx !== -1) lines[bindIdx] = finalBind;
+          else { lines.splice(afterPort + 1, 0, finalBind); bindIdx = afterPort + 1; }
+
+          const afterBind = bindIdx;
+          if (userIdx !== -1) {
+            lines[userIdx] = finalUser;
+            // password is typically right after username
+            const passIdx = userIdx + 1;
+            if (passIdx < getDashEnd(dashHeaderIdx) && lines[passIdx].match(/^\s*#?\s*password\s*=/)) {
+              lines[passIdx] = finalPass;
+            } else {
+              lines.splice(userIdx + 1, 0, finalPass);
+            }
+          } else {
+            lines.splice(afterBind + 1, 0, finalUser, finalPass);
+          }
         }
       }
 
