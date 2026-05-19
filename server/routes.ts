@@ -3138,10 +3138,15 @@ ${restartLine}
     return null;
   };
   const applyEsAndBroadcast = (issi: string, mode: string | null) => {
-    energySavingByIssi.set(issi, mode);
+    // EG class is a hardware property — once we know it, never downgrade to null.
+    // FlowStation sends mode=0 when the terminal exits power-saving to transmit,
+    // but the Eg1/Eg2 class stays the same and should remain visible in the badge.
+    if (mode != null) energySavingByIssi.set(issi, mode);
+    // If we have a cached class, use that; otherwise use the incoming mode.
+    const effective = energySavingByIssi.get(issi) ?? null;
     const t = currentState.terminals[issi];
-    if (t) {
-      t.energySaving = mode;
+    if (t && t.energySaving !== effective) {
+      t.energySaving = effective;
       broadcast(JSON.stringify({ type: 'update_terminal', payload: t }));
     }
   };
