@@ -479,7 +479,7 @@ function RfChannelTimeslots({ terminals, issiCallsign }: {
           {t("rf_channel_timeslots")}
         </h2>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
         {slots.map(s => {
           const isMcch = s.mode === "mcch";
           const isActive = s.mode === "active";
@@ -497,19 +497,19 @@ function RfChannelTimeslots({ terminals, issiCallsign }: {
           return (
             <div
               key={s.ts}
-              className={`relative rounded-md border ${borderCls} px-3 py-4 text-center transition-colors overflow-hidden`}
+              className={`relative rounded-md border ${borderCls} px-3 py-3 text-center transition-colors overflow-hidden`}
               data-testid={`rf-ts-${s.ts}`}
             >
-              <div className="text-xs font-bold tracking-[0.18em] text-muted-foreground mb-2">TS {s.ts}</div>
-              <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ledCls}`} />
-              <div className={`text-sm font-mono font-bold tracking-wide truncate ${labelCls}`} title={s.label}>
+              <div className="text-[9px] font-bold tracking-[0.18em] text-muted-foreground mb-1">TS {s.ts}</div>
+              <div className={`w-2.5 h-2.5 rounded-full mx-auto mb-1.5 ${ledCls}`} />
+              <div className={`text-[11px] font-mono font-bold tracking-wide truncate ${labelCls}`} title={s.label}>
                 {s.label}
               </div>
-              <div className="text-xs font-mono text-muted-foreground mt-1 truncate" title={s.sub}>
+              <div className="text-[9px] font-mono text-muted-foreground mt-0.5 truncate" title={s.sub}>
                 {s.sub}
               </div>
               {s.detail && (
-                <div className="text-[11px] font-mono text-muted-foreground/80 mt-0.5 truncate" title={s.detail}>
+                <div className="text-[8px] font-mono text-muted-foreground/80 mt-0.5 truncate" title={s.detail}>
                   {s.detail}
                 </div>
               )}
