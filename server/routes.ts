@@ -3043,7 +3043,11 @@ ${restartLine}
         break;
       case 'update_terminal':
         if (event.payload && event.payload.id) {
-          currentState.terminals[event.payload.id] = event.payload;
+          const issi = String(event.payload.id);
+          if (energySavingByIssi.has(issi) && event.payload.energySaving == null) {
+            event.payload.energySaving = energySavingByIssi.get(issi) ?? null;
+          }
+          currentState.terminals[issi] = event.payload;
         }
         break;
       case 'new_call': {
@@ -3115,6 +3119,62 @@ ${restartLine}
       }
     }
   }
+
+  // ── Flowstation Energy Saving (EG1/EG2/EG3) — WS client to local dashboard ──
+  // Hybrid: if flowstation has [dashboard] port=8080 enabled we get EG modes from
+  // its WebSocket (snapshot + ms_energy_saving events). Falls back gracefully to
+  // the journalctl parser in tetra_monitor.py when :8080 is not reachable.
+  const energySavingByIssi: Map<string, string | null> = new Map();
+  const modeToStr = (m: number | null | undefined): string | null => {
+    if (m === null || m === undefined || m === 0) return null;
+    if (typeof m === 'number' && m >= 1 && m <= 7) return `Eg${m}`;
+    return null;
+  };
+  const applyEsAndBroadcast = (issi: string, mode: string | null) => {
+    energySavingByIssi.set(issi, mode);
+    const t = currentState.terminals[issi];
+    if (t) {
+      t.energySaving = mode;
+      broadcast(JSON.stringify({ type: 'update_terminal', payload: t }));
+    }
+  };
+  let fsWs: WebSocket | null = null;
+  let fsBackoff = 2000;
+  const FS_BACKOFF_MAX = 30000;
+  function connectFlowstationWs() {
+    try {
+      fsWs = new WebSocket('ws://127.0.0.1:8080/ws');
+    } catch {
+      setTimeout(connectFlowstationWs, fsBackoff);
+      fsBackoff = Math.min(fsBackoff * 2, FS_BACKOFF_MAX);
+      return;
+    }
+    fsWs.on('open', () => { fsBackoff = 2000; });
+    fsWs.on('message', (raw: any) => {
+      try {
+        const m = JSON.parse(raw.toString());
+        if (m.type === 'snapshot' && m.ms) {
+          const list = Array.isArray(m.ms) ? m.ms : Object.values(m.ms);
+          for (const e of list as any[]) {
+            if (e && e.issi != null) {
+              applyEsAndBroadcast(String(e.issi), modeToStr(e.energy_saving_mode));
+            }
+          }
+        } else if (m.type === 'ms_energy_saving' && m.issi != null) {
+          applyEsAndBroadcast(String(m.issi), modeToStr(m.mode));
+        } else if (m.type === 'ms_deregistered' && m.issi != null) {
+          energySavingByIssi.delete(String(m.issi));
+        }
+      } catch { /* ignore */ }
+    });
+    fsWs.on('error', () => { /* silent — :8080 may not be active */ });
+    fsWs.on('close', () => {
+      fsWs = null;
+      setTimeout(connectFlowstationWs, fsBackoff);
+      fsBackoff = Math.min(fsBackoff * 2, FS_BACKOFF_MAX);
+    });
+  }
+  setTimeout(connectFlowstationWs, 3000);
 
   wss.on('connection', (ws) => {
     const snapshot = JSON.stringify({
