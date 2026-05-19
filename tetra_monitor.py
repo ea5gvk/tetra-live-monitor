@@ -775,7 +775,12 @@ class TetraMonitor:
                 if gssi_m:
                     self._clear_activity(tg=gssi_m.group(1))
                 else:
-                    self._clear_activity()
+                    # Can't identify TG — use last_active's activity_tg as fallback
+                    # so we only clear the most recent call and never nuke all slots.
+                    fallback_tg = None
+                    if self.last_active and self.last_active in self.terminals:
+                        fallback_tg = self.terminals[self.last_active].get("activity_tg")
+                    self._clear_activity(tg=fallback_tg)
                 return
 
             if "network call ended" in msg:
@@ -783,7 +788,10 @@ class TetraMonitor:
                 if gssi_m:
                     self._clear_activity(tg=gssi_m.group(1))
                 else:
-                    self._clear_activity()
+                    fallback_tg = None
+                    if self.last_active and self.last_active in self.terminals:
+                        fallback_tg = self.terminals[self.last_active].get("activity_tg")
+                    self._clear_activity(tg=fallback_tg)
                 return
 
             # 3b. PRIVATE CALL END (U-DISCONNECT / D-Release / CIRCUIT CALL RELEASE)
