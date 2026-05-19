@@ -3128,10 +3128,13 @@ ${restartLine}
   }
 
   // ── Flowstation Energy Saving (EG1/EG2/EG3) — WS client to local dashboard ──
-  // Hybrid: if flowstation has [dashboard] port=8080 enabled we get EG modes from
-  // its WebSocket (snapshot + ms_energy_saving events). Falls back gracefully to
-  // the journalctl parser in tetra_monitor.py when :8080 is not reachable.
   const energySavingByIssi: Map<string, string | null> = new Map();
+
+  // ── Active RF calls — populated from flowstation call_started/call_ended ──
+  // Mirrors Razvan's state.calls: keyed by call_id, each entry has ts (timeslot).
+  interface RfCallEntry { callId: number; callType: string; gssi: number; callerIssi: number; calledIssi: number; ts: number; }
+  const activeCalls = new Map<number, RfCallEntry>();
+  const rfCallsSnapshot = () => Array.from(activeCalls.values());
   const modeToStr = (m: number | null | undefined): string | null => {
     if (m === null || m === undefined || m === 0) return null;
     if (typeof m === 'number' && m >= 1 && m <= 7) return `Eg${m}`;
@@ -3165,13 +3168,34 @@ ${restartLine}
     fsWs.on('message', (raw: any) => {
       try {
         const m = JSON.parse(raw.toString());
-        if (m.type === 'snapshot' && m.ms) {
-          const list = Array.isArray(m.ms) ? m.ms : Object.values(m.ms);
-          for (const e of list as any[]) {
-            if (e && e.issi != null) {
-              applyEsAndBroadcast(String(e.issi), modeToStr(e.energy_saving_mode));
+        if (m.type === 'snapshot') {
+          // Energy saving from ms array
+          if (m.ms) {
+            const list = Array.isArray(m.ms) ? m.ms : Object.values(m.ms);
+            for (const e of list as any[]) {
+              if (e && e.issi != null) applyEsAndBroadcast(String(e.issi), modeToStr(e.energy_saving_mode));
             }
           }
+          // Active calls from calls array (Razvan's state.calls snapshot)
+          if (Array.isArray(m.calls)) {
+            activeCalls.clear();
+            for (const c of m.calls as any[]) {
+              if (c && c.call_id != null) {
+                activeCalls.set(c.call_id, { callId: c.call_id, callType: c.call_type || 'group', gssi: c.gssi || 0, callerIssi: c.caller_issi || c.active_speaker || 0, calledIssi: c.called_issi || 0, ts: c.ts || 0 });
+              }
+            }
+            broadcast(JSON.stringify({ type: 'rf_calls_state', payload: rfCallsSnapshot() }));
+          }
+        } else if (m.type === 'call_started' && m.call_id != null) {
+          const entry: RfCallEntry = { callId: m.call_id, callType: m.call_type || 'group', gssi: m.gssi || 0, callerIssi: m.caller_issi || 0, calledIssi: m.called_issi || 0, ts: m.ts || 0 };
+          activeCalls.set(m.call_id, entry);
+          broadcast(JSON.stringify({ type: 'rf_call_started', payload: entry }));
+        } else if (m.type === 'call_ended' && m.call_id != null) {
+          activeCalls.delete(m.call_id);
+          broadcast(JSON.stringify({ type: 'rf_call_ended', payload: { callId: m.call_id } }));
+        } else if (m.type === 'speaker_changed' && m.call_id != null) {
+          const c = activeCalls.get(m.call_id);
+          if (c) { c.callerIssi = m.speaker_issi || c.callerIssi; broadcast(JSON.stringify({ type: 'rf_call_started', payload: c })); }
         } else if (m.type === 'ms_energy_saving' && m.issi != null) {
           applyEsAndBroadcast(String(m.issi), modeToStr(m.mode));
         } else if (m.type === 'ms_deregistered' && m.issi != null) {
@@ -3211,6 +3235,7 @@ ${restartLine}
         sdsMessages: currentState.sdsMessages,
         gpsPositions: currentState.gpsPositions,
         gpsHistory: currentState.gpsHistory,
+        rfCalls: rfCallsSnapshot(),
       }
     });
     ws.send(snapshot);
