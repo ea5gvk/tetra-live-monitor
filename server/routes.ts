@@ -945,26 +945,32 @@ ${restartLine}
   // ─── Flowstation native dashboard proxy ─────────────────────────────────────
   // Reads /root/flowstation/config.toml looking for an UNCOMMENTED [dashboard] section
   // with port = N. Returns enabled=true only when both are present.
-  function getFlowstationDashboardConfig(): { enabled: boolean; port: number } {
+  function getFlowstationDashboardConfig(): { enabled: boolean; port: number; authHeader?: string } {
     try {
       const cfg = fs.readFileSync(STATION_CONFIG_PATH.flowstation, "utf-8");
       const lines = cfg.split("\n");
       let inDash = false;
       let port = 0;
+      let username: string | null = null;
+      let password: string | null = null;
       for (const raw of lines) {
         const line = raw.trim();
         if (!line || line.startsWith("#")) continue;
         const sec = line.match(/^\[([^\]]+)\]/);
-        if (sec) {
-          inDash = sec[1] === "dashboard";
-          continue;
-        }
+        if (sec) { inDash = sec[1] === "dashboard"; continue; }
         if (inDash) {
-          const m = line.match(/^port\s*=\s*(\d+)/);
-          if (m) { port = parseInt(m[1], 10); break; }
+          const pm = line.match(/^port\s*=\s*(\d+)/);
+          if (pm) port = parseInt(pm[1], 10);
+          const um = line.match(/^username\s*=\s*"(.+)"/);
+          if (um) username = um[1];
+          const pw = line.match(/^password\s*=\s*"(.+)"/);
+          if (pw) password = pw[1];
         }
       }
-      return { enabled: port > 0, port };
+      const authHeader = (username && password)
+        ? `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`
+        : undefined;
+      return { enabled: port > 0, port, authHeader };
     } catch { return { enabled: false, port: 0 }; }
   }
 
@@ -986,6 +992,7 @@ ${restartLine}
     const headers: Record<string, string | string[] | undefined> = { ...req.headers };
     headers.host = `127.0.0.1:${cfg.port}`;
     delete headers["accept-encoding"]; // simplify HTML rewrite
+    if (cfg.authHeader) headers["authorization"] = cfg.authHeader;
     const proxyReq = http.request({
       hostname: "127.0.0.1",
       port: cfg.port,
@@ -1070,12 +1077,14 @@ ${restartLine}
     const cfg = getFlowstationDashboardConfig();
     if (!cfg.enabled) { socket.destroy(); return; }
     const targetPath = req.url.substring("/flow-iframe".length) || "/";
+    const wsHeaders: Record<string, string | string[] | undefined> = { ...req.headers };
+    if (cfg.authHeader) wsHeaders["authorization"] = cfg.authHeader;
     const proxyReq = http.request({
       hostname: "127.0.0.1",
       port: cfg.port,
       path: targetPath,
       method: req.method,
-      headers: req.headers,
+      headers: wsHeaders as any,
     });
     proxyReq.on("upgrade", (proxyRes, proxySocket, proxyHead) => {
       let resHeaders = `HTTP/1.1 ${proxyRes.statusCode} ${proxyRes.statusMessage}\r\n`;
