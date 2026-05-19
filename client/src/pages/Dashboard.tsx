@@ -1078,7 +1078,7 @@ function SdsPanel({ messages }: { messages: SdsMessage[] }) {
 export default function Dashboard() {
   const { t } = useI18n();
   const tgName = useTgNames();
-  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, connected } = useTetraWebSocket();
+  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, fsDashboardActive, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 
   // Build ISSI → callsign lookup so PRIV destinations can show callsign + flag.
@@ -1163,7 +1163,7 @@ export default function Dashboard() {
           issiCallsign={issiCallsign}
         />
 
-        <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} />
+        {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} />}
 
         <TerminalTable
           terminals={terminalList}
