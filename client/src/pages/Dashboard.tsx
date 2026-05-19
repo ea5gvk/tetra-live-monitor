@@ -1,4 +1,4 @@
-import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage } from "../hooks/useTetraWebSocket";
+import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage, type RfCall } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network, Eye, EyeOff, Signal as SignalIcon } from "lucide-react";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
@@ -360,116 +360,39 @@ function TerminalRow({ t: terminal, tgName, issiCallsign }: { t: Terminal; tgNam
   );
 }
 
-function RfChannelTimeslots({ terminals, issiCallsign }: {
-  terminals: Terminal[];
+function RfChannelTimeslots({ rfCalls, issiCallsign }: {
+  rfCalls: RfCall[];
   issiCallsign: (id: string | number) => string;
 }) {
   const { t } = useI18n();
-  // Python clears terminal.activity (per-TG) on GROUP_IDLE/D-TX CEASED → real end.
-  // But a scanning terminal flipping TGs briefly drops its activity for the
-  // previous TG. Use a short grace window so the slot survives those gaps but
-  // releases cleanly when transmission actually ends.
-  const GRACE_MS = 2000;
-  const tsByCall = useRef<Map<string, number>>(new Map());
-  const lastSeen = useRef<Map<string, number>>(new Map());
-  const lastInfo = useRef<Map<string, { members: Terminal[] }>>(new Map());
-  const [, tick] = useState(0);
-
-  // Heartbeat: re-render every 500ms so grace expiration is detected even
-  // without new WS updates.
-  useEffect(() => {
-    const id = setInterval(() => tick(x => x + 1), 500);
-    return () => clearInterval(id);
-  }, []);
-
-  const now = Date.now();
-
-  // 1) Right-now active calls grouped by tag (GSSI or PRIV_src_dst)
-  const liveNow = new Map<string, Terminal[]>();
-  for (const x of terminals) {
-    if (!x.isLocal) continue;
-    if (x.activity !== "TX" && x.activity !== "RX") continue;
-    if (!x.activityTg) continue;
-    const raw = String(x.activityTg);
-    const tag = raw.startsWith("PRIV_") ? raw : raw; // GSSI or PRIV_<id>
-    const arr = liveNow.get(tag);
-    if (arr) arr.push(x); else liveNow.set(tag, [x]);
-  }
-  // Touch lastSeen + remember latest info for everything live right now
-  for (const [tag, members] of Array.from(liveNow.entries())) {
-    lastSeen.current.set(tag, now);
-    lastInfo.current.set(tag, { members });
-  }
-
-  // 2) Determine which tags are "alive" = live now OR within grace window
-  const aliveTags = new Set<string>();
-  for (const [tag, ts] of Array.from(lastSeen.current.entries())) {
-    if (now - ts <= GRACE_MS) aliveTags.add(tag);
-    else { lastSeen.current.delete(tag); lastInfo.current.delete(tag); }
-  }
-
-  // 3) Release TS slots of dead calls
-  for (const tag of Array.from(tsByCall.current.keys())) {
-    if (!aliveTags.has(tag)) tsByCall.current.delete(tag);
-  }
-  // 4) Assign new alive calls to a TS slot
-  for (const tag of Array.from(aliveTags)) {
-    if (tsByCall.current.has(tag)) continue;
-    const info = lastInfo.current.get(tag);
-    const used = new Set(tsByCall.current.values());
-    const reported = info?.members.find(m => m.timeSlot != null && m.timeSlot >= 2 && m.timeSlot <= 4)?.timeSlot ?? null;
-    let chosen: number | null = null;
-    if (reported != null && !used.has(reported)) chosen = reported;
-    else for (const ts of [2, 3, 4]) if (!used.has(ts)) { chosen = ts; break; }
-    if (chosen != null) tsByCall.current.set(tag, chosen);
-  }
-
-  // 5) Build per-slot data using last known info
-  type ActiveCall = { tag: string; members: Terminal[] };
-  const callByTs: Record<number, ActiveCall | null> = { 2: null, 3: null, 4: null };
-  for (const [tag, ts] of Array.from(tsByCall.current.entries())) {
-    if (ts in callByTs) {
-      const info = lastInfo.current.get(tag);
-      callByTs[ts] = { tag, members: info?.members ?? [] };
-    }
+  // Razvan's approach: calls tracked by call_id from the trunking layer.
+  // call_started → add; call_ended → remove. No terminal activity inference needed.
+  // callByTs: map slot number → first call on that slot (multiple calls on same
+  // slot are unusual in TETRA but handled gracefully).
+  const callByTs: Record<number, RfCall | undefined> = {};
+  for (const c of rfCalls) {
+    const ts = c.ts;
+    if (ts >= 1 && ts <= 4 && !callByTs[ts]) callByTs[ts] = c;
   }
 
   const renderSlot = (tsNum: number) => {
-    const data = callByTs[tsNum];
-    if (!data) {
+    if (tsNum === 1 && !callByTs[1]) {
+      return { ts: 1, mode: "mcch" as const, label: t("rf_mcch"), sub: t("rf_control"), detail: undefined as string | undefined };
+    }
+    const c = callByTs[tsNum];
+    if (!c) {
       return { ts: tsNum, mode: "idle" as const, label: "—", sub: t("rf_idle"), detail: undefined as string | undefined };
     }
-    const { tag, members } = data;
-    if (tag.startsWith("PRIV_")) {
-      const tx = members.find(x => x.activity === "TX") || members[0];
-      const rx = members.find(x => x.activity === "RX");
-      const srcId = tx?.id;
-      const dstId = rx?.id;
-      const srcCs = srcId ? (issiCallsign(srcId) || srcId) : "?";
-      const dstCs = dstId ? (issiCallsign(dstId) || dstId) : "?";
-      return {
-        ts: tsNum,
-        mode: "active" as const,
-        label: `${srcCs} → ${dstCs}`,
-        sub: t("rf_p2p"),
-        detail: srcId && dstId ? `ISSI ${srcId} → ${dstId}` : undefined,
-      };
+    if (c.callType === "individual") {
+      const srcCs = issiCallsign(c.callerIssi) || String(c.callerIssi);
+      const dstCs = issiCallsign(c.calledIssi) || String(c.calledIssi);
+      return { ts: tsNum, mode: "active" as const, label: `${srcCs} → ${dstCs}`, sub: t("rf_p2p"), detail: `ISSI ${c.callerIssi} → ${c.calledIssi}` };
     }
-    const speaker = members.find(x => x.activity === "TX") || members[0];
-    const speakerCs = speaker ? (issiCallsign(speaker.id) || speaker.id) : "?";
-    return {
-      ts: tsNum,
-      mode: "active" as const,
-      label: `GSSI ${tag}`,
-      sub: t("rf_group_call"),
-      detail: String(speakerCs),
-    };
+    const speakerCs = c.callerIssi ? (issiCallsign(c.callerIssi) || String(c.callerIssi)) : "?";
+    return { ts: tsNum, mode: "active" as const, label: `GSSI ${c.gssi}`, sub: t("rf_group_call"), detail: speakerCs };
   };
 
-  const slots: Array<ReturnType<typeof renderSlot> | { ts: 1; mode: "mcch"; label: string; sub: string; detail?: string }> = [
-    { ts: 1, mode: "mcch", label: t("rf_mcch"), sub: t("rf_control") },
-    renderSlot(2), renderSlot(3), renderSlot(4),
-  ];
+  const slots = [renderSlot(1), renderSlot(2), renderSlot(3), renderSlot(4)];
 
   return (
     <div className="glass-panel rounded-md overflow-hidden" data-testid="panel-rf-channel">
@@ -1155,7 +1078,7 @@ function SdsPanel({ messages }: { messages: SdsMessage[] }) {
 export default function Dashboard() {
   const { t } = useI18n();
   const tgName = useTgNames();
-  const { terminals, localHistory, externalHistory, sdsMessages, connected } = useTetraWebSocket();
+  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 
   // Build ISSI → callsign lookup so PRIV destinations can show callsign + flag.
@@ -1240,7 +1163,7 @@ export default function Dashboard() {
           issiCallsign={issiCallsign}
         />
 
-        <RfChannelTimeslots terminals={terminalList} issiCallsign={issiCallsign} />
+        <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} />
 
         <TerminalTable
           terminals={terminalList}
