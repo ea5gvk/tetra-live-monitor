@@ -360,53 +360,77 @@ function TerminalRow({ t: terminal, tgName, issiCallsign }: { t: Terminal; tgNam
   );
 }
 
-function RfChannelTimeslots({ localHistory, issiCallsign }: {
-  localHistory: CallLogEntry[];
+function RfChannelTimeslots({ terminals, issiCallsign }: {
+  terminals: Terminal[];
   issiCallsign: (id: string | number) => string;
 }) {
   const { t } = useI18n();
-  // Derive RF state from active call-history entries (independent of which
-  // terminals are currently RX-ing). A call is alive while its history entry
-  // still has `activity` set; Python clears it on GROUP_IDLE / D-TX CEASED.
-  // tag (GSSI or PRIV_src_dst) → TS slot, released only when the call ends.
+  // Python clears terminal.activity (per-TG) on GROUP_IDLE/D-TX CEASED → real end.
+  // But a scanning terminal flipping TGs briefly drops its activity for the
+  // previous TG. Use a short grace window so the slot survives those gaps but
+  // releases cleanly when transmission actually ends.
+  const GRACE_MS = 2000;
   const tsByCall = useRef<Map<string, number>>(new Map());
+  const lastSeen = useRef<Map<string, number>>(new Map());
+  const lastInfo = useRef<Map<string, { members: Terminal[] }>>(new Map());
+  const [, tick] = useState(0);
 
-  // 1) Collect ACTIVE calls (newest first, one entry per tag)
-  type ActiveCall = { tag: string; entry: CallLogEntry };
-  const activeCalls: ActiveCall[] = [];
-  const activeTags = new Set<string>();
-  for (const e of localHistory) {
-    if (!e.isLocal) continue;
-    if (e.activity !== "TX" && e.activity !== "RX") continue;
-    const tag = e.callType === "private"
-      ? `PRIV_${e.sourceId}_${e.targetIssi ?? "?"}`
-      : String(e.targetTg);
-    if (activeTags.has(tag)) continue;
-    activeTags.add(tag);
-    activeCalls.push({ tag, entry: e });
+  // Heartbeat: re-render every 500ms so grace expiration is detected even
+  // without new WS updates.
+  useEffect(() => {
+    const id = setInterval(() => tick(x => x + 1), 500);
+    return () => clearInterval(id);
+  }, []);
+
+  const now = Date.now();
+
+  // 1) Right-now active calls grouped by tag (GSSI or PRIV_src_dst)
+  const liveNow = new Map<string, Terminal[]>();
+  for (const x of terminals) {
+    if (!x.isLocal) continue;
+    if (x.activity !== "TX" && x.activity !== "RX") continue;
+    if (!x.activityTg) continue;
+    const raw = String(x.activityTg);
+    const tag = raw.startsWith("PRIV_") ? raw : raw; // GSSI or PRIV_<id>
+    const arr = liveNow.get(tag);
+    if (arr) arr.push(x); else liveNow.set(tag, [x]);
+  }
+  // Touch lastSeen + remember latest info for everything live right now
+  for (const [tag, members] of Array.from(liveNow.entries())) {
+    lastSeen.current.set(tag, now);
+    lastInfo.current.set(tag, { members });
   }
 
-  // 2) Release TS slots of calls that ended
+  // 2) Determine which tags are "alive" = live now OR within grace window
+  const aliveTags = new Set<string>();
+  for (const [tag, ts] of Array.from(lastSeen.current.entries())) {
+    if (now - ts <= GRACE_MS) aliveTags.add(tag);
+    else { lastSeen.current.delete(tag); lastInfo.current.delete(tag); }
+  }
+
+  // 3) Release TS slots of dead calls
   for (const tag of Array.from(tsByCall.current.keys())) {
-    if (!activeTags.has(tag)) tsByCall.current.delete(tag);
+    if (!aliveTags.has(tag)) tsByCall.current.delete(tag);
   }
-  // 3) Assign new calls to a TS slot (prefer reported timeSlot, else first free)
-  for (const { tag, entry } of activeCalls) {
+  // 4) Assign new alive calls to a TS slot
+  for (const tag of Array.from(aliveTags)) {
     if (tsByCall.current.has(tag)) continue;
+    const info = lastInfo.current.get(tag);
     const used = new Set(tsByCall.current.values());
-    const reported = entry.timeSlot != null && entry.timeSlot >= 2 && entry.timeSlot <= 4 ? entry.timeSlot : null;
+    const reported = info?.members.find(m => m.timeSlot != null && m.timeSlot >= 2 && m.timeSlot <= 4)?.timeSlot ?? null;
     let chosen: number | null = null;
     if (reported != null && !used.has(reported)) chosen = reported;
     else for (const ts of [2, 3, 4]) if (!used.has(ts)) { chosen = ts; break; }
     if (chosen != null) tsByCall.current.set(tag, chosen);
   }
 
-  // 4) Build per-slot data
+  // 5) Build per-slot data using last known info
+  type ActiveCall = { tag: string; members: Terminal[] };
   const callByTs: Record<number, ActiveCall | null> = { 2: null, 3: null, 4: null };
   for (const [tag, ts] of Array.from(tsByCall.current.entries())) {
     if (ts in callByTs) {
-      const ac = activeCalls.find(c => c.tag === tag);
-      if (ac) callByTs[ts] = ac;
+      const info = lastInfo.current.get(tag);
+      callByTs[ts] = { tag, members: info?.members ?? [] };
     }
   }
 
@@ -415,11 +439,13 @@ function RfChannelTimeslots({ localHistory, issiCallsign }: {
     if (!data) {
       return { ts: tsNum, mode: "idle" as const, label: "—", sub: t("rf_idle"), detail: undefined as string | undefined };
     }
-    const { entry } = data;
-    if (entry.callType === "private") {
-      const srcId = entry.sourceId;
-      const dstId = entry.targetIssi;
-      const srcCs = entry.sourceCallsign || (srcId ? (issiCallsign(srcId) || srcId) : "?");
+    const { tag, members } = data;
+    if (tag.startsWith("PRIV_")) {
+      const tx = members.find(x => x.activity === "TX") || members[0];
+      const rx = members.find(x => x.activity === "RX");
+      const srcId = tx?.id;
+      const dstId = rx?.id;
+      const srcCs = srcId ? (issiCallsign(srcId) || srcId) : "?";
       const dstCs = dstId ? (issiCallsign(dstId) || dstId) : "?";
       return {
         ts: tsNum,
@@ -429,13 +455,14 @@ function RfChannelTimeslots({ localHistory, issiCallsign }: {
         detail: srcId && dstId ? `ISSI ${srcId} → ${dstId}` : undefined,
       };
     }
-    const srcCs = entry.sourceCallsign || (entry.sourceId ? (issiCallsign(entry.sourceId) || entry.sourceId) : "?");
+    const speaker = members.find(x => x.activity === "TX") || members[0];
+    const speakerCs = speaker ? (issiCallsign(speaker.id) || speaker.id) : "?";
     return {
       ts: tsNum,
       mode: "active" as const,
-      label: `GSSI ${entry.targetTg}`,
+      label: `GSSI ${tag}`,
       sub: t("rf_group_call"),
-      detail: String(srcCs),
+      detail: String(speakerCs),
     };
   };
 
@@ -1213,7 +1240,7 @@ export default function Dashboard() {
           issiCallsign={issiCallsign}
         />
 
-        <RfChannelTimeslots localHistory={localHistory} issiCallsign={issiCallsign} />
+        <RfChannelTimeslots terminals={terminalList} issiCallsign={issiCallsign} />
 
         <TerminalTable
           terminals={terminalList}
