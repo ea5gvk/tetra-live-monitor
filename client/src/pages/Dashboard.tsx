@@ -365,54 +365,78 @@ function RfChannelTimeslots({ terminals, issiCallsign }: {
   issiCallsign: (id: string | number) => string;
 }) {
   const { t } = useI18n();
-  // Derive per-TS state from local active terminals (no :8080 dependency)
-  const slots = useMemo(() => {
-    const out: Array<{
-      ts: number;
-      mode: "mcch" | "active" | "idle";
-      label: string;
-      sub: string;
-      detail?: string;
-    }> = [
-      { ts: 1, mode: "mcch", label: t("rf_mcch"), sub: t("rf_control") },
-    ];
-    for (const tsNum of [2, 3, 4]) {
-      const onSlot = terminals.filter(
-        x => x.isLocal && x.timeSlot === tsNum && (x.activity === "TX" || x.activity === "RX") && x.activityTg,
-      );
-      if (onSlot.length === 0) {
-        out.push({ ts: tsNum, mode: "idle", label: "—", sub: t("rf_idle") });
-        continue;
-      }
-      const tag = String(onSlot[0].activityTg);
-      if (tag.startsWith("PRIV_")) {
-        const tx = onSlot.find(x => x.activity === "TX");
-        const rx = onSlot.find(x => x.activity === "RX");
-        const srcId = tx?.id;
-        const dstId = rx?.id;
-        const srcCs = srcId ? (issiCallsign(srcId) || srcId) : "?";
-        const dstCs = dstId ? (issiCallsign(dstId) || dstId) : "?";
-        out.push({
-          ts: tsNum,
-          mode: "active",
-          label: dstId ? `${srcCs} → ${dstCs}` : `${srcCs} → ?`,
-          sub: t("rf_p2p"),
-          detail: srcId && dstId ? `ISSI ${srcId} → ${dstId}` : undefined,
-        });
-      } else {
-        // group call: tag is GSSI
-        const speaker = onSlot.find(x => x.activity === "TX") || onSlot[0];
-        const speakerCs = issiCallsign(speaker.id) || speaker.id;
-        out.push({
-          ts: tsNum,
-          mode: "active",
-          label: `GSSI ${tag}`,
-          sub: `${t("rf_group_call")} · ${speakerCs}`,
-        });
-      }
+  // Stable per-call TS assignment to avoid flicker between simultaneous calls.
+  // activityTg (GSSI or "PRIV_<id>") → TS slot. Released only when the call ends.
+  const tsByCall = useRef<Map<string, number>>(new Map());
+
+  // 1) Group active local terminals by activityTg (one entry per ongoing call)
+  const activeCalls = new Map<string, Terminal[]>();
+  for (const x of terminals) {
+    if (!x.isLocal) continue;
+    if (x.activity !== "TX" && x.activity !== "RX") continue;
+    if (!x.activityTg) continue;
+    const tag = String(x.activityTg);
+    const arr = activeCalls.get(tag);
+    if (arr) arr.push(x); else activeCalls.set(tag, [x]);
+  }
+
+  // 2) Release TS slots of calls that ended
+  for (const tag of Array.from(tsByCall.current.keys())) {
+    if (!activeCalls.has(tag)) tsByCall.current.delete(tag);
+  }
+  // 3) Assign new calls to a TS slot (prefer reported timeSlot, else first free)
+  for (const [tag, members] of Array.from(activeCalls.entries())) {
+    if (tsByCall.current.has(tag)) continue;
+    const used = new Set(tsByCall.current.values());
+    const reported = members.find((m: Terminal) => m.timeSlot != null && m.timeSlot >= 2 && m.timeSlot <= 4)?.timeSlot ?? null;
+    let chosen: number | null = null;
+    if (reported && !used.has(reported)) chosen = reported;
+    else for (const ts of [2, 3, 4]) if (!used.has(ts)) { chosen = ts; break; }
+    if (chosen != null) tsByCall.current.set(tag, chosen);
+  }
+
+  // 4) Build per-slot data
+  const callByTs: Record<number, { tag: string; members: Terminal[] } | null> = { 2: null, 3: null, 4: null };
+  for (const [tag, ts] of tsByCall.current) {
+    if (ts in callByTs) callByTs[ts] = { tag, members: activeCalls.get(tag) || [] };
+  }
+
+  const renderSlot = (tsNum: number) => {
+    const data = callByTs[tsNum];
+    if (!data) {
+      return { ts: tsNum, mode: "idle" as const, label: "—", sub: t("rf_idle"), detail: undefined as string | undefined };
     }
-    return out;
-  }, [terminals, issiCallsign, t]);
+    const { tag, members } = data;
+    if (tag.startsWith("PRIV_")) {
+      const tx = members.find(x => x.activity === "TX");
+      const rx = members.find(x => x.activity === "RX");
+      const srcId = tx?.id;
+      const dstId = rx?.id;
+      const srcCs = srcId ? (issiCallsign(srcId) || srcId) : "?";
+      const dstCs = dstId ? (issiCallsign(dstId) || dstId) : "?";
+      return {
+        ts: tsNum,
+        mode: "active" as const,
+        label: `${srcCs} → ${dstCs}`,
+        sub: t("rf_p2p"),
+        detail: srcId && dstId ? `ISSI ${srcId} → ${dstId}` : undefined,
+      };
+    }
+    const speaker = members.find(x => x.activity === "TX") || members[0];
+    const speakerCs = issiCallsign(speaker.id) || speaker.id;
+    return {
+      ts: tsNum,
+      mode: "active" as const,
+      label: `GSSI ${tag}`,
+      sub: t("rf_group_call"),
+      detail: String(speakerCs),
+    };
+  };
+
+  const slots: Array<ReturnType<typeof renderSlot> | { ts: 1; mode: "mcch"; label: string; sub: string; detail?: string }> = [
+    { ts: 1, mode: "mcch", label: t("rf_mcch"), sub: t("rf_control") },
+    renderSlot(2), renderSlot(3), renderSlot(4),
+  ];
 
   return (
     <div className="glass-panel rounded-md overflow-hidden" data-testid="panel-rf-channel">
@@ -422,7 +446,7 @@ function RfChannelTimeslots({ terminals, issiCallsign }: {
           {t("rf_channel_timeslots")}
         </h2>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4">
         {slots.map(s => {
           const isMcch = s.mode === "mcch";
           const isActive = s.mode === "active";
@@ -440,19 +464,19 @@ function RfChannelTimeslots({ terminals, issiCallsign }: {
           return (
             <div
               key={s.ts}
-              className={`relative rounded-md border ${borderCls} px-3 py-3 text-center transition-colors overflow-hidden`}
+              className={`relative rounded-md border ${borderCls} px-3 py-4 text-center transition-colors overflow-hidden`}
               data-testid={`rf-ts-${s.ts}`}
             >
-              <div className="text-[9px] font-bold tracking-[0.12em] text-muted-foreground mb-1">TS {s.ts}</div>
-              <div className={`w-2.5 h-2.5 rounded-full mx-auto mb-1.5 ${ledCls}`} />
-              <div className={`text-[11px] font-mono font-bold tracking-wide truncate ${labelCls}`} title={s.label}>
+              <div className="text-xs font-bold tracking-[0.18em] text-muted-foreground mb-2">TS {s.ts}</div>
+              <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ledCls}`} />
+              <div className={`text-sm font-mono font-bold tracking-wide truncate ${labelCls}`} title={s.label}>
                 {s.label}
               </div>
-              <div className="text-[9px] font-mono text-muted-foreground/80 mt-0.5 truncate" title={s.sub}>
+              <div className="text-xs font-mono text-muted-foreground mt-1 truncate" title={s.sub}>
                 {s.sub}
               </div>
               {s.detail && (
-                <div className="text-[8px] font-mono text-muted-foreground/60 mt-0.5 truncate" title={s.detail}>
+                <div className="text-[11px] font-mono text-muted-foreground/80 mt-0.5 truncate" title={s.detail}>
                   {s.detail}
                 </div>
               )}
