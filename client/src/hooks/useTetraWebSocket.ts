@@ -65,6 +65,15 @@ export interface GpsPosition {
   hasFix: boolean;
 }
 
+export interface RfCall {
+  callId: number;
+  callType: string;
+  gssi: number;
+  callerIssi: number;
+  calledIssi: number;
+  ts: number;
+}
+
 export interface TetraState {
   terminals: Record<string, Terminal>;
   localHistory: CallLogEntry[];
@@ -72,6 +81,7 @@ export interface TetraState {
   sdsMessages: SdsMessage[];
   gpsPositions: Record<string, GpsPosition>;
   gpsHistory: Record<string, GpsPosition[]>;
+  rfCalls: RfCall[];
   connected: boolean;
   mode: string;
 }
@@ -83,6 +93,7 @@ export function useTetraWebSocket(): TetraState {
   const [sdsMessages, setSdsMessages] = useState<SdsMessage[]>([]);
   const [gpsPositions, setGpsPositions] = useState<Record<string, GpsPosition>>({});
   const [gpsHistory, setGpsHistory] = useState<Record<string, GpsPosition[]>>({});
+  const [rfCalls, setRfCalls] = useState<RfCall[]>([]);
   const [connected, setConnected] = useState(false);
   const [mode, setMode] = useState("connecting");
   const wsRef = useRef<WebSocket | null>(null);
@@ -111,6 +122,22 @@ export function useTetraWebSocket(): TetraState {
             setSdsMessages(msg.payload.sdsMessages || []);
             setGpsPositions(msg.payload.gpsPositions || {});
             setGpsHistory(msg.payload.gpsHistory || {});
+            if (msg.payload.rfCalls) setRfCalls(msg.payload.rfCalls);
+            break;
+
+          case "rf_calls_state":
+            setRfCalls(msg.payload || []);
+            break;
+
+          case "rf_call_started":
+            setRfCalls(prev => {
+              const filtered = prev.filter((c: RfCall) => c.callId !== msg.payload.callId);
+              return [...filtered, msg.payload as RfCall];
+            });
+            break;
+
+          case "rf_call_ended":
+            setRfCalls(prev => prev.filter((c: RfCall) => c.callId !== msg.payload.callId));
             break;
 
           case "update_terminal":
@@ -204,5 +231,5 @@ export function useTetraWebSocket(): TetraState {
     };
   }, [connect]);
 
-  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, connected, mode };
+  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, rfCalls, connected, mode };
 }
