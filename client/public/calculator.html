@@ -749,6 +749,12 @@
       <div id="dashboardFields" style="margin-top:10px; max-width:360px;">
         <label for="dashboardPort" data-i18n="dashboard_port_label">port (1 - 65535)</label>
         <input id="dashboardPort" type="number" min="1" max="65535" value="8080" />
+        <label for="dashboardBind" style="margin-top:8px;" data-i18n="dashboard_bind_label">bind (IP/hostname)</label>
+        <input id="dashboardBind" type="text" value="0.0.0.0" placeholder="0.0.0.0" />
+        <label for="dashboardUsername" style="margin-top:8px;" data-i18n="dashboard_username_label">username (optional)</label>
+        <input id="dashboardUsername" type="text" value="" placeholder="admin" />
+        <label for="dashboardPassword" style="margin-top:8px;" data-i18n="dashboard_password_label">password (optional)</label>
+        <input id="dashboardPassword" type="text" value="" placeholder="changeme" />
       </div>
     </section>
   </div>
@@ -975,6 +981,9 @@
       dashboard_enable: "Enable web dashboard",
       dashboard_hint: "Live view of terminals, calls and log at http://<BTS-IP>:PORT (FlowStation only). Required for SDS/KICK from this panel.",
       dashboard_port_label: "port (1 - 65535)",
+      dashboard_bind_label: "bind (IP/hostname)",
+      dashboard_username_label: "username (optional)",
+      dashboard_password_label: "password (optional)",
       timing_title: "⏱️ Call Timing",
       timing_enable: "Enable call timing parameters",
       timing_hint: "If disabled, all three fields are written as comments under [cell_info].",
@@ -1150,6 +1159,9 @@
       dashboard_enable: "啟用網頁儀表板",
       dashboard_hint: "在 http://<BTS-IP>:PORT 即時查看終端、通話與日誌（僅 FlowStation）。從此面板使用 SDS/KICK 需要啟用。",
       dashboard_port_label: "端口 (1 - 65535)",
+      dashboard_bind_label: "绑定地址",
+      dashboard_username_label: "用户名（可选）",
+      dashboard_password_label: "密码（可选）",
       timing_title: "⏱️ 通话时间",
       timing_enable: "启用通话时间参数",
       timing_hint: "如果禁用，三个字段将作为注释写入 [cell_info]。",
@@ -1325,6 +1337,9 @@
       dashboard_enable: "Activar dashboard web",
       dashboard_hint: "Vista en vivo de terminales, llamadas y log en http://<BTS-IP>:PUERTO (solo FlowStation). Necesario para SDS/KICK desde este panel.",
       dashboard_port_label: "puerto (1 - 65535)",
+      dashboard_bind_label: "bind (IP/hostname)",
+      dashboard_username_label: "username (opcional)",
+      dashboard_password_label: "password (opcional)",
       timing_title: "⏱️ Tiempo de Llamadas",
       timing_enable: "Activar parámetros de tiempo de llamada",
       timing_hint: "Si está desactivado, los tres campos se escriben comentados bajo [cell_info].",
@@ -1500,6 +1515,9 @@
       dashboard_enable: "Ativar painel web",
       dashboard_hint: "Vista ao vivo de terminais, chamadas e log em http://<BTS-IP>:PORTA (apenas FlowStation). Necessário para SDS/KICK deste painel.",
       dashboard_port_label: "porta (1 - 65535)",
+      dashboard_bind_label: "bind (IP/hostname)",
+      dashboard_username_label: "username (opcional)",
+      dashboard_password_label: "password (opcional)",
       timing_title: "⏱️ Tempo de Chamadas",
       timing_enable: "Ativar parâmetros de tempo de chamada",
       timing_hint: "Se desativado, os três campos são escritos como comentários sob [cell_info].",
@@ -1675,6 +1693,9 @@
       dashboard_enable: "Web-Dashboard aktivieren",
       dashboard_hint: "Live-Ansicht von Terminals, Anrufen und Log unter http://<BTS-IP>:PORT (nur FlowStation). Erforderlich für SDS/KICK aus diesem Panel.",
       dashboard_port_label: "Port (1 - 65535)",
+      dashboard_bind_label: "Bind (IP/Hostname)",
+      dashboard_username_label: "Benutzername (optional)",
+      dashboard_password_label: "Passwort (optional)",
       timing_title: "⏱️ Anrufzeit",
       timing_enable: "Anrufzeit-Parameter aktivieren",
       timing_hint: "Wenn deaktiviert, werden alle drei Felder als Kommentare unter [cell_info] geschrieben.",
@@ -1850,6 +1871,9 @@
       dashboard_enable: "Activer le tableau de bord web",
       dashboard_hint: "Vue en direct des terminaux, appels et log sur http://<BTS-IP>:PORT (FlowStation uniquement). Requis pour SDS/KICK depuis ce panneau.",
       dashboard_port_label: "port (1 - 65535)",
+      dashboard_bind_label: "bind (IP/nom d'hôte)",
+      dashboard_username_label: "nom d'utilisateur (optionnel)",
+      dashboard_password_label: "mot de passe (optionnel)",
       timing_title: "⏱️ Temps d'appel",
       timing_enable: "Activer les paramètres de temps d'appel",
       timing_hint: "Si désactivé, les trois champs sont écrits en commentaires sous [cell_info].",
@@ -2025,6 +2049,9 @@
       dashboard_enable: "Abilita dashboard web",
       dashboard_hint: "Vista live di terminali, chiamate e log su http://<BTS-IP>:PORTA (solo FlowStation). Richiesto per SDS/KICK da questo pannello.",
       dashboard_port_label: "porta (1 - 65535)",
+      dashboard_bind_label: "bind (IP/hostname)",
+      dashboard_username_label: "username (opzionale)",
+      dashboard_password_label: "password (opzionale)",
       timing_title: "⏱️ Tempo di Chiamata",
       timing_enable: "Attiva parametri di tempo di chiamata",
       timing_hint: "Se disattivato, i tre campi sono scritti come commenti sotto [cell_info].",
@@ -2200,6 +2227,9 @@
       dashboard_enable: "Aktivér web-dashboard",
       dashboard_hint: "Live-visning af terminaler, opkald og log på http://<BTS-IP>:PORT (kun FlowStation). Påkrævet for SDS/KICK fra dette panel.",
       dashboard_port_label: "port (1 - 65535)",
+      dashboard_bind_label: "bind (IP/hostname)",
+      dashboard_username_label: "brugernavn (valgfrit)",
+      dashboard_password_label: "adgangskode (valgfrit)",
       timing_title: "⏱️ Opkaldstid",
       timing_enable: "Aktivér opkaldstidsparametre",
       timing_hint: "Hvis deaktiveret, skrives alle tre felter som kommentarer under [cell_info].",
@@ -2375,6 +2405,9 @@
       dashboard_enable: "Web-dashboard inschakelen",
       dashboard_hint: "Live weergave van terminals, oproepen en log op http://<BTS-IP>:POORT (alleen FlowStation). Vereist voor SDS/KICK vanuit dit paneel.",
       dashboard_port_label: "poort (1 - 65535)",
+      dashboard_bind_label: "bind (IP/hostnaam)",
+      dashboard_username_label: "gebruikersnaam (optioneel)",
+      dashboard_password_label: "wachtwoord (optioneel)",
       timing_title: "⏱️ Gesprekstijd",
       timing_enable: "Gesprekstijd-parameters inschakelen",
       timing_hint: "Indien uitgeschakeld worden alle drie velden als commentaar onder [cell_info] geschreven.",
@@ -2550,6 +2583,9 @@
       dashboard_enable: "Activează tabloul de bord web",
       dashboard_hint: "Vizualizare live a terminalelor, apelurilor și log-ului la http://<BTS-IP>:PORT (doar FlowStation). Necesar pentru SDS/KICK din acest panou.",
       dashboard_port_label: "port (1 - 65535)",
+      dashboard_bind_label: "bind (IP/hostname)",
+      dashboard_username_label: "utilizator (opțional)",
+      dashboard_password_label: "parolă (opțională)",
       timing_title: "⏱️ Timp Apeluri",
       timing_enable: "Activează parametrii de timp ai apelului",
       timing_hint: "Dacă este dezactivat, toate cele trei câmpuri sunt scrise ca comentarii sub [cell_info].",
@@ -3070,13 +3106,24 @@
     // Dashboard [dashboard] (Flowstation only)
     if (document.getElementById("sectionDashboard")?.style.display !== "none") {
       const dashPort = Number(el("dashboardPort").value) || 8080;
+      const dashBind = el("dashboardBind").value.trim() || "0.0.0.0";
+      const dashUser = el("dashboardUsername").value.trim();
+      const dashPass = el("dashboardPassword").value.trim();
       lines.push("");
       if (el("enableDashboard").checked) {
         lines.push("[dashboard]");
         lines.push(`port = ${dashPort}`);
+        lines.push(`bind = "${dashBind}"`);
+        if (dashUser) lines.push(`username = "${dashUser}"`);
+        else lines.push(`# username = "admin"`);
+        if (dashPass) lines.push(`password = "${dashPass}"`);
+        else lines.push(`# password = "changeme"`);
       } else {
         lines.push("# [dashboard]");
         lines.push(`# port = ${dashPort}`);
+        lines.push(`# bind = "${dashBind}"`);
+        lines.push(`# username = "${dashUser || 'admin'}"`);
+        lines.push(`# password = "${dashPass || 'changeme'}"`);
       }
     }
     return lines.join("\n");
@@ -3651,6 +3698,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         if (data.dashboard.port !== null && data.dashboard.port !== undefined) {
           el("dashboardPort").value = String(data.dashboard.port);
         }
+        if (data.dashboard.bind) el("dashboardBind").value = data.dashboard.bind;
+        if (data.dashboard.username) el("dashboardUsername").value = data.dashboard.username;
+        if (data.dashboard.password) el("dashboardPassword").value = data.dashboard.password;
       }
 
       statusEl.innerHTML = `<span style="color:var(--ok)">✅ Config cargada correctamente desde ${escapeHtml(configPath)}</span>`;
@@ -3756,6 +3806,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const dashboardConfig = dashIsFlow ? {
       enabled: el("enableDashboard").checked,
       port: clampInt(el("dashboardPort").value, 1, 65535, 8080),
+      bind: el("dashboardBind").value.trim() || "0.0.0.0",
+      username: el("dashboardUsername").value.trim(),
+      password: el("dashboardPassword").value.trim(),
     } : null;
 
     // Collect SDS Broadcast options (Flowstation only — null in bluestation)
