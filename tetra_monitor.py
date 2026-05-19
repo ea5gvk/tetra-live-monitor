@@ -317,6 +317,7 @@ class TetraMonitor:
             "activityTg": t.get("activity_tg", None),
             "timeSlot": t.get("time_slot", None),
             "rssiDbfs": t.get("rssi_dbfs", None),
+            "energySaving": t.get("energy_saving", None),
         }
 
     def _set_activity(self, s_issi, d_gssi, time_slot=None):
@@ -441,6 +442,51 @@ class TetraMonitor:
             context_ssi = self._extract_ssi(msg)
             if context_ssi:
                 self.last_context_id = context_ssi
+
+            # 0a. Energy saving mode (Flowstation): EG1/EG2/EG3 detection.
+            # Patterns:
+            #   - "MS 2145007 energy saving mode change response: Eg1"
+            #   - "MS X energy saving mode change request: StayAlive"  (clears)
+            #   - "MS X energy saving mode change response: StayAlive" (clears)
+            #   - PDU debug lines that mention both `issi: NNN` and
+            #     `energy_saving_mode: Eg1` (D-LOCATION-UPDATE-ACCEPT etc.)
+            es_change = re.search(
+                r"MS\s+(\d+)\s+energy saving mode change (?:response|request):\s*(StayAlive|Eg\d)",
+                msg, re.I
+            )
+            if es_change:
+                es_issi, es_mode = es_change.group(1), es_change.group(2)
+                new_val = None if es_mode.lower() == "stayalive" else es_mode.capitalize()
+                if es_issi in self.terminals:
+                    prev = self.terminals[es_issi].get("energy_saving", None)
+                    if prev != new_val:
+                        self.terminals[es_issi]["energy_saving"] = new_val
+                        self.terminals[es_issi]["last_seen"] = timestamp
+                        emit("update_terminal", self._terminal_to_dict(es_issi))
+                return
+            # PDU debug fallback: same-line co-occurrence of issi + energy_saving_mode
+            if "energy_saving_mode" in msg:
+                pdu_es = re.search(
+                    r"issi:\s*(\d+)[\s\S]{0,400}?energy_saving_mode:\s*(StayAlive|Eg\d)",
+                    msg
+                )
+                if not pdu_es:
+                    pdu_es = re.search(
+                        r"energy_saving_mode:\s*(StayAlive|Eg\d)[\s\S]{0,400}?issi:\s*(\d+)",
+                        msg
+                    )
+                    if pdu_es:
+                        pdu_mode, pdu_issi = pdu_es.group(1), pdu_es.group(2)
+                    else:
+                        pdu_mode = pdu_issi = None
+                else:
+                    pdu_issi, pdu_mode = pdu_es.group(1), pdu_es.group(2)
+                if pdu_issi and pdu_mode and pdu_issi in self.terminals:
+                    new_val = None if pdu_mode.lower() == "stayalive" else pdu_mode.capitalize()
+                    prev = self.terminals[pdu_issi].get("energy_saving", None)
+                    if prev != new_val:
+                        self.terminals[pdu_issi]["energy_saving"] = new_val
+                        emit("update_terminal", self._terminal_to_dict(pdu_issi))
 
             # 0. RSSI updates: MsRssiUpdate { issi: NNN, rssi_dbfs: -12.34 }
             # Logged by bluestation/flowstation when terminal registers and on >=3dB changes.
