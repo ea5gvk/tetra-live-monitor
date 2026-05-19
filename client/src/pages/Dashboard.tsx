@@ -360,6 +360,110 @@ function TerminalRow({ t: terminal, tgName, issiCallsign }: { t: Terminal; tgNam
   );
 }
 
+function RfChannelTimeslots({ terminals, issiCallsign }: {
+  terminals: Terminal[];
+  issiCallsign: (id: string | number) => string;
+}) {
+  const { t } = useI18n();
+  // Derive per-TS state from local active terminals (no :8080 dependency)
+  const slots = useMemo(() => {
+    const out: Array<{
+      ts: number;
+      mode: "mcch" | "active" | "idle";
+      label: string;
+      sub: string;
+      detail?: string;
+    }> = [
+      { ts: 1, mode: "mcch", label: t("rf_mcch"), sub: t("rf_control") },
+    ];
+    for (const tsNum of [2, 3, 4]) {
+      const onSlot = terminals.filter(
+        x => x.isLocal && x.timeSlot === tsNum && (x.activity === "TX" || x.activity === "RX") && x.activityTg,
+      );
+      if (onSlot.length === 0) {
+        out.push({ ts: tsNum, mode: "idle", label: "—", sub: t("rf_idle") });
+        continue;
+      }
+      const tag = String(onSlot[0].activityTg);
+      if (tag.startsWith("PRIV_")) {
+        const tx = onSlot.find(x => x.activity === "TX");
+        const rx = onSlot.find(x => x.activity === "RX");
+        const srcId = tx?.id;
+        const dstId = rx?.id;
+        const srcCs = srcId ? (issiCallsign(srcId) || srcId) : "?";
+        const dstCs = dstId ? (issiCallsign(dstId) || dstId) : "?";
+        out.push({
+          ts: tsNum,
+          mode: "active",
+          label: dstId ? `${srcCs} → ${dstCs}` : `${srcCs} → ?`,
+          sub: t("rf_p2p"),
+          detail: srcId && dstId ? `ISSI ${srcId} → ${dstId}` : undefined,
+        });
+      } else {
+        // group call: tag is GSSI
+        const speaker = onSlot.find(x => x.activity === "TX") || onSlot[0];
+        const speakerCs = issiCallsign(speaker.id) || speaker.id;
+        out.push({
+          ts: tsNum,
+          mode: "active",
+          label: `GSSI ${tag}`,
+          sub: `${t("rf_group_call")} · ${speakerCs}`,
+        });
+      }
+    }
+    return out;
+  }, [terminals, issiCallsign, t]);
+
+  return (
+    <div className="glass-panel rounded-md overflow-hidden" data-testid="panel-rf-channel">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-cyan-500/5">
+        <Network className="w-4 h-4 text-cyan-400" />
+        <h2 className="text-xs font-bold tracking-[0.15em] uppercase text-cyan-400">
+          {t("rf_channel_timeslots")}
+        </h2>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+        {slots.map(s => {
+          const isMcch = s.mode === "mcch";
+          const isActive = s.mode === "active";
+          const borderCls = isMcch
+            ? "border-cyan-400/30 bg-cyan-400/5"
+            : isActive
+              ? "border-emerald-400/60 bg-emerald-400/5 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+              : "border-white/10 bg-white/[0.02]";
+          const ledCls = isMcch
+            ? "bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.6)]"
+            : isActive
+              ? "bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.7)] animate-pulse"
+              : "bg-white/15";
+          const labelCls = isMcch ? "text-cyan-300" : isActive ? "text-emerald-300" : "text-muted-foreground";
+          return (
+            <div
+              key={s.ts}
+              className={`relative rounded-md border ${borderCls} px-3 py-3 text-center transition-colors overflow-hidden`}
+              data-testid={`rf-ts-${s.ts}`}
+            >
+              <div className="text-[9px] font-bold tracking-[0.12em] text-muted-foreground mb-1">TS {s.ts}</div>
+              <div className={`w-2.5 h-2.5 rounded-full mx-auto mb-1.5 ${ledCls}`} />
+              <div className={`text-[11px] font-mono font-bold tracking-wide truncate ${labelCls}`} title={s.label}>
+                {s.label}
+              </div>
+              <div className="text-[9px] font-mono text-muted-foreground/80 mt-0.5 truncate" title={s.sub}>
+                {s.sub}
+              </div>
+              {s.detail && (
+                <div className="text-[8px] font-mono text-muted-foreground/60 mt-0.5 truncate" title={s.detail}>
+                  {s.detail}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 function TerminalTable({ terminals, title, icon, isLocal, issiCallsign }: {
   terminals: Terminal[];
   title: string;
@@ -1078,6 +1182,8 @@ export default function Dashboard() {
           isLocal={true}
           issiCallsign={issiCallsign}
         />
+
+        <RfChannelTimeslots terminals={terminalList} issiCallsign={issiCallsign} />
 
         <TerminalTable
           terminals={terminalList}
