@@ -13,6 +13,7 @@ export interface Terminal {
   activityTg?: string | null;
   timeSlot?: number | null;
   rssiDbfs?: number | null;
+  energySaving?: string | null;
 }
 
 export interface CallLogEntry {
