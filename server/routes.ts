@@ -3226,10 +3226,15 @@ ${restartLine}
     });
     fsWs.on('error', () => { /* silent — :8080 may not be active */ });
     fsWs.on('close', () => {
+      const wasActive = fsWsCallDataActive;
       fsWs = null;
       fsWsCallDataActive = false;
-      activeCalls.clear();
-      broadcast(JSON.stringify({ type: 'rf_calls_state', payload: [] }));
+      // Only wipe calls if fsWs was actually feeding them — if :8080 was never
+      // providing call data, don't clear Python-tracked calls on every failed reconnect.
+      if (wasActive) {
+        activeCalls.clear();
+        broadcast(JSON.stringify({ type: 'rf_calls_state', payload: [] }));
+      }
       setTimeout(connectFlowstationWs, fsBackoff);
       fsBackoff = Math.min(fsBackoff * 2, FS_BACKOFF_MAX);
     });
