@@ -1067,8 +1067,19 @@ ${restartLine}
         res.status(502).json({ message: "Flowstation dashboard inalcanzable: " + err.message });
       }
     });
-    if (req.method !== "GET" && req.method !== "HEAD") (req as any).pipe(proxyReq);
-    else proxyReq.end();
+    if (req.method !== "GET" && req.method !== "HEAD") {
+      // express.json() already consumed the stream — use the rawBody buffer saved by the verify hook.
+      // Falling back to pipe would send an empty body, causing serde_json parse errors in flowstation.
+      const raw: Buffer | undefined = (req as any).rawBody;
+      if (raw !== undefined) {
+        if (raw.length > 0) proxyReq.write(raw);
+        proxyReq.end();
+      } else {
+        (req as any).pipe(proxyReq);
+      }
+    } else {
+      proxyReq.end();
+    }
   });
 
   // WebSocket upgrade proxy for /flow-iframe/* (e.g. /flow-iframe/ws)
