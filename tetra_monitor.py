@@ -331,6 +331,11 @@ class TetraMonitor:
         for tid, t in self.terminals.items():
             if tid == s_issi:
                 continue
+            # Never hijack a terminal already active on a DIFFERENT TG —
+            # that would erase a concurrent call's slot from the dashboard.
+            existing_tg = t.get("activity_tg")
+            if t.get("activity") and existing_tg is not None and str(existing_tg) != str(d_gssi):
+                continue
             if d_gssi in t["groups"] or t["selected"] == f"TG {d_gssi}":
                 t["activity"] = "RX"
                 t["activity_tg"] = d_gssi
