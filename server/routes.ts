@@ -3237,11 +3237,11 @@ ${restartLine}
         if (!line.trim()) continue;
         try {
           const event = JSON.parse(line);
-          const msg = JSON.stringify(event);
-
+          // IMPORTANT: updateStateFromEvent mutates event.payload (e.g. enriches
+          // energySaving from our flowstation map). Serialise AFTER the mutation
+          // so broadcast carries the enriched data, not the raw Python output.
           updateStateFromEvent(event);
-
-          broadcast(msg);
+          broadcast(JSON.stringify(event));
         } catch (e) {
           // Not valid JSON, skip
         }
