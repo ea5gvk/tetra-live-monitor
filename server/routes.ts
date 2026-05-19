@@ -3173,6 +3173,7 @@ ${restartLine}
     }
   };
   let fsWsCallDataActive = false;
+  let fsDashboardActive = false;
   let fsWs: WebSocket | null = null;
   let fsBackoff = 2000;
   const FS_BACKOFF_MAX = 30000;
@@ -3199,6 +3200,10 @@ ${restartLine}
           // Active calls from calls array (Razvan's state.calls snapshot)
           if (Array.isArray(m.calls)) {
             fsWsCallDataActive = true;
+            if (!fsDashboardActive) {
+              fsDashboardActive = true;
+              broadcast(JSON.stringify({ type: 'fs_dashboard_status', payload: { active: true } }));
+            }
             activeCalls.clear();
             for (const c of m.calls as any[]) {
               if (c && c.call_id != null) {
@@ -3229,11 +3234,11 @@ ${restartLine}
       const wasActive = fsWsCallDataActive;
       fsWs = null;
       fsWsCallDataActive = false;
-      // Only wipe calls if fsWs was actually feeding them — if :8080 was never
-      // providing call data, don't clear Python-tracked calls on every failed reconnect.
       if (wasActive) {
+        fsDashboardActive = false;
         activeCalls.clear();
         broadcast(JSON.stringify({ type: 'rf_calls_state', payload: [] }));
+        broadcast(JSON.stringify({ type: 'fs_dashboard_status', payload: { active: false } }));
       }
       setTimeout(connectFlowstationWs, fsBackoff);
       fsBackoff = Math.min(fsBackoff * 2, FS_BACKOFF_MAX);
@@ -3265,6 +3270,7 @@ ${restartLine}
         gpsPositions: currentState.gpsPositions,
         gpsHistory: currentState.gpsHistory,
         rfCalls: rfCallsSnapshot(),
+        fsDashboardActive,
       }
     });
     ws.send(snapshot);
