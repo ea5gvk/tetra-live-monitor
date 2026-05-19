@@ -245,7 +245,6 @@ class TetraMonitor:
         self._pending_usds_bytes = None    # bytes from USdsData line; correlated on next U-SDS-DATA line
         self.private_calls = {}            # call_id -> {src, dst} for P2P individual call tracking
         self.brew_circuits = {}            # uuid -> call_id for network-initiated private calls
-        self.rf_calls = {}                 # key -> RfCall dict (group: str(gssi), priv: "PRIV_<call_id>")
 
     def get_callsign(self, issi):
         if not issi or int(issi) < 1000:
@@ -359,12 +358,6 @@ class TetraMonitor:
                 if tt.get("time_slot") != voice_ts:
                     tt["time_slot"] = voice_ts
                     emit("update_terminal", self._terminal_to_dict(tid))
-        # Keep rf_call ts in sync; re-emit so panel updates immediately
-        if active_tg is not None:
-            tg_key = str(active_tg)
-            if tg_key in self.rf_calls and self.rf_calls[tg_key]["ts"] != voice_ts:
-                self.rf_calls[tg_key]["ts"] = voice_ts
-                emit("rf_call_started", self.rf_calls[tg_key])
         for hist in [self.hist_local, self.hist_ext]:
             if hist and hist[0].get("sourceId") == self.last_active and hist[0].get("timeSlot") != voice_ts:
                 hist[0]["timeSlot"] = voice_ts
@@ -380,16 +373,6 @@ class TetraMonitor:
                 t["activity_tg"] = None
                 t["time_slot"] = None
                 emit("update_terminal", self._terminal_to_dict(tid))
-        # Emit rf_call_ended for affected TG(s)
-        if tg is not None:
-            tg_key = str(tg)
-            if tg_key in self.rf_calls:
-                rc = self.rf_calls.pop(tg_key)
-                emit("rf_call_ended", {"callId": rc["callId"]})
-        else:
-            for rc in list(self.rf_calls.values()):
-                emit("rf_call_ended", {"callId": rc["callId"]})
-            self.rf_calls.clear()
 
     def _restore_selected(self, issi, orig_selected):
         """After a private call ends, restore the terminal's selected TG."""
@@ -415,11 +398,6 @@ class TetraMonitor:
                 self.terminals[issi]["time_slot"] = None
                 self._restore_selected(issi, pc.get(orig_key))
                 emit("update_terminal", self._terminal_to_dict(issi))
-        # Emit rf_call_ended for the private call slot
-        priv_key = pc.get("priv_key")
-        if priv_key and priv_key in self.rf_calls:
-            rc = self.rf_calls.pop(priv_key)
-            emit("rf_call_ended", {"callId": rc["callId"]})
 
     def emit_full_state(self):
         terminals = {}
@@ -430,7 +408,6 @@ class TetraMonitor:
             "localHistory": self.hist_local[-MAX_HISTORY:],
             "externalHistory": self.hist_ext[-MAX_HISTORY:],
             "sdsMessages": self.sds_messages[-MAX_HISTORY:],
-            "rfCalls": list(self.rf_calls.values()),
         })
 
     def _extract_ssi(self, msg):
@@ -578,11 +555,6 @@ class TetraMonitor:
                 self._clear_activity(tg=d_gssi)
                 self._set_activity(s_issi, d_gssi)
                 emit("new_call", entry)
-                # Register RF call for timeslot panel (keyed by gssi string)
-                tg_key = str(d_gssi)
-                rf_call = {"callId": int(d_gssi), "callType": "group", "gssi": int(d_gssi), "callerIssi": int(s_issi), "calledIssi": 0, "ts": call_ts or 0}
-                self.rf_calls[tg_key] = rf_call
-                emit("rf_call_started", rf_call)
                 return
 
             # 1a. PRIVATE CALL (P2P individual call — rx_u_setup_p2p)
@@ -597,12 +569,10 @@ class TetraMonitor:
                 # Save original selected before overwriting
                 orig_src_sel = self.terminals[s_issi].get("selected") if s_issi in self.terminals else None
                 orig_dst_sel = self.terminals[d_issi].get("selected") if d_issi in self.terminals else None
-                priv_key = f"PRIV_{call_id}"
                 self.private_calls[call_id] = {
                     "src": s_issi, "dst": d_issi,
                     "orig_src_selected": orig_src_sel,
                     "orig_dst_selected": orig_dst_sel,
-                    "priv_key": priv_key,
                 }
 
                 # Register src terminal
@@ -697,12 +667,10 @@ class TetraMonitor:
                 # Save original selected before overwriting
                 orig_src_sel = self.terminals[s_issi].get("selected") if s_issi in self.terminals else None
                 orig_dst_sel = self.terminals[d_issi].get("selected") if d_issi in self.terminals else None
-                priv_key = f"PRIV_{call_id}"
                 self.private_calls[call_id] = {
                     "src": s_issi, "dst": d_issi,
                     "orig_src_selected": orig_src_sel,
                     "orig_dst_selected": orig_dst_sel,
-                    "priv_key": priv_key,
                 }
 
                 # Register src terminal (external, on another BS)
@@ -772,11 +740,6 @@ class TetraMonitor:
                 emit("update_terminal", self._terminal_to_dict(d_issi))
 
                 emit("new_call", entry)
-                # Register RF call for timeslot panel (individual/private)
-                p2p_ts = self.terminals[s_issi].get("time_slot") or self.terminals[d_issi].get("time_slot") or 0
-                p2p_rf = {"callId": int(call_id), "callType": "individual", "gssi": 0, "callerIssi": int(s_issi), "calledIssi": int(d_issi), "ts": p2p_ts}
-                self.rf_calls[priv_tg_key] = p2p_rf
-                emit("rf_call_started", p2p_rf)
                 return
 
             # 1c. VOICE FRAME (BrewEntity: voice frame ... ts=N)
