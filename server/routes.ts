@@ -3046,6 +3046,13 @@ ${restartLine}
         currentState.localHistory = event.payload.localHistory || [];
         currentState.externalHistory = event.payload.externalHistory || [];
         currentState.sdsMessages = event.payload.sdsMessages || [];
+        // Restore Python-tracked rf calls on reconnect (only if fsWs not providing them)
+        if (!fsWsCallDataActive && Array.isArray(event.payload.rfCalls)) {
+          activeCalls.clear();
+          for (const c of event.payload.rfCalls as RfCallEntry[]) {
+            if (c?.callId != null) activeCalls.set(c.callId, c);
+          }
+        }
         break;
       }
       case 'update_terminal':
@@ -3084,6 +3091,18 @@ ${restartLine}
               (e: any) => e.id === updated.id ? updated : e
             );
           }
+        }
+        break;
+      }
+      case 'rf_call_started': {
+        if (!fsWsCallDataActive && event.payload?.callId != null) {
+          activeCalls.set(event.payload.callId, event.payload as RfCallEntry);
+        }
+        break;
+      }
+      case 'rf_call_ended': {
+        if (!fsWsCallDataActive && event.payload?.callId != null) {
+          activeCalls.delete(event.payload.callId);
         }
         break;
       }
@@ -3153,6 +3172,7 @@ ${restartLine}
       broadcast(JSON.stringify({ type: 'update_terminal', payload: t }));
     }
   };
+  let fsWsCallDataActive = false;
   let fsWs: WebSocket | null = null;
   let fsBackoff = 2000;
   const FS_BACKOFF_MAX = 30000;
@@ -3178,6 +3198,7 @@ ${restartLine}
           }
           // Active calls from calls array (Razvan's state.calls snapshot)
           if (Array.isArray(m.calls)) {
+            fsWsCallDataActive = true;
             activeCalls.clear();
             for (const c of m.calls as any[]) {
               if (c && c.call_id != null) {
@@ -3206,6 +3227,9 @@ ${restartLine}
     fsWs.on('error', () => { /* silent — :8080 may not be active */ });
     fsWs.on('close', () => {
       fsWs = null;
+      fsWsCallDataActive = false;
+      activeCalls.clear();
+      broadcast(JSON.stringify({ type: 'rf_calls_state', payload: [] }));
       setTimeout(connectFlowstationWs, fsBackoff);
       fsBackoff = Math.min(fsBackoff * 2, FS_BACKOFF_MAX);
     });
