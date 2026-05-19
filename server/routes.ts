@@ -3035,12 +3035,19 @@ ${restartLine}
 
   function updateStateFromEvent(event: any) {
     switch (event.type) {
-      case 'full_state':
-        currentState.terminals = event.payload.terminals || {};
+      case 'full_state': {
+        const incoming = event.payload.terminals || {};
+        // Re-apply cached energy_saving so Python full_state doesn't wipe EG
+        for (const [issi, t] of Object.entries(incoming) as [string, any][]) {
+          const eg = energySavingByIssi.get(issi);
+          if (eg !== undefined && t && t.energySaving == null) t.energySaving = eg;
+        }
+        currentState.terminals = incoming;
         currentState.localHistory = event.payload.localHistory || [];
         currentState.externalHistory = event.payload.externalHistory || [];
         currentState.sdsMessages = event.payload.sdsMessages || [];
         break;
+      }
       case 'update_terminal':
         if (event.payload && event.payload.id) {
           const issi = String(event.payload.id);
@@ -3174,13 +3181,26 @@ ${restartLine}
       fsBackoff = Math.min(fsBackoff * 2, FS_BACKOFF_MAX);
     });
   }
-  setTimeout(connectFlowstationWs, 3000);
+  setTimeout(connectFlowstationWs, 500);
 
   wss.on('connection', (ws) => {
+    // Enrich terminals with energy_saving from the flowstation map so the
+    // initial snapshot already carries EG even if Python's update_terminal
+    // events were emitted before fsWs connected.
+    const enrichedTerminals: Record<string, any> = {};
+    for (const [issi, t] of Object.entries(currentState.terminals)) {
+      const tAny: any = t;
+      const eg = energySavingByIssi.get(issi);
+      if (eg !== undefined && tAny && tAny.energySaving == null) {
+        enrichedTerminals[issi] = { ...tAny, energySaving: eg };
+      } else {
+        enrichedTerminals[issi] = tAny;
+      }
+    }
     const snapshot = JSON.stringify({
       type: 'full_state',
       payload: {
-        terminals: currentState.terminals,
+        terminals: enrichedTerminals,
         localHistory: currentState.localHistory,
         externalHistory: currentState.externalHistory,
         sdsMessages: currentState.sdsMessages,
