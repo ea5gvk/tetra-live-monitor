@@ -230,6 +230,24 @@ function RssiBadge({ dbfs }: { dbfs: number }) {
   );
 }
 
+function EnergySavingBadge({ mode }: { mode: string }) {
+  // Flowstation Energy Economy mode (Eg1..Eg7). StayAlive is not rendered.
+  // Shown as "EG1" / "EG2" / "EG3" next to the callsign — matches the
+  // razvanzeces/flowstation web dashboard convention.
+  const m = mode.match(/Eg(\d)/i);
+  if (!m) return null;
+  const n = m[1];
+  return (
+    <span
+      className="inline-flex items-center text-[10px] font-mono font-bold border rounded px-1 py-px tracking-wide text-emerald-400 border-emerald-400/40 bg-emerald-400/10"
+      title={`Energy Economy Mode ${n} (ETSI 23.5)`}
+      data-testid={`energy-saving-${n}`}
+    >
+      EG{n}
+    </span>
+  );
+}
+
 function StatusDot({ status }: { status: string }) {
   const colors: Record<string, string> = {
     Online: "bg-emerald-400 shadow-emerald-400/50",
@@ -294,6 +312,9 @@ function TerminalRow({ t: terminal, tgName, issiCallsign }: { t: Terminal; tgNam
               </span>
             ) : null;
           })()}
+          {terminal.energySaving ? (
+            <EnergySavingBadge mode={terminal.energySaving} />
+          ) : null}
           {typeof terminal.rssiDbfs === "number" ? (
             <RssiBadge dbfs={terminal.rssiDbfs} />
           ) : null}
