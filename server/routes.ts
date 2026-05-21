@@ -1553,6 +1553,25 @@ ${restartLine}
         }
       }
 
+      // Parse root-level service_name (active or commented, before any section header)
+      let serviceNameValue: string | null = null;
+      let serviceNameActive = false;
+      {
+        let inSection = false;
+        for (const rawLine of lines) {
+          const t = rawLine.trim();
+          if (!t) continue;
+          // Once we hit any section header, we're no longer at root level
+          if (/^\[([a-zA-Z_][\w.]*)\]\s*$/.test(t) || /^#\s*\[/.test(t)) { inSection = true; break; }
+          if (!inSection) {
+            const activeM = t.match(/^service_name\s*=\s*"([^"]*)"/);
+            if (activeM) { serviceNameValue = activeM[1]; serviceNameActive = true; continue; }
+            const cmmtM = t.match(/^#\s*service_name\s*=\s*"([^"]*)"/);
+            if (cmmtM && serviceNameValue === null) { serviceNameValue = cmmtM[1]; serviceNameActive = false; }
+          }
+        }
+      }
+
       const get = (sec: string, key: string) => sections[sec]?.[key] ?? null;
       const num = (sec: string, key: string) => { const v = get(sec, key); return v !== null ? parseFloat(v) : null; };
       const bool = (sec: string, key: string) => { const v = get(sec, key); return v === 'true' ? true : v === 'false' ? false : null; };
@@ -1874,6 +1893,10 @@ ${restartLine}
           username: str('dashboard', 'username'),
           password: str('dashboard', 'password'),
         },
+        service_name: {
+          enabled: serviceNameActive,
+          value: serviceNameValue,
+        },
       });
     } catch (err: any) {
       res.status(500).json({ message: `Error leyendo config: ${err.message}` });
@@ -1881,7 +1904,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, serviceNameConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -2888,6 +2911,44 @@ ${restartLine}
             }
           }
           if (!foundWl) lines.splice(secHeaderIdx + 1, 0, valueLine);
+        }
+      }
+
+      // ── SERVICE_NAME: root-level key (before any section header) ──
+      // Only touched when client explicitly sends serviceNameConfig (Flowstation only).
+      if (serviceNameConfig && typeof serviceNameConfig === "object") {
+        const snEnabled = serviceNameConfig.enabled === true;
+        const snRaw = typeof serviceNameConfig.value === "string" ? serviceNameConfig.value.trim() : "";
+        const snVal = snRaw || "tetra";
+        const activeLine  = `service_name = "${snVal}"`;
+        const commentLine = `# service_name = "${snVal}"`;
+        const finalLine   = snEnabled ? activeLine : commentLine;
+
+        // Try to update an existing line (active or commented)
+        let snFound = false;
+        for (let i = 0; i < lines.length; i++) {
+          const t = lines[i].trim();
+          // Stop searching once we reach the first section header
+          if (/^\[([a-zA-Z_][\w.]*)\]\s*$/.test(t) || /^#\s*\[/.test(t)) break;
+          if (/^\s*service_name\s*=/.test(lines[i]) || /^\s*#\s*service_name\s*=/.test(lines[i])) {
+            lines[i] = finalLine;
+            snFound = true;
+            break;
+          }
+        }
+
+        if (!snFound) {
+          // Insert before the first section header (or at position 0 if no headers yet)
+          let firstSectionIdx = lines.length;
+          for (let i = 0; i < lines.length; i++) {
+            const t = lines[i].trim();
+            if (/^\[([a-zA-Z_][\w.]*)\]\s*$/.test(t) || /^#\s*\[/.test(t)) {
+              firstSectionIdx = i;
+              break;
+            }
+          }
+          // Insert the key followed by a blank separator
+          lines.splice(firstSectionIdx, 0, finalLine, "");
         }
       }
 
