@@ -736,6 +736,21 @@
   <div id="sectionDashboard" style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="dashboard_title">🖥️ Dashboard Web [dashboard]</h2>
+      <!-- service_name: root-level TOML key (above any section) -->
+      <div class="row" style="margin-bottom:14px; padding-bottom:12px; border-bottom:1px solid var(--border)">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableServiceName" />
+            <label for="enableServiceName" data-i18n="fs_service_name_enable">Enable service name</label>
+          </div>
+          <div style="margin-top:8px;">
+            <label for="fsServiceNameVal" data-i18n="fs_service_name_label">service_name</label>
+            <input id="fsServiceNameVal" type="text" value="tetra" placeholder="tetra" style="max-width:220px" />
+            <div class="hint" data-i18n="fs_service_name_hint">Systemd service unit name for restart/OTA updates. When unset, FlowStation auto-detects.</div>
+          </div>
+        </div>
+        <div></div>
+      </div>
       <div class="row">
         <div>
           <div class="checkbox-row">
@@ -1027,6 +1042,9 @@
       load_btn: "LOAD FROM CONFIG.TOML",
       service_name_label: "TMO service name",
       service_name_hint: "Service name to restart after applying changes (e.g. tmo.service).",
+      fs_service_name_enable: "Enable service name",
+      fs_service_name_label: "service_name",
+      fs_service_name_hint: "Systemd service unit name for restart/OTA updates. When unset, FlowStation auto-detects (e.g. tetra, flowstation).",
       apply_need_calc: "Please calculate frequencies first.",
       apply_need_path: "Please enter the config.toml file path.",
       apply_need_service: "Please enter the service name.",
@@ -1205,6 +1223,9 @@
       load_btn: "從 CONFIG.TOML 載入",
       service_name_label: "TMO 服務名稱",
       service_name_hint: "套用變更後要重啟的服務名稱（例如 tmo.service）。",
+      fs_service_name_enable: "啟用服務名稱",
+      fs_service_name_label: "service_name",
+      fs_service_name_hint: "用於重啟/OTA更新的 systemd 服務單元名稱。未設定時 FlowStation 自動偵測（如 tetra, flowstation）。",
       apply_need_calc: "請先計算頻率。",
       apply_need_path: "請輸入 config.toml 檔案路徑。",
       apply_need_service: "請輸入服務名稱。",
@@ -1383,6 +1404,9 @@
       load_btn: "CARGAR DESDE CONFIG.TOML",
       service_name_label: "Nombre del servicio TMO",
       service_name_hint: "Nombre del servicio a reiniciar tras aplicar los cambios (ej. tmo.service).",
+      fs_service_name_enable: "Activar nombre de servicio",
+      fs_service_name_label: "service_name",
+      fs_service_name_hint: "Nombre de la unidad systemd para reinicio/actualizaciones OTA. Si no se define, FlowStation lo detecta automáticamente (ej. tetra, flowstation).",
       apply_need_calc: "Primero calcula las frecuencias.",
       apply_need_path: "Introduce la ruta del archivo config.toml.",
       apply_need_service: "Introduce el nombre del servicio.",
@@ -1561,6 +1585,9 @@
       load_btn: "CARREGAR DO CONFIG.TOML",
       service_name_label: "Nome do servi\u00e7o TMO",
       service_name_hint: "Nome do servi\u00e7o a reiniciar ap\u00f3s aplicar as altera\u00e7\u00f5es (ex. tmo.service).",
+      fs_service_name_enable: "Ativar nome do servi\u00e7o",
+      fs_service_name_label: "service_name",
+      fs_service_name_hint: "Nome da unidade systemd para reinício/atualizações OTA. Se não definido, o FlowStation deteta automaticamente (ex. tetra, flowstation).",
       apply_need_calc: "Primeiro calcule as frequ\u00eancias.",
       apply_need_path: "Insira o caminho do arquivo config.toml.",
       apply_need_service: "Insira o nome do servi\u00e7o.",
@@ -1739,6 +1766,9 @@
       load_btn: "AUS CONFIG.TOML LADEN",
       service_name_label: "TMO-Dienstname",
       service_name_hint: "Name des Dienstes, der nach dem Anwenden neu gestartet wird (z.B. tmo.service).",
+      fs_service_name_enable: "Dienstname aktivieren",
+      fs_service_name_label: "service_name",
+      fs_service_name_hint: "Systemd-Dienstname für Neustart/OTA-Updates. Wenn nicht gesetzt, erkennt FlowStation ihn automatisch (z.B. tetra, flowstation).",
       apply_need_calc: "Bitte berechnen Sie zuerst die Frequenzen.",
       apply_need_path: "Bitte geben Sie den Pfad zur config.toml ein.",
       apply_need_service: "Bitte geben Sie den Dienstnamen ein.",
@@ -1917,6 +1947,9 @@
       load_btn: "CHARGER DEPUIS CONFIG.TOML",
       service_name_label: "Nom du service TMO",
       service_name_hint: "Nom du service \u00e0 red\u00e9marrer apr\u00e8s application des modifications (ex. tmo.service).",
+      fs_service_name_enable: "Activer le nom du service",
+      fs_service_name_label: "service_name",
+      fs_service_name_hint: "Nom de l\u2019unit\u00e9 systemd pour les red\u00e9marrages/mises \u00e0 jour OTA. Si non défini, FlowStation le détecte automatiquement (ex. tetra, flowstation).",
       apply_need_calc: "Veuillez d\u2019abord calculer les fr\u00e9quences.",
       apply_need_path: "Veuillez saisir le chemin du fichier config.toml.",
       apply_need_service: "Veuillez saisir le nom du service.",
@@ -2095,6 +2128,9 @@
       load_btn: "CARICA DA CONFIG.TOML",
       service_name_label: "Nome del servizio TMO",
       service_name_hint: "Nome del servizio da riavviare dopo aver applicato le modifiche (es. tmo.service).",
+      fs_service_name_enable: "Abilita nome servizio",
+      fs_service_name_label: "service_name",
+      fs_service_name_hint: "Nome dell\u2019unit\u00e0 systemd per riavvio/aggiornamenti OTA. Se non impostato, FlowStation lo rileva automaticamente (es. tetra, flowstation).",
       apply_need_calc: "Prima calcola le frequenze.",
       apply_need_path: "Inserisci il percorso del file config.toml.",
       apply_need_service: "Inserisci il nome del servizio.",
@@ -2273,6 +2309,9 @@
       load_btn: "INDL\u00c6S FRA CONFIG.TOML",
       service_name_label: "TMO-tjenestenavn",
       service_name_hint: "Navn p\u00e5 tjeneste der genstartes efter at have anvendt \u00e6ndringer (f.eks. tmo.service).",
+      fs_service_name_enable: "Aktiver tjenestenavn",
+      fs_service_name_label: "service_name",
+      fs_service_name_hint: "Systemd-tjenestenavn til genstart/OTA-opdateringer. Hvis ikke angivet, registrerer FlowStation det automatisk (f.eks. tetra, flowstation).",
       apply_need_calc: "Beregn frekvenserne f\u00f8rst.",
       apply_need_path: "Angiv stien til config.toml-filen.",
       apply_need_service: "Angiv tjenestenavnet.",
@@ -2451,6 +2490,9 @@
       load_btn: "LADEN UIT CONFIG.TOML",
       service_name_label: "TMO-servicenaam",
       service_name_hint: "Naam van de service die opnieuw wordt gestart na het toepassen van wijzigingen (bijv. tmo.service).",
+      fs_service_name_enable: "Servicenaam inschakelen",
+      fs_service_name_label: "service_name",
+      fs_service_name_hint: "Systemd-service-eenheidsnaam voor herstart/OTA-updates. Als niet ingesteld, detecteert FlowStation dit automatisch (bijv. tetra, flowstation).",
       apply_need_calc: "Bereken eerst de frequenties.",
       apply_need_path: "Voer het pad naar het config.toml-bestand in.",
       apply_need_service: "Voer de servicenaam in.",
@@ -2629,6 +2671,9 @@
       load_btn: "ÎNCARCĂ DIN CONFIG.TOML",
       service_name_label: "Nume serviciu TMO",
       service_name_hint: "Numele serviciului care va fi repornit după aplicarea modificărilor (ex. tmo.service).",
+      fs_service_name_enable: "Activați numele serviciului",
+      fs_service_name_label: "service_name",
+      fs_service_name_hint: "Numele unit\u0103\u021bii systemd pentru repornire/actualiz\u0103ri OTA. Dac\u0103 nu este setat, FlowStation \u00eel detecteaz\u0103 automat (ex. tetra, flowstation).",
       apply_need_calc: "Calculați mai întâi frecvențele.",
       apply_need_path: "Introduceți calea către fișierul config.toml.",
       apply_need_service: "Introduceți numele serviciului.",
@@ -2932,6 +2977,13 @@
   function buildToml(out){
     // Minimal config snippet (no header / no config_version / no unused comments)
     const lines = [];
+    // service_name: root-level key (flowstation only, shown in sectionDashboard)
+    if (document.getElementById("sectionDashboard")?.style.display !== "none") {
+      const snEnabled = el("enableServiceName").checked;
+      const snVal = (el("fsServiceNameVal").value.trim()) || "tetra";
+      lines.push(snEnabled ? `service_name = "${snVal}"` : `# service_name = "${snVal}"`);
+      lines.push("");
+    }
     lines.push("[phy_io_soapy]");
     lines.push(`tx_freq = ${out.txHz}`);
     lines.push(`rx_freq = ${out.rxHz}`);
@@ -3692,6 +3744,12 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         else { addSdsCommandRow({status_code: 32001, action: "restart"}); }
       }
 
+      // ── service_name (root-level, flowstation only)
+      if (data.service_name) {
+        el("enableServiceName").checked = !!data.service_name.enabled;
+        if (data.service_name.value) el("fsServiceNameVal").value = data.service_name.value;
+      }
+
       // ── Dashboard [dashboard]
       if (data.dashboard) {
         el("enableDashboard").checked = !!data.dashboard.enabled;
@@ -3801,8 +3859,14 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       issi_whitelist: secParsed.length > 0 ? secParsed : ["1030299","1030036","2145007"]
     };
 
-    // Collect Dashboard options (Flowstation only — null in bluestation)
+    // Collect service_name options (Flowstation only — null in bluestation, root-level key)
     const dashIsFlow = document.getElementById("sectionDashboard")?.style.display !== "none";
+    const serviceNameConfig = dashIsFlow ? {
+      enabled: el("enableServiceName").checked,
+      value: el("fsServiceNameVal").value.trim() || "tetra",
+    } : null;
+
+    // Collect Dashboard options (Flowstation only — null in bluestation)
     const dashboardConfig = dashIsFlow ? {
       enabled: el("enableDashboard").checked,
       port: clampInt(el("dashboardPort").value, 1, 65535, 8080),
@@ -3873,7 +3937,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           homeModeDisplayConfig,
           sdsBroadcastConfig,
           sdsCommandControlConfig,
-          dashboardConfig
+          dashboardConfig,
+          serviceNameConfig
         })
       });
       const data = await res.json();
