@@ -3330,7 +3330,7 @@ ${restartLine}
     if (fsSessionToken && now < fsSessionExpiry - 60 * 60 * 1000) return; // still valid for 1h+
     fsSessionPending = true;
     try {
-      const body = JSON.stringify({ username: cfg.username, password: cfg.password });
+      const body = JSON.stringify({ user: cfg.username, password: cfg.password });
       const token = await new Promise<string | null>((resolve) => {
         const req2 = http.request({
           hostname: '127.0.0.1', port: cfg.port, path: '/api/login', method: 'POST',
