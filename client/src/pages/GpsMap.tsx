@@ -2,7 +2,7 @@ import { useState, useMemo, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Popup, Polyline, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import { useTetraWebSocket, GpsPosition } from "@/hooks/useTetraWebSocket";
+import { useTetraWebSocket, GpsPosition, Terminal } from "@/hooks/useTetraWebSocket";
 import { useI18n } from "@/lib/i18n";
 import { MapPin, Navigation, Satellite, Map, Mountain, Route, Clock, List } from "lucide-react";
 
@@ -126,16 +126,26 @@ function dirArrow(heading: number | null): string {
 }
 
 function StationSidebar({
-  positions, gpsHistory, colorByIssi, selectedIssi, setSelectedIssi,
+  positions, gpsHistory, colorByIssi, selectedIssi, setSelectedIssi, terminals,
 }: {
   positions: GpsPosition[];
   gpsHistory: Record<string, GpsPosition[]>;
   colorByIssi: Record<string, number>;
   selectedIssi: string | null;
   setSelectedIssi: (issi: string | null) => void;
+  terminals: Record<string, Terminal>;
 }) {
   const { t } = useI18n();
   const selectedTrack = selectedIssi ? (gpsHistory[selectedIssi] || []) : [];
+
+  // Terminals visible in the network but without GPS fix
+  const gpsIssiSet = useMemo(() => new Set(positions.map(p => p.issi)), [positions]);
+  const terminalsNoGps = useMemo(
+    () => Object.values(terminals).filter(
+      tr => tr.status !== "Offline" && !gpsIssiSet.has(tr.id)
+    ),
+    [terminals, gpsIssiSet]
+  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -150,7 +160,7 @@ function StationSidebar({
         )}
       </div>
 
-      {positions.length === 0 ? (
+      {positions.length === 0 && terminalsNoGps.length === 0 ? (
         <div className="flex flex-col items-center justify-center flex-1 text-center px-4">
           <MapPin className="w-8 h-8 text-muted-foreground/30 mb-3" />
           <p className="text-xs font-mono text-muted-foreground">{t("gps_no_data")}</p>
@@ -158,83 +168,119 @@ function StationSidebar({
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
-          <div className="divide-y divide-border/50">
-            {positions.map(pos => {
-              const trackColor = TRACK_COLORS[(colorByIssi[pos.issi] ?? 0) % TRACK_COLORS.length];
-              const trackLen = (gpsHistory[pos.issi] || []).length;
-              return (
-                <button key={pos.issi} onClick={() => setSelectedIssi(selectedIssi === pos.issi ? null : pos.issi)}
-                  data-testid={`button-station-${pos.issi}`}
-                  className={`w-full text-left px-3 py-2.5 transition-colors hover:bg-white/5 ${selectedIssi === pos.issi ? "bg-primary/10" : ""}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                        style={{ backgroundColor: pos.hasFix ? trackColor : "#ef4444" }} />
-                      <span className="font-mono text-xs font-bold text-foreground truncate">{pos.issi}</span>
-                      {pos.callsign && (
-                        <span className="text-[10px] font-mono text-amber-400 truncate">{pos.callsign}</span>
-                      )}
-                    </div>
-                    {pos.hasFix ? (
-                      <div className="text-right flex-shrink-0">
-                        <div className="text-[10px] font-mono" style={{ color: trackColor }}>{pos.lat.toFixed(4)}°</div>
-                        <div className="text-[10px] font-mono" style={{ color: trackColor }}>{pos.lon.toFixed(4)}°</div>
+          {/* GPS-fixed stations + selected track history */}
+          {positions.length > 0 && (
+            <>
+              <div className="divide-y divide-border/50">
+                {positions.map(pos => {
+                  const trackColor = TRACK_COLORS[(colorByIssi[pos.issi] ?? 0) % TRACK_COLORS.length];
+                  const trackLen = (gpsHistory[pos.issi] || []).length;
+                  return (
+                    <button key={pos.issi} onClick={() => setSelectedIssi(selectedIssi === pos.issi ? null : pos.issi)}
+                      data-testid={`button-station-${pos.issi}`}
+                      className={`w-full text-left px-3 py-2.5 transition-colors hover:bg-white/5 ${selectedIssi === pos.issi ? "bg-primary/10" : ""}`}>
+                      <div className="flex items-center justify-between gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="w-2.5 h-2.5 rounded-full flex-shrink-0"
+                            style={{ backgroundColor: pos.hasFix ? trackColor : "#ef4444" }} />
+                          <span className="font-mono text-xs font-bold text-foreground truncate">{pos.issi}</span>
+                          {pos.callsign && (
+                            <span className="text-[10px] font-mono text-amber-400 truncate">{pos.callsign}</span>
+                          )}
+                        </div>
+                        {pos.hasFix ? (
+                          <div className="text-right flex-shrink-0">
+                            <div className="text-[10px] font-mono" style={{ color: trackColor }}>{pos.lat.toFixed(4)}°</div>
+                            <div className="text-[10px] font-mono" style={{ color: trackColor }}>{pos.lon.toFixed(4)}°</div>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] font-mono text-red-400 font-bold">NO FIX</div>
+                        )}
                       </div>
-                    ) : (
-                      <div className="text-[10px] font-mono text-red-400 font-bold">NO FIX</div>
-                    )}
-                  </div>
-                  <div className="flex items-center justify-between mt-0.5">
-                    <span className="text-[10px] font-mono text-muted-foreground/50">
-                      {formatAge(pos.timestamp)} ago
-                      {trackLen > 1 && (
-                        <span className="ml-2 text-muted-foreground/40">
-                          <Route className="w-2.5 h-2.5 inline" /> {trackLen}pts
+                      <div className="flex items-center justify-between mt-0.5">
+                        <span className="text-[10px] font-mono text-muted-foreground/50">
+                          {formatAge(pos.timestamp)} ago
+                          {trackLen > 1 && (
+                            <span className="ml-2 text-muted-foreground/40">
+                              <Route className="w-2.5 h-2.5 inline" /> {trackLen}pts
+                            </span>
+                          )}
                         </span>
+                        {pos.hasFix && (
+                          <a href={`https://maps.google.com/?q=${pos.lat},${pos.lon}`} target="_blank"
+                            rel="noopener noreferrer" onClick={e => e.stopPropagation()}
+                            className="text-[10px] font-mono text-blue-400 hover:text-blue-300"
+                            data-testid={`link-maps-${pos.issi}`}>
+                            Maps ↗
+                          </a>
+                        )}
+                      </div>
+                      {pos.speed !== null && (
+                        <div className="text-[10px] font-mono text-muted-foreground/60 mt-0.5">
+                          {pos.speed} km/h {dirArrow(pos.heading)}
+                        </div>
                       )}
-                    </span>
-                    {pos.hasFix && (
-                      <a href={`https://maps.google.com/?q=${pos.lat},${pos.lon}`} target="_blank"
-                        rel="noopener noreferrer" onClick={e => e.stopPropagation()}
-                        className="text-[10px] font-mono text-blue-400 hover:text-blue-300"
-                        data-testid={`link-maps-${pos.issi}`}>
-                        Maps ↗
-                      </a>
-                    )}
-                  </div>
-                  {pos.speed !== null && (
-                    <div className="text-[10px] font-mono text-muted-foreground/60 mt-0.5">
-                      {pos.speed} km/h {dirArrow(pos.heading)}
-                    </div>
-                  )}
-                </button>
-              );
-            })}
-          </div>
+                    </button>
+                  );
+                })}
+              </div>
 
-          {selectedIssi && selectedTrack.length > 0 && (
-            <div className="border-t border-border/50 mt-1">
-              <div className="px-3 py-1.5 flex items-center gap-1.5">
-                <Route className="w-3 h-3 text-muted-foreground" />
-                <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
-                  {t("gps_track_history")} ({selectedTrack.length})
+              {selectedIssi && selectedTrack.length > 0 && (
+                <div className="border-t border-border/50 mt-1">
+                  <div className="px-3 py-1.5 flex items-center gap-1.5">
+                    <Route className="w-3 h-3 text-muted-foreground" />
+                    <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">
+                      {t("gps_track_history")} ({selectedTrack.length})
+                    </span>
+                  </div>
+                  <div className="divide-y divide-border/30 max-h-48 overflow-y-auto">
+                    {[...selectedTrack].reverse().map((pt, i) => (
+                      <div key={i} className="px-3 py-1.5 flex items-start justify-between gap-2">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <Clock className="w-2.5 h-2.5 text-muted-foreground/40 flex-shrink-0 mt-0.5" />
+                          <div>
+                            <div className="text-[10px] font-mono text-muted-foreground/70">{formatTime(pt.timestamp)}</div>
+                            <div className="text-[10px] font-mono text-muted-foreground/50">{pt.lat.toFixed(5)}°, {pt.lon.toFixed(5)}°</div>
+                          </div>
+                        </div>
+                        {pt.speed !== null && (
+                          <span className="text-[10px] font-mono text-muted-foreground/40 flex-shrink-0">
+                            {pt.speed}km/h {dirArrow(pt.heading)}
+                          </span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* Terminals seen in network without GPS coordinates */}
+          {terminalsNoGps.length > 0 && (
+            <div className="border-t border-border/50">
+              <div className="px-3 py-1.5 flex items-center gap-1.5 bg-white/2">
+                <Navigation className="w-3 h-3 text-muted-foreground/50" />
+                <span className="text-[10px] font-mono text-muted-foreground/60 uppercase tracking-wider">
+                  {t("gps_seen_no_fix")} ({terminalsNoGps.length})
                 </span>
               </div>
-              <div className="divide-y divide-border/30 max-h-48 overflow-y-auto">
-                {[...selectedTrack].reverse().map((pt, i) => (
-                  <div key={i} className="px-3 py-1.5 flex items-start justify-between gap-2">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <Clock className="w-2.5 h-2.5 text-muted-foreground/40 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <div className="text-[10px] font-mono text-muted-foreground/70">{formatTime(pt.timestamp)}</div>
-                        <div className="text-[10px] font-mono text-muted-foreground/50">{pt.lat.toFixed(5)}°, {pt.lon.toFixed(5)}°</div>
-                      </div>
+              <div className="divide-y divide-border/30">
+                {terminalsNoGps.map(tr => (
+                  <div key={tr.id} className="px-3 py-2 flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className={`w-2 h-2 rounded-full flex-shrink-0 ${tr.status === "External" ? "bg-blue-400/60" : "bg-emerald-400/60"}`} />
+                      <span className="font-mono text-xs text-foreground/70 truncate">{tr.id}</span>
+                      {tr.callsign && (
+                        <span className="text-[10px] font-mono text-amber-400/70 truncate">{tr.callsign}</span>
+                      )}
                     </div>
-                    {pt.speed !== null && (
-                      <span className="text-[10px] font-mono text-muted-foreground/40 flex-shrink-0">
-                        {pt.speed}km/h {dirArrow(pt.heading)}
-                      </span>
-                    )}
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {tr.status === "External" && (
+                        <span className="text-[9px] font-mono text-blue-400/60 uppercase">EXT</span>
+                      )}
+                      <span className="text-[9px] font-mono text-muted-foreground/40 uppercase">NO GPS</span>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -247,7 +293,7 @@ function StationSidebar({
 }
 
 export default function GpsMap() {
-  const { gpsPositions, gpsHistory } = useTetraWebSocket();
+  const { gpsPositions, gpsHistory, terminals } = useTetraWebSocket();
   const { t } = useI18n();
   const [layer, setLayer] = useState<LayerType>("map");
   const [selectedIssi, setSelectedIssi] = useState<string | null>(null);
@@ -442,6 +488,7 @@ export default function GpsMap() {
               colorByIssi={colorByIssi}
               selectedIssi={selectedIssi}
               setSelectedIssi={(issi) => { setSelectedIssi(issi); setMobileView("map"); }}
+              terminals={terminals}
             />
           </div>
         )}
@@ -459,6 +506,7 @@ export default function GpsMap() {
             colorByIssi={colorByIssi}
             selectedIssi={selectedIssi}
             setSelectedIssi={setSelectedIssi}
+            terminals={terminals}
           />
         </div>
       </div>
