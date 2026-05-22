@@ -967,10 +967,7 @@ ${restartLine}
           if (pw) password = pw[1];
         }
       }
-      const authHeader = (username && password)
-        ? `Basic ${Buffer.from(`${username}:${password}`).toString("base64")}`
-        : undefined;
-      return { enabled: port > 0, port, authHeader };
+      return { enabled: port > 0, port, username: username ?? undefined, password: password ?? undefined };
     } catch { return { enabled: false, port: 0 }; }
   }
 
@@ -992,7 +989,8 @@ ${restartLine}
     const headers: Record<string, string | string[] | undefined> = { ...req.headers };
     headers.host = `127.0.0.1:${cfg.port}`;
     delete headers["accept-encoding"]; // simplify HTML rewrite
-    if (cfg.authHeader) headers["authorization"] = cfg.authHeader;
+    // flowstation v2+ uses cookie-based sessions (fs_session cookie), not Basic Auth.
+    // The browser's fs_session cookie flows through automatically via req.headers.cookie.
     const proxyReq = http.request({
       hostname: "127.0.0.1",
       port: cfg.port,
@@ -1001,6 +999,20 @@ ${restartLine}
       headers: headers as any,
     }, (proxyRes) => {
       const ct = String(proxyRes.headers["content-type"] || "");
+      // Rewrite Location headers: flowstation auth redirects /login → /flow-iframe/login
+      const outHeaders: Record<string, any> = { ...proxyRes.headers };
+      const loc = String(outHeaders["location"] || "");
+      if (loc && loc.startsWith("/") && !loc.startsWith("/flow-iframe")) {
+        outHeaders["location"] = "/flow-iframe" + loc;
+      }
+      // Scope Set-Cookie Path to /flow-iframe/ so fs_session stays within the proxy
+      if (outHeaders["set-cookie"]) {
+        const cookies = Array.isArray(outHeaders["set-cookie"])
+          ? outHeaders["set-cookie"] : [outHeaders["set-cookie"]];
+        outHeaders["set-cookie"] = cookies.map((c: string) =>
+          c.replace(/;\s*Path=\//i, "; Path=/flow-iframe/")
+        );
+      }
       if (ct.includes("text/html")) {
         const chunks: Buffer[] = [];
         proxyRes.on("data", (c) => chunks.push(c));
@@ -1011,6 +1023,8 @@ ${restartLine}
           }
           // Rewrite root-absolute URLs so they go through the proxy
           body = body.replace(/((?:href|src|action)\s*=\s*["'])\/(?!\/|flow-iframe)/gi, `$1/flow-iframe/`);
+          // Rewrite JS location assignments (login success: window.location='/', logout: window.location='/login')
+          body = body.replace(/(window\.location\s*=\s*['"])\/(?!\/|flow-iframe)/g, "$1/flow-iframe/");
           // Inject a runtime shim that rewrites root-absolute URLs in JS calls
           // (fetch, XMLHttpRequest, WebSocket) to go through /flow-iframe/.
           // Without this the dashboard's WS connects to our /ws (TETRA monitor)
@@ -1051,14 +1065,13 @@ ${restartLine}
   };
 })();</script>`;
           body = body.replace(/<head([^>]*)>/i, `<head$1>${shim}`);
-          const outHeaders: Record<string, any> = { ...proxyRes.headers };
           delete outHeaders["content-length"];
           delete outHeaders["content-encoding"];
           res.writeHead(proxyRes.statusCode || 200, outHeaders);
           res.end(body);
         });
       } else {
-        res.writeHead(proxyRes.statusCode || 200, proxyRes.headers as any);
+        res.writeHead(proxyRes.statusCode || 200, outHeaders);
         proxyRes.pipe(res);
       }
     });
@@ -1089,7 +1102,7 @@ ${restartLine}
     if (!cfg.enabled) { socket.destroy(); return; }
     const targetPath = req.url.substring("/flow-iframe".length) || "/";
     const wsHeaders: Record<string, string | string[] | undefined> = { ...req.headers };
-    if (cfg.authHeader) wsHeaders["authorization"] = cfg.authHeader;
+    // flowstation v2+ uses cookie-based sessions — fs_session cookie flows through automatically.
     const proxyReq = http.request({
       hostname: "127.0.0.1",
       port: cfg.port,
@@ -1116,7 +1129,7 @@ ${restartLine}
   // Send SDS through flowstation's dashboard WebSocket (port 8080).
   // Flowstation transmits the D-SDS-DATA PDU from hardcoded source ISSI 9999 (BS dispatcher).
   // Bluestation upstream has no equivalent control surface, so this only works when flowstation is active.
-  app.post("/api/sds/send", (req, res) => {
+  app.post("/api/sds/send", async (req, res) => {
     const { password, dest_issi, message } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
@@ -1139,6 +1152,7 @@ ${restartLine}
         message: "Flowstation no está activa. Cambia a FLOW para enviar SDS.",
       });
     }
+    await refreshFlowstationSession();
     let done = false;
     const respond = (status: number, body: object) => {
       if (done) return;
@@ -1173,7 +1187,7 @@ ${restartLine}
   });
 
   // Kick (deregister) an MS via flowstation's dashboard WebSocket. Same gating as SDS.
-  app.post("/api/kick", (req, res) => {
+  app.post("/api/kick", async (req, res) => {
     const { password, issi } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
@@ -1189,6 +1203,7 @@ ${restartLine}
         message: "Flowstation no está activa. Cambia a FLOW para expulsar terminales.",
       });
     }
+    await refreshFlowstationSession();
     let done = false;
     const respond = (status: number, body: object) => {
       if (done) return;
@@ -3299,32 +3314,52 @@ ${restartLine}
       broadcast(JSON.stringify({ type: 'update_terminal', payload: t }));
     }
   };
-  // Read flowstation dashboard Basic Auth credentials from its config.toml.
-  // Returns WebSocket options with Authorization header if credentials are configured.
-  function getFlowstationWsOptions(): { headers?: Record<string, string> } {
+  // ── Flowstation session cache (cookie-based auth, replaces old Basic Auth) ────
+  // flowstation v2+ requires POST /api/login → fs_session cookie.
+  // We cache the token (7-day TTL) so SDS/kick/fsWs server-side connections
+  // don't need to log in on every attempt. Token is refreshed 1h before expiry.
+  let fsSessionToken: string | null = null;
+  let fsSessionExpiry = 0;
+  let fsSessionPending = false;
+
+  async function refreshFlowstationSession(): Promise<void> {
+    const cfg = getFlowstationDashboardConfig();
+    if (!cfg.username || !cfg.password || !cfg.port) return;
+    if (fsSessionPending) return;
+    const now = Date.now();
+    if (fsSessionToken && now < fsSessionExpiry - 60 * 60 * 1000) return; // still valid for 1h+
+    fsSessionPending = true;
     try {
-      const cfgPath = STATION_CONFIG_PATH.flowstation;
-      if (!fs.existsSync(cfgPath)) return {};
-      const lines = fs.readFileSync(cfgPath, 'utf-8').split('\n');
-      let inDash = false;
-      let username: string | null = null;
-      let password: string | null = null;
-      for (const raw of lines) {
-        const line = raw.trim();
-        if (line.match(/^\[dashboard\]/)) { inDash = true; continue; }
-        if (line.match(/^\[/) && !line.match(/^\[dashboard\]/)) { inDash = false; continue; }
-        if (inDash) {
-          const um = line.match(/^username\s*=\s*"(.+)"/);
-          if (um) username = um[1];
-          const pm = line.match(/^password\s*=\s*"(.+)"/);
-          if (pm) password = pm[1];
-        }
+      const body = JSON.stringify({ username: cfg.username, password: cfg.password });
+      const token = await new Promise<string | null>((resolve) => {
+        const req2 = http.request({
+          hostname: '127.0.0.1', port: cfg.port, path: '/api/login', method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body), Connection: 'close' },
+        }, (resp) => {
+          resp.resume();
+          const sc = resp.headers['set-cookie'];
+          const cookies = Array.isArray(sc) ? sc : sc ? [sc] : [];
+          const entry = cookies.find((c) => c.startsWith('fs_session='));
+          const tok = entry?.split(';')[0]?.replace('fs_session=', '') ?? null;
+          resolve(resp.statusCode === 200 && tok ? tok : null);
+        });
+        req2.on('error', () => resolve(null));
+        req2.setTimeout(3000, () => { req2.destroy(); resolve(null); });
+        req2.write(body); req2.end();
+      });
+      if (token) {
+        fsSessionToken = token;
+        fsSessionExpiry = now + 7 * 24 * 60 * 60 * 1000; // 7 days (matches flowstation TTL)
       }
-      if (username && password) {
-        const token = Buffer.from(`${username}:${password}`).toString('base64');
-        return { headers: { Authorization: `Basic ${token}` } };
-      }
-    } catch { /* ignore — no auth needed */ }
+    } finally {
+      fsSessionPending = false;
+    }
+  }
+
+  function getFlowstationWsOptions(): { headers?: Record<string, string> } {
+    if (fsSessionToken && Date.now() < fsSessionExpiry) {
+      return { headers: { Cookie: `fs_session=${fsSessionToken}` } };
+    }
     return {};
   }
 
@@ -3333,7 +3368,8 @@ ${restartLine}
   let fsWs: WebSocket | null = null;
   let fsBackoff = 2000;
   const FS_BACKOFF_MAX = 30000;
-  function connectFlowstationWs() {
+  async function connectFlowstationWs() {
+    await refreshFlowstationSession();
     try {
       fsWs = new WebSocket('ws://127.0.0.1:8080/ws', getFlowstationWsOptions());
     } catch {
