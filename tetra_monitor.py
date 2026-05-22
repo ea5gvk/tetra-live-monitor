@@ -1180,6 +1180,52 @@ class TetraMonitor:
                     self.sds_report_uuids = set(list(self.sds_report_uuids)[-100:])
                 return
 
+            # BrewWorker: SHORT_TRANSFER uuid=... src=X dst=Y
+            # Forwarded SDS seen in bluestation/flowstation logs (alternative path to
+            # BrewEntity: SDS transfer). Correlate with pending LIP/text content.
+            short_tf = re.search(
+                r"BrewWorker:\s+SHORT_TRANSFER\s+uuid=(\S+)\s+src=(\d+)\s+dst=(\d+)",
+                msg
+            )
+            if short_tf:
+                uuid_val, src, dst = short_tf.groups()
+                # Skip delivery reports: tiny (≤8-byte) ACK sent back by dest
+                pair_key = (src, dst)
+                if pair_key in self.sds_pending_ack:
+                    del self.sds_pending_ack[pair_key]
+                    return
+                src_call = self.get_callsign(src)
+                dst_call = self.get_callsign(dst)
+                entry = {
+                    "id": self._next_id(),
+                    "timestamp": timestamp,
+                    "srcIssi": src,
+                    "srcCallsign": src_call,
+                    "dstIssi": dst,
+                    "dstCallsign": dst_call,
+                    "direction": "incoming",
+                    "messageType": "data",
+                    "sdsType": 3,
+                    "size": 0,
+                    "sizeUnit": "bytes",
+                }
+                now = time.time()
+                pending = self.sds_content_pending.pop(src, None)
+                if pending and now - pending["ts"] < 5.0:
+                    if pending["type"] == "text":
+                        entry["textContent"] = pending["content"]
+                    elif pending["type"] == "lip":
+                        entry["lipData"] = pending["content"]
+                self.sds_content_pending = {
+                    k: v for k, v in self.sds_content_pending.items() if now - v["ts"] < 10.0
+                }
+                self.sds_messages.insert(0, entry)
+                self.sds_messages = self.sds_messages[:MAX_HISTORY]
+                self.sds_entry_ts[entry["id"]] = now
+                self.sds_entry_ts = {k: v for k, v in self.sds_entry_ts.items() if now - v < 30}
+                emit("sds_message", entry)
+                return
+
             # Outgoing: BrewEntity: sending SDS uuid=... src=X dst=Y type=N N bits
             sds_out = re.search(
                 r"BrewEntity: sending SDS\s+uuid=(\S+)\s+src=(\d+)\s+dst=(\d+)\s+type=(\d+)\s+(\d+)\s+bits",
