@@ -1152,38 +1152,9 @@ ${restartLine}
         message: "Flowstation no está activa. Cambia a FLOW para enviar SDS.",
       });
     }
-    await refreshFlowstationSession();
-    let done = false;
-    const respond = (status: number, body: object) => {
-      if (done) return;
-      done = true;
-      try { ws.close(); } catch {}
-      clearTimeout(timer);
-      res.status(status).json(body);
-    };
-    const timer = setTimeout(() => {
-      respond(504, { ok: false, message: "Timeout conectando con flowstation:8080" });
-    }, 5000);
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket("ws://127.0.0.1:8080/ws", getFlowstationWsOptions());
-    } catch (e: any) {
-      clearTimeout(timer);
-      return res.status(502).json({ ok: false, message: `Error WS: ${e?.message || e}` });
-    }
-    ws.on("open", () => {
-      try {
-        ws.send(JSON.stringify({ type: "sds", dest_issi: dest, message: text }));
-      } catch (e: any) {
-        respond(502, { ok: false, message: `Error enviando: ${e?.message || e}` });
-        return;
-      }
-      // Flowstation has no ack on the WS side; give the stack ~300ms to enqueue the PDU before closing.
-      setTimeout(() => respond(200, { ok: true, message: `SDS enviado a ${dest}`, dest_issi: dest, source_ssi: 9999, length: text.length }), 300);
-    });
-    ws.on("error", (err: Error) => {
-      respond(502, { ok: false, message: `Error WS flowstation: ${err.message}` });
-    });
+    const payload = { type: "sds", dest_issi: dest, message: text };
+    const okBody = { ok: true, message: `SDS enviado a ${dest}`, dest_issi: dest, source_ssi: 9999, length: text.length };
+    sendFlowstationCommand(payload, okBody, res);
   });
 
   // Kick (deregister) an MS via flowstation's dashboard WebSocket. Same gating as SDS.
@@ -1203,37 +1174,9 @@ ${restartLine}
         message: "Flowstation no está activa. Cambia a FLOW para expulsar terminales.",
       });
     }
-    await refreshFlowstationSession();
-    let done = false;
-    const respond = (status: number, body: object) => {
-      if (done) return;
-      done = true;
-      try { ws.close(); } catch {}
-      clearTimeout(timer);
-      res.status(status).json(body);
-    };
-    const timer = setTimeout(() => {
-      respond(504, { ok: false, message: "Timeout conectando con flowstation:8080" });
-    }, 5000);
-    let ws: WebSocket;
-    try {
-      ws = new WebSocket("ws://127.0.0.1:8080/ws", getFlowstationWsOptions());
-    } catch (e: any) {
-      clearTimeout(timer);
-      return res.status(502).json({ ok: false, message: `Error WS: ${e?.message || e}` });
-    }
-    ws.on("open", () => {
-      try {
-        ws.send(JSON.stringify({ type: "kick", issi: target }));
-      } catch (e: any) {
-        respond(502, { ok: false, message: `Error enviando: ${e?.message || e}` });
-        return;
-      }
-      setTimeout(() => respond(200, { ok: true, message: `Kick enviado para ISSI ${target}`, issi: target }), 300);
-    });
-    ws.on("error", (err: Error) => {
-      respond(502, { ok: false, message: `Error WS flowstation: ${err.message}` });
-    });
+    const payload = { type: "kick", issi: target };
+    const okBody = { ok: true, message: `Kick enviado para ISSI ${target}`, issi: target };
+    sendFlowstationCommand(payload, okBody, res);
   });
 
   app.post("/api/station/switch", (req, res) => {
@@ -3322,12 +3265,61 @@ ${restartLine}
   let fsSessionExpiry = 0;
   let fsSessionPending = false;
 
-  async function refreshFlowstationSession(): Promise<void> {
+  function invalidateFlowstationSession(): void {
+    fsSessionToken = null;
+    fsSessionExpiry = 0;
+  }
+
+  // Open a WS to flowstation:8080/ws, send a command, auto-retry once if the cached
+  // fs_session is stale (HTTP 401 on Upgrade). Used by SDS and Kick endpoints.
+  async function sendFlowstationCommand(payload: object, okBody: object, res: any): Promise<void> {
+    let done = false;
+    const finish = (status: number, body: object) => {
+      if (done) return;
+      done = true;
+      clearTimeout(timer);
+      res.status(status).json(body);
+    };
+    const timer = setTimeout(() => finish(504, { ok: false, message: "Timeout conectando con flowstation:8080" }), 5000);
+
+    const attempt = async (isRetry: boolean): Promise<void> => {
+      await refreshFlowstationSession(isRetry);
+      let ws: WebSocket;
+      try {
+        ws = new WebSocket("ws://127.0.0.1:8080/ws", getFlowstationWsOptions());
+      } catch (e: any) {
+        finish(502, { ok: false, message: `Error WS: ${e?.message || e}` });
+        return;
+      }
+      let gotUnauth = false;
+      ws.on("unexpected-response", (_req: any, resp: any) => {
+        if (resp?.statusCode === 401) {
+          gotUnauth = true;
+          invalidateFlowstationSession();
+          try { ws.close(); } catch {}
+          if (!isRetry) { attempt(true); }
+          else { finish(401, { ok: false, message: "Login flowstation rechazado (revisa user/password en [dashboard])" }); }
+        }
+      });
+      ws.on("open", () => {
+        try { ws.send(JSON.stringify(payload)); }
+        catch (e: any) { finish(502, { ok: false, message: `Error enviando: ${e?.message || e}` }); try { ws.close(); } catch {} return; }
+        setTimeout(() => { finish(200, okBody); try { ws.close(); } catch {} }, 300);
+      });
+      ws.on("error", (err: Error) => {
+        if (gotUnauth) return; // already handled above
+        finish(502, { ok: false, message: `Error WS flowstation: ${err.message}` });
+      });
+    };
+    attempt(false);
+  }
+
+  async function refreshFlowstationSession(force: boolean = false): Promise<void> {
     const cfg = getFlowstationDashboardConfig();
     if (!cfg.username || !cfg.password || !cfg.port) return;
     if (fsSessionPending) return;
     const now = Date.now();
-    if (fsSessionToken && now < fsSessionExpiry - 60 * 60 * 1000) return; // still valid for 1h+
+    if (!force && fsSessionToken && now < fsSessionExpiry - 60 * 60 * 1000) return; // still valid for 1h+
     fsSessionPending = true;
     try {
       const body = JSON.stringify({ user: cfg.username, password: cfg.password });
@@ -3420,6 +3412,13 @@ ${restartLine}
           energySavingByIssi.delete(String(m.issi));
         }
       } catch { /* ignore */ }
+    });
+    fsWs.on('unexpected-response', (_req: any, resp: any) => {
+      // 401 means our cached fs_session token is stale (flowstation restarted, session store wiped).
+      // Invalidate so the next connectFlowstationWs() call re-logs in fresh.
+      if (resp?.statusCode === 401) {
+        invalidateFlowstationSession();
+      }
     });
     fsWs.on('error', () => { /* silent — :8080 may not be active */ });
     fsWs.on('close', () => {
