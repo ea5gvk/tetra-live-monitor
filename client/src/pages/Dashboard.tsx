@@ -360,36 +360,54 @@ function TerminalRow({ t: terminal, tgName, issiCallsign }: { t: Terminal; tgNam
   );
 }
 
-function RfChannelTimeslots({ rfCalls, issiCallsign }: {
+function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
   rfCalls: RfCall[];
   issiCallsign: (id: string | number) => string;
+  tsVoiceActivity: Record<number, number>;
 }) {
   const { t } = useI18n();
+  // Force re-render every 500ms so the "voice activity" fade-out reacts to time
+  // even when no new ts_voice arrives.
+  const [, setTick] = useState(0);
+  useEffect(() => {
+    const id = setInterval(() => setTick(x => x + 1), 500);
+    return () => clearInterval(id);
+  }, []);
+
   // Razvan's approach: calls tracked by call_id from the trunking layer.
   // call_started → add; call_ended → remove. No terminal activity inference needed.
-  // callByTs: map slot number → first call on that slot (multiple calls on same
-  // slot are unusual in TETRA but handled gracefully).
   const callByTs: Record<number, RfCall | undefined> = {};
   for (const c of rfCalls) {
     const ts = c.ts;
     if (ts >= 1 && ts <= 4 && !callByTs[ts]) callByTs[ts] = c;
   }
+  // Fallback (flowstation v0.2.2+): consider a TS "voice-active" when a ts_voice
+  // event arrived within the last 2 s. Useful when call_started events are missing
+  // (e.g. flowstation v0.2.3 group-attach-cap regression).
+  const now = Date.now();
+  const isVoiceActive = (n: number) => {
+    const last = tsVoiceActivity[n];
+    return last != null && (now - last) < 2000;
+  };
 
   const renderSlot = (tsNum: number) => {
-    if (tsNum === 1 && !callByTs[1]) {
+    const c = callByTs[tsNum];
+    if (c) {
+      if (c.callType === "individual") {
+        const srcCs = issiCallsign(c.callerIssi) || String(c.callerIssi);
+        const dstCs = issiCallsign(c.calledIssi) || String(c.calledIssi);
+        return { ts: tsNum, mode: "active" as const, label: `${srcCs} → ${dstCs}`, sub: t("rf_p2p"), detail: `ISSI ${c.callerIssi} → ${c.calledIssi}` };
+      }
+      const speakerCs = c.callerIssi ? (issiCallsign(c.callerIssi) || String(c.callerIssi)) : "?";
+      return { ts: tsNum, mode: "active" as const, label: `GSSI ${c.gssi}`, sub: t("rf_group_call"), detail: speakerCs };
+    }
+    if (isVoiceActive(tsNum)) {
+      return { ts: tsNum, mode: "voice" as const, label: t("rf_voice_rx"), sub: t("rf_voice_activity"), detail: undefined as string | undefined };
+    }
+    if (tsNum === 1) {
       return { ts: 1, mode: "mcch" as const, label: t("rf_mcch"), sub: t("rf_control"), detail: undefined as string | undefined };
     }
-    const c = callByTs[tsNum];
-    if (!c) {
-      return { ts: tsNum, mode: "idle" as const, label: "—", sub: t("rf_idle"), detail: undefined as string | undefined };
-    }
-    if (c.callType === "individual") {
-      const srcCs = issiCallsign(c.callerIssi) || String(c.callerIssi);
-      const dstCs = issiCallsign(c.calledIssi) || String(c.calledIssi);
-      return { ts: tsNum, mode: "active" as const, label: `${srcCs} → ${dstCs}`, sub: t("rf_p2p"), detail: `ISSI ${c.callerIssi} → ${c.calledIssi}` };
-    }
-    const speakerCs = c.callerIssi ? (issiCallsign(c.callerIssi) || String(c.callerIssi)) : "?";
-    return { ts: tsNum, mode: "active" as const, label: `GSSI ${c.gssi}`, sub: t("rf_group_call"), detail: speakerCs };
+    return { ts: tsNum, mode: "idle" as const, label: "—", sub: t("rf_idle"), detail: undefined as string | undefined };
   };
 
   const slots = [renderSlot(1), renderSlot(2), renderSlot(3), renderSlot(4)];
@@ -406,17 +424,22 @@ function RfChannelTimeslots({ rfCalls, issiCallsign }: {
         {slots.map(s => {
           const isMcch = s.mode === "mcch";
           const isActive = s.mode === "active";
+          const isVoice = s.mode === "voice";
           const borderCls = isMcch
             ? "border-cyan-400/30 bg-cyan-400/5"
             : isActive
               ? "border-emerald-400/60 bg-emerald-400/5 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-              : "border-white/10 bg-white/[0.02]";
+              : isVoice
+                ? "border-amber-400/60 bg-amber-400/5 shadow-[0_0_12px_rgba(251,191,36,0.15)]"
+                : "border-white/10 bg-white/[0.02]";
           const ledCls = isMcch
             ? "bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.6)]"
             : isActive
               ? "bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.7)] animate-pulse"
-              : "bg-white/15";
-          const labelCls = isMcch ? "text-cyan-300" : isActive ? "text-emerald-300" : "text-muted-foreground";
+              : isVoice
+                ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.7)] animate-pulse"
+                : "bg-white/15";
+          const labelCls = isMcch ? "text-cyan-300" : isActive ? "text-emerald-300" : isVoice ? "text-amber-300" : "text-muted-foreground";
           return (
             <div
               key={s.ts}
@@ -1078,7 +1101,7 @@ function SdsPanel({ messages }: { messages: SdsMessage[] }) {
 export default function Dashboard() {
   const { t } = useI18n();
   const tgName = useTgNames();
-  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, fsDashboardActive, connected } = useTetraWebSocket();
+  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, fsDashboardActive, tsVoiceActivity, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 
   // Build ISSI → callsign lookup so PRIV destinations can show callsign + flag.
@@ -1163,7 +1186,7 @@ export default function Dashboard() {
           issiCallsign={issiCallsign}
         />
 
-        {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} />}
+        {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} />}
 
         <TerminalTable
           terminals={terminalList}
