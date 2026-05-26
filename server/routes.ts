@@ -3410,6 +3410,12 @@ ${restartLine}
           applyEsAndBroadcast(String(m.issi), modeToStr(m.mode));
         } else if (m.type === 'ms_deregistered' && m.issi != null) {
           energySavingByIssi.delete(String(m.issi));
+        } else if (m.type === 'ts_voice' && m.ts != null) {
+          // Razvan v0.2.2+: rate-limited (4 Hz/TS) voice activity ping per timeslot.
+          // Forward to clients so the RF Timeslots panel can show RX activity even
+          // when call_started events are missing (e.g. flowstation v0.2.3 group-attach
+          // cap stalls call setup but voice frames still reach the BS).
+          broadcast(JSON.stringify({ type: 'rf_ts_voice', payload: { ts: m.ts } }));
         }
       } catch { /* ignore */ }
     });
