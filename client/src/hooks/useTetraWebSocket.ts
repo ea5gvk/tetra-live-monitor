@@ -83,6 +83,7 @@ export interface TetraState {
   gpsHistory: Record<string, GpsPosition[]>;
   rfCalls: RfCall[];
   fsDashboardActive: boolean;
+  tsVoiceActivity: Record<number, number>;
   connected: boolean;
   mode: string;
 }
@@ -96,6 +97,7 @@ export function useTetraWebSocket(): TetraState {
   const [gpsHistory, setGpsHistory] = useState<Record<string, GpsPosition[]>>({});
   const [rfCalls, setRfCalls] = useState<RfCall[]>([]);
   const [fsDashboardActive, setFsDashboardActive] = useState(false);
+  const [tsVoiceActivity, setTsVoiceActivity] = useState<Record<number, number>>({});
   const [connected, setConnected] = useState(false);
   const [mode, setMode] = useState("connecting");
   const wsRef = useRef<WebSocket | null>(null);
@@ -145,6 +147,12 @@ export function useTetraWebSocket(): TetraState {
 
           case "rf_call_ended":
             setRfCalls(prev => prev.filter((c: RfCall) => c.callId !== msg.payload.callId));
+            break;
+
+          case "rf_ts_voice":
+            if (msg.payload?.ts >= 1 && msg.payload?.ts <= 4) {
+              setTsVoiceActivity(prev => ({ ...prev, [msg.payload.ts]: Date.now() }));
+            }
             break;
 
           case "update_terminal":
@@ -238,5 +246,5 @@ export function useTetraWebSocket(): TetraState {
     };
   }, [connect]);
 
-  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, rfCalls, fsDashboardActive, connected, mode };
+  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, rfCalls, fsDashboardActive, tsVoiceActivity, connected, mode };
 }
