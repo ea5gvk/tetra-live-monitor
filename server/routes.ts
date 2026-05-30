@@ -1369,6 +1369,8 @@ ${restartLine}
       let inCommentedBrew = false;
       let inCommentedSecurity = false;
       let inCommentedDashboard = false;
+      let inCommentedWx = false;
+      let wxActive = false;      // true if [wx_service] header is active
       let brewCommented = false; // true if [brew] header is commented out
       let brewActive = false;    // true if [brew] header is active
       let rssiExportActive = false; // true if feature_rssi_export appears as active under [brew]
@@ -1386,6 +1388,8 @@ ${restartLine}
         if (line.match(/^#\s*\[brew\]/)) {
           inCommentedBrew = true;
           inCommentedSecurity = false;
+          inCommentedDashboard = false;
+          inCommentedWx = false;
           brewCommented = true;
           sections['brew'] = sections['brew'] || {};
           continue;
@@ -1395,6 +1399,7 @@ ${restartLine}
           inCommentedSecurity = true;
           inCommentedBrew = false;
           inCommentedDashboard = false;
+          inCommentedWx = false;
           sections['security'] = sections['security'] || {};
           continue;
         }
@@ -1403,7 +1408,17 @@ ${restartLine}
           inCommentedDashboard = true;
           inCommentedBrew = false;
           inCommentedSecurity = false;
+          inCommentedWx = false;
           sections['dashboard'] = sections['dashboard'] || {};
+          continue;
+        }
+        // Detect #[wx_service] (disabled weather service section header)
+        if (line.match(/^#\s*\[wx_service\]/)) {
+          inCommentedWx = true;
+          inCommentedBrew = false;
+          inCommentedSecurity = false;
+          inCommentedDashboard = false;
+          sections['wx_service'] = sections['wx_service'] || {};
           continue;
         }
 
@@ -1428,6 +1443,10 @@ ${restartLine}
           if (inCommentedSecurity) {
             const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
             if (ckv) sections['security'][ckv[1].trim()] = ckv[2].trim();
+          }
+          if (inCommentedWx) {
+            const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
+            if (ckv) sections['wx_service'][ckv[1].trim()] = ckv[2].trim();
           }
           if (inCommentedDashboard) {
             const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
@@ -1467,10 +1486,13 @@ ${restartLine}
         if (sectionMatch) {
           inCommentedBrew = false;
           inCommentedSecurity = false;
+          inCommentedDashboard = false;
+          inCommentedWx = false;
           currentSection = sectionMatch[1];
           if (currentSection === 'brew') brewActive = true;
           if (currentSection === 'security') securityActive = true;
           if (currentSection === 'dashboard') dashboardActive = true;
+          if (currentSection === 'wx_service') wxActive = true;
           sections[currentSection] = sections[currentSection] || {};
           continue;
         }
@@ -1478,6 +1500,8 @@ ${restartLine}
         if (/^\[\[[\w.]+\]\]\s*$/.test(line)) {
           inCommentedBrew = false;
           inCommentedSecurity = false;
+          inCommentedDashboard = false;
+          inCommentedWx = false;
           continue;
         }
         const kvMatch = line.match(/^([a-zA-Z0-9_.]+)\s*=\s*(.+)/);
@@ -1851,6 +1875,15 @@ ${restartLine}
           username: str('dashboard', 'username'),
           password: str('dashboard', 'password'),
         },
+        wx_service: {
+          enabled: wxActive,
+          service_issi: num('wx_service', 'service_issi'),
+          periodic_enabled: bool('wx_service', 'periodic_enabled'),
+          periodic_issi: num('wx_service', 'periodic_issi'),
+          periodic_is_group: bool('wx_service', 'periodic_is_group'),
+          periodic_icao: str('wx_service', 'periodic_icao'),
+          periodic_interval_secs: num('wx_service', 'periodic_interval_secs'),
+        },
         service_name: {
           enabled: serviceNameActive,
           value: serviceNameValue,
@@ -1862,7 +1895,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, serviceNameConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -3003,6 +3036,52 @@ ${restartLine}
           } else {
             lines.splice(afterBind + 1, 0, finalUser, finalPass);
           }
+        }
+      }
+
+      // ── Weather Service [wx_service] (Flowstation only) ──
+      // Only touch when client explicitly sends wxServiceConfig. Mirrors the
+      // calculator buildToml() output so preview and applied file match.
+      if (wxServiceConfig && typeof wxServiceConfig === "object") {
+        const clampI = (v: any, min: number, max: number, def: number) => {
+          const n = Number(v);
+          return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : def;
+        };
+        const wxEnabled = wxServiceConfig.enabled === true;
+        const wxSvcIssi = clampI(wxServiceConfig.service_issi, 0, 16777215, 9998);
+        const wxPerEnabled = wxServiceConfig.periodic_enabled === true;
+        const wxPerIssi = clampI(wxServiceConfig.periodic_issi, 0, 16777215, 1001);
+        const wxPerGroup = wxServiceConfig.periodic_is_group === true;
+        const wxIcao = (typeof wxServiceConfig.periodic_icao === "string" && wxServiceConfig.periodic_icao.trim()
+          ? wxServiceConfig.periodic_icao.trim().toUpperCase() : "LROP").replace(/"/g, "");
+        const wxInterval = Math.max(300, clampI(wxServiceConfig.periodic_interval_secs, 300, 86400, 1800));
+        const p = wxEnabled ? "" : "# ";
+        const block = [
+          `${p}[wx_service]`,
+          `${p}enabled = ${wxEnabled ? "true" : "false"}`,
+          `${p}service_issi = ${wxSvcIssi}`,
+          `${p}periodic_enabled = ${wxPerEnabled ? "true" : "false"}`,
+          `${p}periodic_issi = ${wxPerIssi}`,
+          `${p}periodic_is_group = ${wxPerGroup ? "true" : "false"}`,
+          `${p}periodic_icao = "${wxIcao}"`,
+          `${p}periodic_interval_secs = ${wxInterval}`,
+        ];
+
+        // Find existing [wx_service] (active or commented) header
+        let wxStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[wx_service\]/) || lines[i].match(/^\s*#\s*\[wx_service\]/)) { wxStart = i; break; }
+        }
+        if (wxStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          // Find end of section (next active/commented header), then replace whole block
+          let wxEnd = lines.length;
+          for (let j = wxStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { wxEnd = j; break; }
+          }
+          lines.splice(wxStart, wxEnd - wxStart, ...block);
         }
       }
 
