@@ -3367,6 +3367,7 @@
     }
     // Weather Service [wx_service] (Flowstation only)
     if (document.getElementById("sectionWxService")?.style.display !== "none") {
+      const clampInt = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
       const wxEnabled = el("enableWxService").checked;
       const wxSvcIssi = clampInt(el("wxServiceIssi").value, 0, 16777215, 9998);
       const wxPerEnabled = el("enableWxPeriodic").checked;
