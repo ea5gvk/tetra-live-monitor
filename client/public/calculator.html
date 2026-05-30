@@ -773,6 +773,53 @@
       </div>
     </section>
   </div>
+  <div id="sectionWxService" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="wx_title">🌦️ Servicio Meteorológico [wx_service]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableWxService" />
+            <label for="enableWxService" data-i18n="wx_enable">Activar servicio meteorológico</label>
+          </div>
+          <div class="hint" data-i18n="wx_hint">Responde con METAR a las radios que envían un SDS al ISSI del servicio. Si está desactivado, todo el bloque [wx_service] se escribe comentado.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="wxServiceFields" style="display:none; margin-top:10px;">
+        <label for="wxServiceIssi" data-i18n="wx_service_issi_label">service_issi</label>
+        <input id="wxServiceIssi" type="number" min="0" max="16777215" value="9998" style="max-width:220px" />
+        <div class="hint" data-i18n="wx_service_issi_hint">ISSI al que las radios envían un SDS para pedir el tiempo.</div>
+
+        <div class="subsection" style="margin-top:14px;">
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableWxPeriodic" />
+            <label for="enableWxPeriodic" data-i18n="wx_periodic_enable">Activar emisión periódica automática</label>
+          </div>
+          <div class="hint" data-i18n="wx_periodic_hint">Emite automáticamente el METAR de una estación fija cada cierto intervalo.</div>
+          <div id="wxPeriodicFields" style="display:none; margin-top:10px;">
+            <label for="wxPeriodicIssi" data-i18n="wx_periodic_issi_label">periodic_issi</label>
+            <input id="wxPeriodicIssi" type="number" min="0" max="16777215" value="1001" style="max-width:220px" />
+            <div class="hint" data-i18n="wx_periodic_issi_hint">Destino (ISSI, o GSSI si está marcado abajo).</div>
+            <div class="checkbox-row" style="margin-top:10px;">
+              <input type="checkbox" id="wxPeriodicIsGroup" />
+              <label for="wxPeriodicIsGroup" data-i18n="wx_periodic_is_group">periodic_is_group (el destino es un grupo / GSSI)</label>
+            </div>
+            <label for="wxPeriodicIcao" style="margin-top:10px;" data-i18n="wx_periodic_icao_label">periodic_icao</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap; align-items:center;">
+              <input id="wxPeriodicIcao" type="text" value="LROP" placeholder="LROP" maxlength="4" style="max-width:120px; text-transform:uppercase;" />
+              <select id="wxIcaoPicker" style="flex:1; min-width:220px;">
+                <option value="" data-i18n="wx_icao_picker_default">— Seleccionar aeropuerto —</option>
+              </select>
+            </div>
+            <div class="hint" data-i18n="wx_periodic_icao_hint">Código ICAO de la estación cuyo METAR se envía. Escríbelo manualmente o selecciónalo de la lista.</div>
+            <label for="wxPeriodicInterval" style="margin-top:10px;" data-i18n="wx_periodic_interval_label">periodic_interval_secs (>= 300)</label>
+            <input id="wxPeriodicInterval" type="number" min="300" max="86400" value="1800" style="max-width:220px" />
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="tg_names_title">📡 Talkgroup Names</h2>
@@ -994,6 +1041,20 @@
       security_whitelist_hint: "List of allowed ISSIs, e.g.: 1030299, 1030036, 2145007",
       dashboard_title: "🖥️ Web Dashboard [dashboard]",
       dashboard_enable: "Enable web dashboard",
+      wx_title: "🌦️ Weather Service [wx_service]",
+      wx_enable: "Enable weather service",
+      wx_hint: "Replies with METAR to radios that send an SDS to the service ISSI. When disabled, the whole [wx_service] block is written commented out.",
+      wx_service_issi_label: "service_issi",
+      wx_service_issi_hint: "ISSI that radios send an SDS to in order to request the weather.",
+      wx_periodic_enable: "Enable automatic periodic broadcast",
+      wx_periodic_hint: "Automatically broadcasts the METAR of a fixed station at a set interval.",
+      wx_periodic_issi_label: "periodic_issi",
+      wx_periodic_issi_hint: "Destination (ISSI, or GSSI if marked below).",
+      wx_periodic_is_group: "periodic_is_group (destination is a group / GSSI)",
+      wx_periodic_icao_label: "periodic_icao",
+      wx_icao_picker_default: "— Select airport —",
+      wx_periodic_icao_hint: "ICAO code of the station whose METAR is sent. Type it manually or pick it from the list.",
+      wx_periodic_interval_label: "periodic_interval_secs (>= 300)",
       dashboard_hint: "Live view of terminals, calls and log at http://<BTS-IP>:PORT (FlowStation only). Required for SDS/KICK from this panel.",
       dashboard_port_label: "port (1 - 65535)",
       dashboard_bind_label: "bind (IP/hostname)",
@@ -1175,6 +1236,20 @@
       security_whitelist_hint: "允許的 ISSI 列表，例如：1030299, 1030036, 2145007",
       dashboard_title: "🖥️ 網頁儀表板 [dashboard]",
       dashboard_enable: "啟用網頁儀表板",
+      wx_title: "🌦️ 氣象服務 [wx_service]",
+      wx_enable: "啟用氣象服務",
+      wx_hint: "當無線電向服務 ISSI 發送 SDS 時以 METAR 回覆。停用時，整個 [wx_service] 區塊會以註解形式寫入。",
+      wx_service_issi_label: "service_issi",
+      wx_service_issi_hint: "無線電發送 SDS 以索取天氣的目標 ISSI。",
+      wx_periodic_enable: "啟用自動定時播報",
+      wx_periodic_hint: "依設定的間隔自動播報固定測站的 METAR。",
+      wx_periodic_issi_label: "periodic_issi",
+      wx_periodic_issi_hint: "目的地（ISSI，若下方勾選則為 GSSI）。",
+      wx_periodic_is_group: "periodic_is_group（目的地為群組 / GSSI）",
+      wx_periodic_icao_label: "periodic_icao",
+      wx_icao_picker_default: "— 選擇機場 —",
+      wx_periodic_icao_hint: "要播報 METAR 的測站 ICAO 代碼。可手動輸入或從清單選擇。",
+      wx_periodic_interval_label: "periodic_interval_secs（>= 300）",
       dashboard_hint: "在 http://<BTS-IP>:PORT 即時查看終端、通話與日誌（僅 FlowStation）。從此面板使用 SDS/KICK 需要啟用。",
       dashboard_port_label: "端口 (1 - 65535)",
       dashboard_bind_label: "绑定地址",
@@ -1356,6 +1431,20 @@
       security_whitelist_hint: "Lista de ISSI permitidas, ej: 1030299, 1030036, 2145007",
       dashboard_title: "🖥️ Dashboard Web [dashboard]",
       dashboard_enable: "Activar dashboard web",
+      wx_title: "🌦️ Servicio Meteorológico [wx_service]",
+      wx_enable: "Activar servicio meteorológico",
+      wx_hint: "Responde con METAR a las radios que envían un SDS al ISSI del servicio. Si está desactivado, todo el bloque [wx_service] se escribe comentado.",
+      wx_service_issi_label: "service_issi",
+      wx_service_issi_hint: "ISSI al que las radios envían un SDS para pedir el tiempo.",
+      wx_periodic_enable: "Activar emisión periódica automática",
+      wx_periodic_hint: "Emite automáticamente el METAR de una estación fija cada cierto intervalo.",
+      wx_periodic_issi_label: "periodic_issi",
+      wx_periodic_issi_hint: "Destino (ISSI, o GSSI si está marcado abajo).",
+      wx_periodic_is_group: "periodic_is_group (el destino es un grupo / GSSI)",
+      wx_periodic_icao_label: "periodic_icao",
+      wx_icao_picker_default: "— Seleccionar aeropuerto —",
+      wx_periodic_icao_hint: "Código ICAO de la estación cuyo METAR se envía. Escríbelo manualmente o selecciónalo de la lista.",
+      wx_periodic_interval_label: "periodic_interval_secs (>= 300)",
       dashboard_hint: "Vista en vivo de terminales, llamadas y log en http://<BTS-IP>:PUERTO (solo FlowStation). Necesario para SDS/KICK desde este panel.",
       dashboard_port_label: "puerto (1 - 65535)",
       dashboard_bind_label: "bind (IP/hostname)",
@@ -1537,6 +1626,20 @@
       security_whitelist_hint: "Lista de ISSI permitidos, ex: 1030299, 1030036, 2145007",
       dashboard_title: "🖥️ Painel Web [dashboard]",
       dashboard_enable: "Ativar painel web",
+      wx_title: "🌦️ Serviço Meteorológico [wx_service]",
+      wx_enable: "Ativar serviço meteorológico",
+      wx_hint: "Responde com METAR às rádios que enviam um SDS para o ISSI do serviço. Se desativado, todo o bloco [wx_service] é escrito comentado.",
+      wx_service_issi_label: "service_issi",
+      wx_service_issi_hint: "ISSI para o qual as rádios enviam um SDS para pedir o tempo.",
+      wx_periodic_enable: "Ativar emissão periódica automática",
+      wx_periodic_hint: "Emite automaticamente o METAR de uma estação fixa a cada intervalo definido.",
+      wx_periodic_issi_label: "periodic_issi",
+      wx_periodic_issi_hint: "Destino (ISSI, ou GSSI se marcado abaixo).",
+      wx_periodic_is_group: "periodic_is_group (o destino é um grupo / GSSI)",
+      wx_periodic_icao_label: "periodic_icao",
+      wx_icao_picker_default: "— Selecionar aeroporto —",
+      wx_periodic_icao_hint: "Código ICAO da estação cujo METAR é enviado. Escreva-o manualmente ou selecione-o da lista.",
+      wx_periodic_interval_label: "periodic_interval_secs (>= 300)",
       dashboard_hint: "Vista ao vivo de terminais, chamadas e log em http://<BTS-IP>:PORTA (apenas FlowStation). Necessário para SDS/KICK deste painel.",
       dashboard_port_label: "porta (1 - 65535)",
       dashboard_bind_label: "bind (IP/hostname)",
@@ -1718,6 +1821,20 @@
       security_whitelist_hint: "Liste erlaubter ISSIs, z.B.: 1030299, 1030036, 2145007",
       dashboard_title: "🖥️ Web-Dashboard [dashboard]",
       dashboard_enable: "Web-Dashboard aktivieren",
+      wx_title: "🌦️ Wetterdienst [wx_service]",
+      wx_enable: "Wetterdienst aktivieren",
+      wx_hint: "Antwortet mit METAR an Funkgeräte, die eine SDS an die Dienst-ISSI senden. Wenn deaktiviert, wird der gesamte [wx_service]-Block auskommentiert geschrieben.",
+      wx_service_issi_label: "service_issi",
+      wx_service_issi_hint: "ISSI, an die Funkgeräte eine SDS senden, um das Wetter abzufragen.",
+      wx_periodic_enable: "Automatische periodische Aussendung aktivieren",
+      wx_periodic_hint: "Sendet automatisch das METAR einer festen Station in einem festgelegten Intervall.",
+      wx_periodic_issi_label: "periodic_issi",
+      wx_periodic_issi_hint: "Ziel (ISSI oder GSSI, wenn unten markiert).",
+      wx_periodic_is_group: "periodic_is_group (Ziel ist eine Gruppe / GSSI)",
+      wx_periodic_icao_label: "periodic_icao",
+      wx_icao_picker_default: "— Flughafen auswählen —",
+      wx_periodic_icao_hint: "ICAO-Code der Station, deren METAR gesendet wird. Manuell eingeben oder aus der Liste wählen.",
+      wx_periodic_interval_label: "periodic_interval_secs (>= 300)",
       dashboard_hint: "Live-Ansicht von Terminals, Anrufen und Log unter http://<BTS-IP>:PORT (nur FlowStation). Erforderlich für SDS/KICK aus diesem Panel.",
       dashboard_port_label: "Port (1 - 65535)",
       dashboard_bind_label: "Bind (IP/Hostname)",
@@ -1899,6 +2016,20 @@
       security_whitelist_hint: "Liste des ISSI autorisés, ex: 1030299, 1030036, 2145007",
       dashboard_title: "🖥️ Tableau de bord web [dashboard]",
       dashboard_enable: "Activer le tableau de bord web",
+      wx_title: "🌦️ Service météo [wx_service]",
+      wx_enable: "Activer le service météo",
+      wx_hint: "Répond par METAR aux radios qui envoient un SDS à l'ISSI du service. Si désactivé, tout le bloc [wx_service] est écrit en commentaire.",
+      wx_service_issi_label: "service_issi",
+      wx_service_issi_hint: "ISSI auquel les radios envoient un SDS pour demander la météo.",
+      wx_periodic_enable: "Activer l'émission périodique automatique",
+      wx_periodic_hint: "Émet automatiquement le METAR d'une station fixe à intervalle défini.",
+      wx_periodic_issi_label: "periodic_issi",
+      wx_periodic_issi_hint: "Destination (ISSI, ou GSSI si coché ci-dessous).",
+      wx_periodic_is_group: "periodic_is_group (la destination est un groupe / GSSI)",
+      wx_periodic_icao_label: "periodic_icao",
+      wx_icao_picker_default: "— Sélectionner un aéroport —",
+      wx_periodic_icao_hint: "Code OACI de la station dont le METAR est envoyé. Saisissez-le manuellement ou choisissez-le dans la liste.",
+      wx_periodic_interval_label: "periodic_interval_secs (>= 300)",
       dashboard_hint: "Vue en direct des terminaux, appels et log sur http://<BTS-IP>:PORT (FlowStation uniquement). Requis pour SDS/KICK depuis ce panneau.",
       dashboard_port_label: "port (1 - 65535)",
       dashboard_bind_label: "bind (IP/nom d'hôte)",
@@ -2080,6 +2211,20 @@
       security_whitelist_hint: "Elenco degli ISSI consentiti, es: 1030299, 1030036, 2145007",
       dashboard_title: "🖥️ Dashboard Web [dashboard]",
       dashboard_enable: "Abilita dashboard web",
+      wx_title: "🌦️ Servizio Meteo [wx_service]",
+      wx_enable: "Attiva servizio meteo",
+      wx_hint: "Risponde con METAR alle radio che inviano un SDS all'ISSI del servizio. Se disattivato, l'intero blocco [wx_service] viene scritto commentato.",
+      wx_service_issi_label: "service_issi",
+      wx_service_issi_hint: "ISSI a cui le radio inviano un SDS per richiedere il meteo.",
+      wx_periodic_enable: "Attiva trasmissione periodica automatica",
+      wx_periodic_hint: "Trasmette automaticamente il METAR di una stazione fissa a intervalli prestabiliti.",
+      wx_periodic_issi_label: "periodic_issi",
+      wx_periodic_issi_hint: "Destinazione (ISSI, o GSSI se selezionato sotto).",
+      wx_periodic_is_group: "periodic_is_group (la destinazione è un gruppo / GSSI)",
+      wx_periodic_icao_label: "periodic_icao",
+      wx_icao_picker_default: "— Seleziona aeroporto —",
+      wx_periodic_icao_hint: "Codice ICAO della stazione il cui METAR viene inviato. Digitalo manualmente o selezionalo dall'elenco.",
+      wx_periodic_interval_label: "periodic_interval_secs (>= 300)",
       dashboard_hint: "Vista live di terminali, chiamate e log su http://<BTS-IP>:PORTA (solo FlowStation). Richiesto per SDS/KICK da questo pannello.",
       dashboard_port_label: "porta (1 - 65535)",
       dashboard_bind_label: "bind (IP/hostname)",
@@ -2261,6 +2406,20 @@
       security_whitelist_hint: "Liste over tilladte ISSIer, f.eks.: 1030299, 1030036, 2145007",
       dashboard_title: "🖥️ Web-dashboard [dashboard]",
       dashboard_enable: "Aktivér web-dashboard",
+      wx_title: "🌦️ Vejrtjeneste [wx_service]",
+      wx_enable: "Aktivér vejrtjeneste",
+      wx_hint: "Svarer med METAR til radioer, der sender en SDS til tjenestens ISSI. Når deaktiveret, skrives hele [wx_service]-blokken udkommenteret.",
+      wx_service_issi_label: "service_issi",
+      wx_service_issi_hint: "ISSI som radioer sender en SDS til for at anmode om vejret.",
+      wx_periodic_enable: "Aktivér automatisk periodisk udsendelse",
+      wx_periodic_hint: "Udsender automatisk METAR for en fast station med et fast interval.",
+      wx_periodic_issi_label: "periodic_issi",
+      wx_periodic_issi_hint: "Destination (ISSI, eller GSSI hvis markeret nedenfor).",
+      wx_periodic_is_group: "periodic_is_group (destinationen er en gruppe / GSSI)",
+      wx_periodic_icao_label: "periodic_icao",
+      wx_icao_picker_default: "— Vælg lufthavn —",
+      wx_periodic_icao_hint: "ICAO-kode for den station, hvis METAR sendes. Skriv den manuelt eller vælg den fra listen.",
+      wx_periodic_interval_label: "periodic_interval_secs (>= 300)",
       dashboard_hint: "Live-visning af terminaler, opkald og log på http://<BTS-IP>:PORT (kun FlowStation). Påkrævet for SDS/KICK fra dette panel.",
       dashboard_port_label: "port (1 - 65535)",
       dashboard_bind_label: "bind (IP/hostname)",
@@ -2442,6 +2601,20 @@
       security_whitelist_hint: "Lijst van toegestane ISSIs, bv: 1030299, 1030036, 2145007",
       dashboard_title: "🖥️ Web-dashboard [dashboard]",
       dashboard_enable: "Web-dashboard inschakelen",
+      wx_title: "🌦️ Weerdienst [wx_service]",
+      wx_enable: "Weerdienst inschakelen",
+      wx_hint: "Antwoordt met METAR aan radio's die een SDS naar de service-ISSI sturen. Indien uitgeschakeld wordt het hele [wx_service]-blok als commentaar weggeschreven.",
+      wx_service_issi_label: "service_issi",
+      wx_service_issi_hint: "ISSI waar radio's een SDS naartoe sturen om het weer op te vragen.",
+      wx_periodic_enable: "Automatische periodieke uitzending inschakelen",
+      wx_periodic_hint: "Zendt automatisch de METAR van een vast station met een ingesteld interval uit.",
+      wx_periodic_issi_label: "periodic_issi",
+      wx_periodic_issi_hint: "Bestemming (ISSI, of GSSI indien hieronder aangevinkt).",
+      wx_periodic_is_group: "periodic_is_group (bestemming is een groep / GSSI)",
+      wx_periodic_icao_label: "periodic_icao",
+      wx_icao_picker_default: "— Luchthaven selecteren —",
+      wx_periodic_icao_hint: "ICAO-code van het station waarvan de METAR wordt verzonden. Typ het handmatig of kies het uit de lijst.",
+      wx_periodic_interval_label: "periodic_interval_secs (>= 300)",
       dashboard_hint: "Live weergave van terminals, oproepen en log op http://<BTS-IP>:POORT (alleen FlowStation). Vereist voor SDS/KICK vanuit dit paneel.",
       dashboard_port_label: "poort (1 - 65535)",
       dashboard_bind_label: "bind (IP/hostnaam)",
@@ -2623,6 +2796,20 @@
       security_whitelist_hint: "Listă de ISSI-uri permise, ex.: 1030299, 1030036, 2145007",
       dashboard_title: "🖥️ Tablou de bord web [dashboard]",
       dashboard_enable: "Activează tabloul de bord web",
+      wx_title: "🌦️ Serviciu meteo [wx_service]",
+      wx_enable: "Activează serviciul meteo",
+      wx_hint: "Răspunde cu METAR stațiilor radio care trimit un SDS către ISSI-ul serviciului. Dacă este dezactivat, tot blocul [wx_service] este scris comentat.",
+      wx_service_issi_label: "service_issi",
+      wx_service_issi_hint: "ISSI-ul către care radiourile trimit un SDS pentru a cere vremea.",
+      wx_periodic_enable: "Activează emisia periodică automată",
+      wx_periodic_hint: "Emite automat METAR-ul unei stații fixe la un interval prestabilit.",
+      wx_periodic_issi_label: "periodic_issi",
+      wx_periodic_issi_hint: "Destinație (ISSI sau GSSI dacă este bifat mai jos).",
+      wx_periodic_is_group: "periodic_is_group (destinația este un grup / GSSI)",
+      wx_periodic_icao_label: "periodic_icao",
+      wx_icao_picker_default: "— Selectează aeroportul —",
+      wx_periodic_icao_hint: "Codul ICAO al stației al cărei METAR este trimis. Scrie-l manual sau selectează-l din listă.",
+      wx_periodic_interval_label: "periodic_interval_secs (>= 300)",
       dashboard_hint: "Vizualizare live a terminalelor, apelurilor și log-ului la http://<BTS-IP>:PORT (doar FlowStation). Necesar pentru SDS/KICK din acest panou.",
       dashboard_port_label: "port (1 - 65535)",
       dashboard_bind_label: "bind (IP/hostname)",
@@ -3177,6 +3364,26 @@
         lines.push(`# username = "${dashUser || 'admin'}"`);
         lines.push(`# password = "${dashPass || 'changeme'}"`);
       }
+    }
+    // Weather Service [wx_service] (Flowstation only)
+    if (document.getElementById("sectionWxService")?.style.display !== "none") {
+      const wxEnabled = el("enableWxService").checked;
+      const wxSvcIssi = clampInt(el("wxServiceIssi").value, 0, 16777215, 9998);
+      const wxPerEnabled = el("enableWxPeriodic").checked;
+      const wxPerIssi = clampInt(el("wxPeriodicIssi").value, 0, 16777215, 1001);
+      const wxPerGroup = el("wxPeriodicIsGroup").checked;
+      const wxIcao = (el("wxPeriodicIcao").value.trim().toUpperCase() || "LROP").replace(/"/g, "");
+      const wxInterval = Math.max(300, clampInt(el("wxPeriodicInterval").value, 300, 86400, 1800));
+      const p = wxEnabled ? "" : "# ";
+      lines.push("");
+      lines.push(`${p}[wx_service]`);
+      lines.push(`${p}enabled = ${wxEnabled ? "true" : "false"}`);
+      lines.push(`${p}service_issi = ${wxSvcIssi}`);
+      lines.push(`${p}periodic_enabled = ${wxPerEnabled ? "true" : "false"}`);
+      lines.push(`${p}periodic_issi = ${wxPerIssi}`);
+      lines.push(`${p}periodic_is_group = ${wxPerGroup ? "true" : "false"}`);
+      lines.push(`${p}periodic_icao = "${wxIcao}"`);
+      lines.push(`${p}periodic_interval_secs = ${wxInterval}`);
     }
     return lines.join("\n");
   }
@@ -3761,6 +3968,27 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         if (data.dashboard.password) el("dashboardPassword").value = data.dashboard.password;
       }
 
+      // ── Weather Service [wx_service]
+      if (data.wx_service) {
+        el("enableWxService").checked = !!data.wx_service.enabled;
+        if (data.wx_service.service_issi !== null && data.wx_service.service_issi !== undefined)
+          el("wxServiceIssi").value = String(data.wx_service.service_issi);
+        el("enableWxPeriodic").checked = !!data.wx_service.periodic_enabled;
+        if (data.wx_service.periodic_issi !== null && data.wx_service.periodic_issi !== undefined)
+          el("wxPeriodicIssi").value = String(data.wx_service.periodic_issi);
+        el("wxPeriodicIsGroup").checked = !!data.wx_service.periodic_is_group;
+        if (data.wx_service.periodic_icao) {
+          const loadedIcao = String(data.wx_service.periodic_icao).toUpperCase();
+          el("wxPeriodicIcao").value = loadedIcao;
+          const picker = el("wxIcaoPicker");
+          if (picker) picker.value = WX_AIRPORTS.some(a => a[0] === loadedIcao) ? loadedIcao : "";
+        }
+        if (data.wx_service.periodic_interval_secs !== null && data.wx_service.periodic_interval_secs !== undefined)
+          el("wxPeriodicInterval").value = String(data.wx_service.periodic_interval_secs);
+        el("enableWxService").dispatchEvent(new Event("change"));
+        el("enableWxPeriodic").dispatchEvent(new Event("change"));
+      }
+
       statusEl.innerHTML = `<span style="color:var(--ok)">✅ Config cargada correctamente desde ${escapeHtml(configPath)}</span>`;
     } catch(e) {
       statusEl.innerHTML = `<span class="warn">❌ Error: ${escapeHtml(String(e))}</span>`;
@@ -3910,6 +4138,18 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       text: el("hmdText").value || "",
     } : null;
 
+    // Collect Weather Service options (Flowstation only — null in bluestation)
+    const wxIsFlow = document.getElementById("sectionWxService")?.style.display !== "none";
+    const wxServiceConfig = wxIsFlow ? {
+      enabled: el("enableWxService").checked,
+      service_issi: clampInt(el("wxServiceIssi").value, 0, 16777215, 9998),
+      periodic_enabled: el("enableWxPeriodic").checked,
+      periodic_issi: clampInt(el("wxPeriodicIssi").value, 0, 16777215, 1001),
+      periodic_is_group: el("wxPeriodicIsGroup").checked,
+      periodic_icao: (el("wxPeriodicIcao").value.trim().toUpperCase() || "LROP").replace(/"/g, ""),
+      periodic_interval_secs: Math.max(300, clampInt(el("wxPeriodicInterval").value, 300, 86400, 1800)),
+    } : null;
+
     // Collect neighbor cells (always send so server can write commented when disabled)
     const neighborCellsConfig = {
       enabled: el("enableNeighborCells").checked,
@@ -3938,6 +4178,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           sdsBroadcastConfig,
           sdsCommandControlConfig,
           dashboardConfig,
+          wxServiceConfig,
           serviceNameConfig
         })
       });
@@ -4481,6 +4722,116 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     });
   });
 
+  // ── Weather Service [wx_service] (Flowstation only) ──
+  // Curated ICAO airport list: strong Spain (LE**) coverage + Europe + worldwide.
+  // Format shown to user: "LROP — Bucarest". Manual text entry stays available.
+  const WX_AIRPORTS = [
+    // Spain (LE**)
+    ["LEMD","Madrid-Barajas"],["LEBL","Barcelona-El Prat"],["LEMG","Málaga-Costa del Sol"],
+    ["LEPA","Palma de Mallorca"],["LEAL","Alicante-Elche"],["LEVC","Valencia"],
+    ["LEZL","Sevilla"],["LEBB","Bilbao"],["LEGR","Granada-Jaén"],["LEST","Santiago de Compostela"],
+    ["LEMH","Menorca"],["LEIB","Ibiza"],["LEAS","Asturias"],["LEXJ","Santander"],
+    ["LEVX","Vigo"],["LECO","A Coruña"],["LEZG","Zaragoza"],["LEVT","Vitoria"],
+    ["LESO","San Sebastián"],["LERS","Reus"],["LEGE","Girona-Costa Brava"],["LEMI","Murcia-Corvera"],
+    ["LEAM","Almería"],["LEJR","Jerez"],["LELN","León"],["LESA","Salamanca"],
+    ["LEVD","Valladolid"],["LEBG","Burgos"],["LEBA","Córdoba"],["LEBZ","Badajoz"],
+    ["LEHC","Huesca-Pirineos"],["LELC","Murcia-San Javier"],["LEPP","Pamplona"],["LELO","Logroño"],
+    ["LEAB","Albacete"],["GCLP","Gran Canaria"],["GCXO","Tenerife Norte"],["GCTS","Tenerife Sur"],
+    ["GCFV","Fuerteventura"],["GCLA","La Palma"],["GCRR","Lanzarote"],["GEML","Melilla"],
+    // Portugal
+    ["LPPT","Lisboa"],["LPPR","Porto"],["LPFR","Faro"],["LPMA","Funchal-Madeira"],["LPPD","Ponta Delgada"],
+    // France
+    ["LFPG","París-Charles de Gaulle"],["LFPO","París-Orly"],["LFLL","Lyon"],["LFML","Marsella"],
+    ["LFMN","Niza"],["LFBO","Toulouse"],["LFBD","Burdeos"],["LFSB","Basilea-Mulhouse"],
+    ["LFRS","Nantes"],["LFST","Estrasburgo"],
+    // United Kingdom & Ireland
+    ["EGLL","Londres-Heathrow"],["EGKK","Londres-Gatwick"],["EGSS","Londres-Stansted"],
+    ["EGCC","Mánchester"],["EGPH","Edimburgo"],["EGPF","Glasgow"],["EGGD","Bristol"],
+    ["EGBB","Birmingham"],["EIDW","Dublín"],["EICK","Cork"],
+    // Germany
+    ["EDDF","Fráncfort"],["EDDM","Múnich"],["EDDB","Berlín-Brandeburgo"],["EDDH","Hamburgo"],
+    ["EDDL","Düsseldorf"],["EDDK","Colonia-Bonn"],["EDDS","Stuttgart"],
+    // Benelux
+    ["EHAM","Ámsterdam-Schiphol"],["EBBR","Bruselas"],["ELLX","Luxemburgo"],["EHRD","Róterdam"],
+    // Italy
+    ["LIRF","Roma-Fiumicino"],["LIMC","Milán-Malpensa"],["LIML","Milán-Linate"],["LIPZ","Venecia"],
+    ["LIRN","Nápoles"],["LIBD","Bari"],["LICC","Catania"],["LICJ","Palermo"],["LIPE","Bolonia"],["LIMF","Turín"],
+    // Switzerland & Austria
+    ["LSZH","Zúrich"],["LSGG","Ginebra"],["LOWW","Viena"],["LOWS","Salzburgo"],["LOWI","Innsbruck"],
+    // Scandinavia & Nordics
+    ["EKCH","Copenhague"],["ENGM","Oslo"],["ESSA","Estocolmo-Arlanda"],["EFHK","Helsinki"],
+    ["BIKF","Reikiavik-Keflavík"],
+    // Eastern & Central Europe
+    ["LROP","Bucarest-Otopeni"],["LRCL","Cluj-Napoca"],["LRTR","Timișoara"],["LRIA","Iași"],
+    ["LRCV","Craiova"],["LRSB","Sibiu"],["LRBS","Bucarest-Băneasa"],
+    ["EPWA","Varsovia"],["EPKK","Cracovia"],["LKPR","Praga"],["LZIB","Bratislava"],
+    ["LHBP","Budapest"],["LBSF","Sofía"],["LDZA","Zagreb"],["LJLJ","Liubliana"],
+    ["LYBE","Belgrado"],["LWSK","Skopie"],["LQSA","Sarajevo"],["LATI","Tirana"],
+    ["UKBB","Kiev-Boryspil"],["UMMS","Minsk"],
+    // Greece, Turkey, Cyprus, Malta
+    ["LGAV","Atenas"],["LGTS","Tesalónica"],["LGIR","Heraclión"],["LTFM","Estambul"],
+    ["LTAC","Ankara"],["LTAI","Antalya"],["LCLK","Lárnaca"],["LMML","Malta"],
+    // North America
+    ["KJFK","Nueva York-JFK"],["KLAX","Los Ángeles"],["KORD","Chicago-O'Hare"],["KATL","Atlanta"],
+    ["KMIA","Miami"],["KSFO","San Francisco"],["KDFW","Dallas-Fort Worth"],["KSEA","Seattle"],
+    ["KBOS","Boston"],["KIAD","Washington-Dulles"],["CYYZ","Toronto"],["CYUL","Montreal"],
+    ["CYVR","Vancouver"],["MMMX","Ciudad de México"],["MMUN","Cancún"],
+    // Central & South America
+    ["SBGR","São Paulo-Guarulhos"],["SBGL","Río de Janeiro"],["SAEZ","Buenos Aires-Ezeiza"],
+    ["SCEL","Santiago de Chile"],["SKBO","Bogotá"],["SPJC","Lima"],["SEQM","Quito"],
+    ["SVMI","Caracas"],["MPTO","Ciudad de Panamá"],["MROC","San José (CR)"],["MUHA","La Habana"],
+    ["MDSD","Santo Domingo"],["TJSJ","San Juan (PR)"],
+    // Middle East & Africa
+    ["OMDB","Dubái"],["OTHH","Doha"],["OERK","Riad"],["OEJN","Yeda"],["LLBG","Tel Aviv"],
+    ["HECA","El Cairo"],["GMMN","Casablanca"],["DTTA","Túnez"],["DAAG","Argel"],
+    ["FAOR","Johannesburgo"],["HKJK","Nairobi"],["DNMM","Lagos"],["GOBD","Dakar"],
+    // Asia & Oceania
+    ["RJTT","Tokio-Haneda"],["RJAA","Tokio-Narita"],["RKSI","Seúl-Incheon"],["ZBAA","Pekín-Capital"],
+    ["ZSPD","Shanghái-Pudong"],["VHHH","Hong Kong"],["WSSS","Singapur"],["VTBS","Bangkok"],
+    ["WMKK","Kuala Lumpur"],["VIDP","Nueva Delhi"],["VABB","Bombay"],["RPLL","Manila"],
+    ["YSSY","Sídney"],["YMML","Melbourne"],["NZAA","Auckland"],
+  ];
+  (function(){
+    const picker = el("wxIcaoPicker");
+    if (picker) {
+      const frag = document.createDocumentFragment();
+      for (const [icao, name] of WX_AIRPORTS) {
+        const opt = document.createElement("option");
+        opt.value = icao;
+        opt.textContent = `${icao} — ${name}`;
+        frag.appendChild(opt);
+      }
+      picker.appendChild(frag);
+      picker.addEventListener("change", function(){
+        if (!this.value) return;
+        el("wxPeriodicIcao").value = this.value;
+        updateTomlFromNew();
+      });
+    }
+  })();
+  el("enableWxService").addEventListener("change", function(){
+    el("wxServiceFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  el("enableWxPeriodic").addEventListener("change", function(){
+    el("wxPeriodicFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["wxServiceIssi","wxPeriodicIssi","wxPeriodicIsGroup","wxPeriodicIcao","wxPeriodicInterval"].forEach(id => {
+    const node = el(id);
+    if (!node) return;
+    const ev = id === "wxPeriodicIsGroup" ? "change" : "input";
+    node.addEventListener(ev, function(){
+      // Keep the picker in sync if the user types a code that matches an option
+      if (id === "wxPeriodicIcao") {
+        const v = this.value.trim().toUpperCase();
+        const picker = el("wxIcaoPicker");
+        if (picker) picker.value = WX_AIRPORTS.some(a => a[0] === v) ? v : "";
+      }
+      updateTomlFromNew();
+    });
+  });
+
   // Populate timezone select
   (function(){
     const sel = el("timezoneVal");
@@ -4529,7 +4880,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "brewRssiSubsection"];
+    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "sectionWxService", "brewRssiSubsection"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);
