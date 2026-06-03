@@ -138,6 +138,7 @@ export async function registerRoutes(
       localIp,
       publicIp,
       voltage,
+      hostname: os.hostname(),
     });
   });
 
