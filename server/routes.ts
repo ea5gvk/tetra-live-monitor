@@ -565,6 +565,16 @@ else
   echo "=== Skipping npm install (package.json unchanged) ==="
   echo ""
 fi
+echo "=== Avahi mDNS ==="
+if command -v avahi-daemon >/dev/null 2>&1; then
+  echo "avahi-daemon ya instalado."
+else
+  echo "Instalando avahi-daemon..."
+  apt-get install -y avahi-daemon 2>&1 || echo "(instalación avahi omitida — continuando)"
+fi
+systemctl enable avahi-daemon 2>&1 || true
+systemctl start avahi-daemon 2>&1 || true
+echo ""
 echo "=== npm run build ==="
 npm run build
 echo ""
