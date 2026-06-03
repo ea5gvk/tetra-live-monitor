@@ -666,8 +666,9 @@ function PiStats() {
     localIp: string | null;
     publicIp: string | null;
     voltage: number | null;
+    hostname: string | null;
   }>({
-    cpuTemp: null, cpuLoad: null, memUsed: null, localIp: null, publicIp: null, voltage: null
+    cpuTemp: null, cpuLoad: null, memUsed: null, localIp: null, publicIp: null, voltage: null, hostname: null
   });
 
   // Public IP visibility — persisted only for the current browser session
@@ -762,6 +763,20 @@ function PiStats() {
         <span className="inline-flex items-center gap-1 text-xs font-mono text-sky-400" title={t("local_ip")} data-testid="stat-local-ip">
           <Network className="w-3.5 h-3.5" />
           {stats.localIp}
+        </span>
+      )}
+      {stats.hostname && (
+        <span className="inline-flex items-center gap-1 text-xs font-mono text-amber-400" title={t("mdns_hostname")} data-testid="stat-mdns-hostname">
+          <span className="opacity-60">@</span>
+          <a
+            href={`http://${stats.hostname}.local`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="hover:underline hover:text-amber-300 transition-colors"
+            data-testid="link-mdns-hostname"
+          >
+            {stats.hostname}.local
+          </a>
         </span>
       )}
       {stats.publicIp && (
