@@ -575,22 +575,6 @@ fi
 systemctl enable avahi-daemon 2>&1 || true
 systemctl start avahi-daemon 2>&1 || true
 echo ""
-echo "=== Puerto 80 → 5000 (iptables) ==="
-if iptables -t nat -C PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 5000 2>/dev/null; then
-  echo "Regla iptables ya existente."
-else
-  if iptables -t nat -A PREROUTING -p tcp --dport 80 -j REDIRECT --to-port 5000 2>&1; then
-    echo "Regla añadida: puerto 80 redirige a 5000."
-    if ! command -v netfilter-persistent >/dev/null 2>&1; then
-      echo "Instalando iptables-persistent..."
-      DEBIAN_FRONTEND=noninteractive apt-get install -y iptables-persistent 2>&1 || echo "(iptables-persistent omitido)"
-    fi
-    netfilter-persistent save 2>&1 || true
-  else
-    echo "(iptables no disponible — continuando sin redirección de puerto)"
-  fi
-fi
-echo ""
 echo "=== npm run build ==="
 npm run build
 echo ""
