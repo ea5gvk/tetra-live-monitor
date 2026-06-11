@@ -685,6 +685,22 @@
             <input id="brewReconnect" type="number" value="15" min="1" />
           </div>
         </div>
+        <div id="brewSdsFwdSubsection" class="subsection">
+          <div class="row" style="gap:24px; flex-wrap:wrap;">
+            <div>
+              <label for="brewJitter" data-i18n="brew_jitter">jitter_initial_latency_frames</label>
+              <input id="brewJitter" type="number" value="0" min="0" max="999" style="max-width:120px;" />
+              <div class="hint" data-i18n="brew_jitter_hint">Initial latency frames for Brew audio jitter buffer. 0 = no extra latency.</div>
+            </div>
+            <div>
+              <div class="checkbox-row" style="margin-top:22px;">
+                <input type="checkbox" id="brewSdsEnabled" checked />
+                <label for="brewSdsEnabled" data-i18n="brew_sds_enabled">feature_sds_enabled</label>
+              </div>
+              <div class="hint" data-i18n="brew_sds_enabled_hint">Forward SDS between local clients and Brew. Default: enabled.</div>
+            </div>
+          </div>
+        </div>
         <div class="subsection">
           <div class="checkbox-row">
             <input type="checkbox" id="enableWhitelist" />
@@ -770,6 +786,14 @@
         <input id="dashboardUsername" type="text" value="" placeholder="admin" />
         <label for="dashboardPassword" style="margin-top:8px;" data-i18n="dashboard_password_label">password (optional)</label>
         <input id="dashboardPassword" type="text" value="" placeholder="changeme" />
+        <div class="checkbox-row" style="margin-top:12px;">
+          <input type="checkbox" id="dashPublicOverview" />
+          <label for="dashPublicOverview" data-i18n="dashboard_public_overview">public_overview</label>
+        </div>
+        <div class="hint" data-i18n="dashboard_public_overview_hint">Show a read-only status page to unauthenticated visitors when auth is enabled.</div>
+        <label for="dashSourceDir" style="margin-top:10px; display:block;" data-i18n="dashboard_source_dir">source_dir (optional)</label>
+        <input id="dashSourceDir" type="text" value="" placeholder="/path/to/flowstation" />
+        <div class="hint" data-i18n="dashboard_source_dir_hint">Path to FlowStation git directory for the Update button. Leave empty for auto-detection.</div>
       </div>
     </section>
   </div>
@@ -817,6 +841,70 @@
             <input id="wxPeriodicInterval" type="number" min="300" max="86400" value="1800" style="max-width:220px" />
           </div>
         </div>
+      </div>
+    </section>
+  </div>
+  <div id="sectionTelemetry" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="telemetry_title">📡 Telemetría [telemetry]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableTelemetry" />
+            <label for="enableTelemetry" data-i18n="telemetry_enable">Activar telemetría</label>
+          </div>
+          <div class="hint" data-i18n="telemetry_hint">Envía el estado en tiempo real del BTS a un colector remoto vía WebSocket.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="telemetryFields" style="display:none; margin-top:12px; max-width:480px;">
+        <label for="telemetryHost" data-i18n="telemetry_host">host (requerido)</label>
+        <input id="telemetryHost" type="text" placeholder="telemetry.example.com" />
+        <label for="telemetryPort" style="margin-top:8px;" data-i18n="telemetry_port">port (requerido)</label>
+        <input id="telemetryPort" type="number" min="1" max="65535" value="8765" style="max-width:140px;" />
+        <div class="checkbox-row" style="margin-top:10px;">
+          <input type="checkbox" id="telemetryTls" />
+          <label for="telemetryTls" data-i18n="telemetry_tls">use_tls (wss://)</label>
+        </div>
+        <label for="telemetryCaCert" style="margin-top:10px; display:block;" data-i18n="telemetry_ca_cert">ca_cert (DER path, optional)</label>
+        <input id="telemetryCaCert" type="text" placeholder="/etc/ssl/certs/ca.der" />
+        <div class="hint" data-i18n="telemetry_ca_cert_hint">DER CA certificate for private-CA TLS. Requires use_tls = true.</div>
+        <label for="telemetryUsername" style="margin-top:8px;" data-i18n="telemetry_username">username (optional)</label>
+        <input id="telemetryUsername" type="text" placeholder="" />
+        <label for="telemetryPassword" style="margin-top:8px;" data-i18n="telemetry_password">password (optional)</label>
+        <input id="telemetryPassword" type="text" placeholder="" />
+      </div>
+    </section>
+  </div>
+  <div id="sectionCommand" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="command_title">🎛️ Control Remoto [command]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableCommand" />
+            <label for="enableCommand" data-i18n="command_enable">Activar control remoto</label>
+          </div>
+          <div class="hint" data-i18n="command_hint">Conexión saliente a un servidor de control externo vía WebSocket.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="commandFields" style="display:none; margin-top:12px; max-width:480px;">
+        <label for="commandHost" data-i18n="command_host">host (requerido)</label>
+        <input id="commandHost" type="text" placeholder="command.example.com" />
+        <label for="commandPort" style="margin-top:8px;" data-i18n="command_port">port (requerido)</label>
+        <input id="commandPort" type="number" min="1" max="65535" value="8766" style="max-width:140px;" />
+        <div class="checkbox-row" style="margin-top:10px;">
+          <input type="checkbox" id="commandTls" />
+          <label for="commandTls" data-i18n="command_tls">use_tls (wss://)</label>
+        </div>
+        <label for="commandCaCert" style="margin-top:10px; display:block;" data-i18n="command_ca_cert">ca_cert (DER path, optional)</label>
+        <input id="commandCaCert" type="text" placeholder="/etc/ssl/certs/ca.der" />
+        <div class="hint" data-i18n="command_ca_cert_hint">DER CA certificate for private-CA TLS. Requires use_tls = true.</div>
+        <label for="commandUsername" style="margin-top:8px;" data-i18n="command_username">username (optional)</label>
+        <input id="commandUsername" type="text" placeholder="" />
+        <label for="commandPassword" style="margin-top:8px;" data-i18n="command_password">password (optional)</label>
+        <input id="commandPassword" type="text" placeholder="" />
       </div>
     </section>
   </div>
@@ -1077,6 +1165,34 @@
       ncells_apply_count: "Apply",
       ncells_add: "+ Add cell",
       ncells_cell: "Cell",
+      brew_jitter: "jitter_initial_latency_frames (default 0)",
+      brew_jitter_hint: "Initial latency in frames for Brew audio jitter buffer. Increase if you hear artifacts at the start of transmissions.",
+      brew_sds_enabled: "feature_sds_enabled",
+      brew_sds_enabled_hint: "Forwards SDS between local clients and Brew. Enabled by default. Disable to block all Brew SDS.",
+      dashboard_public_overview: "public_overview (read-only public view)",
+      dashboard_public_overview_hint: "Shows a read-only status page to unauthenticated visitors when username/password are set.",
+      dashboard_source_dir: "source_dir (source directory, optional)",
+      dashboard_source_dir_hint: "Path to FlowStation git directory for the Update button. Leave empty for auto-detection.",
+      telemetry_title: "📡 Telemetry [telemetry]",
+      telemetry_enable: "Enable telemetry",
+      telemetry_hint: "Pushes live BTS state to a remote collector over WebSocket. Requires host and port.",
+      telemetry_host: "host (required)",
+      telemetry_port: "port (required)",
+      telemetry_tls: "use_tls (wss://)",
+      telemetry_ca_cert: "ca_cert (DER path, optional)",
+      telemetry_ca_cert_hint: "DER CA certificate for private-CA TLS. Requires use_tls = true.",
+      telemetry_username: "username (optional)",
+      telemetry_password: "password (optional)",
+      command_title: "🎛️ Remote Control [command]",
+      command_enable: "Enable remote control",
+      command_hint: "Outbound connection to an external control server over WebSocket. Requires host and port.",
+      command_host: "host (required)",
+      command_port: "port (required)",
+      command_tls: "use_tls (wss://)",
+      command_ca_cert: "ca_cert (DER path, optional)",
+      command_ca_cert_hint: "DER CA certificate for private-CA TLS. Requires use_tls = true.",
+      command_username: "username (optional)",
+      command_password: "password (optional)",
       tg_names_title: "📡 Talkgroup Names",
       tg_names_hint: "Fetch TG names from Brandmeister or ADN Systems and display them next to TG numbers in the dashboard monitor.",
       tg_source_label: "Source:",
@@ -1272,6 +1388,34 @@
       ncells_apply_count: "应用",
       ncells_add: "+ 添加小区",
       ncells_cell: "小区",
+      brew_jitter: "jitter_initial_latency_frames（默认 0）",
+      brew_jitter_hint: "Brew 音频抖动缓冲区的初始延迟帧数。如果传输开始时有音频失真，请增大此值。",
+      brew_sds_enabled: "feature_sds_enabled",
+      brew_sds_enabled_hint: "在本地客户端和 Brew 之间转发 SDS。默认启用。禁用以阻止所有 Brew SDS。",
+      dashboard_public_overview: "public_overview（只读公开视图）",
+      dashboard_public_overview_hint: "当设置了用户名/密码时，向未认证访客显示只读状态页面。",
+      dashboard_source_dir: "source_dir（源码目录，可选）",
+      dashboard_source_dir_hint: "FlowStation git 目录路径，用于更新按钮。留空则自动检测。",
+      telemetry_title: "📡 遥测 [telemetry]",
+      telemetry_enable: "启用遥测",
+      telemetry_hint: "通过 WebSocket 将 BTS 实时状态推送到远程采集器。需要 host 和 port。",
+      telemetry_host: "host（必填）",
+      telemetry_port: "port（必填）",
+      telemetry_tls: "use_tls（wss://）",
+      telemetry_ca_cert: "ca_cert（DER 路径，可选）",
+      telemetry_ca_cert_hint: "私有 CA TLS 的 DER CA 证书。需要 use_tls = true。",
+      telemetry_username: "username（可选）",
+      telemetry_password: "password（可选）",
+      command_title: "🎛️ 远程控制 [command]",
+      command_enable: "启用远程控制",
+      command_hint: "通过 WebSocket 到外部控制服务器的出站连接。需要 host 和 port。",
+      command_host: "host（必填）",
+      command_port: "port（必填）",
+      command_tls: "use_tls（wss://）",
+      command_ca_cert: "ca_cert（DER 路径，可选）",
+      command_ca_cert_hint: "私有 CA TLS 的 DER CA 证书。需要 use_tls = true。",
+      command_username: "username（可选）",
+      command_password: "password（可选）",
       tg_names_title: "📡 群組名稱",
       tg_names_hint: "從 Brandmeister 或 ADN Systems 擷取 TG 名稱，並在監控面板中顯示於 TG 號碼旁。",
       tg_source_label: "來源：",
@@ -1467,6 +1611,34 @@
       ncells_apply_count: "Aplicar",
       ncells_add: "+ Añadir celda",
       ncells_cell: "Celda",
+      brew_jitter: "jitter_initial_latency_frames (por defecto 0)",
+      brew_jitter_hint: "Latencia inicial en frames para el buffer de jitter de audio Brew. Aumentar si hay artefactos al inicio de las transmisiones.",
+      brew_sds_enabled: "feature_sds_enabled",
+      brew_sds_enabled_hint: "Reenvía SDS entre clientes locales y Brew. Habilitado por defecto. Desactivar para bloquear todo SDS Brew.",
+      dashboard_public_overview: "public_overview (vista pública de solo lectura)",
+      dashboard_public_overview_hint: "Muestra una página de solo lectura a visitantes no autenticados cuando username/password están configurados.",
+      dashboard_source_dir: "source_dir (directorio de código fuente, opcional)",
+      dashboard_source_dir_hint: "Ruta al directorio git de FlowStation para el botón Update. Dejar vacío para autodetección.",
+      telemetry_title: "📡 Telemetría [telemetry]",
+      telemetry_enable: "Activar telemetría",
+      telemetry_hint: "Envía el estado en tiempo real del BTS a un colector remoto vía WebSocket. Requiere host y port.",
+      telemetry_host: "host (requerido)",
+      telemetry_port: "port (requerido)",
+      telemetry_tls: "use_tls (wss://)",
+      telemetry_ca_cert: "ca_cert (ruta DER, opcional)",
+      telemetry_ca_cert_hint: "Certificado CA en formato DER para TLS con CA privada. Requiere use_tls = true.",
+      telemetry_username: "username (opcional)",
+      telemetry_password: "password (opcional)",
+      command_title: "🎛️ Control Remoto [command]",
+      command_enable: "Activar control remoto",
+      command_hint: "Conexión saliente a un servidor de control externo vía WebSocket. Requiere host y port.",
+      command_host: "host (requerido)",
+      command_port: "port (requerido)",
+      command_tls: "use_tls (wss://)",
+      command_ca_cert: "ca_cert (ruta DER, opcional)",
+      command_ca_cert_hint: "Certificado CA en formato DER para TLS con CA privada. Requiere use_tls = true.",
+      command_username: "username (opcional)",
+      command_password: "password (opcional)",
       tg_names_title: "📡 Nombres de Grupos de Conversación",
       tg_names_hint: "Obtén nombres de TG desde Brandmeister o ADN Systems y muéstralos junto al número en el monitor.",
       tg_source_label: "Fuente:",
@@ -1662,6 +1834,34 @@
       ncells_apply_count: "Aplicar",
       ncells_add: "+ Adicionar célula",
       ncells_cell: "Célula",
+      brew_jitter: "jitter_initial_latency_frames (padrão 0)",
+      brew_jitter_hint: "Latência inicial em frames para o buffer de jitter de áudio Brew. Aumentar se houver artefatos no início das transmissões.",
+      brew_sds_enabled: "feature_sds_enabled",
+      brew_sds_enabled_hint: "Encaminha SDS entre clientes locais e Brew. Ativado por padrão. Desativar para bloquear todo SDS Brew.",
+      dashboard_public_overview: "public_overview (vista pública somente leitura)",
+      dashboard_public_overview_hint: "Mostra uma página somente leitura a visitantes não autenticados quando username/password estão configurados.",
+      dashboard_source_dir: "source_dir (diretório de código-fonte, opcional)",
+      dashboard_source_dir_hint: "Caminho para o diretório git do FlowStation para o botão Update. Deixar vazio para autodetecção.",
+      telemetry_title: "📡 Telemetria [telemetry]",
+      telemetry_enable: "Ativar telemetria",
+      telemetry_hint: "Envia o estado em tempo real do BTS a um coletor remoto via WebSocket. Requer host e port.",
+      telemetry_host: "host (obrigatório)",
+      telemetry_port: "port (obrigatório)",
+      telemetry_tls: "use_tls (wss://)",
+      telemetry_ca_cert: "ca_cert (caminho DER, opcional)",
+      telemetry_ca_cert_hint: "Certificado CA em formato DER para TLS com CA privada. Requer use_tls = true.",
+      telemetry_username: "username (opcional)",
+      telemetry_password: "password (opcional)",
+      command_title: "🎛️ Controlo Remoto [command]",
+      command_enable: "Ativar controlo remoto",
+      command_hint: "Conexão de saída para um servidor de controlo externo via WebSocket. Requer host e port.",
+      command_host: "host (obrigatório)",
+      command_port: "port (obrigatório)",
+      command_tls: "use_tls (wss://)",
+      command_ca_cert: "ca_cert (caminho DER, opcional)",
+      command_ca_cert_hint: "Certificado CA em formato DER para TLS com CA privada. Requer use_tls = true.",
+      command_username: "username (opcional)",
+      command_password: "password (opcional)",
       tg_names_title: "📡 Nomes de Grupos de Conversa",
       tg_names_hint: "Busque nomes de TG do Brandmeister ou ADN Systems e exiba-os ao lado do número no monitor.",
       tg_source_label: "Fonte:",
@@ -1857,6 +2057,34 @@
       ncells_apply_count: "Anwenden",
       ncells_add: "+ Zelle hinzufügen",
       ncells_cell: "Zelle",
+      brew_jitter: "jitter_initial_latency_frames (Standard 0)",
+      brew_jitter_hint: "Anfangslatenz in Frames für den Brew-Audio-Jitter-Buffer. Erhöhen, wenn zu Beginn Audioartefakte auftreten.",
+      brew_sds_enabled: "feature_sds_enabled",
+      brew_sds_enabled_hint: "Leitet SDS zwischen lokalen Clients und Brew weiter. Standardmäßig aktiviert. Deaktivieren, um alle Brew-SDS zu blockieren.",
+      dashboard_public_overview: "public_overview (öffentliche Nur-Lese-Ansicht)",
+      dashboard_public_overview_hint: "Zeigt unauthentifizierten Besuchern eine Nur-Lese-Statusseite, wenn username/password gesetzt sind.",
+      dashboard_source_dir: "source_dir (Quellverzeichnis, optional)",
+      dashboard_source_dir_hint: "Pfad zum FlowStation-Git-Verzeichnis für den Update-Button. Leer lassen für automatische Erkennung.",
+      telemetry_title: "📡 Telemetrie [telemetry]",
+      telemetry_enable: "Telemetrie aktivieren",
+      telemetry_hint: "Überträgt den BTS-Status in Echtzeit an einen Remote-Kollektor über WebSocket. Erfordert Host und Port.",
+      telemetry_host: "host (erforderlich)",
+      telemetry_port: "port (erforderlich)",
+      telemetry_tls: "use_tls (wss://)",
+      telemetry_ca_cert: "ca_cert (DER-Pfad, optional)",
+      telemetry_ca_cert_hint: "DER-CA-Zertifikat für privates-CA-TLS. Erfordert use_tls = true.",
+      telemetry_username: "username (optional)",
+      telemetry_password: "password (optional)",
+      command_title: "🎛️ Fernsteuerung [command]",
+      command_enable: "Fernsteuerung aktivieren",
+      command_hint: "Ausgehende Verbindung zu einem externen Steuerserver über WebSocket. Erfordert Host und Port.",
+      command_host: "host (erforderlich)",
+      command_port: "port (erforderlich)",
+      command_tls: "use_tls (wss://)",
+      command_ca_cert: "ca_cert (DER-Pfad, optional)",
+      command_ca_cert_hint: "DER-CA-Zertifikat für privates-CA-TLS. Erfordert use_tls = true.",
+      command_username: "username (optional)",
+      command_password: "password (optional)",
       tg_names_title: "📡 Gruppenruf-Namen",
       tg_names_hint: "TG-Namen von Brandmeister oder ADN Systems abrufen und neben der Nummer im Monitor anzeigen.",
       tg_source_label: "Quelle:",
@@ -2052,6 +2280,34 @@
       ncells_apply_count: "Appliquer",
       ncells_add: "+ Ajouter cellule",
       ncells_cell: "Cellule",
+      brew_jitter: "jitter_initial_latency_frames (défaut 0)",
+      brew_jitter_hint: "Latence initiale en frames pour le tampon de gigue audio Brew. Augmenter en cas d'artefacts au début des transmissions.",
+      brew_sds_enabled: "feature_sds_enabled",
+      brew_sds_enabled_hint: "Transfère les SDS entre les clients locaux et Brew. Activé par défaut. Désactiver pour bloquer tous les SDS Brew.",
+      dashboard_public_overview: "public_overview (vue publique en lecture seule)",
+      dashboard_public_overview_hint: "Affiche une page en lecture seule aux visiteurs non authentifiés lorsque username/password sont configurés.",
+      dashboard_source_dir: "source_dir (répertoire source, optionnel)",
+      dashboard_source_dir_hint: "Chemin vers le répertoire git de FlowStation pour le bouton Update. Laisser vide pour la détection automatique.",
+      telemetry_title: "📡 Télémétrie [telemetry]",
+      telemetry_enable: "Activer la télémétrie",
+      telemetry_hint: "Envoie l'état du BTS en temps réel à un collecteur distant via WebSocket. Nécessite host et port.",
+      telemetry_host: "host (requis)",
+      telemetry_port: "port (requis)",
+      telemetry_tls: "use_tls (wss://)",
+      telemetry_ca_cert: "ca_cert (chemin DER, optionnel)",
+      telemetry_ca_cert_hint: "Certificat CA au format DER pour TLS avec CA privée. Nécessite use_tls = true.",
+      telemetry_username: "username (optionnel)",
+      telemetry_password: "password (optionnel)",
+      command_title: "🎛️ Contrôle à Distance [command]",
+      command_enable: "Activer le contrôle à distance",
+      command_hint: "Connexion sortante vers un serveur de contrôle externe via WebSocket. Nécessite host et port.",
+      command_host: "host (requis)",
+      command_port: "port (requis)",
+      command_tls: "use_tls (wss://)",
+      command_ca_cert: "ca_cert (chemin DER, optionnel)",
+      command_ca_cert_hint: "Certificat CA au format DER pour TLS avec CA privée. Nécessite use_tls = true.",
+      command_username: "username (optionnel)",
+      command_password: "password (optionnel)",
       tg_names_title: "📡 Noms des Groupes d'Appel",
       tg_names_hint: "Récupérez les noms des TG depuis Brandmeister ou ADN Systems et affichez-les à côté du numéro dans le moniteur.",
       tg_source_label: "Source :",
@@ -2247,6 +2503,34 @@
       ncells_apply_count: "Applica",
       ncells_add: "+ Aggiungi cella",
       ncells_cell: "Cella",
+      brew_jitter: "jitter_initial_latency_frames (default 0)",
+      brew_jitter_hint: "Latenza iniziale in frame per il buffer di jitter audio Brew. Aumentare se si sentono artefatti all'inizio delle trasmissioni.",
+      brew_sds_enabled: "feature_sds_enabled",
+      brew_sds_enabled_hint: "Invia SDS tra client locali e Brew. Abilitato per impostazione predefinita. Disabilitare per bloccare tutti i SDS Brew.",
+      dashboard_public_overview: "public_overview (vista pubblica di sola lettura)",
+      dashboard_public_overview_hint: "Mostra una pagina di sola lettura ai visitatori non autenticati quando username/password sono configurati.",
+      dashboard_source_dir: "source_dir (directory sorgente, opzionale)",
+      dashboard_source_dir_hint: "Percorso alla directory git di FlowStation per il pulsante Update. Lasciare vuoto per il rilevamento automatico.",
+      telemetry_title: "📡 Telemetria [telemetry]",
+      telemetry_enable: "Abilita telemetria",
+      telemetry_hint: "Invia lo stato del BTS in tempo reale a un raccoglitore remoto via WebSocket. Richiede host e port.",
+      telemetry_host: "host (richiesto)",
+      telemetry_port: "port (richiesto)",
+      telemetry_tls: "use_tls (wss://)",
+      telemetry_ca_cert: "ca_cert (percorso DER, opzionale)",
+      telemetry_ca_cert_hint: "Certificato CA in formato DER per TLS con CA privata. Richiede use_tls = true.",
+      telemetry_username: "username (opzionale)",
+      telemetry_password: "password (opzionale)",
+      command_title: "🎛️ Controllo Remoto [command]",
+      command_enable: "Abilita controllo remoto",
+      command_hint: "Connessione in uscita a un server di controllo esterno via WebSocket. Richiede host e port.",
+      command_host: "host (richiesto)",
+      command_port: "port (richiesto)",
+      command_tls: "use_tls (wss://)",
+      command_ca_cert: "ca_cert (percorso DER, opzionale)",
+      command_ca_cert_hint: "Certificato CA in formato DER per TLS con CA privata. Richiede use_tls = true.",
+      command_username: "username (opzionale)",
+      command_password: "password (opzionale)",
       tg_names_title: "📡 Nomi dei Gruppi di Conversazione",
       tg_names_hint: "Recupera i nomi dei TG da Brandmeister o ADN Systems e mostrali accanto al numero nel monitor.",
       tg_source_label: "Fonte:",
@@ -2442,6 +2726,34 @@
       ncells_apply_count: "Anvend",
       ncells_add: "+ Tilføj celle",
       ncells_cell: "Celle",
+      brew_jitter: "jitter_initial_latency_frames (standard 0)",
+      brew_jitter_hint: "Indledende latens i frames for Brew-lydjittperbufferen. Forøg, hvis der høres artefakter ved starten af transmissioner.",
+      brew_sds_enabled: "feature_sds_enabled",
+      brew_sds_enabled_hint: "Videresender SDS mellem lokale klienter og Brew. Aktiveret som standard. Deaktiver for at blokere alle Brew-SDS.",
+      dashboard_public_overview: "public_overview (offentlig læsevisning)",
+      dashboard_public_overview_hint: "Viser en skrivebeskyttet statusside til ikke-godkendte besøgende, når username/password er indstillet.",
+      dashboard_source_dir: "source_dir (kildemappe, valgfri)",
+      dashboard_source_dir_hint: "Sti til FlowStation git-mappe til Opdater-knappen. Lad stå tom for automatisk registrering.",
+      telemetry_title: "📡 Telemetri [telemetry]",
+      telemetry_enable: "Aktiver telemetri",
+      telemetry_hint: "Sender BTS-status i realtid til en fjernopsamler via WebSocket. Kræver host og port.",
+      telemetry_host: "host (påkrævet)",
+      telemetry_port: "port (påkrævet)",
+      telemetry_tls: "use_tls (wss://)",
+      telemetry_ca_cert: "ca_cert (DER-sti, valgfri)",
+      telemetry_ca_cert_hint: "DER CA-certifikat til privat-CA TLS. Kræver use_tls = true.",
+      telemetry_username: "username (valgfri)",
+      telemetry_password: "password (valgfri)",
+      command_title: "🎛️ Fjernstyring [command]",
+      command_enable: "Aktiver fjernstyring",
+      command_hint: "Udgående forbindelse til en ekstern styringsserver via WebSocket. Kræver host og port.",
+      command_host: "host (påkrævet)",
+      command_port: "port (påkrævet)",
+      command_tls: "use_tls (wss://)",
+      command_ca_cert: "ca_cert (DER-sti, valgfri)",
+      command_ca_cert_hint: "DER CA-certifikat til privat-CA TLS. Kræver use_tls = true.",
+      command_username: "username (valgfri)",
+      command_password: "password (valgfri)",
       tg_names_title: "📡 Talegruppe Navne",
       tg_names_hint: "Hent TG-navne fra Brandmeister eller ADN Systems og vis dem ved siden af nummeret i monitoren.",
       tg_source_label: "Kilde:",
@@ -2637,6 +2949,34 @@
       ncells_apply_count: "Toepassen",
       ncells_add: "+ Cel toevoegen",
       ncells_cell: "Cel",
+      brew_jitter: "jitter_initial_latency_frames (standaard 0)",
+      brew_jitter_hint: "Initiële latentie in frames voor de Brew-audiojitterbuffer. Verhoog als er artefacten hoorbaar zijn bij het begin van transmissies.",
+      brew_sds_enabled: "feature_sds_enabled",
+      brew_sds_enabled_hint: "Stuurt SDS door tussen lokale clients en Brew. Standaard ingeschakeld. Uitschakelen om alle Brew-SDS te blokkeren.",
+      dashboard_public_overview: "public_overview (publiek alleen-lezen overzicht)",
+      dashboard_public_overview_hint: "Toont een alleen-lezen statuspagina aan niet-geauthenticeerde bezoekers wanneer username/password zijn ingesteld.",
+      dashboard_source_dir: "source_dir (bronmap, optioneel)",
+      dashboard_source_dir_hint: "Pad naar de FlowStation git-map voor de Update-knop. Leeg laten voor automatische detectie.",
+      telemetry_title: "📡 Telemetrie [telemetry]",
+      telemetry_enable: "Telemetrie inschakelen",
+      telemetry_hint: "Stuurt BTS-status in realtime naar een externe verzamelaar via WebSocket. Vereist host en poort.",
+      telemetry_host: "host (vereist)",
+      telemetry_port: "port (vereist)",
+      telemetry_tls: "use_tls (wss://)",
+      telemetry_ca_cert: "ca_cert (DER-pad, optioneel)",
+      telemetry_ca_cert_hint: "DER CA-certificaat voor privé-CA TLS. Vereist use_tls = true.",
+      telemetry_username: "username (optioneel)",
+      telemetry_password: "password (optioneel)",
+      command_title: "🎛️ Afstandsbediening [command]",
+      command_enable: "Afstandsbediening inschakelen",
+      command_hint: "Uitgaande verbinding naar een externe besturingsserver via WebSocket. Vereist host en poort.",
+      command_host: "host (vereist)",
+      command_port: "port (vereist)",
+      command_tls: "use_tls (wss://)",
+      command_ca_cert: "ca_cert (DER-pad, optioneel)",
+      command_ca_cert_hint: "DER CA-certificaat voor privé-CA TLS. Vereist use_tls = true.",
+      command_username: "username (optioneel)",
+      command_password: "password (optioneel)",
       tg_names_title: "📡 Gespreksgroep Namen",
       tg_names_hint: "Haal TG-namen op van Brandmeister of ADN Systems en toon ze naast het nummer in de monitor.",
       tg_source_label: "Bron:",
@@ -2832,6 +3172,34 @@
       ncells_apply_count: "Aplică",
       ncells_add: "+ Adaugă celulă",
       ncells_cell: "Celulă",
+      brew_jitter: "jitter_initial_latency_frames (implicit 0)",
+      brew_jitter_hint: "Latența inițială în cadre pentru bufferul de jitter audio Brew. Măriți dacă auziți artefacte la începutul transmisiunilor.",
+      brew_sds_enabled: "feature_sds_enabled",
+      brew_sds_enabled_hint: "Redirecționează SDS între clienții locali și Brew. Activat implicit. Dezactivați pentru a bloca toate SDS-urile Brew.",
+      dashboard_public_overview: "public_overview (vedere publică doar citire)",
+      dashboard_public_overview_hint: "Afișează o pagină de stare doar citire vizitatorilor neautentificați când username/password sunt configurate.",
+      dashboard_source_dir: "source_dir (director sursă, opțional)",
+      dashboard_source_dir_hint: "Calea către directorul git al FlowStation pentru butonul Update. Lăsați gol pentru detectare automată.",
+      telemetry_title: "📡 Telemetrie [telemetry]",
+      telemetry_enable: "Activează telemetria",
+      telemetry_hint: "Trimite starea BTS în timp real unui colector remote prin WebSocket. Necesită host și port.",
+      telemetry_host: "host (necesar)",
+      telemetry_port: "port (necesar)",
+      telemetry_tls: "use_tls (wss://)",
+      telemetry_ca_cert: "ca_cert (cale DER, opțional)",
+      telemetry_ca_cert_hint: "Certificat CA în format DER pentru TLS cu CA privată. Necesită use_tls = true.",
+      telemetry_username: "username (opțional)",
+      telemetry_password: "password (opțional)",
+      command_title: "🎛️ Control de la Distanță [command]",
+      command_enable: "Activează controlul de la distanță",
+      command_hint: "Conexiune de ieșire la un server de control extern prin WebSocket. Necesită host și port.",
+      command_host: "host (necesar)",
+      command_port: "port (necesar)",
+      command_tls: "use_tls (wss://)",
+      command_ca_cert: "ca_cert (cale DER, opțional)",
+      command_ca_cert_hint: "Certificat CA în format DER pentru TLS cu CA privată. Necesită use_tls = true.",
+      command_username: "username (opțional)",
+      command_password: "password (opțional)",
       tg_names_title: "📡 Nume Talkgroup",
       tg_names_hint: "Obține nume TG de la Brandmeister sau ADN Systems și afișează-le lângă numere în monitor.",
       tg_source_label: "Sursă:",
@@ -3325,6 +3693,13 @@
         const rssiVal = el("rssiExportValue").value === "false" ? "false" : "true";
         lines.push(`${rssiEnabled ? "" : "# "}feature_rssi_export = ${rssiVal}`);
       }
+      // jitter_initial_latency_frames + feature_sds_enabled (Flowstation only)
+      if (document.getElementById("brewSdsFwdSubsection")?.style.display !== "none") {
+        const jitter = Math.max(0, Number(el("brewJitter").value) || 0);
+        lines.push(`jitter_initial_latency_frames = ${jitter}`);
+        const sdsEnabled = el("brewSdsEnabled").checked;
+        lines.push(`${sdsEnabled ? "# " : ""}feature_sds_enabled = ${sdsEnabled ? "true" : "false"}`);
+      }
     }
     // Security whitelist (digits only — invalid tokens silently dropped)
     {
@@ -3349,6 +3724,8 @@
       const dashUser = el("dashboardUsername").value.trim();
       const dashPass = el("dashboardPassword").value.trim();
       lines.push("");
+      const dashPubOv = el("dashPublicOverview").checked;
+      const dashSrcDir = el("dashSourceDir").value.trim();
       if (el("enableDashboard").checked) {
         lines.push("[dashboard]");
         lines.push(`port = ${dashPort}`);
@@ -3357,12 +3734,17 @@
         else lines.push(`# username = "admin"`);
         if (dashPass) lines.push(`password = "${dashPass}"`);
         else lines.push(`# password = "changeme"`);
+        lines.push(`${dashPubOv ? "" : "# "}public_overview = ${dashPubOv ? "true" : "false"}`);
+        if (dashSrcDir) lines.push(`source_dir = "${dashSrcDir}"`);
+        else lines.push(`# source_dir = "/path/to/flowstation"`);
       } else {
         lines.push("# [dashboard]");
         lines.push(`# port = ${dashPort}`);
         lines.push(`# bind = "${dashBind}"`);
         lines.push(`# username = "${dashUser || 'admin'}"`);
         lines.push(`# password = "${dashPass || 'changeme'}"`);
+        lines.push(`# public_overview = false`);
+        lines.push(`# source_dir = "/path/to/flowstation"`);
       }
     }
     // Weather Service [wx_service] (Flowstation only)
@@ -3385,6 +3767,46 @@
       lines.push(`${p}periodic_is_group = ${wxPerGroup ? "true" : "false"}`);
       lines.push(`${p}periodic_icao = "${wxIcao}"`);
       lines.push(`${p}periodic_interval_secs = ${wxInterval}`);
+    }
+    // Telemetry [telemetry] (Flowstation only)
+    if (document.getElementById("sectionTelemetry")?.style.display !== "none") {
+      const clampPort = (v, def) => { const n = Number(v); return Number.isFinite(n) && n >= 1 && n <= 65535 ? Math.round(n) : def; };
+      const telEnabled = el("enableTelemetry").checked;
+      const telHost = el("telemetryHost").value.trim().replace(/"/g, "");
+      const telPort = clampPort(el("telemetryPort").value, 8765);
+      const telTls = el("telemetryTls").checked;
+      const telCaCert = el("telemetryCaCert").value.trim().replace(/"/g, "");
+      const telUser = el("telemetryUsername").value.trim().replace(/"/g, "");
+      const telPass = el("telemetryPassword").value.trim().replace(/"/g, "");
+      const pt = telEnabled ? "" : "# ";
+      lines.push("");
+      lines.push(`${pt}[telemetry]`);
+      lines.push(`${pt}host = "${telHost}"`);
+      lines.push(`${pt}port = ${telPort}`);
+      lines.push(`${pt}use_tls = ${telTls ? "true" : "false"}`);
+      if (telCaCert) lines.push(`${pt}ca_cert = "${telCaCert}"`);
+      if (telUser) lines.push(`${pt}username = "${telUser}"`);
+      if (telPass) lines.push(`${pt}password = "${telPass}"`);
+    }
+    // Command [command] (Flowstation only)
+    if (document.getElementById("sectionCommand")?.style.display !== "none") {
+      const clampPort2 = (v, def) => { const n = Number(v); return Number.isFinite(n) && n >= 1 && n <= 65535 ? Math.round(n) : def; };
+      const cmdEnabled = el("enableCommand").checked;
+      const cmdHost = el("commandHost").value.trim().replace(/"/g, "");
+      const cmdPort = clampPort2(el("commandPort").value, 8766);
+      const cmdTls = el("commandTls").checked;
+      const cmdCaCert = el("commandCaCert").value.trim().replace(/"/g, "");
+      const cmdUser = el("commandUsername").value.trim().replace(/"/g, "");
+      const cmdPass = el("commandPassword").value.trim().replace(/"/g, "");
+      const pc = cmdEnabled ? "" : "# ";
+      lines.push("");
+      lines.push(`${pc}[command]`);
+      lines.push(`${pc}host = "${cmdHost}"`);
+      lines.push(`${pc}port = ${cmdPort}`);
+      lines.push(`${pc}use_tls = ${cmdTls ? "true" : "false"}`);
+      if (cmdCaCert) lines.push(`${pc}ca_cert = "${cmdCaCert}"`);
+      if (cmdUser) lines.push(`${pc}username = "${cmdUser}"`);
+      if (cmdPass) lines.push(`${pc}password = "${cmdPass}"`);
     }
     return lines.join("\n");
   }
@@ -3900,6 +4322,14 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       if (data.brew.feature_rssi_export !== undefined && data.brew.feature_rssi_export !== null) {
         el("rssiExportValue").value = data.brew.feature_rssi_export === true || data.brew.feature_rssi_export === "true" ? "true" : "false";
       }
+      // jitter_initial_latency_frames
+      if (data.brew.jitter_initial_latency_frames !== null && data.brew.jitter_initial_latency_frames !== undefined) {
+        el("brewJitter").value = String(Math.max(0, Number(data.brew.jitter_initial_latency_frames) || 0));
+      }
+      // feature_sds_enabled (default true; false means explicitly disabled)
+      if (data.brew.feature_sds_enabled !== null && data.brew.feature_sds_enabled !== undefined) {
+        el("brewSdsEnabled").checked = data.brew.feature_sds_enabled !== false && data.brew.feature_sds_enabled !== "false";
+      }
 
       // ── Neighbor Cells (loads cells even when commented/disabled)
       const ncellsList = (data.cell_info && Array.isArray(data.cell_info.neighbor_cells)) ? data.cell_info.neighbor_cells : [];
@@ -3967,6 +4397,10 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         if (data.dashboard.bind) el("dashboardBind").value = data.dashboard.bind;
         if (data.dashboard.username) el("dashboardUsername").value = data.dashboard.username;
         if (data.dashboard.password) el("dashboardPassword").value = data.dashboard.password;
+        el("dashPublicOverview").checked = !!data.dashboard.public_overview;
+        if (data.dashboard.source_dir !== null && data.dashboard.source_dir !== undefined) {
+          el("dashSourceDir").value = String(data.dashboard.source_dir);
+        }
       }
 
       // ── Weather Service [wx_service]
@@ -3988,6 +4422,30 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           el("wxPeriodicInterval").value = String(data.wx_service.periodic_interval_secs);
         el("enableWxService").dispatchEvent(new Event("change"));
         el("enableWxPeriodic").dispatchEvent(new Event("change"));
+      }
+
+      // ── Telemetry [telemetry]
+      if (data.telemetry) {
+        el("enableTelemetry").checked = !!data.telemetry.enabled;
+        if (data.telemetry.host) el("telemetryHost").value = String(data.telemetry.host);
+        if (data.telemetry.port !== null && data.telemetry.port !== undefined) el("telemetryPort").value = String(data.telemetry.port);
+        el("telemetryTls").checked = !!data.telemetry.use_tls;
+        if (data.telemetry.ca_cert) el("telemetryCaCert").value = String(data.telemetry.ca_cert);
+        if (data.telemetry.username) el("telemetryUsername").value = String(data.telemetry.username);
+        if (data.telemetry.password) el("telemetryPassword").value = String(data.telemetry.password);
+        el("enableTelemetry").dispatchEvent(new Event("change"));
+      }
+
+      // ── Command [command]
+      if (data.command) {
+        el("enableCommand").checked = !!data.command.enabled;
+        if (data.command.host) el("commandHost").value = String(data.command.host);
+        if (data.command.port !== null && data.command.port !== undefined) el("commandPort").value = String(data.command.port);
+        el("commandTls").checked = !!data.command.use_tls;
+        if (data.command.ca_cert) el("commandCaCert").value = String(data.command.ca_cert);
+        if (data.command.username) el("commandUsername").value = String(data.command.username);
+        if (data.command.password) el("commandPassword").value = String(data.command.password);
+        el("enableCommand").dispatchEvent(new Event("change"));
       }
 
       statusEl.innerHTML = `<span style="color:var(--ok)">✅ Config cargada correctamente desde ${escapeHtml(configPath)}</span>`;
@@ -4102,6 +4560,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       bind: el("dashboardBind").value.trim() || "0.0.0.0",
       username: el("dashboardUsername").value.trim(),
       password: el("dashboardPassword").value.trim(),
+      public_overview: el("dashPublicOverview").checked,
+      source_dir: el("dashSourceDir").value.trim(),
     } : null;
 
     // Collect SDS Broadcast options (Flowstation only — null in bluestation)
@@ -4137,6 +4597,39 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       protocol_id: clampInt(el("hmdProtocolId").value, 0, 255, 220),
       text_coding_scheme: el("hmdCoding").value === "UTF16" ? "UTF16" : "LATIN",
       text: el("hmdText").value || "",
+    } : null;
+
+    // Collect Brew sdsFwd options (Flowstation only)
+    const brewSdsFwdIsFlow = document.getElementById("brewSdsFwdSubsection")?.style.display !== "none";
+    if (brewSdsFwdIsFlow && brewConfig && typeof brewConfig === "object" && brewConfig.enabled !== false) {
+      brewConfig.sdsFwd = {
+        enabled: el("brewSdsEnabled").checked,
+        jitter: Math.max(0, Number(el("brewJitter").value) || 0),
+      };
+    }
+
+    // Collect Telemetry options (Flowstation only — null in bluestation)
+    const telIsFlow = document.getElementById("sectionTelemetry")?.style.display !== "none";
+    const telemetryConfig = telIsFlow ? {
+      enabled: el("enableTelemetry").checked,
+      host: el("telemetryHost").value.trim(),
+      port: clampInt(el("telemetryPort").value, 1, 65535, 8765),
+      use_tls: el("telemetryTls").checked,
+      ca_cert: el("telemetryCaCert").value.trim(),
+      username: el("telemetryUsername").value.trim(),
+      password: el("telemetryPassword").value.trim(),
+    } : null;
+
+    // Collect Command options (Flowstation only — null in bluestation)
+    const cmdIsFlow = document.getElementById("sectionCommand")?.style.display !== "none";
+    const commandConfig = cmdIsFlow ? {
+      enabled: el("enableCommand").checked,
+      host: el("commandHost").value.trim(),
+      port: clampInt(el("commandPort").value, 1, 65535, 8766),
+      use_tls: el("commandTls").checked,
+      ca_cert: el("commandCaCert").value.trim(),
+      username: el("commandUsername").value.trim(),
+      password: el("commandPassword").value.trim(),
     } : null;
 
     // Collect Weather Service options (Flowstation only — null in bluestation)
@@ -4180,7 +4673,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           sdsCommandControlConfig,
           dashboardConfig,
           wxServiceConfig,
-          serviceNameConfig
+          serviceNameConfig,
+          telemetryConfig,
+          commandConfig
         })
       });
       const data = await res.json();
@@ -4656,7 +5151,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     if (!document.getElementById("sdsCcActionList")) {
       const dl = document.createElement("datalist");
       dl.id = "sdsCcActionList";
-      dl.innerHTML = `<option value="restart"><option value="shutdown"><option value="kick_all">`;
+      dl.innerHTML = `<option value="restart"><option value="shutdown"><option value="kick_all"><option value="ip"><option value="temp"><option value="info">`;
       document.body.appendChild(dl);
     }
   })();
@@ -4810,6 +5305,32 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       });
     }
   })();
+  el("enableTelemetry").addEventListener("change", function(){
+    el("telemetryFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["telemetryHost","telemetryPort","telemetryTls","telemetryCaCert","telemetryUsername","telemetryPassword"].forEach(id => {
+    const node = el(id);
+    if (!node) return;
+    const ev = id === "telemetryTls" ? "change" : "input";
+    node.addEventListener(ev, updateTomlFromNew);
+  });
+  el("enableCommand").addEventListener("change", function(){
+    el("commandFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["commandHost","commandPort","commandTls","commandCaCert","commandUsername","commandPassword"].forEach(id => {
+    const node = el(id);
+    if (!node) return;
+    const ev = id === "commandTls" ? "change" : "input";
+    node.addEventListener(ev, updateTomlFromNew);
+  });
+  ["brewJitter","brewSdsEnabled","dashPublicOverview","dashSourceDir"].forEach(id => {
+    const node = el(id);
+    if (!node) return;
+    const ev = (id === "brewSdsEnabled" || id === "dashPublicOverview") ? "change" : "input";
+    node.addEventListener(ev, updateTomlFromNew);
+  });
   el("enableWxService").addEventListener("change", function(){
     el("wxServiceFields").style.display = this.checked ? "block" : "none";
     updateTomlFromNew();
@@ -4881,7 +5402,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "sectionWxService", "brewRssiSubsection"];
+    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "sectionWxService", "sectionTelemetry", "sectionCommand", "brewRssiSubsection", "brewSdsFwdSubsection"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);
