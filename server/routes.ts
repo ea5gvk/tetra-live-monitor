@@ -1382,6 +1382,8 @@ ${restartLine}
       let inCommentedDashboard = false;
       let inCommentedWx = false;
       let wxActive = false;      // true if [wx_service] header is active
+      let telemetryActive = false; // true if [telemetry] header is active
+      let commandActive = false;   // true if [command] header is active
       let brewCommented = false; // true if [brew] header is commented out
       let brewActive = false;    // true if [brew] header is active
       let rssiExportActive = false; // true if feature_rssi_export appears as active under [brew]
@@ -1504,6 +1506,8 @@ ${restartLine}
           if (currentSection === 'security') securityActive = true;
           if (currentSection === 'dashboard') dashboardActive = true;
           if (currentSection === 'wx_service') wxActive = true;
+          if (currentSection === 'telemetry') telemetryActive = true;
+          if (currentSection === 'command') commandActive = true;
           sections[currentSection] = sections[currentSection] || {};
           continue;
         }
@@ -1874,6 +1878,8 @@ ${restartLine}
           whitelisted_ssis: whitelistedSsis,
           feature_rssi_export: bool('brew', 'feature_rssi_export'),
           feature_rssi_export_enabled: rssiExportActive,
+          jitter_initial_latency_frames: num('brew', 'jitter_initial_latency_frames'),
+          feature_sds_enabled: bool('brew', 'feature_sds_enabled'),
         },
         security: {
           enabled: securityActive,
@@ -1885,6 +1891,8 @@ ${restartLine}
           bind: str('dashboard', 'bind'),
           username: str('dashboard', 'username'),
           password: str('dashboard', 'password'),
+          public_overview: bool('dashboard', 'public_overview'),
+          source_dir: str('dashboard', 'source_dir'),
         },
         wx_service: {
           enabled: wxActive,
@@ -1899,6 +1907,24 @@ ${restartLine}
           enabled: serviceNameActive,
           value: serviceNameValue,
         },
+        telemetry: {
+          enabled: telemetryActive,
+          host: str('telemetry', 'host'),
+          port: num('telemetry', 'port'),
+          use_tls: bool('telemetry', 'use_tls'),
+          ca_cert: str('telemetry', 'ca_cert'),
+          username: str('telemetry', 'username'),
+          password: str('telemetry', 'password'),
+        },
+        command: {
+          enabled: commandActive,
+          host: str('command', 'host'),
+          port: num('command', 'port'),
+          use_tls: bool('command', 'use_tls'),
+          ca_cert: str('command', 'ca_cert'),
+          username: str('command', 'username'),
+          password: str('command', 'password'),
+        },
       });
     } catch (err: any) {
       res.status(500).json({ message: `Error leyendo config: ${err.message}` });
@@ -1906,7 +1932,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig, telemetryConfig, commandConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -2008,6 +2034,12 @@ ${restartLine}
       const rssiExportPresent = brewConfig && brewConfig.rssiExport && typeof brewConfig.rssiExport === 'object';
       const rssiExportEnabled = rssiExportPresent && brewConfig.rssiExport.enabled === true;
       const rssiExportValue = rssiExportPresent && brewConfig.rssiExport.value === false ? "false" : "true";
+      // feature_sds_enabled: managed when brewConfig.sdsFwd is present (Flowstation only)
+      const sdsFwdPresent = brewConfig && brewConfig.sdsFwd && typeof brewConfig.sdsFwd === 'object';
+      const sdsFwdEnabled = !sdsFwdPresent || brewConfig.sdsFwd.enabled !== false; // default true
+      // jitter_initial_latency_frames: managed when present (Flowstation only)
+      const jitterPresent = sdsFwdPresent; // use same gate as sdsFwd (both Flowstation-only)
+      const jitterVal = jitterPresent ? Math.max(0, Math.round(Number(brewConfig.sdsFwd.jitter) || 0)) : 0;
       const brewUpdates: Record<string, string> = {};
       if (brewEnabled) {
         brewUpdates["host"] = `"${brewConfig.host || ""}"`;
@@ -2765,15 +2797,18 @@ ${restartLine}
           if (rssiExportPresent) {
             lines.push(rssiExportEnabled ? `feature_rssi_export = ${rssiExportValue}` : `# feature_rssi_export = ${rssiExportValue}`);
           }
+          if (jitterPresent) lines.push(`jitter_initial_latency_frames = ${jitterVal}`);
+          if (sdsFwdPresent) lines.push(sdsFwdEnabled ? `# feature_sds_enabled = true` : `feature_sds_enabled = false`);
         } else {
           // Uncomment header if needed
           if (!brewIsActive) lines[brewHeaderIdx] = "[brew]";
           const brewEnd = getBrewEnd(brewHeaderIdx);
           const found: Record<string, boolean> = {};
           let rssiFound = false;
+          let jitterFound = false;
+          let sdsFwdFound = false;
           for (let i = brewHeaderIdx + 1; i < brewEnd; i++) {
             const line = lines[i];
-            // Match commented key=value: #key = value  (not pure comment lines like # text)
             const commentedKV = line.match(/^\s*#\s*([\w]+)\s*=\s*(.*)/);
             if (commentedKV) {
               const k = commentedKV[1];
@@ -2787,15 +2822,22 @@ ${restartLine}
                 rssiFound = true;
               } else if (k === 'feature_rssi_export') {
                 // bluestation: leave as-is
+              } else if (k === 'jitter_initial_latency_frames' && jitterPresent) {
+                if (jitterFound) { lines.splice(i, 1); i--; continue; }
+                lines[i] = `jitter_initial_latency_frames = ${jitterVal}`;
+                jitterFound = true;
+              } else if (k === 'feature_sds_enabled' && sdsFwdPresent) {
+                if (sdsFwdFound) { lines.splice(i, 1); i--; continue; }
+                lines[i] = sdsFwdEnabled ? `# feature_sds_enabled = true` : `feature_sds_enabled = false`;
+                sdsFwdFound = true;
               } else if (brewUpdates[k] !== undefined) {
-                lines[i] = `${k} = ${brewUpdates[k]}`; // uncomment + update value
+                lines[i] = `${k} = ${brewUpdates[k]}`;
                 found[k] = true;
               } else {
-                lines[i] = line.replace(/^(\s*)#\s*/, '$1'); // just uncomment
+                lines[i] = line.replace(/^(\s*)#\s*/, '$1');
               }
               continue;
             }
-            // Match active key=value
             const activeKV = line.match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
             if (activeKV) {
               const k = activeKV[2];
@@ -2805,11 +2847,20 @@ ${restartLine}
                   ? `${activeKV[1]}feature_rssi_export${activeKV[3]}${rssiExportValue}`
                   : `${activeKV[1]}# feature_rssi_export = ${rssiExportValue}`;
                 rssiFound = true;
+              } else if (k === 'jitter_initial_latency_frames' && jitterPresent) {
+                if (jitterFound) { lines.splice(i, 1); i--; continue; }
+                lines[i] = `${activeKV[1]}jitter_initial_latency_frames${activeKV[3]}${jitterVal}`;
+                jitterFound = true;
+              } else if (k === 'feature_sds_enabled' && sdsFwdPresent) {
+                if (sdsFwdFound) { lines.splice(i, 1); i--; continue; }
+                lines[i] = sdsFwdEnabled
+                  ? `${activeKV[1]}# feature_sds_enabled = true`
+                  : `${activeKV[1]}feature_sds_enabled = false`;
+                sdsFwdFound = true;
               } else if (brewUpdates[k] !== undefined) {
                 lines[i] = `${activeKV[1]}${k}${activeKV[3]}${brewUpdates[k]}`;
                 found[k] = true;
               } else if (k === 'whitelisted_ssis' && !whitelistEnabled) {
-                // Whitelist disabled → comment out this active line
                 lines[i] = `#${line}`;
               }
             }
@@ -2823,6 +2874,14 @@ ${restartLine}
             lines.splice(insertAt, 0, rssiExportEnabled
               ? `feature_rssi_export = ${rssiExportValue}`
               : `# feature_rssi_export = ${rssiExportValue}`);
+            insertAt++;
+          }
+          if (jitterPresent && !jitterFound) {
+            lines.splice(insertAt, 0, `jitter_initial_latency_frames = ${jitterVal}`);
+            insertAt++;
+          }
+          if (sdsFwdPresent && !sdsFwdFound) {
+            lines.splice(insertAt, 0, sdsFwdEnabled ? `# feature_sds_enabled = true` : `feature_sds_enabled = false`);
           }
         }
       } else {
@@ -2963,20 +3022,23 @@ ${restartLine}
         const dashBind = (typeof dashboardConfig.bind === "string" && dashboardConfig.bind.trim()) ? dashboardConfig.bind.trim() : "0.0.0.0";
         const dashUser = typeof dashboardConfig.username === "string" ? dashboardConfig.username.trim() : "";
         const dashPass = typeof dashboardConfig.password === "string" ? dashboardConfig.password.trim() : "";
+        const dashPublicOverview = dashboardConfig.public_overview === true;
+        const dashSourceDir = typeof dashboardConfig.source_dir === "string" ? dashboardConfig.source_dir.trim() : "";
 
         const portLine   = `port = ${dashPort}`;
         const bindLine   = `bind = "${dashBind}"`;
         const userLine   = dashUser ? `username = "${dashUser}"` : `# username = "admin"`;
         const passLine   = dashPass ? `password = "${dashPass}"` : `# password = "changeme"`;
+        const pubOvLine  = dashPublicOverview ? `public_overview = true` : `# public_overview = false`;
+        const srcDirLine = dashSourceDir ? `source_dir = "${dashSourceDir}"` : `# source_dir = "/path/to/flowstation"`;
 
-        // Build final value lines (commented or active depending on section enabled state)
         const mkLine = (l: string) => dashEnabled ? l : `# ${l.startsWith("# ") ? l.slice(2) : l}`;
-        const finalPort = mkLine(portLine);
-        const finalBind = mkLine(bindLine);
-        // username/password keep their own # logic regardless of section state, but if section
-        // disabled we ensure they're commented.
-        const finalUser = dashEnabled ? userLine : `# username = "${dashUser || 'admin'}"`;
-        const finalPass = dashEnabled ? passLine : `# password = "${dashPass || 'changeme'}"`;
+        const finalPort   = mkLine(portLine);
+        const finalBind   = mkLine(bindLine);
+        const finalUser   = dashEnabled ? userLine : `# username = "${dashUser || 'admin'}"`;
+        const finalPass   = dashEnabled ? passLine : `# password = "${dashPass || 'changeme'}"`;
+        const finalPubOv  = mkLine(pubOvLine);
+        const finalSrcDir = mkLine(srcDirLine);
 
         let dashHeaderIdx = -1;
         for (let i = 0; i < lines.length; i++) {
@@ -2998,7 +3060,7 @@ ${restartLine}
           for (let i = 0; i < lines.length; i++) {
             if (lines[i].match(/^\s*\[brew\]/) || lines[i].match(/^\s*#\s*\[brew\]/)) { brewIdx = i; break; }
           }
-          const block = [headerLine, finalPort, finalBind, finalUser, finalPass];
+          const block = [headerLine, finalPort, finalBind, finalUser, finalPass, finalPubOv, finalSrcDir];
           if (brewIdx === -1) {
             if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
             lines.push(...block);
@@ -3047,6 +3109,17 @@ ${restartLine}
           } else {
             lines.splice(afterBind + 1, 0, finalUser, finalPass);
           }
+          // Upsert public_overview and source_dir
+          const newDashEnd = getDashEnd(dashHeaderIdx);
+          const upsertDash = (pattern: RegExp, newVal: string) => {
+            for (let i = dashHeaderIdx + 1; i < newDashEnd; i++) {
+              if (lines[i].match(pattern)) { lines[i] = newVal; return; }
+            }
+            const insertIdx = getDashEnd(dashHeaderIdx);
+            lines.splice(insertIdx, 0, newVal);
+          };
+          upsertDash(/^\s*#?\s*public_overview\s*=/, finalPubOv);
+          upsertDash(/^\s*#?\s*source_dir\s*=/, finalSrcDir);
         }
       }
 
@@ -3093,6 +3166,76 @@ ${restartLine}
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { wxEnd = j; break; }
           }
           lines.splice(wxStart, wxEnd - wxStart, ...block);
+        }
+      }
+
+      // ── Telemetry [telemetry] (Flowstation only) ──
+      if (telemetryConfig && typeof telemetryConfig === "object") {
+        const telEnabled = telemetryConfig.enabled === true;
+        const telHost = (typeof telemetryConfig.host === "string" ? telemetryConfig.host.trim() : "").replace(/"/g, "");
+        const telPort = (() => { const n = Number(telemetryConfig.port); return Number.isFinite(n) && n >= 1 && n <= 65535 ? Math.round(n) : 8765; })();
+        const telTls = telemetryConfig.use_tls === true;
+        const telCaCert = (typeof telemetryConfig.ca_cert === "string" ? telemetryConfig.ca_cert.trim() : "").replace(/"/g, "");
+        const telUser = (typeof telemetryConfig.username === "string" ? telemetryConfig.username.trim() : "").replace(/"/g, "");
+        const telPass = (typeof telemetryConfig.password === "string" ? telemetryConfig.password.trim() : "").replace(/"/g, "");
+        const p = telEnabled ? "" : "# ";
+        const block: string[] = [
+          `${p}[telemetry]`,
+          `${p}host = "${telHost}"`,
+          `${p}port = ${telPort}`,
+          `${p}use_tls = ${telTls ? "true" : "false"}`,
+        ];
+        if (telCaCert) block.push(`${p}ca_cert = "${telCaCert}"`);
+        if (telUser) block.push(`${p}username = "${telUser}"`);
+        if (telPass) block.push(`${p}password = "${telPass}"`);
+        let telStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[telemetry\]/) || lines[i].match(/^\s*#\s*\[telemetry\]/)) { telStart = i; break; }
+        }
+        if (telStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          let telEnd = lines.length;
+          for (let j = telStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { telEnd = j; break; }
+          }
+          lines.splice(telStart, telEnd - telStart, ...block);
+        }
+      }
+
+      // ── Command [command] (Flowstation only) ──
+      if (commandConfig && typeof commandConfig === "object") {
+        const cmdEnabled = commandConfig.enabled === true;
+        const cmdHost = (typeof commandConfig.host === "string" ? commandConfig.host.trim() : "").replace(/"/g, "");
+        const cmdPort = (() => { const n = Number(commandConfig.port); return Number.isFinite(n) && n >= 1 && n <= 65535 ? Math.round(n) : 8766; })();
+        const cmdTls = commandConfig.use_tls === true;
+        const cmdCaCert = (typeof commandConfig.ca_cert === "string" ? commandConfig.ca_cert.trim() : "").replace(/"/g, "");
+        const cmdUser = (typeof commandConfig.username === "string" ? commandConfig.username.trim() : "").replace(/"/g, "");
+        const cmdPass = (typeof commandConfig.password === "string" ? commandConfig.password.trim() : "").replace(/"/g, "");
+        const p = cmdEnabled ? "" : "# ";
+        const block: string[] = [
+          `${p}[command]`,
+          `${p}host = "${cmdHost}"`,
+          `${p}port = ${cmdPort}`,
+          `${p}use_tls = ${cmdTls ? "true" : "false"}`,
+        ];
+        if (cmdCaCert) block.push(`${p}ca_cert = "${cmdCaCert}"`);
+        if (cmdUser) block.push(`${p}username = "${cmdUser}"`);
+        if (cmdPass) block.push(`${p}password = "${cmdPass}"`);
+        let cmdStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[command\]/) || lines[i].match(/^\s*#\s*\[command\]/)) { cmdStart = i; break; }
+        }
+        if (cmdStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          let cmdEnd = lines.length;
+          for (let j = cmdStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { cmdEnd = j; break; }
+          }
+          lines.splice(cmdStart, cmdEnd - cmdStart, ...block);
         }
       }
 
