@@ -63,7 +63,8 @@
     h1{margin:0; font-size:18px; font-weight:800;}
     .sub{margin-top:6px; color:var(--muted); font-size:13px; line-height:1.4}
     main{padding:18px; max-width:1200px; margin:0 auto;}
-    .grid{display:grid; grid-template-columns:1.15fr .85fr; gap:14px;}
+    .grid{display:grid; grid-template-columns:1.45fr 1fr; gap:14px;}
+    .grid > *{min-width:0;}
     @media (max-width: 960px){ .grid{grid-template-columns:1fr; } }
 
     .topbar{
