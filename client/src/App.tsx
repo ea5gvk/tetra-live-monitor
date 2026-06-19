@@ -80,10 +80,10 @@ function DonateModal({ onClose }: { onClose: () => void }) {
           </h2>
 
           {/* amount pill */}
-          <div className="flex items-center gap-2 px-5 py-2 rounded-lg font-black text-xl"
+          <div className="flex items-center gap-2 px-5 py-2 rounded-lg font-black text-base"
             style={{ background: "rgba(255,160,0,0.12)", border: "1px solid rgba(255,160,0,0.35)", color: "#ffb300" }}>
-            <Tag className="w-4 h-4" />
-            24 €
+            <Heart className="w-4 h-4" />
+            {t("donate_amount")}
           </div>
 
           {/* description */}
