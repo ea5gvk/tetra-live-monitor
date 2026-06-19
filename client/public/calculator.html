@@ -845,6 +845,95 @@
       </div>
     </section>
   </div>
+  <div id="sectionRecovery" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="recovery_title">🔄 Recuperación [recovery]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableRecovery" />
+            <label for="enableRecovery" data-i18n="recovery_enable">Activar recuperación</label>
+          </div>
+          <div class="hint" data-i18n="recovery_hint">Restaura las afiliaciones de grupo de radios que se reconectan tras un reinicio del BTS. Desactivado por defecto.</div>
+        </div>
+      </div>
+      <div id="recoveryFields" style="display:none; margin-top:12px;">
+        <div class="row">
+          <div>
+            <label for="recoveryIssiAllowlist" data-i18n="recovery_issi_allowlist">issi_allowlist (ISSIs separados por coma, vacío = todos)</label>
+            <input id="recoveryIssiAllowlist" type="text" placeholder="0, 1001, 2260570" />
+            <div class="hint" data-i18n="recovery_issi_allowlist_hint">Vacío = recuperar todos los ISSIs cacheados. Con valores, solo esos ISSIs se recuperan.</div>
+          </div>
+          <div>
+            <label for="recoveryCachePath" data-i18n="recovery_cache_path">cache_path (ruta opcional)</label>
+            <input id="recoveryCachePath" type="text" placeholder="/opt/tetra/recovery_cache.json" />
+            <div class="hint" data-i18n="recovery_cache_path_hint">Vacío = misma carpeta que config.toml, archivo recovery_cache.json.</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div>
+            <label for="recoveryMaxReplay" data-i18n="recovery_max_replay">max_replay_attempts (1–500, default 150)</label>
+            <input id="recoveryMaxReplay" type="number" value="150" min="1" max="500" style="max-width:120px;" />
+          </div>
+          <div>
+            <label for="recoveryReplayPerFrame" data-i18n="recovery_replay_per_frame">replay_per_frame (1–18, default 1)</label>
+            <input id="recoveryReplayPerFrame" type="number" value="1" min="1" max="18" style="max-width:120px;" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div>
+            <label for="recoveryDebounceSecs" data-i18n="recovery_debounce_secs">debounce_secs (1–300, default 5)</label>
+            <input id="recoveryDebounceSecs" type="number" value="5" min="1" max="300" style="max-width:120px;" />
+          </div>
+          <div>
+            <label for="recoveryMaxCachedIssis" data-i18n="recovery_max_cached_issis">max_cached_issis (1–65535, default 1024)</label>
+            <input id="recoveryMaxCachedIssis" type="number" value="1024" min="1" max="65535" style="max-width:120px;" />
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="sectionTelegramAlerts" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="telegram_title">📨 Alertas Telegram [telegram_alerts]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableTelegramAlerts" />
+            <label for="enableTelegramAlerts" data-i18n="telegram_enable">Activar alertas Telegram</label>
+          </div>
+          <div class="hint" data-i18n="telegram_hint">Envía notificaciones a uno o más chats de Telegram cuando ocurren eventos relevantes (conexión/desconexión de radios, Brew up/down, etc.).</div>
+        </div>
+      </div>
+      <div id="telegramFields" style="display:none; margin-top:12px;">
+        <div class="row">
+          <div>
+            <label for="telegramBotToken" data-i18n="telegram_bot_token">bot_token (requerido)</label>
+            <input id="telegramBotToken" type="text" placeholder="123456789:AAExampleBotTokenStringFromBotFather" />
+            <div class="hint" data-i18n="telegram_bot_token_hint">Token de tu bot de Telegram, obtenido de @BotFather con /newbot.</div>
+          </div>
+          <div>
+            <label for="telegramChatIds" data-i18n="telegram_chat_ids">chat_ids (IDs separados por coma)</label>
+            <input id="telegramChatIds" type="text" placeholder="123456789, -987654321" />
+            <div class="hint" data-i18n="telegram_chat_ids_hint">IDs numéricos de chats. Positivos = chat privado, negativos = grupo/canal.</div>
+          </div>
+        </div>
+        <div style="margin-top:12px;">
+          <div style="font-size:12px; color:var(--muted); margin-bottom:8px;" data-i18n="telegram_flags_label">Alertas a enviar:</div>
+          <div style="display:flex; flex-wrap:wrap; gap:10px;">
+            <div class="checkbox-row"><input type="checkbox" id="telegramAlertConnect" checked /><label for="telegramAlertConnect" data-i18n="telegram_alert_connect">alert_connect (radio conectada)</label></div>
+            <div class="checkbox-row"><input type="checkbox" id="telegramAlertDisconnect" checked /><label for="telegramAlertDisconnect" data-i18n="telegram_alert_disconnect">alert_disconnect (radio desconectada)</label></div>
+            <div class="checkbox-row"><input type="checkbox" id="telegramAlertT351" checked /><label for="telegramAlertT351" data-i18n="telegram_alert_t351">alert_t351 (radio caída por T351)</label></div>
+            <div class="checkbox-row"><input type="checkbox" id="telegramAlertLip" checked /><label for="telegramAlertLip" data-i18n="telegram_alert_lip">alert_lip (baliza de posición LIP)</label></div>
+            <div class="checkbox-row"><input type="checkbox" id="telegramAlertBackhaul" checked /><label for="telegramAlertBackhaul" data-i18n="telegram_alert_backhaul">alert_backhaul (Brew up/down)</label></div>
+            <div class="checkbox-row"><input type="checkbox" id="telegramAlertCriticalLogs" checked /><label for="telegramAlertCriticalLogs" data-i18n="telegram_alert_critical_logs">alert_critical_logs (WARN/ERROR del stack)</label></div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
   <div id="sectionTelemetry" style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="telemetry_title">📡 Telemetría [telemetry]</h2>
@@ -1166,6 +1255,31 @@
       ncells_apply_count: "Apply",
       ncells_add: "+ Add cell",
       ncells_cell: "Cell",
+      recovery_title: "🔄 Recovery [recovery]",
+      recovery_enable: "Enable recovery",
+      recovery_hint: "Restores group affiliations for radios that reconnect after a BTS restart. Disabled by default.",
+      recovery_issi_allowlist: "issi_allowlist (comma-separated ISSIs, empty = all)",
+      recovery_issi_allowlist_hint: "Empty = recover all cached ISSIs. With values, only those ISSIs are recovered.",
+      recovery_cache_path: "cache_path (optional path)",
+      recovery_cache_path_hint: "Empty = same folder as config.toml, file recovery_cache.json.",
+      recovery_max_replay: "max_replay_attempts (1–500, default 150)",
+      recovery_replay_per_frame: "replay_per_frame (1–18, default 1)",
+      recovery_debounce_secs: "debounce_secs (1–300, default 5)",
+      recovery_max_cached_issis: "max_cached_issis (1–65535, default 1024)",
+      telegram_title: "📨 Telegram Alerts [telegram_alerts]",
+      telegram_enable: "Enable Telegram alerts",
+      telegram_hint: "Sends notifications to one or more Telegram chats when notable events occur (radio connect/disconnect, Brew up/down, etc.).",
+      telegram_bot_token: "bot_token (required)",
+      telegram_bot_token_hint: "Your Telegram bot token from @BotFather (/newbot).",
+      telegram_chat_ids: "chat_ids (comma-separated IDs)",
+      telegram_chat_ids_hint: "Numeric chat IDs. Positive = private chat, negative = group/channel.",
+      telegram_flags_label: "Alerts to send:",
+      telegram_alert_connect: "alert_connect (radio connected)",
+      telegram_alert_disconnect: "alert_disconnect (radio disconnected)",
+      telegram_alert_t351: "alert_t351 (radio dropped by T351)",
+      telegram_alert_lip: "alert_lip (LIP position beacon)",
+      telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
+      telegram_alert_critical_logs: "alert_critical_logs (stack WARN/ERROR)",
       brew_jitter: "jitter_initial_latency_frames (default 0)",
       brew_jitter_hint: "Initial latency in frames for Brew audio jitter buffer. Increase if you hear artifacts at the start of transmissions.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -1389,6 +1503,31 @@
       ncells_apply_count: "应用",
       ncells_add: "+ 添加小区",
       ncells_cell: "小区",
+      recovery_title: "🔄 恢复 [recovery]",
+      recovery_enable: "启用恢复",
+      recovery_hint: "在 BTS 重启后恢复重新连接的无线电的组附属关系。默认禁用。",
+      recovery_issi_allowlist: "issi_allowlist（逗号分隔 ISSI，空 = 全部）",
+      recovery_issi_allowlist_hint: "空 = 恢复所有缓存 ISSI。填写值时仅恢复这些 ISSI。",
+      recovery_cache_path: "cache_path（可选路径）",
+      recovery_cache_path_hint: "空 = 与 config.toml 同目录，文件名 recovery_cache.json。",
+      recovery_max_replay: "max_replay_attempts（1–500，默认 150）",
+      recovery_replay_per_frame: "replay_per_frame（1–18，默认 1）",
+      recovery_debounce_secs: "debounce_secs（1–300，默认 5）",
+      recovery_max_cached_issis: "max_cached_issis（1–65535，默认 1024）",
+      telegram_title: "📨 Telegram 警报 [telegram_alerts]",
+      telegram_enable: "启用 Telegram 警报",
+      telegram_hint: "当发生重要事件时（无线电连接/断开、Brew 上/下线等）向一个或多个 Telegram 聊天发送通知。",
+      telegram_bot_token: "bot_token（必填）",
+      telegram_bot_token_hint: "从 @BotFather（/newbot）获取的 Telegram 机器人 Token。",
+      telegram_chat_ids: "chat_ids（逗号分隔 ID）",
+      telegram_chat_ids_hint: "数字聊天 ID。正数 = 私人聊天，负数 = 群组/频道。",
+      telegram_flags_label: "要发送的警报：",
+      telegram_alert_connect: "alert_connect（无线电已连接）",
+      telegram_alert_disconnect: "alert_disconnect（无线电已断开）",
+      telegram_alert_t351: "alert_t351（T351 掉线的无线电）",
+      telegram_alert_lip: "alert_lip（LIP 位置信标）",
+      telegram_alert_backhaul: "alert_backhaul（Brew 上/下线）",
+      telegram_alert_critical_logs: "alert_critical_logs（栈 WARN/ERROR）",
       brew_jitter: "jitter_initial_latency_frames（默认 0）",
       brew_jitter_hint: "Brew 音频抖动缓冲区的初始延迟帧数。如果传输开始时有音频失真，请增大此值。",
       brew_sds_enabled: "feature_sds_enabled",
@@ -1612,6 +1751,31 @@
       ncells_apply_count: "Aplicar",
       ncells_add: "+ Añadir celda",
       ncells_cell: "Celda",
+      recovery_title: "🔄 Recuperación [recovery]",
+      recovery_enable: "Activar recuperación",
+      recovery_hint: "Restaura las afiliaciones de grupo de radios que se reconectan tras un reinicio del BTS. Desactivado por defecto.",
+      recovery_issi_allowlist: "issi_allowlist (ISSIs separados por coma, vacío = todos)",
+      recovery_issi_allowlist_hint: "Vacío = recuperar todos los ISSIs cacheados. Con valores, solo esos ISSIs se recuperan.",
+      recovery_cache_path: "cache_path (ruta opcional)",
+      recovery_cache_path_hint: "Vacío = misma carpeta que config.toml, archivo recovery_cache.json.",
+      recovery_max_replay: "max_replay_attempts (1–500, por defecto 150)",
+      recovery_replay_per_frame: "replay_per_frame (1–18, por defecto 1)",
+      recovery_debounce_secs: "debounce_secs (1–300, por defecto 5)",
+      recovery_max_cached_issis: "max_cached_issis (1–65535, por defecto 1024)",
+      telegram_title: "📨 Alertas Telegram [telegram_alerts]",
+      telegram_enable: "Activar alertas Telegram",
+      telegram_hint: "Envía notificaciones a uno o más chats de Telegram cuando ocurren eventos relevantes (conexión/desconexión de radios, Brew up/down, etc.).",
+      telegram_bot_token: "bot_token (requerido)",
+      telegram_bot_token_hint: "Token de tu bot de Telegram obtenido de @BotFather con /newbot.",
+      telegram_chat_ids: "chat_ids (IDs separados por coma)",
+      telegram_chat_ids_hint: "IDs numéricos de chats. Positivos = chat privado, negativos = grupo/canal.",
+      telegram_flags_label: "Alertas a enviar:",
+      telegram_alert_connect: "alert_connect (radio conectada)",
+      telegram_alert_disconnect: "alert_disconnect (radio desconectada)",
+      telegram_alert_t351: "alert_t351 (radio caída por T351)",
+      telegram_alert_lip: "alert_lip (baliza de posición LIP)",
+      telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
+      telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR del stack)",
       brew_jitter: "jitter_initial_latency_frames (por defecto 0)",
       brew_jitter_hint: "Latencia inicial en frames para el buffer de jitter de audio Brew. Aumentar si hay artefactos al inicio de las transmisiones.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -1835,6 +1999,31 @@
       ncells_apply_count: "Aplicar",
       ncells_add: "+ Adicionar célula",
       ncells_cell: "Célula",
+      recovery_title: "🔄 Recuperação [recovery]",
+      recovery_enable: "Ativar recuperação",
+      recovery_hint: "Restaura as afiliações de grupo de rádios que se reconectam após uma reinicialização do BTS. Desativado por padrão.",
+      recovery_issi_allowlist: "issi_allowlist (ISSIs separados por vírgula, vazio = todos)",
+      recovery_issi_allowlist_hint: "Vazio = recuperar todos os ISSIs em cache. Com valores, apenas esses ISSIs são recuperados.",
+      recovery_cache_path: "cache_path (caminho opcional)",
+      recovery_cache_path_hint: "Vazio = mesma pasta que config.toml, arquivo recovery_cache.json.",
+      recovery_max_replay: "max_replay_attempts (1–500, padrão 150)",
+      recovery_replay_per_frame: "replay_per_frame (1–18, padrão 1)",
+      recovery_debounce_secs: "debounce_secs (1–300, padrão 5)",
+      recovery_max_cached_issis: "max_cached_issis (1–65535, padrão 1024)",
+      telegram_title: "📨 Alertas Telegram [telegram_alerts]",
+      telegram_enable: "Ativar alertas Telegram",
+      telegram_hint: "Envia notificações para um ou mais chats do Telegram quando eventos relevantes ocorrem (conexão/desconexão de rádios, Brew up/down, etc.).",
+      telegram_bot_token: "bot_token (obrigatório)",
+      telegram_bot_token_hint: "Token do seu bot Telegram obtido do @BotFather com /newbot.",
+      telegram_chat_ids: "chat_ids (IDs separados por vírgula)",
+      telegram_chat_ids_hint: "IDs numéricos de chats. Positivos = chat privado, negativos = grupo/canal.",
+      telegram_flags_label: "Alertas a enviar:",
+      telegram_alert_connect: "alert_connect (rádio conectado)",
+      telegram_alert_disconnect: "alert_disconnect (rádio desconectado)",
+      telegram_alert_t351: "alert_t351 (rádio caído por T351)",
+      telegram_alert_lip: "alert_lip (baliza de posição LIP)",
+      telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
+      telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR do stack)",
       brew_jitter: "jitter_initial_latency_frames (padrão 0)",
       brew_jitter_hint: "Latência inicial em frames para o buffer de jitter de áudio Brew. Aumentar se houver artefatos no início das transmissões.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -2058,6 +2247,31 @@
       ncells_apply_count: "Anwenden",
       ncells_add: "+ Zelle hinzufügen",
       ncells_cell: "Zelle",
+      recovery_title: "🔄 Wiederherstellung [recovery]",
+      recovery_enable: "Wiederherstellung aktivieren",
+      recovery_hint: "Stellt Gruppenaffilierungen für Radios wieder her, die nach einem BTS-Neustart erneut verbinden. Standardmäßig deaktiviert.",
+      recovery_issi_allowlist: "issi_allowlist (kommagetrennte ISSIs, leer = alle)",
+      recovery_issi_allowlist_hint: "Leer = alle gecachten ISSIs wiederherstellen. Mit Werten nur diese ISSIs.",
+      recovery_cache_path: "cache_path (optionaler Pfad)",
+      recovery_cache_path_hint: "Leer = gleicher Ordner wie config.toml, Datei recovery_cache.json.",
+      recovery_max_replay: "max_replay_attempts (1–500, Standard 150)",
+      recovery_replay_per_frame: "replay_per_frame (1–18, Standard 1)",
+      recovery_debounce_secs: "debounce_secs (1–300, Standard 5)",
+      recovery_max_cached_issis: "max_cached_issis (1–65535, Standard 1024)",
+      telegram_title: "📨 Telegram-Benachrichtigungen [telegram_alerts]",
+      telegram_enable: "Telegram-Benachrichtigungen aktivieren",
+      telegram_hint: "Sendet Benachrichtigungen an einen oder mehrere Telegram-Chats bei wichtigen Ereignissen (Radio-An/Abmeldung, Brew auf/ab, usw.).",
+      telegram_bot_token: "bot_token (erforderlich)",
+      telegram_bot_token_hint: "Ihr Telegram-Bot-Token von @BotFather (/newbot).",
+      telegram_chat_ids: "chat_ids (kommagetrennte IDs)",
+      telegram_chat_ids_hint: "Numerische Chat-IDs. Positiv = privater Chat, negativ = Gruppe/Kanal.",
+      telegram_flags_label: "Zu sendende Benachrichtigungen:",
+      telegram_alert_connect: "alert_connect (Radio verbunden)",
+      telegram_alert_disconnect: "alert_disconnect (Radio getrennt)",
+      telegram_alert_t351: "alert_t351 (Radio durch T351 gefallen)",
+      telegram_alert_lip: "alert_lip (LIP-Positionsbake)",
+      telegram_alert_backhaul: "alert_backhaul (Brew auf/ab)",
+      telegram_alert_critical_logs: "alert_critical_logs (Stack WARN/ERROR)",
       brew_jitter: "jitter_initial_latency_frames (Standard 0)",
       brew_jitter_hint: "Anfangslatenz in Frames für den Brew-Audio-Jitter-Buffer. Erhöhen, wenn zu Beginn Audioartefakte auftreten.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -2281,6 +2495,31 @@
       ncells_apply_count: "Appliquer",
       ncells_add: "+ Ajouter cellule",
       ncells_cell: "Cellule",
+      recovery_title: "🔄 Récupération [recovery]",
+      recovery_enable: "Activer la récupération",
+      recovery_hint: "Restaure les affiliations de groupe des radios qui se reconnectent après un redémarrage du BTS. Désactivé par défaut.",
+      recovery_issi_allowlist: "issi_allowlist (ISSIs séparés par virgule, vide = tous)",
+      recovery_issi_allowlist_hint: "Vide = récupérer tous les ISSIs mis en cache. Avec des valeurs, seuls ces ISSIs sont récupérés.",
+      recovery_cache_path: "cache_path (chemin optionnel)",
+      recovery_cache_path_hint: "Vide = même dossier que config.toml, fichier recovery_cache.json.",
+      recovery_max_replay: "max_replay_attempts (1–500, défaut 150)",
+      recovery_replay_per_frame: "replay_per_frame (1–18, défaut 1)",
+      recovery_debounce_secs: "debounce_secs (1–300, défaut 5)",
+      recovery_max_cached_issis: "max_cached_issis (1–65535, défaut 1024)",
+      telegram_title: "📨 Alertes Telegram [telegram_alerts]",
+      telegram_enable: "Activer les alertes Telegram",
+      telegram_hint: "Envoie des notifications à un ou plusieurs chats Telegram lors d'événements notables (connexion/déconnexion radio, Brew up/down, etc.).",
+      telegram_bot_token: "bot_token (requis)",
+      telegram_bot_token_hint: "Token de votre bot Telegram obtenu de @BotFather (/newbot).",
+      telegram_chat_ids: "chat_ids (IDs séparés par virgule)",
+      telegram_chat_ids_hint: "IDs numériques de chats. Positif = chat privé, négatif = groupe/canal.",
+      telegram_flags_label: "Alertes à envoyer :",
+      telegram_alert_connect: "alert_connect (radio connectée)",
+      telegram_alert_disconnect: "alert_disconnect (radio déconnectée)",
+      telegram_alert_t351: "alert_t351 (radio tombée par T351)",
+      telegram_alert_lip: "alert_lip (balise de position LIP)",
+      telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
+      telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR du stack)",
       brew_jitter: "jitter_initial_latency_frames (défaut 0)",
       brew_jitter_hint: "Latence initiale en frames pour le tampon de gigue audio Brew. Augmenter en cas d'artefacts au début des transmissions.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -2504,6 +2743,31 @@
       ncells_apply_count: "Applica",
       ncells_add: "+ Aggiungi cella",
       ncells_cell: "Cella",
+      recovery_title: "🔄 Recupero [recovery]",
+      recovery_enable: "Abilita recupero",
+      recovery_hint: "Ripristina le affiliazioni di gruppo per le radio che si riconnettono dopo un riavvio del BTS. Disabilitato per impostazione predefinita.",
+      recovery_issi_allowlist: "issi_allowlist (ISSIs separati da virgola, vuoto = tutti)",
+      recovery_issi_allowlist_hint: "Vuoto = recuperare tutti gli ISSI in cache. Con valori, solo quegli ISSI vengono recuperati.",
+      recovery_cache_path: "cache_path (percorso opzionale)",
+      recovery_cache_path_hint: "Vuoto = stessa cartella di config.toml, file recovery_cache.json.",
+      recovery_max_replay: "max_replay_attempts (1–500, default 150)",
+      recovery_replay_per_frame: "replay_per_frame (1–18, default 1)",
+      recovery_debounce_secs: "debounce_secs (1–300, default 5)",
+      recovery_max_cached_issis: "max_cached_issis (1–65535, default 1024)",
+      telegram_title: "📨 Avvisi Telegram [telegram_alerts]",
+      telegram_enable: "Abilita avvisi Telegram",
+      telegram_hint: "Invia notifiche a una o più chat Telegram quando si verificano eventi notevoli (connessione/disconnessione radio, Brew su/giù, ecc.).",
+      telegram_bot_token: "bot_token (richiesto)",
+      telegram_bot_token_hint: "Token del tuo bot Telegram da @BotFather (/newbot).",
+      telegram_chat_ids: "chat_ids (ID separati da virgola)",
+      telegram_chat_ids_hint: "ID numerici di chat. Positivo = chat privata, negativo = gruppo/canale.",
+      telegram_flags_label: "Avvisi da inviare:",
+      telegram_alert_connect: "alert_connect (radio connessa)",
+      telegram_alert_disconnect: "alert_disconnect (radio disconnessa)",
+      telegram_alert_t351: "alert_t351 (radio caduta per T351)",
+      telegram_alert_lip: "alert_lip (beacon di posizione LIP)",
+      telegram_alert_backhaul: "alert_backhaul (Brew su/giù)",
+      telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR dello stack)",
       brew_jitter: "jitter_initial_latency_frames (default 0)",
       brew_jitter_hint: "Latenza iniziale in frame per il buffer di jitter audio Brew. Aumentare se si sentono artefatti all'inizio delle trasmissioni.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -2727,6 +2991,31 @@
       ncells_apply_count: "Anvend",
       ncells_add: "+ Tilføj celle",
       ncells_cell: "Celle",
+      recovery_title: "🔄 Gendannelse [recovery]",
+      recovery_enable: "Aktivér gendannelse",
+      recovery_hint: "Gendanner gruppeaffilieringer for radioer, der genopretter forbindelsen efter en BTS-genstart. Deaktiveret som standard.",
+      recovery_issi_allowlist: "issi_allowlist (kommaseparerede ISSIs, tom = alle)",
+      recovery_issi_allowlist_hint: "Tom = gendanne alle cachede ISSIs. Med værdier gendannes kun disse ISSIs.",
+      recovery_cache_path: "cache_path (valgfri sti)",
+      recovery_cache_path_hint: "Tom = samme mappe som config.toml, fil recovery_cache.json.",
+      recovery_max_replay: "max_replay_attempts (1–500, standard 150)",
+      recovery_replay_per_frame: "replay_per_frame (1–18, standard 1)",
+      recovery_debounce_secs: "debounce_secs (1–300, standard 5)",
+      recovery_max_cached_issis: "max_cached_issis (1–65535, standard 1024)",
+      telegram_title: "📨 Telegram-advarsler [telegram_alerts]",
+      telegram_enable: "Aktivér Telegram-advarsler",
+      telegram_hint: "Sender meddelelser til en eller flere Telegram-chats ved bemærkelsesværdige hændelser (radio tilsluttet/afbrudt, Brew op/ned, osv.).",
+      telegram_bot_token: "bot_token (påkrævet)",
+      telegram_bot_token_hint: "Din Telegram-bot-token fra @BotFather (/newbot).",
+      telegram_chat_ids: "chat_ids (kommaseparerede ID'er)",
+      telegram_chat_ids_hint: "Numeriske chat-ID'er. Positiv = privat chat, negativ = gruppe/kanal.",
+      telegram_flags_label: "Advarsler at sende:",
+      telegram_alert_connect: "alert_connect (radio tilsluttet)",
+      telegram_alert_disconnect: "alert_disconnect (radio afbrudt)",
+      telegram_alert_t351: "alert_t351 (radio faldet pga. T351)",
+      telegram_alert_lip: "alert_lip (LIP-positionsfyr)",
+      telegram_alert_backhaul: "alert_backhaul (Brew op/ned)",
+      telegram_alert_critical_logs: "alert_critical_logs (stack WARN/ERROR)",
       brew_jitter: "jitter_initial_latency_frames (standard 0)",
       brew_jitter_hint: "Indledende latens i frames for Brew-lydjittperbufferen. Forøg, hvis der høres artefakter ved starten af transmissioner.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -2950,6 +3239,31 @@
       ncells_apply_count: "Toepassen",
       ncells_add: "+ Cel toevoegen",
       ncells_cell: "Cel",
+      recovery_title: "🔄 Herstel [recovery]",
+      recovery_enable: "Herstel inschakelen",
+      recovery_hint: "Herstelt groepsaffiliteiten voor radio's die opnieuw verbinding maken na een BTS-herstart. Standaard uitgeschakeld.",
+      recovery_issi_allowlist: "issi_allowlist (kommagescheiden ISSIs, leeg = alle)",
+      recovery_issi_allowlist_hint: "Leeg = alle gecachte ISSIs herstellen. Met waarden worden alleen die ISSIs hersteld.",
+      recovery_cache_path: "cache_path (optioneel pad)",
+      recovery_cache_path_hint: "Leeg = zelfde map als config.toml, bestand recovery_cache.json.",
+      recovery_max_replay: "max_replay_attempts (1–500, standaard 150)",
+      recovery_replay_per_frame: "replay_per_frame (1–18, standaard 1)",
+      recovery_debounce_secs: "debounce_secs (1–300, standaard 5)",
+      recovery_max_cached_issis: "max_cached_issis (1–65535, standaard 1024)",
+      telegram_title: "📨 Telegram-meldingen [telegram_alerts]",
+      telegram_enable: "Telegram-meldingen inschakelen",
+      telegram_hint: "Stuurt meldingen naar een of meer Telegram-chats bij opmerkelijke gebeurtenissen (radio verbonden/verbroken, Brew op/neer, enz.).",
+      telegram_bot_token: "bot_token (vereist)",
+      telegram_bot_token_hint: "Uw Telegram-bot-token van @BotFather (/newbot).",
+      telegram_chat_ids: "chat_ids (kommagescheiden ID's)",
+      telegram_chat_ids_hint: "Numerieke chat-ID's. Positief = privéchat, negatief = groep/kanaal.",
+      telegram_flags_label: "Te verzenden meldingen:",
+      telegram_alert_connect: "alert_connect (radio verbonden)",
+      telegram_alert_disconnect: "alert_disconnect (radio verbroken)",
+      telegram_alert_t351: "alert_t351 (radio gevallen door T351)",
+      telegram_alert_lip: "alert_lip (LIP-positiebaken)",
+      telegram_alert_backhaul: "alert_backhaul (Brew op/neer)",
+      telegram_alert_critical_logs: "alert_critical_logs (stack WARN/ERROR)",
       brew_jitter: "jitter_initial_latency_frames (standaard 0)",
       brew_jitter_hint: "Initiële latentie in frames voor de Brew-audiojitterbuffer. Verhoog als er artefacten hoorbaar zijn bij het begin van transmissies.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -3173,6 +3487,31 @@
       ncells_apply_count: "Aplică",
       ncells_add: "+ Adaugă celulă",
       ncells_cell: "Celulă",
+      recovery_title: "🔄 Recuperare [recovery]",
+      recovery_enable: "Activează recuperarea",
+      recovery_hint: "Restaurează afilierile de grup pentru radiourile care se reconectează după o repornire BTS. Dezactivat implicit.",
+      recovery_issi_allowlist: "issi_allowlist (ISSIs separate prin virgulă, gol = toate)",
+      recovery_issi_allowlist_hint: "Gol = recuperează toți ISSIs din cache. Cu valori, se recuperează doar acei ISSI.",
+      recovery_cache_path: "cache_path (cale opțională)",
+      recovery_cache_path_hint: "Gol = același director ca config.toml, fișier recovery_cache.json.",
+      recovery_max_replay: "max_replay_attempts (1–500, implicit 150)",
+      recovery_replay_per_frame: "replay_per_frame (1–18, implicit 1)",
+      recovery_debounce_secs: "debounce_secs (1–300, implicit 5)",
+      recovery_max_cached_issis: "max_cached_issis (1–65535, implicit 1024)",
+      telegram_title: "📨 Alerte Telegram [telegram_alerts]",
+      telegram_enable: "Activează alertele Telegram",
+      telegram_hint: "Trimite notificări la unul sau mai multe chat-uri Telegram când se produc evenimente notabile (conectare/deconectare radio, Brew sus/jos, etc.).",
+      telegram_bot_token: "bot_token (necesar)",
+      telegram_bot_token_hint: "Token-ul botului tău Telegram de la @BotFather (/newbot).",
+      telegram_chat_ids: "chat_ids (ID-uri separate prin virgulă)",
+      telegram_chat_ids_hint: "ID-uri numerice de chat. Pozitive = chat privat, negative = grup/canal.",
+      telegram_flags_label: "Alerte de trimis:",
+      telegram_alert_connect: "alert_connect (radio conectat)",
+      telegram_alert_disconnect: "alert_disconnect (radio deconectat)",
+      telegram_alert_t351: "alert_t351 (radio căzut prin T351)",
+      telegram_alert_lip: "alert_lip (baliză de poziție LIP)",
+      telegram_alert_backhaul: "alert_backhaul (Brew sus/jos)",
+      telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR stack)",
       brew_jitter: "jitter_initial_latency_frames (implicit 0)",
       brew_jitter_hint: "Latența inițială în cadre pentru bufferul de jitter audio Brew. Măriți dacă auziți artefacte la începutul transmisiunilor.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -3768,6 +4107,49 @@
       lines.push(`${p}periodic_is_group = ${wxPerGroup ? "true" : "false"}`);
       lines.push(`${p}periodic_icao = "${wxIcao}"`);
       lines.push(`${p}periodic_interval_secs = ${wxInterval}`);
+    }
+    // Recovery [recovery] (Flowstation only)
+    if (document.getElementById("sectionRecovery")?.style.display !== "none") {
+      const clampInt = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
+      const recEnabled = el("enableRecovery").checked;
+      const p = recEnabled ? "" : "# ";
+      const rawAllowlist = el("recoveryIssiAllowlist").value.trim();
+      const allowlistArr = rawAllowlist ? rawAllowlist.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)) : [];
+      const allowlistToml = allowlistArr.length > 0 ? `[${allowlistArr.join(", ")}]` : "[]";
+      const cachePath = el("recoveryCachePath").value.trim().replace(/"/g, "");
+      const maxReplay = clampInt(el("recoveryMaxReplay").value, 1, 500, 150);
+      const rpf = clampInt(el("recoveryReplayPerFrame").value, 1, 18, 1);
+      const debounce = clampInt(el("recoveryDebounceSecs").value, 1, 300, 5);
+      const maxCached = clampInt(el("recoveryMaxCachedIssis").value, 1, 65535, 1024);
+      lines.push("");
+      lines.push(`${p}[recovery]`);
+      lines.push(`${p}enabled = ${recEnabled ? "true" : "false"}`);
+      lines.push(`${p}issi_allowlist = ${allowlistToml}`);
+      if (cachePath) lines.push(`${p}cache_path = "${cachePath}"`);
+      lines.push(`${p}max_replay_attempts = ${maxReplay}`);
+      lines.push(`${p}replay_per_frame = ${rpf}`);
+      lines.push(`${p}debounce_secs = ${debounce}`);
+      lines.push(`${p}max_cached_issis = ${maxCached}`);
+    }
+    // Telegram Alerts [telegram_alerts] (Flowstation only)
+    if (document.getElementById("sectionTelegramAlerts")?.style.display !== "none") {
+      const tgEnabled = el("enableTelegramAlerts").checked;
+      const p = tgEnabled ? "" : "# ";
+      const botToken = el("telegramBotToken").value.trim().replace(/"/g, "");
+      const rawIds = el("telegramChatIds").value.trim();
+      const idsArr = rawIds ? rawIds.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)) : [];
+      const idsToml = idsArr.length > 0 ? `[${idsArr.join(", ")}]` : "[]";
+      lines.push("");
+      lines.push(`${p}[telegram_alerts]`);
+      lines.push(`${p}enabled = ${tgEnabled ? "true" : "false"}`);
+      if (botToken) lines.push(`${p}bot_token = "${botToken}"`);
+      lines.push(`${p}chat_ids = ${idsToml}`);
+      lines.push(`${p}alert_connect = ${el("telegramAlertConnect").checked ? "true" : "false"}`);
+      lines.push(`${p}alert_disconnect = ${el("telegramAlertDisconnect").checked ? "true" : "false"}`);
+      lines.push(`${p}alert_t351 = ${el("telegramAlertT351").checked ? "true" : "false"}`);
+      lines.push(`${p}alert_lip = ${el("telegramAlertLip").checked ? "true" : "false"}`);
+      lines.push(`${p}alert_backhaul = ${el("telegramAlertBackhaul").checked ? "true" : "false"}`);
+      lines.push(`${p}alert_critical_logs = ${el("telegramAlertCriticalLogs").checked ? "true" : "false"}`);
     }
     // Telemetry [telemetry] (Flowstation only)
     if (document.getElementById("sectionTelemetry")?.style.display !== "none") {
@@ -4425,6 +4807,43 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         el("enableWxPeriodic").dispatchEvent(new Event("change"));
       }
 
+      // ── Recovery [recovery]
+      if (data.recovery) {
+        el("enableRecovery").checked = !!data.recovery.enabled;
+        // issi_allowlist: stored as "[1, 2, 3]" string, convert to comma list for the input
+        if (data.recovery.issi_allowlist !== null && data.recovery.issi_allowlist !== undefined) {
+          const raw = String(data.recovery.issi_allowlist).replace(/[\[\]\s]/g, "");
+          el("recoveryIssiAllowlist").value = raw === "" ? "" : raw;
+        }
+        if (data.recovery.cache_path) el("recoveryCachePath").value = String(data.recovery.cache_path);
+        if (data.recovery.max_replay_attempts !== null && data.recovery.max_replay_attempts !== undefined)
+          el("recoveryMaxReplay").value = String(data.recovery.max_replay_attempts);
+        if (data.recovery.replay_per_frame !== null && data.recovery.replay_per_frame !== undefined)
+          el("recoveryReplayPerFrame").value = String(data.recovery.replay_per_frame);
+        if (data.recovery.debounce_secs !== null && data.recovery.debounce_secs !== undefined)
+          el("recoveryDebounceSecs").value = String(data.recovery.debounce_secs);
+        if (data.recovery.max_cached_issis !== null && data.recovery.max_cached_issis !== undefined)
+          el("recoveryMaxCachedIssis").value = String(data.recovery.max_cached_issis);
+        el("enableRecovery").dispatchEvent(new Event("change"));
+      }
+
+      // ── Telegram Alerts [telegram_alerts]
+      if (data.telegram_alerts) {
+        el("enableTelegramAlerts").checked = !!data.telegram_alerts.enabled;
+        if (data.telegram_alerts.bot_token) el("telegramBotToken").value = String(data.telegram_alerts.bot_token);
+        if (data.telegram_alerts.chat_ids !== null && data.telegram_alerts.chat_ids !== undefined) {
+          const raw = String(data.telegram_alerts.chat_ids).replace(/[\[\]\s]/g, "");
+          el("telegramChatIds").value = raw === "" ? "" : raw;
+        }
+        if (data.telegram_alerts.alert_connect !== null) el("telegramAlertConnect").checked = data.telegram_alerts.alert_connect !== false;
+        if (data.telegram_alerts.alert_disconnect !== null) el("telegramAlertDisconnect").checked = data.telegram_alerts.alert_disconnect !== false;
+        if (data.telegram_alerts.alert_t351 !== null) el("telegramAlertT351").checked = data.telegram_alerts.alert_t351 !== false;
+        if (data.telegram_alerts.alert_lip !== null) el("telegramAlertLip").checked = data.telegram_alerts.alert_lip !== false;
+        if (data.telegram_alerts.alert_backhaul !== null) el("telegramAlertBackhaul").checked = data.telegram_alerts.alert_backhaul !== false;
+        if (data.telegram_alerts.alert_critical_logs !== null) el("telegramAlertCriticalLogs").checked = data.telegram_alerts.alert_critical_logs !== false;
+        el("enableTelegramAlerts").dispatchEvent(new Event("change"));
+      }
+
       // ── Telemetry [telemetry]
       if (data.telemetry) {
         el("enableTelemetry").checked = !!data.telemetry.enabled;
@@ -4633,6 +5052,32 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       password: el("commandPassword").value.trim(),
     } : null;
 
+    // Collect Recovery options (Flowstation only — null in bluestation)
+    const recIsFlow = document.getElementById("sectionRecovery")?.style.display !== "none";
+    const recoveryConfig = recIsFlow ? {
+      enabled: el("enableRecovery").checked,
+      issi_allowlist: el("recoveryIssiAllowlist").value.trim(),
+      cache_path: el("recoveryCachePath").value.trim(),
+      max_replay_attempts: clampInt(el("recoveryMaxReplay").value, 1, 500, 150),
+      replay_per_frame: clampInt(el("recoveryReplayPerFrame").value, 1, 18, 1),
+      debounce_secs: clampInt(el("recoveryDebounceSecs").value, 1, 300, 5),
+      max_cached_issis: clampInt(el("recoveryMaxCachedIssis").value, 1, 65535, 1024),
+    } : null;
+
+    // Collect Telegram Alerts options (Flowstation only — null in bluestation)
+    const tgIsFlow = document.getElementById("sectionTelegramAlerts")?.style.display !== "none";
+    const telegramAlertsConfig = tgIsFlow ? {
+      enabled: el("enableTelegramAlerts").checked,
+      bot_token: el("telegramBotToken").value.trim(),
+      chat_ids: el("telegramChatIds").value.trim(),
+      alert_connect: el("telegramAlertConnect").checked,
+      alert_disconnect: el("telegramAlertDisconnect").checked,
+      alert_t351: el("telegramAlertT351").checked,
+      alert_lip: el("telegramAlertLip").checked,
+      alert_backhaul: el("telegramAlertBackhaul").checked,
+      alert_critical_logs: el("telegramAlertCriticalLogs").checked,
+    } : null;
+
     // Collect Weather Service options (Flowstation only — null in bluestation)
     const wxIsFlow = document.getElementById("sectionWxService")?.style.display !== "none";
     const wxServiceConfig = wxIsFlow ? {
@@ -4676,7 +5121,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           wxServiceConfig,
           serviceNameConfig,
           telemetryConfig,
-          commandConfig
+          commandConfig,
+          recoveryConfig,
+          telegramAlertsConfig
         })
       });
       const data = await res.json();
@@ -5332,6 +5779,26 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const ev = (id === "brewSdsEnabled" || id === "dashPublicOverview") ? "change" : "input";
     node.addEventListener(ev, updateTomlFromNew);
   });
+  el("enableRecovery").addEventListener("change", function(){
+    el("recoveryFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["recoveryIssiAllowlist","recoveryCachePath","recoveryMaxReplay","recoveryReplayPerFrame","recoveryDebounceSecs","recoveryMaxCachedIssis"].forEach(id => {
+    const node = el(id); if (!node) return;
+    node.addEventListener("input", updateTomlFromNew);
+  });
+  el("enableTelegramAlerts").addEventListener("change", function(){
+    el("telegramFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["telegramBotToken","telegramChatIds"].forEach(id => {
+    const node = el(id); if (!node) return;
+    node.addEventListener("input", updateTomlFromNew);
+  });
+  ["telegramAlertConnect","telegramAlertDisconnect","telegramAlertT351","telegramAlertLip","telegramAlertBackhaul","telegramAlertCriticalLogs"].forEach(id => {
+    const node = el(id); if (!node) return;
+    node.addEventListener("change", updateTomlFromNew);
+  });
   el("enableWxService").addEventListener("change", function(){
     el("wxServiceFields").style.display = this.checked ? "block" : "none";
     updateTomlFromNew();
@@ -5403,7 +5870,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "sectionWxService", "sectionTelemetry", "sectionCommand", "brewRssiSubsection", "brewSdsFwdSubsection"];
+    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "sectionWxService", "sectionRecovery", "sectionTelegramAlerts", "sectionTelemetry", "sectionCommand", "brewRssiSubsection", "brewSdsFwdSubsection"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);
