@@ -3793,13 +3793,9 @@ ${restartLine}
           // Registered radios (connected units) from the authoritative ms array
           if (m.ms) {
             const list = Array.isArray(m.ms) ? m.ms : Object.values(m.ms);
-            let seeded = 0;
             for (const e of list as any[]) {
-              if (e && e.issi != null) { upsertMsTerminal(String(e.issi), e); seeded++; }
+              if (e && e.issi != null) upsertMsTerminal(String(e.issi), e);
             }
-            console.log(`[fsWs] snapshot: ${seeded} registered radios seeded from ms[] (total terminals: ${Object.keys(currentState.terminals).length})`);
-          } else {
-            console.log('[fsWs] snapshot received WITHOUT an ms field — this flowstation build does not expose registered radios over WS');
           }
           // Active calls from calls array (Razvan's state.calls snapshot)
           if (Array.isArray(m.calls)) {
@@ -3874,25 +3870,6 @@ ${restartLine}
     });
   }
   setTimeout(connectFlowstationWs, 500);
-
-  // Debug: live view of flowstation WS state + seeded registered radios.
-  // Open in a browser on the Pi to diagnose why "connected units" are missing.
-  app.get('/api/debug/fs', (_req, res) => {
-    const terms = Object.values(currentState.terminals) as any[];
-    res.json({
-      fsWsConnected: fsWs != null && fsWs.readyState === 1,
-      fsWsReadyState: fsWs ? fsWs.readyState : null,
-      fsDashboardActive,
-      fsWsCallDataActive,
-      fsRegisteredMsCount: fsRegisteredMs.size,
-      fsRegisteredMsIssis: Array.from(fsRegisteredMs.keys()),
-      totalTerminals: terms.length,
-      localTerminals: terms.filter(t => t.isLocal).length,
-      externalTerminals: terms.filter(t => !t.isLocal).length,
-      sampleTerminals: terms.slice(0, 10).map(t => ({ id: t.id, isLocal: t.isLocal, status: t.status, selectedTg: t.selectedTg, groups: t.groups, energySaving: t.energySaving })),
-      activeCalls: rfCallsSnapshot(),
-    });
-  });
 
   wss.on('connection', (ws) => {
     // Enrich terminals with energy_saving from the flowstation map so the
