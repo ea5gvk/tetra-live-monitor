@@ -11,8 +11,7 @@ import VpnManager from "@/pages/VpnManager";
 import WifiManager from "@/pages/WifiManager";
 import FlowstationDash from "@/pages/FlowstationDash";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin, Gauge } from "lucide-react";
-import { SiPaypal } from "react-icons/si";
+import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin, Gauge, Heart, Copy, Check, X, Tag } from "lucide-react";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 import { UpdateChecker } from "@/components/UpdateChecker";
 import { BluestationUpdater } from "@/components/BluestationUpdater";
@@ -21,7 +20,146 @@ import { StationSwitcher } from "@/components/StationSwitcher";
 import { SdsSender } from "@/components/SdsSender";
 import { KickSender } from "@/components/KickSender";
 import { TouchKeyboard, TouchModeToggle } from "@/components/TouchKeyboard";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
+
+const DONATE_EMAIL = "quini7620@gmail.com";
+
+function DonateModal({ onClose }: { onClose: () => void }) {
+  const { t } = useI18n();
+  const [copied, setCopied] = useState(false);
+
+  function copyEmail() {
+    navigator.clipboard.writeText(DONATE_EMAIL).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }).catch(() => {
+      const ta = document.createElement("textarea");
+      ta.value = DONATE_EMAIL;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    });
+  }
+
+  useEffect(() => {
+    function onKey(e: KeyboardEvent) { if (e.key === "Escape") onClose(); }
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.72)" }}
+      onClick={e => { if (e.target === e.currentTarget) onClose(); }}
+      data-testid="modal-donate"
+    >
+      <div className="relative w-full max-w-sm rounded-xl border border-white/10 bg-card shadow-2xl overflow-hidden">
+        {/* close */}
+        <button
+          onClick={onClose}
+          className="absolute top-3 right-3 p-1 rounded text-muted-foreground hover:text-foreground hover:bg-white/10 transition-colors"
+          data-testid="button-donate-close-x"
+        >
+          <X className="w-4 h-4" />
+        </button>
+
+        <div className="flex flex-col items-center px-6 pt-8 pb-6 gap-4 text-center">
+          {/* heart icon */}
+          <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
+            style={{ background: "rgba(217,70,219,0.15)", border: "1px solid rgba(217,70,219,0.35)" }}>
+            <Heart className="w-7 h-7 text-pink-400" />
+          </div>
+
+          {/* title */}
+          <h2 className="text-base font-black tracking-widest text-primary uppercase">
+            {t("donate_title")}
+          </h2>
+
+          {/* amount pill */}
+          <div className="flex items-center gap-2 px-5 py-2 rounded-lg font-black text-xl"
+            style={{ background: "rgba(255,160,0,0.12)", border: "1px solid rgba(255,160,0,0.35)", color: "#ffb300" }}>
+            <Tag className="w-4 h-4" />
+            24 €
+          </div>
+
+          {/* description */}
+          <p className="text-sm text-muted-foreground leading-relaxed">
+            {t("donate_desc")}
+          </p>
+
+          {/* email row */}
+          <div className="w-full">
+            <div className="text-[10px] font-semibold tracking-widest text-muted-foreground/60 mb-1">
+              {t("donate_account_label")}
+            </div>
+            <div className="flex items-center gap-2 w-full rounded-lg border border-white/10 bg-white/5 px-3 py-2">
+              <span className="flex-1 text-left font-mono text-sm text-foreground select-all" data-testid="text-donate-email">
+                {DONATE_EMAIL}
+              </span>
+              <button
+                onClick={copyEmail}
+                className="flex items-center gap-1.5 px-3 py-1 rounded text-[11px] font-bold transition-all border"
+                style={copied
+                  ? { background: "rgba(34,197,94,0.15)", borderColor: "rgba(34,197,94,0.4)", color: "#4ade80" }
+                  : { background: "rgba(255,255,255,0.07)", borderColor: "rgba(255,255,255,0.15)", color: "var(--muted-foreground)" }}
+                data-testid="button-donate-copy"
+              >
+                {copied ? <Check className="w-3.5 h-3.5" /> : <Copy className="w-3.5 h-3.5" />}
+                {copied ? t("donate_copied") : t("donate_copy")}
+              </button>
+            </div>
+          </div>
+
+          {/* fine print */}
+          <div className="flex items-center gap-1.5 text-[11px] text-emerald-400/80">
+            <Check className="w-3.5 h-3.5 flex-shrink-0" />
+            {t("donate_fine_print")}
+          </div>
+
+          {/* close button */}
+          <button
+            onClick={onClose}
+            className="w-full py-2 rounded-lg border border-white/10 bg-white/5 text-sm font-semibold text-muted-foreground hover:bg-white/10 hover:text-foreground transition-colors"
+            data-testid="button-donate-close"
+          >
+            {t("donate_close")}
+          </button>
+
+          {/* footer */}
+          <p className="text-[11px] text-muted-foreground/50 italic">
+            {t("donate_thanks")}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DonateButton() {
+  const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        title="Donate"
+        data-testid="button-paypal-donate"
+        className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold select-none transition-all
+          bg-[#003087] hover:bg-[#002060] text-white border border-[#0070ba]/60 hover:border-[#ffc439]
+          hover:shadow-[0_0_8px_2px_rgba(255,196,57,0.35)] active:scale-95"
+      >
+        <Heart className="w-3 h-3 text-[#ffc439]" />
+        <span className="hidden lg:inline">Donate</span>
+      </button>
+      {open && <DonateModal onClose={close} />}
+    </>
+  );
+}
 
 const THEME_STORAGE_KEY = "tetra_dashboard_theme";
 type Theme = "dark" | "light" | "blue" | "military";
@@ -141,19 +279,7 @@ function NavBar() {
           <SdsSender />
           <KickSender />
           <UpdateChecker />
-          <a
-            href="https://www.paypal.com/donate?business=quini7620%40gmail.com&currency_code=EUR"
-            target="_blank"
-            rel="noopener noreferrer"
-            title="Donar con PayPal"
-            data-testid="link-paypal-donate"
-            className="flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold select-none transition-all
-              bg-[#003087] hover:bg-[#002060] text-white border border-[#0070ba]/60 hover:border-[#ffc439]
-              hover:shadow-[0_0_8px_2px_rgba(255,196,57,0.35)] active:scale-95"
-          >
-            <SiPaypal className="w-3 h-3 text-[#ffc439]" />
-            <span className="hidden lg:inline">Donate</span>
-          </a>
+          <DonateButton />
           <span
             className="text-[10px] font-black tracking-widest px-2 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 select-none"
             data-testid="text-callsign"
@@ -181,17 +307,7 @@ function NavBar() {
         <SdsSender />
         <KickSender />
         <UpdateChecker />
-        <a
-          href="https://www.paypal.com/donate?business=quini7620%40gmail.com&currency_code=EUR"
-          target="_blank"
-          rel="noopener noreferrer"
-          data-testid="link-paypal-donate-mobile"
-          className="flex items-center gap-1 px-2 py-0.5 rounded text-[9px] font-bold select-none
-            bg-[#003087] text-white border border-[#0070ba]/60"
-        >
-          <SiPaypal className="w-3 h-3 text-[#ffc439]" />
-          Donate
-        </a>
+        <DonateButton />
         <span
           className="text-[9px] font-black tracking-widest px-1.5 py-0.5 rounded bg-sky-500/15 text-sky-400 border border-sky-500/30 select-none"
           data-testid="text-callsign-mobile"
