@@ -6064,13 +6064,17 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     btn.textContent = I18N[currentLang]?.telegram_verifying || "Verificando...";
     res.style.display = "none";
     try {
-      const data = await fetch(`https://api.telegram.org/bot${token}/getMe`).then(r => r.json());
+      const data = await fetch("/api/telegram/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_token: token })
+      }).then(r => r.json());
       if (data.ok) {
         res.style.cssText = "margin-top:8px;font-size:13px;display:block;color:#4ade80;";
-        res.innerHTML = `✓ @${data.result.username}`;
+        res.innerHTML = `✓ @${data.username}`;
       } else {
         res.style.cssText = "margin-top:8px;font-size:13px;display:block;color:#f87171;";
-        res.textContent = `✗ ${data.description || "Token inválido"}`;
+        res.textContent = `✗ ${data.error || "Token inválido"}`;
       }
     } catch(e) {
       res.style.cssText = "margin-top:8px;font-size:13px;display:block;color:#f87171;";
@@ -6091,18 +6095,13 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     btn.disabled = true;
     if (span) span.textContent = I18N[currentLang]?.telegram_detecting || "Detectando...";
     try {
-      const data = await fetch(`https://api.telegram.org/bot${token}/getUpdates?limit=100&timeout=0`).then(r => r.json());
-      if (!data.ok) throw new Error(data.description || "Error");
-      const seen = new Set();
-      const chats = [];
-      (data.result || []).forEach(u => {
-        const chat = u.message?.chat || u.channel_post?.chat || u.edited_message?.chat;
-        if (!chat || seen.has(chat.id)) return;
-        seen.add(chat.id);
-        const name = chat.title || [chat.first_name, chat.last_name].filter(Boolean).join(" ") || String(chat.id);
-        const type = (chat.type === "supergroup" || chat.type === "group") ? "group" : chat.type === "channel" ? "channel" : "private";
-        chats.push({ id: chat.id, name, type });
-      });
+      const data = await fetch("/api/telegram/detect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ bot_token: token })
+      }).then(r => r.json());
+      if (!data.ok) throw new Error(data.error || "Error");
+      const chats = data.chats || [];
       const listEl = document.getElementById("tgDetectedList");
       const itemsEl = document.getElementById("tgDetectedItems");
       if (chats.length === 0) {
