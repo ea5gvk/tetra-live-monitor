@@ -906,20 +906,50 @@
           <div class="hint" data-i18n="telegram_hint">Envía notificaciones a uno o más chats de Telegram cuando ocurren eventos relevantes (conexión/desconexión de radios, Brew up/down, etc.).</div>
         </div>
       </div>
-      <div id="telegramFields" style="display:none; margin-top:12px;">
-        <div class="row">
-          <div>
-            <label for="telegramBotToken" data-i18n="telegram_bot_token">bot_token (requerido)</label>
-            <input id="telegramBotToken" type="text" placeholder="123456789:AAExampleBotTokenStringFromBotFather" />
-            <div class="hint" data-i18n="telegram_bot_token_hint">Token de tu bot de Telegram, obtenido de @BotFather con /newbot.</div>
-          </div>
-          <div>
-            <label for="telegramChatIds" data-i18n="telegram_chat_ids">chat_ids (IDs separados por coma)</label>
-            <input id="telegramChatIds" type="text" placeholder="123456789, -987654321" />
-            <div class="hint" data-i18n="telegram_chat_ids_hint">IDs numéricos de chats. Positivos = chat privado, negativos = grupo/canal.</div>
-          </div>
+      <div id="telegramFields" style="display:none; margin-top:16px;">
+
+        <!-- SETUP INSTRUCTIONS -->
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:14px 18px; margin-bottom:12px;">
+          <div style="font-size:11px; font-weight:700; letter-spacing:0.1em; color:var(--muted); margin-bottom:10px;" data-i18n="telegram_setup_title">CONFIGURACIÓN — 4 PASOS</div>
+          <ol style="margin:0; padding-left:18px; font-size:13px; color:var(--muted); line-height:2;">
+            <li data-i18n="telegram_setup_1">En Telegram, abre @BotFather, envía /newbot y sigue las instrucciones. Copia el token que te da.</li>
+            <li data-i18n="telegram_setup_2">Pega el token abajo y pulsa Verificar — verás el @usuario de tu bot.</li>
+            <li data-i18n="telegram_setup_3">Abre un chat con tu nuevo bot (o añádelo a un grupo) y envíale cualquier mensaje, p. ej. /start.</li>
+            <li data-i18n="telegram_setup_4">Pulsa "Detectar Chat ID", añade el chat a los destinatarios y guarda. Usa "Enviar test" para confirmar.</li>
+          </ol>
         </div>
-        <div style="margin-top:12px;">
+
+        <!-- BOT TOKEN -->
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:14px 18px; margin-bottom:12px;">
+          <div style="font-size:11px; font-weight:700; letter-spacing:0.1em; color:var(--muted); margin-bottom:8px;" data-i18n="telegram_bot_section">TOKEN DEL BOT</div>
+          <div style="font-size:12px; color:var(--muted); margin-bottom:10px;" data-i18n="telegram_token_hint">El token de @BotFather tiene el aspecto 123456789:AAExampleTokenString. Se almacena enmascarado y no se muestra completo.</div>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <input id="telegramBotToken" type="password" placeholder="123456789:AAExampleBotTokenStringFromBotFather" style="flex:1; font-family:var(--mono); font-size:13px;" />
+            <button id="tgVerifyBtn" type="button" class="btn-secondary" onclick="tgVerifyToken()" style="white-space:nowrap;" data-i18n="telegram_verify">Verificar</button>
+          </div>
+          <div id="tgVerifyResult" style="margin-top:8px; font-size:13px; display:none;"></div>
+        </div>
+
+        <!-- RECIPIENTS -->
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--border); border-radius:8px; padding:14px 18px; margin-bottom:12px;">
+          <div style="font-size:11px; font-weight:700; letter-spacing:0.1em; color:var(--muted); margin-bottom:8px;" data-i18n="telegram_recipients_section">DESTINATARIOS (CHAT IDS)</div>
+          <div style="font-size:12px; color:var(--muted); margin-bottom:10px;" data-i18n="telegram_recipients_hint">Cada alerta se envía a todos los destinatarios. ID positivo = chat privado; ID negativo = grupo o canal.</div>
+          <div style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+            <button id="tgDetectBtn" type="button" class="btn-secondary" onclick="tgDetectChats()" style="white-space:nowrap; display:flex; align-items:center; gap:6px;">
+              <span>📡</span><span data-i18n="telegram_detect_btn">Detectar Chat ID</span>
+            </button>
+            <input id="tgDetectedIdInput" type="text" placeholder="-1001234567890" style="flex:1; font-family:var(--mono); font-size:13px;" />
+            <button type="button" class="btn-secondary" onclick="tgAddFromInput()" style="white-space:nowrap;" data-i18n="telegram_add">Añadir</button>
+          </div>
+          <div id="tgDetectedList" style="display:none; margin-bottom:10px;">
+            <div style="font-size:12px; color:var(--muted); margin-bottom:6px;" data-i18n="telegram_chats_hint">Chats que enviaron mensaje a tu bot — pulsa Añadir.</div>
+            <div id="tgDetectedItems"></div>
+          </div>
+          <div id="tgChatTags" style="display:flex; flex-wrap:wrap; gap:6px; min-height:28px;"></div>
+        </div>
+
+        <!-- ALERT FLAGS -->
+        <div style="margin-top:4px; padding:0 2px;">
           <div style="font-size:12px; color:var(--muted); margin-bottom:8px;" data-i18n="telegram_flags_label">Alertas a enviar:</div>
           <div style="display:flex; flex-wrap:wrap; gap:10px;">
             <div class="checkbox-row"><input type="checkbox" id="telegramAlertConnect" checked /><label for="telegramAlertConnect" data-i18n="telegram_alert_connect">alert_connect (radio conectada)</label></div>
@@ -1280,6 +1310,26 @@
       telegram_alert_lip: "alert_lip (LIP position beacon)",
       telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
       telegram_alert_critical_logs: "alert_critical_logs (stack WARN/ERROR)",
+      telegram_setup_title: "SETUP — 4 STEPS",
+      telegram_setup_1: "In Telegram, open @BotFather, send /newbot and follow the prompts. Copy the bot token it gives you.",
+      telegram_setup_2: "Paste the token below and click Verify — you should see your bot's @username.",
+      telegram_setup_3: "Open a chat with your new bot (or add it to a group) and send it any message, e.g. /start.",
+      telegram_setup_4: "Click \"Detect Chat ID\", add your chat to the recipients, then Save. Use \"Send test\" to confirm.",
+      telegram_bot_section: "BOT TOKEN",
+      telegram_token_hint: "The token from @BotFather looks like 123456789:AAExampleTokenString. It is stored masked and never shown in full.",
+      telegram_verify: "Verify",
+      telegram_verifying: "Verifying...",
+      telegram_recipients_section: "RECIPIENTS (CHAT IDS)",
+      telegram_recipients_hint: "Every alert is sent to each recipient. A positive ID is a private chat; a negative ID is a group or channel.",
+      telegram_detect_btn: "Detect Chat ID",
+      telegram_detecting: "Detecting...",
+      telegram_add: "Add",
+      telegram_chats_hint: "Chats that messaged your bot — click Add.",
+      telegram_private: "private",
+      telegram_group: "group",
+      telegram_channel: "channel",
+      telegram_no_updates: "No recent messages. Send /start to the bot and try again.",
+      telegram_verify_first: "First verify the bot token.",
       brew_jitter: "jitter_initial_latency_frames (default 0)",
       brew_jitter_hint: "Initial latency in frames for Brew audio jitter buffer. Increase if you hear artifacts at the start of transmissions.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -1528,6 +1578,26 @@
       telegram_alert_lip: "alert_lip（LIP 位置信标）",
       telegram_alert_backhaul: "alert_backhaul（Brew 上/下线）",
       telegram_alert_critical_logs: "alert_critical_logs（栈 WARN/ERROR）",
+      telegram_setup_title: "设置 — 4 步",
+      telegram_setup_1: "在 Telegram 中打开 @BotFather，发送 /newbot 并按提示操作。复制它给你的 bot token。",
+      telegram_setup_2: "将 token 粘贴到下方并点击验证 — 你将看到 bot 的 @用户名。",
+      telegram_setup_3: "打开与新 bot 的聊天（或将其添加到群组）并发送任意消息，例如 /start。",
+      telegram_setup_4: "点击\"检测 Chat ID\"，将聊天添加到收件人，然后保存。使用\"发送测试\"确认。",
+      telegram_bot_section: "BOT TOKEN",
+      telegram_token_hint: "@BotFather 的 token 格式为 123456789:AAExampleTokenString，已加密存储。",
+      telegram_verify: "验证",
+      telegram_verifying: "验证中...",
+      telegram_recipients_section: "收件人（CHAT IDS）",
+      telegram_recipients_hint: "每条警报都会发送给所有收件人。正 ID = 私人聊天；负 ID = 群组或频道。",
+      telegram_detect_btn: "检测 Chat ID",
+      telegram_detecting: "检测中...",
+      telegram_add: "添加",
+      telegram_chats_hint: "向你的 bot 发送过消息的聊天 — 点击添加。",
+      telegram_private: "私聊",
+      telegram_group: "群组",
+      telegram_channel: "频道",
+      telegram_no_updates: "没有最近消息。向 bot 发送 /start 后重试。",
+      telegram_verify_first: "请先验证 bot token。",
       brew_jitter: "jitter_initial_latency_frames（默认 0）",
       brew_jitter_hint: "Brew 音频抖动缓冲区的初始延迟帧数。如果传输开始时有音频失真，请增大此值。",
       brew_sds_enabled: "feature_sds_enabled",
@@ -1776,6 +1846,26 @@
       telegram_alert_lip: "alert_lip (baliza de posición LIP)",
       telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
       telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR del stack)",
+      telegram_setup_title: "CONFIGURACIÓN — 4 PASOS",
+      telegram_setup_1: "En Telegram, abre @BotFather, envía /newbot y sigue las instrucciones. Copia el token que te da.",
+      telegram_setup_2: "Pega el token abajo y pulsa Verificar — verás el @usuario de tu bot.",
+      telegram_setup_3: "Abre un chat con tu nuevo bot (o añádelo a un grupo) y envíale cualquier mensaje, p. ej. /start.",
+      telegram_setup_4: "Pulsa \"Detectar Chat ID\", añade el chat a los destinatarios y guarda. Usa \"Enviar test\" para confirmar.",
+      telegram_bot_section: "TOKEN DEL BOT",
+      telegram_token_hint: "El token de @BotFather tiene el aspecto 123456789:AAExampleTokenString. Se almacena enmascarado y no se muestra completo.",
+      telegram_verify: "Verificar",
+      telegram_verifying: "Verificando...",
+      telegram_recipients_section: "DESTINATARIOS (CHAT IDS)",
+      telegram_recipients_hint: "Cada alerta se envía a todos los destinatarios. ID positivo = chat privado; ID negativo = grupo o canal.",
+      telegram_detect_btn: "Detectar Chat ID",
+      telegram_detecting: "Detectando...",
+      telegram_add: "Añadir",
+      telegram_chats_hint: "Chats que enviaron mensaje a tu bot — pulsa Añadir.",
+      telegram_private: "privado",
+      telegram_group: "grupo",
+      telegram_channel: "canal",
+      telegram_no_updates: "Sin mensajes recientes. Envía /start al bot y vuelve a intentarlo.",
+      telegram_verify_first: "Primero verifica el token del bot.",
       brew_jitter: "jitter_initial_latency_frames (por defecto 0)",
       brew_jitter_hint: "Latencia inicial en frames para el buffer de jitter de audio Brew. Aumentar si hay artefactos al inicio de las transmisiones.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -2024,6 +2114,26 @@
       telegram_alert_lip: "alert_lip (baliza de posição LIP)",
       telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
       telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR do stack)",
+      telegram_setup_title: "CONFIGURAÇÃO — 4 ETAPAS",
+      telegram_setup_1: "No Telegram, abra @BotFather, envie /newbot e siga as instruções. Copie o token fornecido.",
+      telegram_setup_2: "Cole o token abaixo e clique em Verificar — você verá o @usuário do seu bot.",
+      telegram_setup_3: "Abra um chat com seu novo bot (ou adicione-o a um grupo) e envie qualquer mensagem, ex. /start.",
+      telegram_setup_4: "Clique em \"Detectar Chat ID\", adicione o chat aos destinatários e salve. Use \"Enviar teste\" para confirmar.",
+      telegram_bot_section: "TOKEN DO BOT",
+      telegram_token_hint: "O token do @BotFather tem o formato 123456789:AAExampleTokenString. É armazenado mascarado e nunca exibido na íntegra.",
+      telegram_verify: "Verificar",
+      telegram_verifying: "Verificando...",
+      telegram_recipients_section: "DESTINATÁRIOS (CHAT IDS)",
+      telegram_recipients_hint: "Cada alerta é enviado a todos os destinatários. ID positivo = chat privado; ID negativo = grupo ou canal.",
+      telegram_detect_btn: "Detectar Chat ID",
+      telegram_detecting: "Detectando...",
+      telegram_add: "Adicionar",
+      telegram_chats_hint: "Chats que enviaram mensagem para seu bot — clique em Adicionar.",
+      telegram_private: "privado",
+      telegram_group: "grupo",
+      telegram_channel: "canal",
+      telegram_no_updates: "Sem mensagens recentes. Envie /start ao bot e tente novamente.",
+      telegram_verify_first: "Primeiro verifique o token do bot.",
       brew_jitter: "jitter_initial_latency_frames (padrão 0)",
       brew_jitter_hint: "Latência inicial em frames para o buffer de jitter de áudio Brew. Aumentar se houver artefatos no início das transmissões.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -2272,6 +2382,26 @@
       telegram_alert_lip: "alert_lip (LIP-Positionsbake)",
       telegram_alert_backhaul: "alert_backhaul (Brew auf/ab)",
       telegram_alert_critical_logs: "alert_critical_logs (Stack WARN/ERROR)",
+      telegram_setup_title: "EINRICHTUNG — 4 SCHRITTE",
+      telegram_setup_1: "Öffne in Telegram @BotFather, sende /newbot und folge den Anweisungen. Kopiere den Bot-Token.",
+      telegram_setup_2: "Füge den Token unten ein und klicke auf Verifizieren — du siehst den @Benutzernamen deines Bots.",
+      telegram_setup_3: "Öffne einen Chat mit deinem neuen Bot (oder füge ihn einer Gruppe hinzu) und sende eine beliebige Nachricht, z. B. /start.",
+      telegram_setup_4: "Klicke auf \"Chat ID erkennen\", füge den Chat den Empfängern hinzu und speichere. Bestätige mit \"Test senden\".",
+      telegram_bot_section: "BOT-TOKEN",
+      telegram_token_hint: "Der Token von @BotFather sieht so aus: 123456789:AAExampleTokenString. Er wird maskiert gespeichert.",
+      telegram_verify: "Verifizieren",
+      telegram_verifying: "Verifizierung...",
+      telegram_recipients_section: "EMPFÄNGER (CHAT IDS)",
+      telegram_recipients_hint: "Jede Benachrichtigung wird an alle Empfänger gesendet. Positive ID = privater Chat; negative ID = Gruppe oder Kanal.",
+      telegram_detect_btn: "Chat ID erkennen",
+      telegram_detecting: "Erkennung...",
+      telegram_add: "Hinzufügen",
+      telegram_chats_hint: "Chats, die deinem Bot geschrieben haben — klicke Hinzufügen.",
+      telegram_private: "privat",
+      telegram_group: "Gruppe",
+      telegram_channel: "Kanal",
+      telegram_no_updates: "Keine aktuellen Nachrichten. Sende /start an den Bot und versuche es erneut.",
+      telegram_verify_first: "Bitte zuerst den Bot-Token verifizieren.",
       brew_jitter: "jitter_initial_latency_frames (Standard 0)",
       brew_jitter_hint: "Anfangslatenz in Frames für den Brew-Audio-Jitter-Buffer. Erhöhen, wenn zu Beginn Audioartefakte auftreten.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -2520,6 +2650,26 @@
       telegram_alert_lip: "alert_lip (balise de position LIP)",
       telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
       telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR du stack)",
+      telegram_setup_title: "CONFIGURATION — 4 ÉTAPES",
+      telegram_setup_1: "Dans Telegram, ouvrez @BotFather, envoyez /newbot et suivez les instructions. Copiez le token fourni.",
+      telegram_setup_2: "Collez le token ci-dessous et cliquez sur Vérifier — vous verrez le @nom d'utilisateur de votre bot.",
+      telegram_setup_3: "Ouvrez un chat avec votre nouveau bot (ou ajoutez-le à un groupe) et envoyez n'importe quel message, p. ex. /start.",
+      telegram_setup_4: "Cliquez sur \"Détecter Chat ID\", ajoutez le chat aux destinataires et sauvegardez. Utilisez \"Envoyer test\" pour confirmer.",
+      telegram_bot_section: "TOKEN DU BOT",
+      telegram_token_hint: "Le token de @BotFather ressemble à 123456789:AAExampleTokenString. Il est stocké masqué et jamais affiché en entier.",
+      telegram_verify: "Vérifier",
+      telegram_verifying: "Vérification...",
+      telegram_recipients_section: "DESTINATAIRES (CHAT IDS)",
+      telegram_recipients_hint: "Chaque alerte est envoyée à tous les destinataires. ID positif = chat privé ; ID négatif = groupe ou canal.",
+      telegram_detect_btn: "Détecter Chat ID",
+      telegram_detecting: "Détection...",
+      telegram_add: "Ajouter",
+      telegram_chats_hint: "Chats ayant envoyé un message à votre bot — cliquez sur Ajouter.",
+      telegram_private: "privé",
+      telegram_group: "groupe",
+      telegram_channel: "canal",
+      telegram_no_updates: "Pas de messages récents. Envoyez /start au bot et réessayez.",
+      telegram_verify_first: "Vérifiez d'abord le token du bot.",
       brew_jitter: "jitter_initial_latency_frames (défaut 0)",
       brew_jitter_hint: "Latence initiale en frames pour le tampon de gigue audio Brew. Augmenter en cas d'artefacts au début des transmissions.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -2768,6 +2918,26 @@
       telegram_alert_lip: "alert_lip (beacon di posizione LIP)",
       telegram_alert_backhaul: "alert_backhaul (Brew su/giù)",
       telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR dello stack)",
+      telegram_setup_title: "CONFIGURAZIONE — 4 PASSI",
+      telegram_setup_1: "In Telegram, apri @BotFather, invia /newbot e segui le istruzioni. Copia il token fornito.",
+      telegram_setup_2: "Incolla il token qui sotto e clicca su Verifica — vedrai il @nomeutente del tuo bot.",
+      telegram_setup_3: "Apri una chat con il tuo nuovo bot (o aggiungilo a un gruppo) e invia qualsiasi messaggio, es. /start.",
+      telegram_setup_4: "Clicca su \"Rileva Chat ID\", aggiungi la chat ai destinatari e salva. Usa \"Invia test\" per confermare.",
+      telegram_bot_section: "TOKEN BOT",
+      telegram_token_hint: "Il token di @BotFather ha il formato 123456789:AAExampleTokenString. Viene memorizzato mascherato e non mostrato per intero.",
+      telegram_verify: "Verifica",
+      telegram_verifying: "Verifica in corso...",
+      telegram_recipients_section: "DESTINATARI (CHAT IDS)",
+      telegram_recipients_hint: "Ogni avviso viene inviato a tutti i destinatari. ID positivo = chat privata; ID negativo = gruppo o canale.",
+      telegram_detect_btn: "Rileva Chat ID",
+      telegram_detecting: "Rilevamento...",
+      telegram_add: "Aggiungi",
+      telegram_chats_hint: "Chat che hanno inviato un messaggio al tuo bot — clicca Aggiungi.",
+      telegram_private: "privata",
+      telegram_group: "gruppo",
+      telegram_channel: "canale",
+      telegram_no_updates: "Nessun messaggio recente. Invia /start al bot e riprova.",
+      telegram_verify_first: "Prima verifica il token del bot.",
       brew_jitter: "jitter_initial_latency_frames (default 0)",
       brew_jitter_hint: "Latenza iniziale in frame per il buffer di jitter audio Brew. Aumentare se si sentono artefatti all'inizio delle trasmissioni.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -3016,6 +3186,26 @@
       telegram_alert_lip: "alert_lip (LIP-positionsfyr)",
       telegram_alert_backhaul: "alert_backhaul (Brew op/ned)",
       telegram_alert_critical_logs: "alert_critical_logs (stack WARN/ERROR)",
+      telegram_setup_title: "SETUP — 4 STEPS",
+      telegram_setup_1: "In Telegram, open @BotFather, send /newbot and follow the prompts. Copy the bot token it gives you.",
+      telegram_setup_2: "Paste the token below and click Verify — you should see your bot's @username.",
+      telegram_setup_3: "Open a chat with your new bot (or add it to a group) and send it any message, e.g. /start.",
+      telegram_setup_4: "Click \"Detect Chat ID\", add your chat to the recipients, then Save. Use \"Send test\" to confirm.",
+      telegram_bot_section: "BOT TOKEN",
+      telegram_token_hint: "The token from @BotFather looks like 123456789:AAExampleTokenString. It is stored masked and never shown in full.",
+      telegram_verify: "Verify",
+      telegram_verifying: "Verifying...",
+      telegram_recipients_section: "RECIPIENTS (CHAT IDS)",
+      telegram_recipients_hint: "Every alert is sent to each recipient. A positive ID is a private chat; a negative ID is a group or channel.",
+      telegram_detect_btn: "Detect Chat ID",
+      telegram_detecting: "Detecting...",
+      telegram_add: "Add",
+      telegram_chats_hint: "Chats that messaged your bot — click Add.",
+      telegram_private: "private",
+      telegram_group: "group",
+      telegram_channel: "channel",
+      telegram_no_updates: "No recent messages. Send /start to the bot and try again.",
+      telegram_verify_first: "First verify the bot token.",
       brew_jitter: "jitter_initial_latency_frames (standard 0)",
       brew_jitter_hint: "Indledende latens i frames for Brew-lydjittperbufferen. Forøg, hvis der høres artefakter ved starten af transmissioner.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -3264,6 +3454,26 @@
       telegram_alert_lip: "alert_lip (LIP-positiebaken)",
       telegram_alert_backhaul: "alert_backhaul (Brew op/neer)",
       telegram_alert_critical_logs: "alert_critical_logs (stack WARN/ERROR)",
+      telegram_setup_title: "SETUP — 4 STEPS",
+      telegram_setup_1: "In Telegram, open @BotFather, send /newbot and follow the prompts. Copy the bot token it gives you.",
+      telegram_setup_2: "Paste the token below and click Verify — you should see your bot's @username.",
+      telegram_setup_3: "Open a chat with your new bot (or add it to a group) and send it any message, e.g. /start.",
+      telegram_setup_4: "Click \"Detect Chat ID\", add your chat to the recipients, then Save. Use \"Send test\" to confirm.",
+      telegram_bot_section: "BOT TOKEN",
+      telegram_token_hint: "The token from @BotFather looks like 123456789:AAExampleTokenString. It is stored masked and never shown in full.",
+      telegram_verify: "Verify",
+      telegram_verifying: "Verifying...",
+      telegram_recipients_section: "RECIPIENTS (CHAT IDS)",
+      telegram_recipients_hint: "Every alert is sent to each recipient. A positive ID is a private chat; a negative ID is a group or channel.",
+      telegram_detect_btn: "Detect Chat ID",
+      telegram_detecting: "Detecting...",
+      telegram_add: "Add",
+      telegram_chats_hint: "Chats that messaged your bot — click Add.",
+      telegram_private: "private",
+      telegram_group: "group",
+      telegram_channel: "channel",
+      telegram_no_updates: "No recent messages. Send /start to the bot and try again.",
+      telegram_verify_first: "First verify the bot token.",
       brew_jitter: "jitter_initial_latency_frames (standaard 0)",
       brew_jitter_hint: "Initiële latentie in frames voor de Brew-audiojitterbuffer. Verhoog als er artefacten hoorbaar zijn bij het begin van transmissies.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -3512,6 +3722,26 @@
       telegram_alert_lip: "alert_lip (baliză de poziție LIP)",
       telegram_alert_backhaul: "alert_backhaul (Brew sus/jos)",
       telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR stack)",
+      telegram_setup_title: "CONFIGURARE — 4 PAȘI",
+      telegram_setup_1: "În Telegram, deschide @BotFather, trimite /newbot și urmează instrucțiunile. Copiază token-ul primit.",
+      telegram_setup_2: "Lipește token-ul mai jos și apasă Verifică — vei vedea @username-ul botului tău.",
+      telegram_setup_3: "Deschide un chat cu noul tău bot (sau adaugă-l la un grup) și trimite orice mesaj, ex. /start.",
+      telegram_setup_4: "Apasă \"Detectează Chat ID\", adaugă chat-ul la destinatari și salvează. Folosește \"Trimite test\" pentru confirmare.",
+      telegram_bot_section: "TOKEN BOT",
+      telegram_token_hint: "Token-ul de la @BotFather arată ca 123456789:AAExampleTokenString. Este stocat mascat și nu este afișat complet.",
+      telegram_verify: "Verifică",
+      telegram_verifying: "Verificare...",
+      telegram_recipients_section: "DESTINATARI (CHAT IDS)",
+      telegram_recipients_hint: "Fiecare alertă este trimisă tuturor destinatarilor. ID pozitiv = chat privat; ID negativ = grup sau canal.",
+      telegram_detect_btn: "Detectează Chat ID",
+      telegram_detecting: "Detectare...",
+      telegram_add: "Adaugă",
+      telegram_chats_hint: "Chaturi care au trimis mesaj botului tău — apasă Adaugă.",
+      telegram_private: "privat",
+      telegram_group: "grup",
+      telegram_channel: "canal",
+      telegram_no_updates: "Niciun mesaj recent. Trimite /start botului și încearcă din nou.",
+      telegram_verify_first: "Verifică mai întâi token-ul botului.",
       brew_jitter: "jitter_initial_latency_frames (implicit 0)",
       brew_jitter_hint: "Latența inițială în cadre pentru bufferul de jitter audio Brew. Măriți dacă auziți artefacte la începutul transmisiunilor.",
       brew_sds_enabled: "feature_sds_enabled",
@@ -4136,8 +4366,7 @@
       const tgEnabled = el("enableTelegramAlerts").checked;
       const p = tgEnabled ? "" : "# ";
       const botToken = el("telegramBotToken").value.trim().replace(/"/g, "");
-      const rawIds = el("telegramChatIds").value.trim();
-      const idsArr = rawIds ? rawIds.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)) : [];
+      const idsArr = (window._tgChatIds || []).map(c => c.id);
       const idsToml = idsArr.length > 0 ? `[${idsArr.join(", ")}]` : "[]";
       lines.push("");
       lines.push(`${p}[telegram_alerts]`);
@@ -4833,7 +5062,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         if (data.telegram_alerts.bot_token) el("telegramBotToken").value = String(data.telegram_alerts.bot_token);
         if (data.telegram_alerts.chat_ids !== null && data.telegram_alerts.chat_ids !== undefined) {
           const raw = String(data.telegram_alerts.chat_ids).replace(/[\[\]\s]/g, "");
-          el("telegramChatIds").value = raw === "" ? "" : raw;
+          window._tgChatIds = raw ? raw.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)).map(id => ({id, name: String(id), type: id < 0 ? "group" : "private"})) : [];
+          tgRenderTags();
         }
         if (data.telegram_alerts.alert_connect !== null) el("telegramAlertConnect").checked = data.telegram_alerts.alert_connect !== false;
         if (data.telegram_alerts.alert_disconnect !== null) el("telegramAlertDisconnect").checked = data.telegram_alerts.alert_disconnect !== false;
@@ -5069,7 +5299,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const telegramAlertsConfig = tgIsFlow ? {
       enabled: el("enableTelegramAlerts").checked,
       bot_token: el("telegramBotToken").value.trim(),
-      chat_ids: el("telegramChatIds").value.trim(),
+      chat_ids: (window._tgChatIds || []).map(c => c.id).join(", "),
       alert_connect: el("telegramAlertConnect").checked,
       alert_disconnect: el("telegramAlertDisconnect").checked,
       alert_t351: el("telegramAlertT351").checked,
@@ -5787,11 +6017,122 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const node = el(id); if (!node) return;
     node.addEventListener("input", updateTomlFromNew);
   });
+  // ── Telegram Bot helpers
+  window._tgChatIds = window._tgChatIds || [];
+
+  window.tgRenderTags = function() {
+    const container = document.getElementById("tgChatTags");
+    if (!container) return;
+    container.innerHTML = "";
+    window._tgChatIds.forEach((c, i) => {
+      const tag = document.createElement("span");
+      tag.style.cssText = "display:inline-flex;align-items:center;gap:5px;background:rgba(0,180,255,0.1);border:1px solid rgba(0,180,255,0.3);border-radius:4px;padding:3px 8px;font-size:12px;font-family:var(--mono);color:#7dd3fc;";
+      const typeLbl = c.type === "group" ? (I18N[currentLang]?.telegram_group||"group") : c.type === "channel" ? (I18N[currentLang]?.telegram_channel||"channel") : (I18N[currentLang]?.telegram_private||"private");
+      tag.innerHTML = `${c.id} · ${c.name} · <em style="color:var(--muted);font-style:normal;">${typeLbl}</em> <span onclick="tgRemoveChat(${i})" style="cursor:pointer;color:var(--muted);margin-left:3px;font-size:14px;line-height:1;" title="Remove">×</span>`;
+      container.appendChild(tag);
+    });
+    updateTomlFromNew();
+  };
+
+  window.tgRemoveChat = function(idx) {
+    window._tgChatIds.splice(idx, 1);
+    tgRenderTags();
+  };
+
+  window.tgAddChat = function(id, name, type) {
+    id = parseInt(id, 10);
+    if (isNaN(id)) return;
+    if (window._tgChatIds.find(c => c.id === id)) return;
+    window._tgChatIds.push({ id, name: name || String(id), type: type || "private" });
+    tgRenderTags();
+  };
+
+  window.tgAddFromInput = function() {
+    const inp = document.getElementById("tgDetectedIdInput");
+    if (!inp || !inp.value.trim()) return;
+    const id = parseInt(inp.value.trim(), 10);
+    tgAddChat(id, String(id), id < 0 ? "group" : "private");
+    inp.value = "";
+  };
+
+  window.tgVerifyToken = async function() {
+    const token = document.getElementById("telegramBotToken")?.value.trim();
+    if (!token) return;
+    const btn = document.getElementById("tgVerifyBtn");
+    const res = document.getElementById("tgVerifyResult");
+    btn.disabled = true;
+    btn.textContent = I18N[currentLang]?.telegram_verifying || "Verificando...";
+    res.style.display = "none";
+    try {
+      const data = await fetch(`https://api.telegram.org/bot${token}/getMe`).then(r => r.json());
+      if (data.ok) {
+        res.style.cssText = "margin-top:8px;font-size:13px;display:block;color:#4ade80;";
+        res.innerHTML = `✓ @${data.result.username}`;
+      } else {
+        res.style.cssText = "margin-top:8px;font-size:13px;display:block;color:#f87171;";
+        res.textContent = `✗ ${data.description || "Token inválido"}`;
+      }
+    } catch(e) {
+      res.style.cssText = "margin-top:8px;font-size:13px;display:block;color:#f87171;";
+      res.textContent = `✗ Error de red`;
+    }
+    btn.disabled = false;
+    btn.textContent = I18N[currentLang]?.telegram_verify || "Verificar";
+  };
+
+  window.tgDetectChats = async function() {
+    const token = document.getElementById("telegramBotToken")?.value.trim();
+    if (!token) {
+      alert(I18N[currentLang]?.telegram_verify_first || "Primero verifica el token del bot.");
+      return;
+    }
+    const btn = document.getElementById("tgDetectBtn");
+    const span = btn.querySelector("[data-i18n]");
+    btn.disabled = true;
+    if (span) span.textContent = I18N[currentLang]?.telegram_detecting || "Detectando...";
+    try {
+      const data = await fetch(`https://api.telegram.org/bot${token}/getUpdates?limit=100&timeout=0`).then(r => r.json());
+      if (!data.ok) throw new Error(data.description || "Error");
+      const seen = new Set();
+      const chats = [];
+      (data.result || []).forEach(u => {
+        const chat = u.message?.chat || u.channel_post?.chat || u.edited_message?.chat;
+        if (!chat || seen.has(chat.id)) return;
+        seen.add(chat.id);
+        const name = chat.title || [chat.first_name, chat.last_name].filter(Boolean).join(" ") || String(chat.id);
+        const type = (chat.type === "supergroup" || chat.type === "group") ? "group" : chat.type === "channel" ? "channel" : "private";
+        chats.push({ id: chat.id, name, type });
+      });
+      const listEl = document.getElementById("tgDetectedList");
+      const itemsEl = document.getElementById("tgDetectedItems");
+      if (chats.length === 0) {
+        itemsEl.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:6px 0;">${I18N[currentLang]?.telegram_no_updates || "Sin mensajes recientes. Envía /start al bot y vuelve a intentarlo."}</div>`;
+      } else {
+        itemsEl.innerHTML = "";
+        chats.forEach(c => {
+          const row = document.createElement("div");
+          row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;";
+          const typeLabel = c.type === "group" ? (I18N[currentLang]?.telegram_group||"group") : c.type === "channel" ? (I18N[currentLang]?.telegram_channel||"channel") : (I18N[currentLang]?.telegram_private||"private");
+          const safeName = c.name.replace(/'/g,"\\'").replace(/</g,"&lt;");
+          const safeType = c.type.replace(/'/g,"\\'");
+          row.innerHTML = `<span style="color:var(--fg);">${c.name.replace(/</g,"&lt;")} <span style="color:var(--muted);font-family:var(--mono);">(${c.id} · ${typeLabel})</span></span><button type="button" class="btn-secondary" style="padding:3px 10px;font-size:12px;" onclick="tgAddChat(${c.id},'${safeName}','${safeType}');this.disabled=true;this.style.opacity='0.4';">+ ${I18N[currentLang]?.telegram_add||"Añadir"}</button>`;
+          itemsEl.appendChild(row);
+        });
+        if (chats.length > 0) document.getElementById("tgDetectedIdInput").value = String(chats[0].id);
+      }
+      listEl.style.display = "block";
+    } catch(e) {
+      alert("Error: " + e.message);
+    }
+    btn.disabled = false;
+    if (span) span.textContent = I18N[currentLang]?.telegram_detect_btn || "Detectar Chat ID";
+  };
+
   el("enableTelegramAlerts").addEventListener("change", function(){
     el("telegramFields").style.display = this.checked ? "block" : "none";
     updateTomlFromNew();
   });
-  ["telegramBotToken","telegramChatIds"].forEach(id => {
+  ["telegramBotToken"].forEach(id => {
     const node = el(id); if (!node) return;
     node.addEventListener("input", updateTomlFromNew);
   });
