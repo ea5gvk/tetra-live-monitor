@@ -1021,6 +1021,55 @@ ${restartLine}
     }
   });
 
+  // ─── Telegram bot helpers (server-side proxy) ───────────────────────────────
+  // The calculator can't call api.telegram.org directly from the browser (CORS), so
+  // we proxy getMe / getUpdates here, mirroring flowstation's /api/telegram/verify
+  // and /api/telegram/detect. The token never leaves the server response.
+  const telegramTokenAcceptable = (t: string): boolean =>
+    t.length > 0 && t.includes(":") && /^[^\s\x00-\x1f]+$/.test(t);
+
+  // POST /api/telegram/verify {bot_token} → { ok, username } | { ok:false, error }
+  app.post("/api/telegram/verify", async (req, res) => {
+    const token = String(req.body?.bot_token || "").trim();
+    if (!telegramTokenAcceptable(token)) {
+      return res.json({ ok: false, error: "Token inválido (debe contener ':' y sin espacios)." });
+    }
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${encodeURIComponent(token)}/getMe`);
+      const data: any = await r.json();
+      if (data?.ok) return res.json({ ok: true, username: data.result?.username || "" });
+      return res.json({ ok: false, error: data?.description || "Token inválido" });
+    } catch (e: any) {
+      return res.json({ ok: false, error: "No se pudo contactar con Telegram" });
+    }
+  });
+
+  // POST /api/telegram/detect {bot_token} → { ok, chats:[{id,name,type}] }
+  app.post("/api/telegram/detect", async (req, res) => {
+    const token = String(req.body?.bot_token || "").trim();
+    if (!telegramTokenAcceptable(token)) {
+      return res.json({ ok: false, error: "Token inválido (debe contener ':' y sin espacios)." });
+    }
+    try {
+      const r = await fetch(`https://api.telegram.org/bot${encodeURIComponent(token)}/getUpdates?limit=100&timeout=0`);
+      const data: any = await r.json();
+      if (!data?.ok) return res.json({ ok: false, error: data?.description || "Error" });
+      const seen = new Set<number>();
+      const chats: { id: number; name: string; type: string }[] = [];
+      for (const u of (data.result || [])) {
+        const chat = u?.message?.chat || u?.channel_post?.chat || u?.edited_message?.chat;
+        if (!chat || seen.has(chat.id)) continue;
+        seen.add(chat.id);
+        const name = chat.title || [chat.first_name, chat.last_name].filter(Boolean).join(" ") || String(chat.id);
+        const type = (chat.type === "supergroup" || chat.type === "group") ? "group" : chat.type === "channel" ? "channel" : "private";
+        chats.push({ id: chat.id, name, type });
+      }
+      return res.json({ ok: true, chats });
+    } catch (e: any) {
+      return res.json({ ok: false, error: "No se pudo contactar con Telegram" });
+    }
+  });
+
   // ─── Flowstation native dashboard proxy ─────────────────────────────────────
   // Reads /root/flowstation/config.toml looking for an UNCOMMENTED [dashboard] section
   // with port = N. Returns enabled=true only when both are present.
