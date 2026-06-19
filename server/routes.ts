@@ -3462,6 +3462,11 @@ ${restartLine}
           if (eg !== undefined && t && t.energySaving == null) t.energySaving = eg;
         }
         currentState.terminals = incoming;
+        // Re-seed flowstation-registered radios that Python's full_state doesn't
+        // know about (they registered before the monitor started tailing logs).
+        fsRegisteredMs.forEach((term, issi) => {
+          if (!currentState.terminals[issi]) currentState.terminals[issi] = term;
+        });
         currentState.localHistory = event.payload.localHistory || [];
         currentState.externalHistory = event.payload.externalHistory || [];
         currentState.sdsMessages = event.payload.sdsMessages || [];
@@ -3591,6 +3596,83 @@ ${restartLine}
       broadcast(JSON.stringify({ type: 'update_terminal', payload: t }));
     }
   };
+
+  // ── Flowstation registered MS → terminals ────────────────────────────────
+  // The flowstation :8080 dashboard exposes the authoritative live list of
+  // registered radios via the WS `ms` snapshot + incremental ms_* events.
+  // Python log parsing only catches radios that (re)transmit AFTER the monitor
+  // starts tailing journalctl, so radios that registered earlier never appear
+  // in the terminal table. Seeding terminals from this list makes our dashboard
+  // match Razvan's "connected units" / RF view.
+  const fsRegisteredMs = new Map<string, any>();
+  const fmtSeen = (secsAgo: number): string => {
+    // Match Python's "%H:%M:%S" (local time) so the SEEN column is consistent.
+    const d = new Date(Date.now() - Math.max(0, secsAgo) * 1000);
+    return d.toTimeString().slice(0, 8);
+  };
+  const upsertMsTerminal = (issi: string, m: any) => {
+    const prev = currentState.terminals[issi];
+    const groups: string[] = Array.isArray(m.groups)
+      ? m.groups.map((g: any) => String(g))
+      : (prev?.groups || []);
+    let selectedTg = "---";
+    if (m.selected_group != null) {
+      selectedTg = `TG ${m.selected_group}`;
+    } else {
+      const prevSel = prev?.selectedTg && prev.selectedTg !== "---" ? prev.selectedTg : null;
+      const prevSelNum = prevSel ? String(prevSel).replace("TG ", "").trim() : null;
+      if (prevSelNum && groups.includes(prevSelNum)) selectedTg = prevSel as string;
+      else if (groups.length) selectedTg = `TG ${groups[0]}`;
+    }
+    const eg = energySavingByIssi.get(issi) ?? modeToStr(m.energy_saving_mode);
+    if (eg != null) energySavingByIssi.set(issi, eg);
+    const term = {
+      id: issi,
+      callsign: prev?.callsign,
+      status: "Online",
+      selectedTg,
+      groups,
+      lastSeen: m.last_seen_secs_ago != null ? fmtSeen(Number(m.last_seen_secs_ago)) : (prev?.lastSeen || fmtSeen(0)),
+      isLocal: true,
+      isActive: prev?.isActive ?? false,
+      activity: prev?.activity ?? null,
+      activityTg: prev?.activityTg ?? null,
+      timeSlot: prev?.timeSlot ?? null,
+      rssiDbfs: m.rssi_dbfs != null ? m.rssi_dbfs : (prev?.rssiDbfs ?? null),
+      energySaving: eg ?? null,
+    };
+    fsRegisteredMs.set(issi, term);
+    currentState.terminals[issi] = term;
+    broadcast(JSON.stringify({ type: 'update_terminal', payload: term }));
+  };
+  const updateMsGroups = (issi: string, groups: any[], mode: 'replace' | 'detach') => {
+    const incoming = (Array.isArray(groups) ? groups : []).map((g) => String(g));
+    const prev = currentState.terminals[issi];
+    if (!prev) {
+      // A detach for an unknown ISSI would create a ghost "online" terminal with
+      // no groups — ignore it; only a replace (affiliation) seeds a new terminal.
+      if (mode === 'detach') return;
+      upsertMsTerminal(issi, { issi, groups: incoming });
+      return;
+    }
+    const next = mode === 'detach'
+      ? (prev.groups || []).filter((g: string) => !incoming.includes(g))
+      : incoming;
+    upsertMsTerminal(issi, { issi, groups: next });
+  };
+  const markMsOffline = (issi: string) => {
+    fsRegisteredMs.delete(issi);
+    const t = currentState.terminals[issi];
+    if (t) {
+      t.status = "Offline";
+      t.selectedTg = "---";
+      t.groups = [];
+      t.activity = null;
+      t.activityTg = null;
+      broadcast(JSON.stringify({ type: 'update_terminal', payload: t }));
+    }
+  };
+
   // ── Flowstation session cache (cookie-based auth, replaces old Basic Auth) ────
   // flowstation v2+ requires POST /api/login → fs_session cookie.
   // We cache the token (7-day TTL) so SDS/kick/fsWs server-side connections
@@ -3712,7 +3794,7 @@ ${restartLine}
           if (m.ms) {
             const list = Array.isArray(m.ms) ? m.ms : Object.values(m.ms);
             for (const e of list as any[]) {
-              if (e && e.issi != null) applyEsAndBroadcast(String(e.issi), modeToStr(e.energy_saving_mode));
+              if (e && e.issi != null) upsertMsTerminal(String(e.issi), e);
             }
           }
           // Active calls from calls array (Razvan's state.calls snapshot)
@@ -3740,10 +3822,19 @@ ${restartLine}
         } else if (m.type === 'speaker_changed' && m.call_id != null) {
           const c = activeCalls.get(m.call_id);
           if (c) { c.callerIssi = m.speaker_issi || c.callerIssi; broadcast(JSON.stringify({ type: 'rf_call_started', payload: c })); }
+        } else if (m.type === 'ms_registered' && m.issi != null) {
+          upsertMsTerminal(String(m.issi), m);
+        } else if ((m.type === 'ms_groups' || m.type === 'ms_groups_all') && m.issi != null) {
+          updateMsGroups(String(m.issi), m.groups || [], 'replace');
+        } else if (m.type === 'ms_groups_detach' && m.issi != null) {
+          updateMsGroups(String(m.issi), m.groups || [], 'detach');
+        } else if (m.type === 'ms_rssi' && m.issi != null) {
+          upsertMsTerminal(String(m.issi), { issi: m.issi, rssi_dbfs: m.rssi_dbfs });
         } else if (m.type === 'ms_energy_saving' && m.issi != null) {
           applyEsAndBroadcast(String(m.issi), modeToStr(m.mode));
         } else if (m.type === 'ms_deregistered' && m.issi != null) {
           energySavingByIssi.delete(String(m.issi));
+          markMsOffline(String(m.issi));
         } else if (m.type === 'ts_voice' && m.ts != null) {
           // Razvan v0.2.2+: rate-limited (4 Hz/TS) voice activity ping per timeslot.
           // Forward to clients so the RF Timeslots panel can show RX activity even
@@ -3765,6 +3856,9 @@ ${restartLine}
       const wasActive = fsWsCallDataActive;
       fsWs = null;
       fsWsCallDataActive = false;
+      // Flowstation dashboard gone — mark its registered radios offline so the
+      // terminal table doesn't keep showing stale "connected units".
+      for (const issi of Array.from(fsRegisteredMs.keys())) markMsOffline(issi);
       if (wasActive) {
         fsDashboardActive = false;
         activeCalls.clear();
