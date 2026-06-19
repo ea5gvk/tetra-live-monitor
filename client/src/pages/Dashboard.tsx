@@ -1,6 +1,6 @@
 import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage, type RfCall } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network, Eye, EyeOff, Signal as SignalIcon } from "lucide-react";
+import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network, Eye, EyeOff, Signal as SignalIcon, RadioTower, Clock as ClockIcon, ShieldCheck, ShieldAlert } from "lucide-react";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
 import { useI18n } from "@/lib/i18n";
 import tetraLogo from "@assets/tetra_1771538916537.png";
@@ -1113,6 +1113,118 @@ function SdsPanel({ messages }: { messages: SdsMessage[] }) {
   );
 }
 
+interface BtsInfo {
+  tx_freq_hz: number | null;
+  rx_freq_hz: number | null;
+  shift_hz: number | null;
+  mcc: number | null;
+  mnc: number | null;
+  main_carrier: number | null;
+  neighbor_count: number;
+  hangtime_secs: number | null;
+  whitelist_restricted: boolean;
+  whitelist_count: number;
+}
+
+function BtsDetails() {
+  const { t } = useI18n();
+  const [info, setInfo] = useState<BtsInfo | null>(null);
+
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const r = await fetch("/api/btsinfo");
+        if (!r.ok) return;
+        const d = await r.json();
+        if (alive) setInfo(d && Object.keys(d).length ? d : null);
+      } catch { /* leave placeholders */ }
+    };
+    load();
+    const id = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
+  const mhz = (hz: number | null | undefined, dp = 4) =>
+    hz != null && isFinite(hz) ? `${(hz / 1e6).toFixed(dp)} MHz` : "—";
+  const shiftStr = info?.shift_hz != null && isFinite(info.shift_hz)
+    ? `${info.shift_hz >= 0 ? "+" : ""}${(info.shift_hz / 1e6).toFixed(3)} MHz`
+    : "—";
+  const val = (v: number | null | undefined) => (v == null ? "—" : String(v));
+  const n = info?.neighbor_count ?? 0;
+  const restricted = !!info?.whitelist_restricted;
+
+  const tiles: { label: string; value: string; cls: string; testid: string }[] = [
+    { label: t("bts_tx"), value: mhz(info?.tx_freq_hz), cls: "text-emerald-400", testid: "bts-tx" },
+    { label: t("bts_rx"), value: mhz(info?.rx_freq_hz), cls: "text-sky-400", testid: "bts-rx" },
+    { label: t("bts_shift"), value: shiftStr, cls: "text-foreground", testid: "bts-shift" },
+    { label: t("bts_mcc"), value: val(info?.mcc), cls: "text-foreground", testid: "bts-mcc" },
+    { label: t("bts_mnc"), value: val(info?.mnc), cls: "text-foreground", testid: "bts-mnc" },
+    { label: t("bts_carrier"), value: val(info?.main_carrier), cls: "text-amber-400", testid: "bts-carrier" },
+  ];
+
+  return (
+    <div className="glass-panel rounded-md overflow-hidden" data-testid="panel-bts-details">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-primary/5">
+        <RadioTower className="w-4 h-4 text-primary" />
+        <h2 className="text-xs font-bold tracking-[0.15em] uppercase text-primary">{t("bts_details")}</h2>
+        <div className="ml-auto flex items-center gap-1.5">
+          <span
+            className={`inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border ${
+              n > 0 ? "text-emerald-400 border-emerald-400/40 bg-emerald-400/5" : "text-muted-foreground border-white/10"
+            }`}
+            data-testid="bts-neighbor"
+          >
+            <Network className="w-3 h-3" />
+            {t("bts_neighbor")} · {n > 0 ? `${t("bts_on")} (${n} ${n === 1 ? t("bts_neighbor_one") : t("bts_neighbor_other")})` : t("bts_off")}
+          </span>
+          <span className="inline-flex items-center gap-1 text-[10px] font-mono px-2 py-0.5 rounded border text-cyan-400 border-cyan-400/40 bg-cyan-400/5" data-testid="bts-hangtime">
+            <ClockIcon className="w-3 h-3" />
+            {t("bts_hangtime")} · {info?.hangtime_secs != null ? info.hangtime_secs : "—"} {t("bts_sec")}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 p-3">
+        {tiles.map((tile) => (
+          <div key={tile.testid} className="rounded-md border border-white/5 bg-black/20 px-3 py-2">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{tile.label}</div>
+            <div className={`mt-0.5 font-mono text-sm sm:text-base font-bold ${tile.cls}`} data-testid={`text-${tile.testid}`}>
+              {tile.value}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="flex items-center gap-3 px-3 pb-3">
+        <div className="flex items-center gap-2 flex-1 min-w-0 rounded-md border border-white/5 bg-black/20 px-3 py-2">
+          {restricted ? (
+            <ShieldAlert className="w-4 h-4 text-orange-400 shrink-0" />
+          ) : (
+            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0" />
+          )}
+          <div className="min-w-0">
+            <div className="text-[10px] uppercase tracking-[0.12em] text-muted-foreground">{t("bts_access")}</div>
+            <div className="text-xs text-muted-foreground/80 truncate" data-testid="text-bts-access-sub">
+              {restricted ? `${info?.whitelist_count ?? 0} ${t("bts_wl_entries")}` : t("bts_wl_open")}
+            </div>
+          </div>
+          <span
+            className={`ml-auto text-[11px] font-bold font-mono px-2.5 py-1 rounded border shrink-0 ${
+              restricted
+                ? "text-orange-400 border-orange-400/50 bg-orange-400/10"
+                : "text-emerald-400 border-emerald-400/50 bg-emerald-400/10"
+            }`}
+            data-testid="text-bts-access"
+          >
+            {restricted ? t("bts_restricted") : t("bts_open")}
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Dashboard() {
   const { t } = useI18n();
   const tgName = useTgNames();
@@ -1193,6 +1305,8 @@ export default function Dashboard() {
       </header>
 
       <main className="flex-1 p-2 sm:p-3 flex flex-col gap-2 sm:gap-3 overflow-auto">
+        <BtsDetails />
+
         <TerminalTable
           terminals={terminalList}
           title={t("local_terminals")}
