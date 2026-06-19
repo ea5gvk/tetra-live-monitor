@@ -3892,7 +3892,7 @@ ${restartLine}
   let fsDashboardActive = false;
   let fsWs: WebSocket | null = null;
   let fsBackoff = 2000;
-  const FS_BACKOFF_MAX = 30000;
+  const FS_BACKOFF_MAX = 5000;
   async function connectFlowstationWs() {
     await refreshFlowstationSession();
     try {
@@ -3902,7 +3902,16 @@ ${restartLine}
       fsBackoff = Math.min(fsBackoff * 2, FS_BACKOFF_MAX);
       return;
     }
-    fsWs.on('open', () => { fsBackoff = 2000; });
+    fsWs.on('open', () => {
+      fsBackoff = 2000;
+      // Show the RF Timeslots panel as soon as we have a live dashboard connection,
+      // instead of waiting for the first 'snapshot' with a calls[] array (which may
+      // be delayed). Default timeslots render as "Libre" until calls arrive.
+      if (!fsDashboardActive) {
+        fsDashboardActive = true;
+        broadcast(JSON.stringify({ type: 'fs_dashboard_status', payload: { active: true } }));
+      }
+    });
     fsWs.on('message', (raw: any) => {
       try {
         const m = JSON.parse(raw.toString());
@@ -3970,7 +3979,7 @@ ${restartLine}
     });
     fsWs.on('error', () => { /* silent — :8080 may not be active */ });
     fsWs.on('close', () => {
-      const wasActive = fsWsCallDataActive;
+      const wasActive = fsDashboardActive;
       fsWs = null;
       fsWsCallDataActive = false;
       // Flowstation dashboard gone — mark its registered radios offline so the
