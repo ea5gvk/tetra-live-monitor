@@ -6027,7 +6027,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     window._tgChatIds.forEach((c, i) => {
       const tag = document.createElement("span");
       tag.style.cssText = "display:inline-flex;align-items:center;gap:5px;background:rgba(0,180,255,0.1);border:1px solid rgba(0,180,255,0.3);border-radius:4px;padding:3px 8px;font-size:12px;font-family:var(--mono);color:#7dd3fc;";
-      const typeLbl = c.type === "group" ? (I18N[currentLang]?.telegram_group||"group") : c.type === "channel" ? (I18N[currentLang]?.telegram_channel||"channel") : (I18N[currentLang]?.telegram_private||"private");
+      const typeLbl = c.type === "group" ? (I18N[state.lang]?.telegram_group||"group") : c.type === "channel" ? (I18N[state.lang]?.telegram_channel||"channel") : (I18N[state.lang]?.telegram_private||"private");
       tag.innerHTML = `${c.id} · ${c.name} · <em style="color:var(--muted);font-style:normal;">${typeLbl}</em> <span onclick="tgRemoveChat(${i})" style="cursor:pointer;color:var(--muted);margin-left:3px;font-size:14px;line-height:1;" title="Remove">×</span>`;
       container.appendChild(tag);
     });
@@ -6061,7 +6061,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const btn = document.getElementById("tgVerifyBtn");
     const res = document.getElementById("tgVerifyResult");
     btn.disabled = true;
-    btn.textContent = I18N[currentLang]?.telegram_verifying || "Verificando...";
+    btn.textContent = I18N[state.lang]?.telegram_verifying || "Verificando...";
     res.style.display = "none";
     try {
       const data = await fetch("/api/telegram/verify", {
@@ -6081,19 +6081,19 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       res.textContent = `✗ Error de red`;
     }
     btn.disabled = false;
-    btn.textContent = I18N[currentLang]?.telegram_verify || "Verificar";
+    btn.textContent = I18N[state.lang]?.telegram_verify || "Verificar";
   };
 
   window.tgDetectChats = async function() {
     const token = document.getElementById("telegramBotToken")?.value.trim();
     if (!token) {
-      alert(I18N[currentLang]?.telegram_verify_first || "Primero verifica el token del bot.");
+      alert(I18N[state.lang]?.telegram_verify_first || "Primero verifica el token del bot.");
       return;
     }
     const btn = document.getElementById("tgDetectBtn");
     const span = btn.querySelector("[data-i18n]");
     btn.disabled = true;
-    if (span) span.textContent = I18N[currentLang]?.telegram_detecting || "Detectando...";
+    if (span) span.textContent = I18N[state.lang]?.telegram_detecting || "Detectando...";
     try {
       const data = await fetch("/api/telegram/detect", {
         method: "POST",
@@ -6105,16 +6105,16 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       const listEl = document.getElementById("tgDetectedList");
       const itemsEl = document.getElementById("tgDetectedItems");
       if (chats.length === 0) {
-        itemsEl.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:6px 0;">${I18N[currentLang]?.telegram_no_updates || "Sin mensajes recientes. Envía /start al bot y vuelve a intentarlo."}</div>`;
+        itemsEl.innerHTML = `<div style="font-size:12px;color:var(--muted);padding:6px 0;">${I18N[state.lang]?.telegram_no_updates || "Sin mensajes recientes. Envía /start al bot y vuelve a intentarlo."}</div>`;
       } else {
         itemsEl.innerHTML = "";
         chats.forEach(c => {
           const row = document.createElement("div");
           row.style.cssText = "display:flex;align-items:center;justify-content:space-between;gap:8px;padding:6px 0;border-bottom:1px solid var(--border);font-size:13px;";
-          const typeLabel = c.type === "group" ? (I18N[currentLang]?.telegram_group||"group") : c.type === "channel" ? (I18N[currentLang]?.telegram_channel||"channel") : (I18N[currentLang]?.telegram_private||"private");
+          const typeLabel = c.type === "group" ? (I18N[state.lang]?.telegram_group||"group") : c.type === "channel" ? (I18N[state.lang]?.telegram_channel||"channel") : (I18N[state.lang]?.telegram_private||"private");
           const safeName = c.name.replace(/'/g,"\\'").replace(/</g,"&lt;");
           const safeType = c.type.replace(/'/g,"\\'");
-          row.innerHTML = `<span style="color:var(--fg);">${c.name.replace(/</g,"&lt;")} <span style="color:var(--muted);font-family:var(--mono);">(${c.id} · ${typeLabel})</span></span><button type="button" class="btn-secondary" style="padding:3px 10px;font-size:12px;" onclick="tgAddChat(${c.id},'${safeName}','${safeType}');this.disabled=true;this.style.opacity='0.4';">+ ${I18N[currentLang]?.telegram_add||"Añadir"}</button>`;
+          row.innerHTML = `<span style="color:var(--fg);">${c.name.replace(/</g,"&lt;")} <span style="color:var(--muted);font-family:var(--mono);">(${c.id} · ${typeLabel})</span></span><button type="button" class="btn-secondary" style="padding:3px 10px;font-size:12px;" onclick="tgAddChat(${c.id},'${safeName}','${safeType}');this.disabled=true;this.style.opacity='0.4';">+ ${I18N[state.lang]?.telegram_add||"Añadir"}</button>`;
           itemsEl.appendChild(row);
         });
         if (chats.length > 0) document.getElementById("tgDetectedIdInput").value = String(chats[0].id);
@@ -6124,7 +6124,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       alert("Error: " + e.message);
     }
     btn.disabled = false;
-    if (span) span.textContent = I18N[currentLang]?.telegram_detect_btn || "Detectar Chat ID";
+    if (span) span.textContent = I18N[state.lang]?.telegram_detect_btn || "Detectar Chat ID";
   };
 
   el("enableTelegramAlerts").addEventListener("change", function(){
