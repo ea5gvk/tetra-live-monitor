@@ -953,6 +953,74 @@ ${restartLine}
     });
   });
 
+  // ─── TETRA BTS Details ──────────────────────────────────────────────────────
+  // RF / cell identity pulled (read-only) from the active station's config.toml.
+  // Mirrors flowstation's /api/btsinfo contract so the dashboard can show the same
+  // card for both bluestation and flowstation. tx_freq/rx_freq are in [phy_io.soapysdr];
+  // mcc/mnc in [net_info]; main_carrier + hangtime_secs in [cell_info]; whitelist in [security].
+  app.get("/api/btsinfo", (_req, res) => {
+    try {
+      const station = readActiveStation();
+      let cfgPath = STATION_CONFIG_PATH[station];
+      if (!fs.existsSync(cfgPath)) {
+        const other: StationName = station === "bluestation" ? "flowstation" : "bluestation";
+        if (fs.existsSync(STATION_CONFIG_PATH[other])) cfgPath = STATION_CONFIG_PATH[other];
+      }
+      if (!fs.existsSync(cfgPath)) return res.json({});
+      const content = fs.readFileSync(cfgPath, "utf-8");
+      // Section-scoped parsing: extract the body of a given [table] (from its header
+      // until the next top-level "[" header) so a key never bleeds in from another
+      // section (e.g. neighbor-cell mcc/mnc vs [net_info] mcc/mnc).
+      const sectionBody = (header: string): string => {
+        const esc = header.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        const m = new RegExp(`^\\s*\\[${esc}\\]\\s*$`, "m").exec(content);
+        if (!m) return "";
+        const rest = content.slice(m.index + m[0].length);
+        const next = rest.search(/^\s*\[/m);
+        return next === -1 ? rest : rest.slice(0, next);
+      };
+      // Only matches uncommented lines (a leading "#" breaks the ^\s* anchor).
+      const numIn = (body: string, key: string): number | null => {
+        const m = body.match(new RegExp(`^\\s*${key}\\s*=\\s*(-?\\d+)`, "m"));
+        return m && m[1] !== "" ? Number(m[1]) : null;
+      };
+      const phy = sectionBody("phy_io.soapysdr");
+      const net = sectionBody("net_info");
+      const cell = sectionBody("cell_info");
+      const sec = sectionBody("security");
+      const tx = numIn(phy, "tx_freq");
+      const rx = numIn(phy, "rx_freq");
+      const shift = tx != null && rx != null ? rx - tx : null;
+      const mcc = numIn(net, "mcc");
+      const mnc = numIn(net, "mnc");
+      const mainCarrier = numIn(cell, "main_carrier");
+      const hangtime = numIn(cell, "hangtime_secs");
+      const neighborMatches = content.match(/^\s*\[\[cell_info\.neighbor_cells_ca\]\]/gm);
+      const neighborCount = neighborMatches ? neighborMatches.length : 0;
+      // Whitelist may be a single- or multi-line TOML array; capture across newlines
+      // up to the first closing bracket, then count numeric entries.
+      const wlMatch = sec.match(/^\s*issi_whitelist\s*=\s*\[([\s\S]*?)\]/m);
+      const wlCount = wlMatch
+        ? wlMatch[1].split(",").map(s => s.trim()).filter(s => /\d/.test(s)).length
+        : 0;
+      res.json({
+        tx_freq_hz: tx,
+        rx_freq_hz: rx,
+        shift_hz: shift,
+        mcc,
+        mnc,
+        main_carrier: mainCarrier,
+        neighbor_count: neighborCount,
+        hangtime_secs: hangtime != null ? hangtime : 5,
+        whitelist_restricted: wlCount > 0,
+        whitelist_count: wlCount,
+        station,
+      });
+    } catch {
+      res.json({});
+    }
+  });
+
   // ─── Flowstation native dashboard proxy ─────────────────────────────────────
   // Reads /root/flowstation/config.toml looking for an UNCOMMENTED [dashboard] section
   // with port = N. Returns enabled=true only when both are present.
