@@ -1307,6 +1307,8 @@ export default function Dashboard() {
       <main className="flex-1 p-2 sm:p-3 flex flex-col gap-2 sm:gap-3 overflow-auto">
         <BtsDetails />
 
+        {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} />}
+
         <TerminalTable
           terminals={terminalList}
           title={t("local_terminals")}
@@ -1314,8 +1316,6 @@ export default function Dashboard() {
           isLocal={true}
           issiCallsign={issiCallsign}
         />
-
-        {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} />}
 
         <TerminalTable
           terminals={terminalList}
