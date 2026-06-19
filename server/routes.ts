@@ -1382,6 +1382,8 @@ ${restartLine}
       let inCommentedDashboard = false;
       let inCommentedWx = false;
       let wxActive = false;      // true if [wx_service] header is active
+      let recoveryActive = false;  // true if [recovery] header is active
+      let telegramActive = false;  // true if [telegram_alerts] header is active
       let telemetryActive = false; // true if [telemetry] header is active
       let commandActive = false;   // true if [command] header is active
       let brewCommented = false; // true if [brew] header is commented out
@@ -1506,6 +1508,8 @@ ${restartLine}
           if (currentSection === 'security') securityActive = true;
           if (currentSection === 'dashboard') dashboardActive = true;
           if (currentSection === 'wx_service') wxActive = true;
+          if (currentSection === 'recovery') recoveryActive = true;
+          if (currentSection === 'telegram_alerts') telegramActive = true;
           if (currentSection === 'telemetry') telemetryActive = true;
           if (currentSection === 'command') commandActive = true;
           sections[currentSection] = sections[currentSection] || {};
@@ -1903,6 +1907,26 @@ ${restartLine}
           periodic_icao: str('wx_service', 'periodic_icao'),
           periodic_interval_secs: num('wx_service', 'periodic_interval_secs'),
         },
+        recovery: {
+          enabled: recoveryActive,
+          issi_allowlist: str('recovery', 'issi_allowlist'),
+          cache_path: str('recovery', 'cache_path'),
+          max_replay_attempts: num('recovery', 'max_replay_attempts'),
+          replay_per_frame: num('recovery', 'replay_per_frame'),
+          debounce_secs: num('recovery', 'debounce_secs'),
+          max_cached_issis: num('recovery', 'max_cached_issis'),
+        },
+        telegram_alerts: {
+          enabled: telegramActive,
+          bot_token: str('telegram_alerts', 'bot_token'),
+          chat_ids: str('telegram_alerts', 'chat_ids'),
+          alert_connect: bool('telegram_alerts', 'alert_connect'),
+          alert_disconnect: bool('telegram_alerts', 'alert_disconnect'),
+          alert_t351: bool('telegram_alerts', 'alert_t351'),
+          alert_lip: bool('telegram_alerts', 'alert_lip'),
+          alert_backhaul: bool('telegram_alerts', 'alert_backhaul'),
+          alert_critical_logs: bool('telegram_alerts', 'alert_critical_logs'),
+        },
         service_name: {
           enabled: serviceNameActive,
           value: serviceNameValue,
@@ -1932,7 +1956,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig, telemetryConfig, commandConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig, telemetryConfig, commandConfig, recoveryConfig, telegramAlertsConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -3166,6 +3190,83 @@ ${restartLine}
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { wxEnd = j; break; }
           }
           lines.splice(wxStart, wxEnd - wxStart, ...block);
+        }
+      }
+
+      // ── Recovery [recovery] (Flowstation only) ──
+      if (recoveryConfig && typeof recoveryConfig === "object") {
+        const clampI = (v: any, min: number, max: number, def: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : def; };
+        const recEnabled = recoveryConfig.enabled === true;
+        const p = recEnabled ? "" : "# ";
+        // issi_allowlist: parse comma-separated list of integers
+        const rawAllowlist = typeof recoveryConfig.issi_allowlist === "string" ? recoveryConfig.issi_allowlist.trim() : "";
+        const allowlistArr = rawAllowlist ? rawAllowlist.split(",").map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n)) : [];
+        const allowlistToml = allowlistArr.length > 0 ? `[${allowlistArr.join(", ")}]` : "[]";
+        const cachePath = (typeof recoveryConfig.cache_path === "string" ? recoveryConfig.cache_path.trim() : "").replace(/"/g, "");
+        const maxReplay = clampI(recoveryConfig.max_replay_attempts, 1, 500, 150);
+        const rpf = clampI(recoveryConfig.replay_per_frame, 1, 18, 1);
+        const debounce = clampI(recoveryConfig.debounce_secs, 1, 300, 5);
+        const maxCached = clampI(recoveryConfig.max_cached_issis, 1, 65535, 1024);
+        const block: string[] = [
+          `${p}[recovery]`,
+          `${p}enabled = ${recEnabled ? "true" : "false"}`,
+          `${p}issi_allowlist = ${allowlistToml}`,
+          ...(cachePath ? [`${p}cache_path = "${cachePath}"`] : []),
+          `${p}max_replay_attempts = ${maxReplay}`,
+          `${p}replay_per_frame = ${rpf}`,
+          `${p}debounce_secs = ${debounce}`,
+          `${p}max_cached_issis = ${maxCached}`,
+        ];
+        let recStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[recovery\]/) || lines[i].match(/^\s*#\s*\[recovery\]/)) { recStart = i; break; }
+        }
+        if (recStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          let recEnd = lines.length;
+          for (let j = recStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { recEnd = j; break; }
+          }
+          lines.splice(recStart, recEnd - recStart, ...block);
+        }
+      }
+
+      // ── Telegram Alerts [telegram_alerts] (Flowstation only) ──
+      if (telegramAlertsConfig && typeof telegramAlertsConfig === "object") {
+        const tgEnabled = telegramAlertsConfig.enabled === true;
+        const p = tgEnabled ? "" : "# ";
+        const botToken = (typeof telegramAlertsConfig.bot_token === "string" ? telegramAlertsConfig.bot_token.trim() : "").replace(/"/g, "");
+        const rawIds = typeof telegramAlertsConfig.chat_ids === "string" ? telegramAlertsConfig.chat_ids.trim() : "";
+        const idsArr = rawIds ? rawIds.split(",").map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n)) : [];
+        const idsToml = idsArr.length > 0 ? `[${idsArr.join(", ")}]` : "[]";
+        const boolFlag = (v: any, def: boolean) => (v === true || v === false ? v : def);
+        const block: string[] = [
+          `${p}[telegram_alerts]`,
+          `${p}enabled = ${tgEnabled ? "true" : "false"}`,
+          ...(botToken ? [`${p}bot_token = "${botToken}"`] : []),
+          `${p}chat_ids = ${idsToml}`,
+          `${p}alert_connect = ${boolFlag(telegramAlertsConfig.alert_connect, true) ? "true" : "false"}`,
+          `${p}alert_disconnect = ${boolFlag(telegramAlertsConfig.alert_disconnect, true) ? "true" : "false"}`,
+          `${p}alert_t351 = ${boolFlag(telegramAlertsConfig.alert_t351, true) ? "true" : "false"}`,
+          `${p}alert_lip = ${boolFlag(telegramAlertsConfig.alert_lip, true) ? "true" : "false"}`,
+          `${p}alert_backhaul = ${boolFlag(telegramAlertsConfig.alert_backhaul, true) ? "true" : "false"}`,
+          `${p}alert_critical_logs = ${boolFlag(telegramAlertsConfig.alert_critical_logs, true) ? "true" : "false"}`,
+        ];
+        let tgStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[telegram_alerts\]/) || lines[i].match(/^\s*#\s*\[telegram_alerts\]/)) { tgStart = i; break; }
+        }
+        if (tgStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          let tgEnd = lines.length;
+          for (let j = tgStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { tgEnd = j; break; }
+          }
+          lines.splice(tgStart, tgEnd - tgStart, ...block);
         }
       }
 
