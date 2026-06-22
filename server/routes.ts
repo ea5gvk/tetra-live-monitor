@@ -1503,6 +1503,7 @@ ${restartLine}
       let telegramActive = false;  // true if [telegram_alerts] header is active
       let telemetryActive = false; // true if [telemetry] header is active
       let commandActive = false;   // true if [command] header is active
+      let healthActive = false;    // true if [health] header is active
       let brewCommented = false; // true if [brew] header is commented out
       let brewActive = false;    // true if [brew] header is active
       let rssiExportActive = false; // true if feature_rssi_export appears as active under [brew]
@@ -1629,6 +1630,7 @@ ${restartLine}
           if (currentSection === 'telegram_alerts') telegramActive = true;
           if (currentSection === 'telemetry') telemetryActive = true;
           if (currentSection === 'command') commandActive = true;
+          if (currentSection === 'health') healthActive = true;
           sections[currentSection] = sections[currentSection] || {};
           continue;
         }
@@ -2033,6 +2035,24 @@ ${restartLine}
           debounce_secs: num('recovery', 'debounce_secs'),
           max_cached_issis: num('recovery', 'max_cached_issis'),
         },
+        health: {
+          enabled: healthActive,
+          snapshot_interval_secs: num('health', 'snapshot_interval_secs'),
+          restart_on_core_stall: bool('health', 'restart_on_core_stall'),
+          core_stall_secs: num('health', 'core_stall_secs'),
+          restart_after_critical_secs: num('health', 'restart_after_critical_secs'),
+          restart_cooldown_secs: num('health', 'restart_cooldown_secs'),
+          radios_silent_secs: num('health', 'radios_silent_secs'),
+          dl_queue_degraded: num('health', 'dl_queue_degraded'),
+          dl_queue_critical: num('health', 'dl_queue_critical'),
+          sds_queue_degraded: num('health', 'sds_queue_degraded'),
+          sds_queue_critical: num('health', 'sds_queue_critical'),
+        },
+        emergency: {
+          forward_to_brew: bool('emergency', 'forward_to_brew'),
+          telegram_alert: bool('emergency', 'telegram_alert'),
+          clear_timeout_secs: num('emergency', 'clear_timeout_secs'),
+        },
         telegram_alerts: {
           enabled: telegramActive,
           bot_token: str('telegram_alerts', 'bot_token'),
@@ -2073,7 +2093,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig, telemetryConfig, commandConfig, recoveryConfig, telegramAlertsConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig, telemetryConfig, commandConfig, recoveryConfig, healthConfig, emergencyConfig, telegramAlertsConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -3350,6 +3370,79 @@ ${restartLine}
         }
       }
 
+      // ── Health [health] (Flowstation only) ──
+      if (healthConfig && typeof healthConfig === "object") {
+        const clampI = (v: any, min: number, max: number, def: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : def; };
+        const hEnabled = healthConfig.enabled !== false;
+        const p = hEnabled ? "" : "# ";
+        const snapInterval = clampI(healthConfig.snapshot_interval_secs, 1, 300, 5);
+        const restartOnStall = healthConfig.restart_on_core_stall === true;
+        const coreStall = clampI(healthConfig.core_stall_secs, 2, 600, 10);
+        const restartAfterCritical = clampI(healthConfig.restart_after_critical_secs, 1, 3600, 30);
+        const restartCooldown = clampI(healthConfig.restart_cooldown_secs, 10, 86400, 600);
+        const radiosSilent = clampI(healthConfig.radios_silent_secs, 0, 86400, 900);
+        const dlDegraded = clampI(healthConfig.dl_queue_degraded, 1, 65535, 64);
+        const dlCritical = clampI(healthConfig.dl_queue_critical, 1, 65535, 192);
+        const sdsDegraded = clampI(healthConfig.sds_queue_degraded, 1, 65535, 32);
+        const sdsCritical = clampI(healthConfig.sds_queue_critical, 1, 65535, 128);
+        const block: string[] = [
+          `${p}[health]`,
+          `${p}enabled = ${hEnabled ? "true" : "false"}`,
+          `${p}snapshot_interval_secs = ${snapInterval}`,
+          `${p}restart_on_core_stall = ${restartOnStall ? "true" : "false"}`,
+          `${p}core_stall_secs = ${coreStall}`,
+          `${p}restart_after_critical_secs = ${restartAfterCritical}`,
+          `${p}restart_cooldown_secs = ${restartCooldown}`,
+          `${p}radios_silent_secs = ${radiosSilent}`,
+          `${p}dl_queue_degraded = ${dlDegraded}`,
+          `${p}dl_queue_critical = ${dlCritical}`,
+          `${p}sds_queue_degraded = ${sdsDegraded}`,
+          `${p}sds_queue_critical = ${sdsCritical}`,
+        ];
+        let hStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[health\]/) || lines[i].match(/^\s*#\s*\[health\]/)) { hStart = i; break; }
+        }
+        if (hStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          let hEnd = lines.length;
+          for (let j = hStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { hEnd = j; break; }
+          }
+          lines.splice(hStart, hEnd - hStart, ...block);
+        }
+      }
+
+      // ── Emergency [emergency] (Flowstation only) ──
+      if (emergencyConfig && typeof emergencyConfig === "object") {
+        const clampI = (v: any, min: number, max: number, def: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : def; };
+        const fwdBrew = emergencyConfig.forward_to_brew === true;
+        const tgAlert = emergencyConfig.telegram_alert !== false;
+        const clearTimeout = clampI(emergencyConfig.clear_timeout_secs, 5, 600, 30);
+        const block: string[] = [
+          `[emergency]`,
+          `forward_to_brew = ${fwdBrew ? "true" : "false"}`,
+          `telegram_alert = ${tgAlert ? "true" : "false"}`,
+          `clear_timeout_secs = ${clearTimeout}`,
+        ];
+        let eStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[emergency\]/) || lines[i].match(/^\s*#\s*\[emergency\]/)) { eStart = i; break; }
+        }
+        if (eStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          let eEnd = lines.length;
+          for (let j = eStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { eEnd = j; break; }
+          }
+          lines.splice(eStart, eEnd - eStart, ...block);
+        }
+      }
+
       // ── Telegram Alerts [telegram_alerts] (Flowstation only) ──
       if (telegramAlertsConfig && typeof telegramAlertsConfig === "object") {
         const tgEnabled = telegramAlertsConfig.enabled === true;
@@ -3893,6 +3986,21 @@ ${restartLine}
   let fsWs: WebSocket | null = null;
   let fsBackoff = 2000;
   const FS_BACKOFF_MAX = 5000;
+  // Flowstation v0.6 telemetry caches — kept so a freshly (re)connected web client
+  // gets the current state in full_state instead of waiting for the next event.
+  const fsEmergencies = new Map<number, { issi: number; dest_ssi: number; started_secs_ago: number }>();
+  let fsBrew: { connected: boolean; version: number } = { connected: false, version: 0 };
+  let fsLastHeard: Array<{ ts: string; issi: number; activity: string; dest: number }> = [];
+  let fsTxQuality: any = null;
+  let fsHealth: any = null;
+  let fsSdrHealth: any = null;
+  let fsSysHealth: any = null;
+  const FS_LAST_HEARD_MAX = 50;
+  const fsEmergencyList = () => Array.from(fsEmergencies.values());
+  const pushLastHeard = (e: { issi: number; activity: string; dest: number; ts?: string }) => {
+    const entry = { ts: e.ts || new Date().toLocaleTimeString('en-GB', { hour12: false }), issi: e.issi, activity: e.activity, dest: e.dest };
+    fsLastHeard = [entry, ...fsLastHeard].slice(0, FS_LAST_HEARD_MAX);
+  };
   async function connectFlowstationWs() {
     await refreshFlowstationSession();
     try {
@@ -3915,6 +4023,12 @@ ${restartLine}
     fsWs.on('message', (raw: any) => {
       try {
         const m = JSON.parse(raw.toString());
+        // last_heard is also embedded (as an object) in call_started/speaker_changed.
+        // The snapshot carries it as an array, which is handled below — skip that here.
+        if (m.last_heard && !Array.isArray(m.last_heard) && m.last_heard.issi != null) {
+          pushLastHeard({ issi: m.last_heard.issi, activity: m.last_heard.activity, dest: m.last_heard.dest });
+          broadcast(JSON.stringify({ type: 'fs_last_heard', payload: { list: fsLastHeard } }));
+        }
         if (m.type === 'snapshot') {
           // Registered radios (connected units) from the authoritative ms array
           if (m.ms) {
@@ -3938,6 +4052,18 @@ ${restartLine}
             }
             broadcast(JSON.stringify({ type: 'rf_calls_state', payload: rfCallsSnapshot() }));
           }
+          // v0.6 telemetry carried inside the snapshot — replace caches authoritatively.
+          fsEmergencies.clear();
+          if (Array.isArray(m.emergencies)) {
+            for (const e of m.emergencies) if (e && e.issi != null) fsEmergencies.set(e.issi, { issi: e.issi, dest_ssi: e.dest_ssi ?? 0, started_secs_ago: e.started_secs_ago ?? 0 });
+          }
+          broadcast(JSON.stringify({ type: 'fs_emergency', payload: { emergencies: fsEmergencyList() } }));
+          if (m.brew_online !== undefined) { fsBrew = { connected: !!m.brew_online, version: m.brew_version ?? 0 }; broadcast(JSON.stringify({ type: 'fs_brew_status', payload: fsBrew })); }
+          if (Array.isArray(m.last_heard)) { fsLastHeard = m.last_heard.slice(0, FS_LAST_HEARD_MAX).map((e: any) => ({ ts: e.ts || '', issi: e.issi, activity: e.activity, dest: e.dest })); broadcast(JSON.stringify({ type: 'fs_last_heard', payload: { list: fsLastHeard } })); }
+          if (m.last_tx_quality !== undefined) { fsTxQuality = m.last_tx_quality ?? null; broadcast(JSON.stringify({ type: 'fs_tx_quality', payload: fsTxQuality })); }
+          if (m.last_sdr_health !== undefined) { fsSdrHealth = m.last_sdr_health ?? null; broadcast(JSON.stringify({ type: 'fs_sdr_health', payload: fsSdrHealth })); }
+          if (m.last_sys_health !== undefined) { fsSysHealth = m.last_sys_health ?? null; broadcast(JSON.stringify({ type: 'fs_sys_health', payload: fsSysHealth })); }
+          if (m.health !== undefined) { fsHealth = m.health ?? null; broadcast(JSON.stringify({ type: 'fs_health', payload: fsHealth })); }
         } else if (m.type === 'call_started' && m.call_id != null) {
           const entry: RfCallEntry = { callId: m.call_id, callType: m.call_type || 'group', gssi: m.gssi || 0, callerIssi: m.caller_issi || 0, calledIssi: m.called_issi || 0, ts: m.ts || 0 };
           activeCalls.set(m.call_id, entry);
@@ -3967,6 +4093,26 @@ ${restartLine}
           // when call_started events are missing (e.g. flowstation v0.2.3 group-attach
           // cap stalls call setup but voice frames still reach the BS).
           broadcast(JSON.stringify({ type: 'rf_ts_voice', payload: { ts: m.ts } }));
+        } else if (m.type === 'emergency_added' && m.issi != null) {
+          fsEmergencies.set(m.issi, { issi: m.issi, dest_ssi: m.dest_ssi ?? 0, started_secs_ago: m.started_secs_ago ?? 0 });
+          broadcast(JSON.stringify({ type: 'fs_emergency', payload: { emergencies: fsEmergencyList() } }));
+        } else if (m.type === 'emergency_removed' && m.issi != null) {
+          fsEmergencies.delete(m.issi);
+          broadcast(JSON.stringify({ type: 'fs_emergency', payload: { emergencies: fsEmergencyList() } }));
+        } else if (m.type === 'brew_status') {
+          fsBrew = { connected: !!m.connected, version: m.brew_version ?? 0 };
+          broadcast(JSON.stringify({ type: 'fs_brew_status', payload: fsBrew }));
+        } else if (m.type === 'last_heard' && m.issi != null) {
+          pushLastHeard({ issi: m.issi, activity: m.activity, dest: m.dest });
+          broadcast(JSON.stringify({ type: 'fs_last_heard', payload: { list: fsLastHeard } }));
+        } else if (m.type === 'tx_quality') {
+          fsTxQuality = m; broadcast(JSON.stringify({ type: 'fs_tx_quality', payload: fsTxQuality }));
+        } else if (m.type === 'sdr_health') {
+          fsSdrHealth = m; broadcast(JSON.stringify({ type: 'fs_sdr_health', payload: fsSdrHealth }));
+        } else if (m.type === 'sys_health') {
+          fsSysHealth = m; broadcast(JSON.stringify({ type: 'fs_sys_health', payload: fsSysHealth }));
+        } else if (m.type === 'health') {
+          fsHealth = m; broadcast(JSON.stringify({ type: 'fs_health', payload: fsHealth }));
         }
       } catch { /* ignore */ }
     });
@@ -3990,6 +4136,16 @@ ${restartLine}
         activeCalls.clear();
         broadcast(JSON.stringify({ type: 'rf_calls_state', payload: [] }));
         broadcast(JSON.stringify({ type: 'fs_dashboard_status', payload: { active: false } }));
+        // v0.6: flowstation gone — clear live telemetry (keep last_heard as history).
+        fsEmergencies.clear();
+        fsBrew = { connected: false, version: 0 };
+        fsTxQuality = null; fsHealth = null; fsSdrHealth = null; fsSysHealth = null;
+        broadcast(JSON.stringify({ type: 'fs_emergency', payload: { emergencies: [] } }));
+        broadcast(JSON.stringify({ type: 'fs_brew_status', payload: fsBrew }));
+        broadcast(JSON.stringify({ type: 'fs_health', payload: null }));
+        broadcast(JSON.stringify({ type: 'fs_tx_quality', payload: null }));
+        broadcast(JSON.stringify({ type: 'fs_sdr_health', payload: null }));
+        broadcast(JSON.stringify({ type: 'fs_sys_health', payload: null }));
       }
       setTimeout(connectFlowstationWs, fsBackoff);
       fsBackoff = Math.min(fsBackoff * 2, FS_BACKOFF_MAX);
@@ -4022,6 +4178,13 @@ ${restartLine}
         gpsHistory: currentState.gpsHistory,
         rfCalls: rfCallsSnapshot(),
         fsDashboardActive,
+        emergencies: fsEmergencyList(),
+        brewStatus: fsBrew,
+        lastHeard: fsLastHeard,
+        txQuality: fsTxQuality,
+        health: fsHealth,
+        sdrHealth: fsSdrHealth,
+        sysHealth: fsSysHealth,
       }
     });
     ws.send(snapshot);
