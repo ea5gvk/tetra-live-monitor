@@ -390,24 +390,37 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
     return last != null && (now - last) < 2000;
   };
 
-  const renderSlot = (tsNum: number) => {
+  type SlotInfo = {
+    ts: number;
+    mode: "active" | "voice" | "mcch" | "idle";
+    label: string;
+    sub: string;
+    detail?: string;
+    detailCs?: string;
+    srcCs?: string;
+    dstCs?: string;
+  };
+  const renderSlot = (tsNum: number): SlotInfo => {
     const c = callByTs[tsNum];
     if (c) {
       if (c.callType === "individual") {
-        const srcCs = issiCallsign(c.callerIssi) || String(c.callerIssi);
-        const dstCs = issiCallsign(c.calledIssi) || String(c.calledIssi);
-        return { ts: tsNum, mode: "active" as const, label: `${srcCs} → ${dstCs}`, sub: t("rf_p2p"), detail: `ISSI ${c.callerIssi} → ${c.calledIssi}` };
+        const srcResolved = issiCallsign(c.callerIssi);
+        const dstResolved = issiCallsign(c.calledIssi);
+        const srcCs = srcResolved || String(c.callerIssi);
+        const dstCs = dstResolved || String(c.calledIssi);
+        return { ts: tsNum, mode: "active", label: `${srcCs} → ${dstCs}`, sub: t("rf_p2p"), detail: `ISSI ${c.callerIssi} → ${c.calledIssi}`, srcCs: srcResolved || undefined, dstCs: dstResolved || undefined };
       }
-      const speakerCs = c.callerIssi ? (issiCallsign(c.callerIssi) || String(c.callerIssi)) : "?";
-      return { ts: tsNum, mode: "active" as const, label: `GSSI ${c.gssi}`, sub: t("rf_group_call"), detail: speakerCs };
+      const resolved = c.callerIssi ? issiCallsign(c.callerIssi) : "";
+      const speakerCs = c.callerIssi ? (resolved || String(c.callerIssi)) : "?";
+      return { ts: tsNum, mode: "active", label: `GSSI ${c.gssi}`, sub: t("rf_group_call"), detail: speakerCs, detailCs: resolved || undefined };
     }
     if (isVoiceActive(tsNum)) {
-      return { ts: tsNum, mode: "voice" as const, label: t("rf_voice_rx"), sub: t("rf_voice_activity"), detail: undefined as string | undefined };
+      return { ts: tsNum, mode: "voice", label: t("rf_voice_rx"), sub: t("rf_voice_activity") };
     }
     if (tsNum === 1) {
-      return { ts: 1, mode: "mcch" as const, label: t("rf_mcch"), sub: t("rf_control"), detail: undefined as string | undefined };
+      return { ts: 1, mode: "mcch", label: t("rf_mcch"), sub: t("rf_control") };
     }
-    return { ts: tsNum, mode: "idle" as const, label: "—", sub: t("rf_idle"), detail: undefined as string | undefined };
+    return { ts: tsNum, mode: "idle", label: "—", sub: t("rf_idle") };
   };
 
   const slots = [renderSlot(1), renderSlot(2), renderSlot(3), renderSlot(4)];
@@ -449,14 +462,23 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
               <div className="text-[11px] font-bold tracking-[0.18em] text-muted-foreground mb-1.5">TS {s.ts}</div>
               <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ledCls}`} />
               <div className={`text-sm font-mono font-bold tracking-wide truncate ${labelCls}`} title={s.label}>
-                {s.label}
+                {(s.srcCs || s.dstCs) ? (
+                  <span className="inline-flex items-center gap-1 justify-center">
+                    <span>{s.label.split(" → ")[0]}</span>
+                    <CountryFlag callsign={s.srcCs} />
+                    <span>→</span>
+                    <span>{s.label.split(" → ")[1]}</span>
+                    <CountryFlag callsign={s.dstCs} />
+                  </span>
+                ) : s.label}
               </div>
               <div className="text-xs font-mono text-muted-foreground mt-1 truncate" title={s.sub}>
                 {s.sub}
               </div>
               {s.detail && (
-                <div className="text-[11px] font-mono text-muted-foreground/80 mt-0.5 truncate" title={s.detail}>
-                  {s.detail}
+                <div className="text-[11px] font-mono text-muted-foreground/80 mt-0.5 truncate flex items-center gap-1 justify-center" title={s.detail}>
+                  <span className="truncate">{s.detail}</span>
+                  {s.detailCs && <CountryFlag callsign={s.detailCs} />}
                 </div>
               )}
             </div>
