@@ -74,6 +74,61 @@ export interface RfCall {
   ts: number;
 }
 
+export interface EmergencyEntry {
+  issi: number;
+  dest_ssi: number;
+  started_secs_ago: number;
+}
+
+export interface BrewStatus {
+  connected: boolean;
+  version: number;
+}
+
+export interface LastHeardEntry {
+  ts: string;
+  issi: number;
+  activity: string;
+  dest: number;
+}
+
+export interface TxQuality {
+  papr_db?: number;
+  evm_pct?: number;
+  dc_offset_i?: number;
+  dc_offset_q?: number;
+  iq_amplitude_imbalance_db?: number;
+  iq_phase_imbalance_deg?: number;
+  carrier_leakage_db?: number;
+  occupied_bandwidth_hz?: number;
+}
+
+export interface SdrHealth {
+  temperature_c?: number;
+  tx_gains?: [string, number][];
+  rx_gains?: [string, number][];
+}
+
+export interface SysHealth {
+  total_power_w?: number;
+  sensors?: { name: string; kind: string; value: number }[];
+}
+
+export type HealthLevel = "ok" | "degraded" | "critical";
+
+export interface HealthDomain {
+  domain: string;
+  level: HealthLevel;
+  detail?: string;
+}
+
+export interface HealthSnapshot {
+  overall: HealthLevel;
+  domains: HealthDomain[];
+  last_action?: string;
+  uptime_secs?: number;
+}
+
 export interface TetraState {
   terminals: Record<string, Terminal>;
   localHistory: CallLogEntry[];
@@ -84,6 +139,13 @@ export interface TetraState {
   rfCalls: RfCall[];
   fsDashboardActive: boolean;
   tsVoiceActivity: Record<number, number>;
+  emergencies: EmergencyEntry[];
+  brewStatus: BrewStatus | null;
+  lastHeard: LastHeardEntry[];
+  txQuality: TxQuality | null;
+  health: HealthSnapshot | null;
+  sdrHealth: SdrHealth | null;
+  sysHealth: SysHealth | null;
   connected: boolean;
   mode: string;
 }
@@ -98,6 +160,13 @@ export function useTetraWebSocket(): TetraState {
   const [rfCalls, setRfCalls] = useState<RfCall[]>([]);
   const [fsDashboardActive, setFsDashboardActive] = useState(false);
   const [tsVoiceActivity, setTsVoiceActivity] = useState<Record<number, number>>({});
+  const [emergencies, setEmergencies] = useState<EmergencyEntry[]>([]);
+  const [brewStatus, setBrewStatus] = useState<BrewStatus | null>(null);
+  const [lastHeard, setLastHeard] = useState<LastHeardEntry[]>([]);
+  const [txQuality, setTxQuality] = useState<TxQuality | null>(null);
+  const [health, setHealth] = useState<HealthSnapshot | null>(null);
+  const [sdrHealth, setSdrHealth] = useState<SdrHealth | null>(null);
+  const [sysHealth, setSysHealth] = useState<SysHealth | null>(null);
   const [connected, setConnected] = useState(false);
   const [mode, setMode] = useState("connecting");
   const wsRef = useRef<WebSocket | null>(null);
@@ -128,6 +197,41 @@ export function useTetraWebSocket(): TetraState {
             setGpsHistory(msg.payload.gpsHistory || {});
             if (msg.payload.rfCalls) setRfCalls(msg.payload.rfCalls);
             if (msg.payload.fsDashboardActive !== undefined) setFsDashboardActive(!!msg.payload.fsDashboardActive);
+            setEmergencies(msg.payload.emergencies || []);
+            setBrewStatus(msg.payload.brewStatus ?? null);
+            setLastHeard(msg.payload.lastHeard || []);
+            setTxQuality(msg.payload.txQuality ?? null);
+            setHealth(msg.payload.health ?? null);
+            setSdrHealth(msg.payload.sdrHealth ?? null);
+            setSysHealth(msg.payload.sysHealth ?? null);
+            break;
+
+          case "fs_emergency":
+            setEmergencies(msg.payload?.emergencies || []);
+            break;
+
+          case "fs_brew_status":
+            setBrewStatus(msg.payload ?? null);
+            break;
+
+          case "fs_last_heard":
+            setLastHeard(msg.payload?.list || []);
+            break;
+
+          case "fs_tx_quality":
+            setTxQuality(msg.payload ?? null);
+            break;
+
+          case "fs_health":
+            setHealth(msg.payload ?? null);
+            break;
+
+          case "fs_sdr_health":
+            setSdrHealth(msg.payload ?? null);
+            break;
+
+          case "fs_sys_health":
+            setSysHealth(msg.payload ?? null);
             break;
 
           case "rf_calls_state":
@@ -246,5 +350,5 @@ export function useTetraWebSocket(): TetraState {
     };
   }, [connect]);
 
-  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, rfCalls, fsDashboardActive, tsVoiceActivity, connected, mode };
+  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, rfCalls, fsDashboardActive, tsVoiceActivity, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, connected, mode };
 }
