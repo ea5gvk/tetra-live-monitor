@@ -894,6 +894,104 @@
     </section>
   </div>
 
+  <div id="sectionHealth" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="health_title">🩺 Salud y auto-recuperación [health]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableHealth" checked />
+            <label for="enableHealth" data-i18n="health_enable">Activar monitor de salud</label>
+          </div>
+          <div class="hint" data-i18n="health_hint">Vigila servicio, backhaul, radios y congestión de colas. Puede reiniciar automáticamente flowstation ante fallos críticos. Activado por defecto.</div>
+        </div>
+      </div>
+      <div id="healthFields" style="display:block; margin-top:12px;">
+        <div class="row">
+          <div>
+            <label for="healthSnapshotInterval" data-i18n="health_snapshot_interval">snapshot_interval_secs (1–300, default 5)</label>
+            <input id="healthSnapshotInterval" type="number" value="5" min="1" max="300" style="max-width:120px;" />
+          </div>
+          <div>
+            <label for="healthRadiosSilent" data-i18n="health_radios_silent">radios_silent_secs (0 = desactivado, default 900)</label>
+            <input id="healthRadiosSilent" type="number" value="900" min="0" max="86400" style="max-width:140px;" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div>
+            <div class="checkbox-row">
+              <input type="checkbox" id="healthRestartOnStall" />
+              <label for="healthRestartOnStall" data-i18n="health_restart_on_stall">restart_on_core_stall (reiniciar si el núcleo se cuelga)</label>
+            </div>
+            <div class="hint" data-i18n="health_restart_on_stall_hint">Desactivado por defecto. Si se activa, reinicia flowstation cuando el bucle principal no responde.</div>
+          </div>
+          <div>
+            <label for="healthCoreStall" data-i18n="health_core_stall">core_stall_secs (2–600, default 10)</label>
+            <input id="healthCoreStall" type="number" value="10" min="2" max="600" style="max-width:120px;" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div>
+            <label for="healthRestartAfterCritical" data-i18n="health_restart_after_critical">restart_after_critical_secs (1–3600, default 30)</label>
+            <input id="healthRestartAfterCritical" type="number" value="30" min="1" max="3600" style="max-width:140px;" />
+          </div>
+          <div>
+            <label for="healthRestartCooldown" data-i18n="health_restart_cooldown">restart_cooldown_secs (10–86400, default 600)</label>
+            <input id="healthRestartCooldown" type="number" value="600" min="10" max="86400" style="max-width:140px;" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div>
+            <label for="healthDlDegraded" data-i18n="health_dl_degraded">dl_queue_degraded (default 64)</label>
+            <input id="healthDlDegraded" type="number" value="64" min="1" max="65535" style="max-width:120px;" />
+          </div>
+          <div>
+            <label for="healthDlCritical" data-i18n="health_dl_critical">dl_queue_critical (default 192)</label>
+            <input id="healthDlCritical" type="number" value="192" min="1" max="65535" style="max-width:120px;" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div>
+            <label for="healthSdsDegraded" data-i18n="health_sds_degraded">sds_queue_degraded (default 32)</label>
+            <input id="healthSdsDegraded" type="number" value="32" min="1" max="65535" style="max-width:120px;" />
+          </div>
+          <div>
+            <label for="healthSdsCritical" data-i18n="health_sds_critical">sds_queue_critical (default 128)</label>
+            <input id="healthSdsCritical" type="number" value="128" min="1" max="65535" style="max-width:120px;" />
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div id="sectionEmergency" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="emergency_title">🚨 Emergencias [emergency]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="emergencyForwardBrew" />
+            <label for="emergencyForwardBrew" data-i18n="emergency_forward_brew">forward_to_brew (reenviar emergencias al servidor Brew)</label>
+          </div>
+          <div class="hint" data-i18n="emergency_forward_brew_hint">Desactivado por defecto.</div>
+        </div>
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="emergencyTelegramAlert" checked />
+            <label for="emergencyTelegramAlert" data-i18n="emergency_telegram_alert">telegram_alert (alertar por Telegram)</label>
+          </div>
+          <div class="hint" data-i18n="emergency_telegram_alert_hint">Activado por defecto. Requiere [telegram_alerts] configurado.</div>
+        </div>
+      </div>
+      <div class="row" style="margin-top:10px;">
+        <div>
+          <label for="emergencyClearTimeout" data-i18n="emergency_clear_timeout">clear_timeout_secs (5–600, default 30)</label>
+          <input id="emergencyClearTimeout" type="number" value="30" min="5" max="600" style="max-width:120px;" />
+        </div>
+      </div>
+    </section>
+  </div>
+
   <div id="sectionTelegramAlerts" style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="telegram_title">📨 Alertas Telegram [telegram_alerts]</h2>
@@ -1296,6 +1394,26 @@
       recovery_replay_per_frame: "replay_per_frame (1–18, default 1)",
       recovery_debounce_secs: "debounce_secs (1–300, default 5)",
       recovery_max_cached_issis: "max_cached_issis (1–65535, default 1024)",
+      health_title: "🩺 Health & auto-recovery [health]",
+      health_enable: "Enable health monitor",
+      health_hint: "Watches service, backhaul, radios and queue congestion. Can automatically restart flowstation on critical failures. Enabled by default.",
+      health_snapshot_interval: "snapshot_interval_secs (1–300, default 5)",
+      health_radios_silent: "radios_silent_secs (0 = off, default 900)",
+      health_restart_on_stall: "restart_on_core_stall (restart if core hangs)",
+      health_restart_on_stall_hint: "Disabled by default. If enabled, restarts flowstation when the main loop stops responding.",
+      health_core_stall: "core_stall_secs (2–600, default 10)",
+      health_restart_after_critical: "restart_after_critical_secs (1–3600, default 30)",
+      health_restart_cooldown: "restart_cooldown_secs (10–86400, default 600)",
+      health_dl_degraded: "dl_queue_degraded (default 64)",
+      health_dl_critical: "dl_queue_critical (default 192)",
+      health_sds_degraded: "sds_queue_degraded (default 32)",
+      health_sds_critical: "sds_queue_critical (default 128)",
+      emergency_title: "🚨 Emergencies [emergency]",
+      emergency_forward_brew: "forward_to_brew (forward emergencies to the Brew server)",
+      emergency_forward_brew_hint: "Disabled by default.",
+      emergency_telegram_alert: "telegram_alert (alert via Telegram)",
+      emergency_telegram_alert_hint: "Enabled by default. Requires [telegram_alerts] configured.",
+      emergency_clear_timeout: "clear_timeout_secs (5–600, default 30)",
       telegram_title: "📨 Telegram Alerts [telegram_alerts]",
       telegram_enable: "Enable Telegram alerts",
       telegram_hint: "Sends notifications to one or more Telegram chats when notable events occur (radio connect/disconnect, Brew up/down, etc.).",
@@ -1832,6 +1950,26 @@
       recovery_replay_per_frame: "replay_per_frame (1–18, por defecto 1)",
       recovery_debounce_secs: "debounce_secs (1–300, por defecto 5)",
       recovery_max_cached_issis: "max_cached_issis (1–65535, por defecto 1024)",
+      health_title: "🩺 Salud y auto-recuperación [health]",
+      health_enable: "Activar monitor de salud",
+      health_hint: "Vigila servicio, backhaul, radios y congestión de colas. Puede reiniciar automáticamente flowstation ante fallos críticos. Activado por defecto.",
+      health_snapshot_interval: "snapshot_interval_secs (1–300, por defecto 5)",
+      health_radios_silent: "radios_silent_secs (0 = desactivado, por defecto 900)",
+      health_restart_on_stall: "restart_on_core_stall (reiniciar si el núcleo se cuelga)",
+      health_restart_on_stall_hint: "Desactivado por defecto. Si se activa, reinicia flowstation cuando el bucle principal no responde.",
+      health_core_stall: "core_stall_secs (2–600, por defecto 10)",
+      health_restart_after_critical: "restart_after_critical_secs (1–3600, por defecto 30)",
+      health_restart_cooldown: "restart_cooldown_secs (10–86400, por defecto 600)",
+      health_dl_degraded: "dl_queue_degraded (por defecto 64)",
+      health_dl_critical: "dl_queue_critical (por defecto 192)",
+      health_sds_degraded: "sds_queue_degraded (por defecto 32)",
+      health_sds_critical: "sds_queue_critical (por defecto 128)",
+      emergency_title: "🚨 Emergencias [emergency]",
+      emergency_forward_brew: "forward_to_brew (reenviar emergencias al servidor Brew)",
+      emergency_forward_brew_hint: "Desactivado por defecto.",
+      emergency_telegram_alert: "telegram_alert (alertar por Telegram)",
+      emergency_telegram_alert_hint: "Activado por defecto. Requiere [telegram_alerts] configurado.",
+      emergency_clear_timeout: "clear_timeout_secs (5–600, por defecto 30)",
       telegram_title: "📨 Alertas Telegram [telegram_alerts]",
       telegram_enable: "Activar alertas Telegram",
       telegram_hint: "Envía notificaciones a uno o más chats de Telegram cuando ocurren eventos relevantes (conexión/desconexión de radios, Brew up/down, etc.).",
@@ -4361,6 +4499,47 @@
       lines.push(`${p}debounce_secs = ${debounce}`);
       lines.push(`${p}max_cached_issis = ${maxCached}`);
     }
+    // Health [health] (Flowstation only)
+    if (document.getElementById("sectionHealth")?.style.display !== "none") {
+      const clampInt = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
+      const hEnabled = el("enableHealth").checked;
+      const p = hEnabled ? "" : "# ";
+      const snapInterval = clampInt(el("healthSnapshotInterval").value, 1, 300, 5);
+      const restartOnStall = el("healthRestartOnStall").checked;
+      const coreStall = clampInt(el("healthCoreStall").value, 2, 600, 10);
+      const restartAfterCritical = clampInt(el("healthRestartAfterCritical").value, 1, 3600, 30);
+      const restartCooldown = clampInt(el("healthRestartCooldown").value, 10, 86400, 600);
+      const radiosSilent = clampInt(el("healthRadiosSilent").value, 0, 86400, 900);
+      const dlDegraded = clampInt(el("healthDlDegraded").value, 1, 65535, 64);
+      const dlCritical = clampInt(el("healthDlCritical").value, 1, 65535, 192);
+      const sdsDegraded = clampInt(el("healthSdsDegraded").value, 1, 65535, 32);
+      const sdsCritical = clampInt(el("healthSdsCritical").value, 1, 65535, 128);
+      lines.push("");
+      lines.push(`${p}[health]`);
+      lines.push(`${p}enabled = ${hEnabled ? "true" : "false"}`);
+      lines.push(`${p}snapshot_interval_secs = ${snapInterval}`);
+      lines.push(`${p}restart_on_core_stall = ${restartOnStall ? "true" : "false"}`);
+      lines.push(`${p}core_stall_secs = ${coreStall}`);
+      lines.push(`${p}restart_after_critical_secs = ${restartAfterCritical}`);
+      lines.push(`${p}restart_cooldown_secs = ${restartCooldown}`);
+      lines.push(`${p}radios_silent_secs = ${radiosSilent}`);
+      lines.push(`${p}dl_queue_degraded = ${dlDegraded}`);
+      lines.push(`${p}dl_queue_critical = ${dlCritical}`);
+      lines.push(`${p}sds_queue_degraded = ${sdsDegraded}`);
+      lines.push(`${p}sds_queue_critical = ${sdsCritical}`);
+    }
+    // Emergency [emergency] (Flowstation only)
+    if (document.getElementById("sectionEmergency")?.style.display !== "none") {
+      const clampInt = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
+      const fwdBrew = el("emergencyForwardBrew").checked;
+      const tgAlert = el("emergencyTelegramAlert").checked;
+      const clearTimeout = clampInt(el("emergencyClearTimeout").value, 5, 600, 30);
+      lines.push("");
+      lines.push("[emergency]");
+      lines.push(`forward_to_brew = ${fwdBrew ? "true" : "false"}`);
+      lines.push(`telegram_alert = ${tgAlert ? "true" : "false"}`);
+      lines.push(`clear_timeout_secs = ${clearTimeout}`);
+    }
     // Telegram Alerts [telegram_alerts] (Flowstation only)
     if (document.getElementById("sectionTelegramAlerts")?.style.display !== "none") {
       const tgEnabled = el("enableTelegramAlerts").checked;
@@ -5056,6 +5235,31 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         el("enableRecovery").dispatchEvent(new Event("change"));
       }
 
+      // ── Health [health]
+      if (data.health) {
+        el("enableHealth").checked = data.health.enabled !== false;
+        const setNum = (id, v) => { if (v !== null && v !== undefined) el(id).value = String(v); };
+        setNum("healthSnapshotInterval", data.health.snapshot_interval_secs);
+        el("healthRestartOnStall").checked = !!data.health.restart_on_core_stall;
+        setNum("healthCoreStall", data.health.core_stall_secs);
+        setNum("healthRestartAfterCritical", data.health.restart_after_critical_secs);
+        setNum("healthRestartCooldown", data.health.restart_cooldown_secs);
+        setNum("healthRadiosSilent", data.health.radios_silent_secs);
+        setNum("healthDlDegraded", data.health.dl_queue_degraded);
+        setNum("healthDlCritical", data.health.dl_queue_critical);
+        setNum("healthSdsDegraded", data.health.sds_queue_degraded);
+        setNum("healthSdsCritical", data.health.sds_queue_critical);
+        el("enableHealth").dispatchEvent(new Event("change"));
+      }
+
+      // ── Emergency [emergency]
+      if (data.emergency) {
+        el("emergencyForwardBrew").checked = !!data.emergency.forward_to_brew;
+        el("emergencyTelegramAlert").checked = data.emergency.telegram_alert !== false;
+        if (data.emergency.clear_timeout_secs !== null && data.emergency.clear_timeout_secs !== undefined)
+          el("emergencyClearTimeout").value = String(data.emergency.clear_timeout_secs);
+      }
+
       // ── Telegram Alerts [telegram_alerts]
       if (data.telegram_alerts) {
         el("enableTelegramAlerts").checked = !!data.telegram_alerts.enabled;
@@ -5294,6 +5498,30 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       max_cached_issis: clampInt(el("recoveryMaxCachedIssis").value, 1, 65535, 1024),
     } : null;
 
+    // Collect Health options (Flowstation only — null in bluestation)
+    const healthIsFlow = document.getElementById("sectionHealth")?.style.display !== "none";
+    const healthConfig = healthIsFlow ? {
+      enabled: el("enableHealth").checked,
+      snapshot_interval_secs: clampInt(el("healthSnapshotInterval").value, 1, 300, 5),
+      restart_on_core_stall: el("healthRestartOnStall").checked,
+      core_stall_secs: clampInt(el("healthCoreStall").value, 2, 600, 10),
+      restart_after_critical_secs: clampInt(el("healthRestartAfterCritical").value, 1, 3600, 30),
+      restart_cooldown_secs: clampInt(el("healthRestartCooldown").value, 10, 86400, 600),
+      radios_silent_secs: clampInt(el("healthRadiosSilent").value, 0, 86400, 900),
+      dl_queue_degraded: clampInt(el("healthDlDegraded").value, 1, 65535, 64),
+      dl_queue_critical: clampInt(el("healthDlCritical").value, 1, 65535, 192),
+      sds_queue_degraded: clampInt(el("healthSdsDegraded").value, 1, 65535, 32),
+      sds_queue_critical: clampInt(el("healthSdsCritical").value, 1, 65535, 128),
+    } : null;
+
+    // Collect Emergency options (Flowstation only — null in bluestation)
+    const emergencyIsFlow = document.getElementById("sectionEmergency")?.style.display !== "none";
+    const emergencyConfig = emergencyIsFlow ? {
+      forward_to_brew: el("emergencyForwardBrew").checked,
+      telegram_alert: el("emergencyTelegramAlert").checked,
+      clear_timeout_secs: clampInt(el("emergencyClearTimeout").value, 5, 600, 30),
+    } : null;
+
     // Collect Telegram Alerts options (Flowstation only — null in bluestation)
     const tgIsFlow = document.getElementById("sectionTelegramAlerts")?.style.display !== "none";
     const telegramAlertsConfig = tgIsFlow ? {
@@ -5353,6 +5581,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           telemetryConfig,
           commandConfig,
           recoveryConfig,
+          healthConfig,
+          emergencyConfig,
           telegramAlertsConfig
         })
       });
@@ -6017,6 +6247,18 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const node = el(id); if (!node) return;
     node.addEventListener("input", updateTomlFromNew);
   });
+  el("enableHealth").addEventListener("change", function(){
+    el("healthFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["healthSnapshotInterval","healthRadiosSilent","healthRestartOnStall","healthCoreStall","healthRestartAfterCritical","healthRestartCooldown","healthDlDegraded","healthDlCritical","healthSdsDegraded","healthSdsCritical"].forEach(id => {
+    const node = el(id); if (!node) return;
+    node.addEventListener(node.type === "checkbox" ? "change" : "input", updateTomlFromNew);
+  });
+  ["emergencyForwardBrew","emergencyTelegramAlert","emergencyClearTimeout"].forEach(id => {
+    const node = el(id); if (!node) return;
+    node.addEventListener(node.type === "checkbox" ? "change" : "input", updateTomlFromNew);
+  });
   // ── Telegram Bot helpers
   window._tgChatIds = window._tgChatIds || [];
 
@@ -6210,7 +6452,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "sectionWxService", "sectionRecovery", "sectionTelegramAlerts", "sectionTelemetry", "sectionCommand", "brewRssiSubsection", "brewSdsFwdSubsection"];
+    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "sectionWxService", "sectionRecovery", "sectionHealth", "sectionEmergency", "sectionTelegramAlerts", "sectionTelemetry", "sectionCommand", "brewRssiSubsection", "brewSdsFwdSubsection"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);
