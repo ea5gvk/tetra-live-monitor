@@ -1,6 +1,6 @@
-import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage, type RfCall } from "../hooks/useTetraWebSocket";
+import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage, type RfCall, type EmergencyEntry, type LastHeardEntry, type TxQuality, type HealthSnapshot, type SdrHealth, type SysHealth, type BrewStatus } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef, useMemo } from "react";
-import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network, Eye, EyeOff, Signal as SignalIcon, RadioTower, Clock as ClockIcon, ShieldCheck, ShieldAlert } from "lucide-react";
+import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network, Eye, EyeOff, Signal as SignalIcon, RadioTower, Clock as ClockIcon, ShieldCheck, ShieldAlert, Siren, Activity, Gauge } from "lucide-react";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
 import { useI18n } from "@/lib/i18n";
 import tetraLogo from "@assets/tetra_1771538916537.png";
@@ -462,6 +462,155 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
             </div>
           );
         })}
+      </div>
+    </div>
+  );
+}
+
+function EmergencyBanner({ emergencies, issiCallsign }: {
+  emergencies: EmergencyEntry[];
+  issiCallsign: (id: string | number) => string;
+}) {
+  const { t } = useI18n();
+  if (!emergencies.length) return null;
+  return (
+    <div className="rounded-md border-2 border-red-500 bg-red-500/15 px-4 py-3 animate-pulse" data-testid="banner-emergency">
+      <div className="flex items-center gap-2 mb-1.5">
+        <Siren className="w-5 h-5 text-red-400" />
+        <span className="text-sm font-bold tracking-[0.12em] uppercase text-red-300">
+          {t("emergency_active")} ({emergencies.length})
+        </span>
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {emergencies.map((e) => {
+          const cs = issiCallsign(e.issi);
+          return (
+            <span key={e.issi} className="font-mono text-sm text-red-100 bg-red-500/25 border border-red-500/40 rounded px-2 py-0.5" data-testid={`emergency-${e.issi}`}>
+              {cs ? `${cs} · ` : ""}ISSI {e.issi}{e.dest_ssi ? ` → ${e.dest_ssi}` : ""}
+            </span>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function HealthBadge({ health, sdrHealth, sysHealth }: {
+  health: HealthSnapshot | null;
+  sdrHealth: SdrHealth | null;
+  sysHealth: SysHealth | null;
+}) {
+  const { t } = useI18n();
+  if (!health) return null;
+  const lvl = health.overall;
+  const cls = lvl === "ok"
+    ? "text-emerald-400 border-emerald-400/40 bg-emerald-400/10"
+    : lvl === "degraded"
+      ? "text-amber-400 border-amber-400/40 bg-amber-400/10"
+      : "text-red-400 border-red-400/40 bg-red-400/10";
+  const temp = sdrHealth?.temperature_c;
+  const power = sysHealth?.total_power_w;
+  const title = [
+    `${t("health")}: ${lvl.toUpperCase()}`,
+    ...(health.domains || []).map((d) => `• ${d.domain}: ${d.level}${d.detail ? ` (${d.detail})` : ""}`),
+    temp != null ? `SDR: ${temp.toFixed(1)}°C` : "",
+    power != null ? `${t("power")}: ${power.toFixed(1)} W` : "",
+    health.last_action ? `${t("health_last_action")}: ${health.last_action}` : "",
+  ].filter(Boolean).join("\n");
+  return (
+    <span title={title} className={`inline-flex items-center gap-1 text-xs font-semibold rounded px-2 py-0.5 border ${cls}`} data-testid="badge-health">
+      <Activity className="w-3.5 h-3.5" />
+      <span className="hidden sm:inline">{t("health")}</span>
+      <span>{lvl.toUpperCase()}</span>
+    </span>
+  );
+}
+
+function BrewBadge({ brewStatus }: { brewStatus: BrewStatus | null }) {
+  const { t } = useI18n();
+  if (!brewStatus) return null;
+  const c = brewStatus.connected;
+  return (
+    <span
+      title={`Brew: ${c ? t("brew_online") : t("brew_offline")}${brewStatus.version ? ` · v${brewStatus.version}` : ""}`}
+      className={`inline-flex items-center gap-1 text-xs font-semibold ${c ? "text-emerald-400" : "text-red-400"}`}
+      data-testid="badge-brew"
+    >
+      <Network className="w-3.5 h-3.5" />
+      <span className="hidden md:inline">Brew</span>
+    </span>
+  );
+}
+
+function LastHeardPanel({ entries, issiCallsign }: {
+  entries: LastHeardEntry[];
+  issiCallsign: (id: string | number) => string;
+}) {
+  const { t } = useI18n();
+  if (!entries.length) return null;
+  const actLabel = (a: string) =>
+    a === "call_group" ? t("lh_call_group")
+      : a === "call_individual" ? t("lh_call_individual")
+        : a === "sds" ? t("lh_sds")
+          : a;
+  const actCls = (a: string) =>
+    a === "sds" ? "text-violet-300 bg-violet-500/15"
+      : a === "call_individual" ? "text-cyan-300 bg-cyan-500/15"
+        : "text-emerald-300 bg-emerald-500/15";
+  return (
+    <div className="glass-panel rounded-md overflow-hidden flex-1" data-testid="panel-last-heard">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-emerald-500/5">
+        <RadioTower className="w-4 h-4 text-emerald-400" />
+        <h2 className="text-xs font-bold tracking-[0.15em] uppercase text-emerald-400">{t("last_heard")}</h2>
+      </div>
+      <div className="max-h-64 overflow-auto divide-y divide-white/5">
+        {entries.map((e, i) => {
+          const cs = issiCallsign(e.issi);
+          return (
+            <div key={`${e.issi}-${i}`} className="flex items-center gap-2 px-3 py-1.5 text-xs" data-testid={`last-heard-${e.issi}-${i}`}>
+              {e.ts && <span className="font-mono text-muted-foreground/70 shrink-0">{e.ts}</span>}
+              <span className="font-mono font-semibold text-foreground truncate">
+                {cs ? `${cs} ` : ""}<span className="text-muted-foreground">ISSI {e.issi}</span>
+              </span>
+              {e.dest ? <span className="font-mono text-muted-foreground/80">→ {e.dest}</span> : null}
+              <span className={`ml-auto shrink-0 rounded px-1.5 py-0.5 font-mono text-[11px] ${actCls(e.activity)}`}>{actLabel(e.activity)}</span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function TxQualityPanel({ q }: { q: TxQuality | null }) {
+  const { t } = useI18n();
+  if (!q) return null;
+  const fmt = (v: number | undefined, d = 2, u = "") => v == null ? "—" : `${v.toFixed(d)}${u}`;
+  const evm = q.evm_pct;
+  const evmCls = evm == null ? "text-foreground" : evm < 5 ? "text-emerald-300" : evm < 10 ? "text-amber-300" : "text-red-300";
+  const items: { label: string; val: string; cls?: string }[] = [
+    { label: "EVM", val: fmt(evm, 2, "%"), cls: evmCls },
+    { label: "PAPR", val: fmt(q.papr_db, 2, " dB") },
+    { label: t("tx_carrier_leakage"), val: fmt(q.carrier_leakage_db, 1, " dB") },
+    { label: t("tx_occupied_bw"), val: q.occupied_bandwidth_hz != null ? `${(q.occupied_bandwidth_hz / 1000).toFixed(1)} kHz` : "—" },
+    { label: t("tx_iq_amp"), val: fmt(q.iq_amplitude_imbalance_db, 2, " dB") },
+    { label: t("tx_iq_phase"), val: fmt(q.iq_phase_imbalance_deg, 2, "°") },
+    { label: "DC I", val: fmt(q.dc_offset_i, 3) },
+    { label: "DC Q", val: fmt(q.dc_offset_q, 3) },
+  ];
+  return (
+    <div className="glass-panel rounded-md overflow-hidden flex-1" data-testid="panel-tx-quality">
+      <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-amber-500/5">
+        <Gauge className="w-4 h-4 text-amber-400" />
+        <h2 className="text-xs font-bold tracking-[0.15em] uppercase text-amber-400">{t("tx_quality")}</h2>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
+        {items.map((it) => (
+          <div key={it.label} className="rounded-md border border-white/10 bg-white/[0.02] px-2 py-2 text-center" data-testid={`tx-metric-${it.label}`}>
+            <div className="text-[10px] font-bold tracking-[0.12em] uppercase text-muted-foreground mb-1 truncate" title={it.label}>{it.label}</div>
+            <div className={`text-sm font-mono font-bold ${it.cls || "text-foreground"}`}>{it.val}</div>
+          </div>
+        ))}
       </div>
     </div>
   );
@@ -1228,7 +1377,7 @@ function BtsDetails() {
 export default function Dashboard() {
   const { t } = useI18n();
   const tgName = useTgNames();
-  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, fsDashboardActive, tsVoiceActivity, connected } = useTetraWebSocket();
+  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, fsDashboardActive, tsVoiceActivity, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 
   // Build ISSI → callsign lookup so PRIV destinations can show callsign + flag.
@@ -1273,6 +1422,9 @@ export default function Dashboard() {
 
             <span className="text-muted-foreground/30 text-xs hidden sm:inline">|</span>
 
+            <HealthBadge health={health} sdrHealth={sdrHealth} sysHealth={sysHealth} />
+            <BrewBadge brewStatus={brewStatus} />
+
             {txCount > 0 && (
               <span className="inline-flex items-center gap-1 text-xs text-red-400 font-semibold" data-testid="status-tx-count">
                 <ArrowUpFromLine className="w-3.5 h-3.5" />
@@ -1305,9 +1457,18 @@ export default function Dashboard() {
       </header>
 
       <main className="flex-1 p-2 sm:p-3 flex flex-col gap-2 sm:gap-3 overflow-auto">
+        <EmergencyBanner emergencies={emergencies} issiCallsign={issiCallsign} />
+
         <BtsDetails />
 
         {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} />}
+
+        {(lastHeard.length > 0 || txQuality) && (
+          <div className="flex flex-col md:flex-row gap-2 sm:gap-3">
+            <LastHeardPanel entries={lastHeard} issiCallsign={issiCallsign} />
+            <TxQualityPanel q={txQuality} />
+          </div>
+        )}
 
         <TerminalTable
           terminals={terminalList}
