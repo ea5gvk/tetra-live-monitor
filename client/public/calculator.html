@@ -4897,7 +4897,7 @@
         const jitterOn = el("enableJitter").checked;
         lines.push(`${jitterOn ? "" : "# "}jitter_initial_latency_frames = ${jitter}`);
         const sdsEnabled = el("brewSdsEnabled").checked;
-        lines.push(`${sdsEnabled ? "# " : ""}feature_sds_enabled = ${sdsEnabled ? "true" : "false"}`);
+        lines.push(`${sdsEnabled ? "" : "# "}feature_sds_enabled = true`);
       }
     }
     // Security whitelist (digits only — invalid tokens silently dropped)
@@ -5758,9 +5758,15 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         el("brewJitter").value = String(Math.max(0, Number(data.brew.jitter_initial_latency_frames) || 0));
       }
       el("enableJitter").checked = data.brew.jitter_initial_latency_frames_enabled === true;
-      // feature_sds_enabled (default true; false means explicitly disabled)
-      if (data.brew.feature_sds_enabled !== null && data.brew.feature_sds_enabled !== undefined) {
-        el("brewSdsEnabled").checked = data.brew.feature_sds_enabled !== false && data.brew.feature_sds_enabled !== "false";
+      // feature_sds_enabled: checkbox reflects whether the line is ACTIVE (uncommented).
+      // Absent line → default enabled (checked). Commented line or legacy `= false` → unchecked.
+      {
+        const sdsPresent = data.brew.feature_sds_enabled_present === true;
+        const sdsActive = data.brew.feature_sds_enabled_active === true;
+        const sdsVal = data.brew.feature_sds_enabled;
+        el("brewSdsEnabled").checked = !sdsPresent
+          ? true
+          : (sdsActive && sdsVal !== false && sdsVal !== "false");
       }
 
       // ── Neighbor Cells (loads cells even when commented/disabled)
