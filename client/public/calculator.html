@@ -689,7 +689,11 @@
         <div id="brewSdsFwdSubsection" class="subsection">
           <div class="row" style="gap:24px; flex-wrap:wrap;">
             <div>
-              <label for="brewJitter" data-i18n="brew_jitter">jitter_initial_latency_frames</label>
+              <div class="checkbox-row">
+                <input type="checkbox" id="enableJitter" />
+                <label for="enableJitter" data-i18n="brew_jitter_enable">Enable jitter_initial_latency_frames</label>
+              </div>
+              <label for="brewJitter" data-i18n="brew_jitter" style="margin-top:8px;">jitter_initial_latency_frames</label>
               <input id="brewJitter" type="number" value="0" min="0" max="999" style="max-width:120px;" />
               <div class="hint" data-i18n="brew_jitter_hint">Initial latency frames for Brew audio jitter buffer. 0 = no extra latency.</div>
             </div>
@@ -1897,6 +1901,7 @@
       telegram_no_updates: "No recent messages. Send /start to the bot and try again.",
       telegram_verify_first: "First verify the bot token.",
       brew_jitter: "jitter_initial_latency_frames (default 0)",
+      brew_jitter_enable: "Enable jitter_initial_latency_frames",
       brew_jitter_hint: "Initial latency in frames for Brew audio jitter buffer. Increase if you hear artifacts at the start of transmissions.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Forwards SDS between local clients and Brew. Enabled by default. Disable to block all Brew SDS.",
@@ -2475,6 +2480,7 @@
       telegram_no_updates: "Sin mensajes recientes. Envía /start al bot y vuelve a intentarlo.",
       telegram_verify_first: "Primero verifica el token del bot.",
       brew_jitter: "jitter_initial_latency_frames (por defecto 0)",
+      brew_jitter_enable: "Activar jitter_initial_latency_frames",
       brew_jitter_hint: "Latencia inicial en frames para el buffer de jitter de audio Brew. Aumentar si hay artefactos al inicio de las transmisiones.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Reenvía SDS entre clientes locales y Brew. Habilitado por defecto. Desactivar para bloquear todo SDS Brew.",
@@ -4888,7 +4894,8 @@
       // jitter_initial_latency_frames + feature_sds_enabled (Flowstation only)
       if (document.getElementById("brewSdsFwdSubsection")?.style.display !== "none") {
         const jitter = Math.max(0, Number(el("brewJitter").value) || 0);
-        lines.push(`jitter_initial_latency_frames = ${jitter}`);
+        const jitterOn = el("enableJitter").checked;
+        lines.push(`${jitterOn ? "" : "# "}jitter_initial_latency_frames = ${jitter}`);
         const sdsEnabled = el("brewSdsEnabled").checked;
         lines.push(`${sdsEnabled ? "# " : ""}feature_sds_enabled = ${sdsEnabled ? "true" : "false"}`);
       }
@@ -5746,10 +5753,11 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       if (data.brew.feature_rssi_export !== undefined && data.brew.feature_rssi_export !== null) {
         el("rssiExportValue").value = data.brew.feature_rssi_export === true || data.brew.feature_rssi_export === "true" ? "true" : "false";
       }
-      // jitter_initial_latency_frames
+      // jitter_initial_latency_frames (+ enabled toggle)
       if (data.brew.jitter_initial_latency_frames !== null && data.brew.jitter_initial_latency_frames !== undefined) {
         el("brewJitter").value = String(Math.max(0, Number(data.brew.jitter_initial_latency_frames) || 0));
       }
+      el("enableJitter").checked = data.brew.jitter_initial_latency_frames_enabled === true;
       // feature_sds_enabled (default true; false means explicitly disabled)
       if (data.brew.feature_sds_enabled !== null && data.brew.feature_sds_enabled !== undefined) {
         el("brewSdsEnabled").checked = data.brew.feature_sds_enabled !== false && data.brew.feature_sds_enabled !== "false";
@@ -6240,6 +6248,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       brewConfig.sdsFwd = {
         enabled: el("brewSdsEnabled").checked,
         jitter: Math.max(0, Number(el("brewJitter").value) || 0),
+        jitter_enabled: el("enableJitter").checked,
       };
     }
 
@@ -7143,10 +7152,10 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const ev = id === "commandTls" ? "change" : "input";
     node.addEventListener(ev, updateTomlFromNew);
   });
-  ["brewJitter","brewSdsEnabled","dashPublicOverview","dashSourceDir"].forEach(id => {
+  ["brewJitter","brewSdsEnabled","enableJitter","dashPublicOverview","dashSourceDir"].forEach(id => {
     const node = el(id);
     if (!node) return;
-    const ev = (id === "brewSdsEnabled" || id === "dashPublicOverview") ? "change" : "input";
+    const ev = (id === "brewSdsEnabled" || id === "enableJitter" || id === "dashPublicOverview") ? "change" : "input";
     node.addEventListener(ev, updateTomlFromNew);
   });
   el("enableRecovery").addEventListener("change", function(){
