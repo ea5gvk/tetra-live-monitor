@@ -712,6 +712,11 @@
             <input id="brewWhitelist" type="text" placeholder="e.g. 2145007,2149735" />
             <div class="hint" data-i18n="brew_whitelist_hint">Only listed SSIs will be transmitted over Brew. Leave empty to allow all.</div>
           </div>
+          <div style="margin-top:10px;">
+            <label for="brewPbxGateway" data-i18n="brew_pbx_gateway_label">pbx_gateway_issis (comma-separated)</label>
+            <input id="brewPbxGateway" type="text" placeholder="e.g. 2145007,2149735" />
+            <div class="hint" data-i18n="brew_pbx_gateway_hint">ISSIs routed through the PBX gateway. Omitted when empty.</div>
+          </div>
         </div>
         <div id="brewRssiSubsection" class="subsection">
           <div class="checkbox-row">
@@ -764,6 +769,26 @@
             <label for="fsServiceNameVal" data-i18n="fs_service_name_label">service_name</label>
             <input id="fsServiceNameVal" type="text" value="tetra" placeholder="tetra" style="max-width:220px" />
             <div class="hint" data-i18n="fs_service_name_hint">Systemd service unit name for restart/OTA updates. When unset, FlowStation auto-detects.</div>
+          </div>
+          <div style="margin-top:12px;">
+            <label for="fsStackMode" data-i18n="fs_stack_mode_label">stack_mode</label>
+            <select id="fsStackMode" style="max-width:220px">
+              <option value="Bs">Bs</option>
+              <option value="Ms">Ms</option>
+              <option value="Mon">Mon</option>
+            </select>
+            <div class="hint" data-i18n="fs_stack_mode_hint">TETRA stack operating mode. Bs = base station, Ms = mobile station, Mon = monitor. Default Bs.</div>
+          </div>
+          <div style="margin-top:12px;">
+            <div class="checkbox-row">
+              <input type="checkbox" id="enableDebugLog" />
+              <label for="enableDebugLog" data-i18n="fs_debug_log_enable">Enable debug_log</label>
+            </div>
+            <div style="margin-top:8px;">
+              <label for="fsDebugLogVal" data-i18n="fs_debug_log_label">debug_log (path)</label>
+              <input id="fsDebugLogVal" type="text" placeholder="/var/log/flowstation_debug.log" style="max-width:320px" />
+              <div class="hint" data-i18n="fs_debug_log_hint">Optional path to a verbose debug log file. Omitted when empty.</div>
+            </div>
           </div>
         </div>
         <div></div>
@@ -1126,6 +1151,407 @@
       </div>
     </section>
   </div>
+  <div id="sectionDapnet" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="dapnet_title">📟 DAPNET [dapnet]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableDapnet" />
+            <label for="enableDapnet" data-i18n="dapnet_enable">Enable DAPNET</label>
+          </div>
+          <div class="hint" data-i18n="dapnet_hint">Bridge to the DAPNET pager network. Polls the DAPNET API and forwards calls to SDS/callout/Telegram. Disabled by default.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="dapnetFields" style="display:none; margin-top:12px;">
+        <label for="dapnetApiUrl">api_url</label>
+        <input id="dapnetApiUrl" type="text" value="https://hampager.de/api/calls" />
+        <div class="row">
+          <div>
+            <label for="dapnetUsername" style="margin-top:8px;">username</label>
+            <input id="dapnetUsername" type="text" placeholder="" />
+          </div>
+          <div>
+            <label for="dapnetPassword" style="margin-top:8px;">password</label>
+            <input id="dapnetPassword" type="password" placeholder="" />
+          </div>
+        </div>
+        <label for="dapnetPollInterval" style="margin-top:8px;">poll_interval_secs (1..3600)</label>
+        <input id="dapnetPollInterval" type="number" min="1" max="3600" value="30" style="max-width:140px;" />
+        <div class="checkbox-row" style="margin-top:10px;">
+          <input type="checkbox" id="dapnetForwardSds" />
+          <label for="dapnetForwardSds">forward_sds</label>
+        </div>
+        <div class="checkbox-row" style="margin-top:6px;">
+          <input type="checkbox" id="dapnetForwardCallout" />
+          <label for="dapnetForwardCallout">forward_callout</label>
+        </div>
+        <div class="checkbox-row" style="margin-top:6px;">
+          <input type="checkbox" id="dapnetForwardTelegram" />
+          <label for="dapnetForwardTelegram">forward_telegram</label>
+        </div>
+        <div class="row">
+          <div>
+            <label for="dapnetSdsSourceIssi" style="margin-top:8px;">sds_source_issi (0..16777215)</label>
+            <input id="dapnetSdsSourceIssi" type="number" min="0" max="16777215" value="9999" style="max-width:160px;" />
+          </div>
+          <div>
+            <label for="dapnetSdsDestIssi" style="margin-top:8px;">sds_dest_issi (0..16777215)</label>
+            <input id="dapnetSdsDestIssi" type="number" min="0" max="16777215" value="0" style="max-width:160px;" />
+          </div>
+        </div>
+        <div class="checkbox-row" style="margin-top:10px;">
+          <input type="checkbox" id="dapnetSdsDestIsGroup" />
+          <label for="dapnetSdsDestIsGroup">sds_dest_is_group</label>
+        </div>
+        <label for="dapnetRicIssiRoutes" style="margin-top:8px;">ric_issi_routes (inline map, e.g. "0632585" = 2632585, "0001234" = 80)</label>
+        <input id="dapnetRicIssiRoutes" type="text" placeholder='"0632585" = 2632585' />
+        <label for="dapnetRicGssiRoutes" style="margin-top:8px;">ric_gssi_routes (inline map)</label>
+        <input id="dapnetRicGssiRoutes" type="text" placeholder='"0632585" = 1001' />
+        <label for="dapnetSdsAllowedRics" style="margin-top:8px;">sds_allowed_rics (comma-separated)</label>
+        <input id="dapnetSdsAllowedRics" type="text" placeholder="" />
+        <label for="dapnetCalloutAllowedRics" style="margin-top:8px;">callout_allowed_rics (comma-separated)</label>
+        <input id="dapnetCalloutAllowedRics" type="text" placeholder="" />
+        <label for="dapnetTelegramAllowedRics" style="margin-top:8px;">telegram_allowed_rics (comma-separated)</label>
+        <input id="dapnetTelegramAllowedRics" type="text" placeholder="" />
+        <div class="row">
+          <div>
+            <label for="dapnetCalloutSourceIssi" style="margin-top:8px;">callout_source_issi (0..16777215)</label>
+            <input id="dapnetCalloutSourceIssi" type="number" min="0" max="16777215" value="9999" style="max-width:160px;" />
+          </div>
+          <div>
+            <label for="dapnetCalloutDestIssi" style="margin-top:8px;">callout_dest_issi (0..16777215)</label>
+            <input id="dapnetCalloutDestIssi" type="number" min="0" max="16777215" value="0" style="max-width:160px;" />
+          </div>
+        </div>
+        <label for="dapnetCalloutIncidentBase" style="margin-top:8px;">callout_incident_base (1..256)</label>
+        <input id="dapnetCalloutIncidentBase" type="number" min="1" max="256" value="2" style="max-width:140px;" />
+        <label for="dapnetCalloutTextPrefix" style="margin-top:8px;">callout_text_prefix</label>
+        <input id="dapnetCalloutTextPrefix" type="text" value="DAPNET" />
+        <label for="dapnetTelegramPrefix" style="margin-top:8px;">telegram_prefix</label>
+        <input id="dapnetTelegramPrefix" type="text" value="DAPNET" />
+        <div class="checkbox-row" style="margin-top:10px;">
+          <input type="checkbox" id="dapnetRwthCoreEnabled" checked />
+          <label for="dapnetRwthCoreEnabled">rwth_core_enabled</label>
+        </div>
+        <label for="dapnetRwthCoreHost" style="margin-top:8px;">rwth_core_host</label>
+        <input id="dapnetRwthCoreHost" type="text" value="dapnet.afu.rwth-aachen.de" />
+        <label for="dapnetRwthCorePort" style="margin-top:8px;">rwth_core_port (1..65535)</label>
+        <input id="dapnetRwthCorePort" type="number" min="1" max="65535" value="43434" style="max-width:140px;" />
+        <label for="dapnetRwthCoreDevice" style="margin-top:8px;">rwth_core_device</label>
+        <input id="dapnetRwthCoreDevice" type="text" value="FlowStation" />
+        <label for="dapnetRwthCoreVersion" style="margin-top:8px;">rwth_core_version</label>
+        <input id="dapnetRwthCoreVersion" type="text" value="1.0" />
+        <label for="dapnetRwthCoreCallsign" style="margin-top:8px;">rwth_core_callsign (optional)</label>
+        <input id="dapnetRwthCoreCallsign" type="text" placeholder="" />
+        <label for="dapnetRwthCoreAuthkey" style="margin-top:8px;">rwth_core_authkey (optional)</label>
+        <input id="dapnetRwthCoreAuthkey" type="password" placeholder="" />
+        <label for="dapnetRwthMessagesLimit" style="margin-top:8px;">rwth_messages_limit (1..10000)</label>
+        <input id="dapnetRwthMessagesLimit" type="number" min="1" max="10000" value="100" style="max-width:140px;" />
+      </div>
+    </section>
+  </div>
+  <div id="sectionTpg2200" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="tpg2200_title">☎️ TPG2200 Action [tpg2200_action]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableTpg2200" />
+            <label for="enableTpg2200" data-i18n="tpg2200_enable">Enable TPG2200 action</label>
+          </div>
+          <div class="hint" data-i18n="tpg2200_hint">Triggers a TPG2200 alarm panel action. Disabled by default.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="tpg2200Fields" style="display:none; margin-top:12px; max-width:480px;">
+        <label for="tpgToken">token (optional)</label>
+        <input id="tpgToken" type="text" placeholder="" />
+        <div class="row">
+          <div>
+            <label for="tpgSourceIssi" style="margin-top:8px;">source_issi (0..16777215)</label>
+            <input id="tpgSourceIssi" type="number" min="0" max="16777215" value="9999" style="max-width:160px;" />
+          </div>
+          <div>
+            <label for="tpgDestIssi" style="margin-top:8px;">dest_issi (0..16777215)</label>
+            <input id="tpgDestIssi" type="number" min="0" max="16777215" value="0" style="max-width:160px;" />
+          </div>
+        </div>
+        <label for="tpgIncidentBase" style="margin-top:8px;">incident_base (1..256)</label>
+        <input id="tpgIncidentBase" type="number" min="1" max="256" value="1" style="max-width:140px;" />
+        <label for="tpgDefaultText" style="margin-top:8px;">default_text</label>
+        <input id="tpgDefaultText" type="text" value="ALARM" />
+        <label for="tpgMaxTextChars" style="margin-top:8px;">max_text_chars (1..240)</label>
+        <input id="tpgMaxTextChars" type="number" min="1" max="240" value="80" style="max-width:140px;" />
+      </div>
+    </section>
+  </div>
+  <div id="sectionSnomNotify" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="snom_title">📲 Snom Notifications [snom_notify]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableSnomNotify" />
+            <label for="enableSnomNotify" data-i18n="snom_enable">Enable Snom notifications</label>
+          </div>
+          <div class="hint" data-i18n="snom_hint">Push notifications to Snom desk phones via the Asterisk AMI. Disabled by default.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="snomNotifyFields" style="display:none; margin-top:12px;">
+        <div class="row">
+          <div>
+            <label for="snomAmiHost">ami_host</label>
+            <input id="snomAmiHost" type="text" value="127.0.0.1" />
+          </div>
+          <div>
+            <label for="snomAmiPort">ami_port (1..65535)</label>
+            <input id="snomAmiPort" type="number" min="1" max="65535" value="5038" style="max-width:140px;" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="snomAmiUsername" style="margin-top:8px;">ami_username</label>
+            <input id="snomAmiUsername" type="text" value="flowstation" />
+          </div>
+          <div>
+            <label for="snomAmiPassword" style="margin-top:8px;">ami_password (optional)</label>
+            <input id="snomAmiPassword" type="password" placeholder="" />
+          </div>
+        </div>
+        <label for="snomEndpoints" style="margin-top:8px;">endpoints (comma-separated)</label>
+        <input id="snomEndpoints" type="text" value="385" />
+        <div class="checkbox-row" style="margin-top:10px;">
+          <input type="checkbox" id="snomNotifySds" checked />
+          <label for="snomNotifySds">notify_sds</label>
+        </div>
+        <div class="checkbox-row" style="margin-top:6px;">
+          <input type="checkbox" id="snomNotifyDapnet" checked />
+          <label for="snomNotifyDapnet">notify_dapnet</label>
+        </div>
+        <div class="checkbox-row" style="margin-top:6px;">
+          <input type="checkbox" id="snomNotifyTelegram" checked />
+          <label for="snomNotifyTelegram">notify_telegram</label>
+        </div>
+        <label for="snomSdsDirections" style="margin-top:8px;">sds_directions (comma-separated)</label>
+        <input id="snomSdsDirections" type="text" value="rx, net, tx" />
+        <label for="snomDapnetAllowedRics" style="margin-top:8px;">dapnet_allowed_rics (comma-separated)</label>
+        <input id="snomDapnetAllowedRics" type="text" placeholder="" />
+        <label for="snomSdsAllowedIssis" style="margin-top:8px;">sds_allowed_issis (comma-separated)</label>
+        <input id="snomSdsAllowedIssis" type="text" placeholder="" />
+        <label for="snomTitlePrefix" style="margin-top:8px;">title_prefix</label>
+        <input id="snomTitlePrefix" type="text" value="FlowStation" />
+        <label for="snomNotifyEvent" style="margin-top:8px;">notify_event</label>
+        <input id="snomNotifyEvent" type="text" value="xml" />
+        <label for="snomContentType" style="margin-top:8px;">content_type</label>
+        <input id="snomContentType" type="text" value="application/snomxml" />
+        <label for="snomSubscriptionState" style="margin-top:8px;">subscription_state</label>
+        <input id="snomSubscriptionState" type="text" value="active;expires=30000" />
+        <div class="row">
+          <div>
+            <label for="snomMaxTextChars" style="margin-top:8px;">max_text_chars (1..1000)</label>
+            <input id="snomMaxTextChars" type="number" min="1" max="1000" value="240" style="max-width:140px;" />
+          </div>
+          <div>
+            <label for="snomConnectTimeout" style="margin-top:8px;">connect_timeout_secs (1..60)</label>
+            <input id="snomConnectTimeout" type="number" min="1" max="60" value="3" style="max-width:140px;" />
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div id="sectionGeoalarm" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="geoalarm_title">📍 GeoAlarm [geoalarm]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableGeoalarm" />
+            <label for="enableGeoalarm" data-i18n="geoalarm_enable">Enable GeoAlarm</label>
+          </div>
+          <div class="hint" data-i18n="geoalarm_hint">Triggers alarms when a radio/MeshCom node enters a geofenced area. Disabled by default.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="geoalarmFields" style="display:none; margin-top:12px;">
+        <div class="row">
+          <div>
+            <label for="geoLat">flowstation_lat</label>
+            <input id="geoLat" type="number" step="any" value="0.0" style="max-width:180px;" />
+          </div>
+          <div>
+            <label for="geoLon">flowstation_lon</label>
+            <input id="geoLon" type="number" step="any" value="0.0" style="max-width:180px;" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="geoRadiusM" style="margin-top:8px;">radius_m</label>
+            <input id="geoRadiusM" type="number" step="any" value="500.0" style="max-width:180px;" />
+          </div>
+          <div>
+            <label for="geoCooldownSecs" style="margin-top:8px;">cooldown_secs (1..86400)</label>
+            <input id="geoCooldownSecs" type="number" min="1" max="86400" value="300" style="max-width:160px;" />
+          </div>
+        </div>
+        <div class="checkbox-row" style="margin-top:10px;">
+          <input type="checkbox" id="geoTriggerTetra" checked />
+          <label for="geoTriggerTetra">trigger_tetra</label>
+        </div>
+        <div class="checkbox-row" style="margin-top:6px;">
+          <input type="checkbox" id="geoTriggerMeshcom" checked />
+          <label for="geoTriggerMeshcom">trigger_meshcom</label>
+        </div>
+        <div class="checkbox-row" style="margin-top:6px;">
+          <input type="checkbox" id="geoForwardTpg2200" />
+          <label for="geoForwardTpg2200">forward_tpg2200</label>
+        </div>
+        <div class="checkbox-row" style="margin-top:6px;">
+          <input type="checkbox" id="geoForwardSds" />
+          <label for="geoForwardSds">forward_sds</label>
+        </div>
+        <div class="checkbox-row" style="margin-top:6px;">
+          <input type="checkbox" id="geoForwardSip" />
+          <label for="geoForwardSip">forward_sip</label>
+        </div>
+        <div class="checkbox-row" style="margin-top:6px;">
+          <input type="checkbox" id="geoForwardTelegram" />
+          <label for="geoForwardTelegram">forward_telegram</label>
+        </div>
+        <label for="geoTetraIssiWhitelist" style="margin-top:8px;">tetra_issi_whitelist (comma-separated)</label>
+        <input id="geoTetraIssiWhitelist" type="text" placeholder="" />
+        <label for="geoTetraIssiBlacklist" style="margin-top:8px;">tetra_issi_blacklist (comma-separated)</label>
+        <input id="geoTetraIssiBlacklist" type="text" placeholder="" />
+        <label for="geoMeshcomSourceWhitelist" style="margin-top:8px;">meshcom_source_whitelist (comma-separated)</label>
+        <input id="geoMeshcomSourceWhitelist" type="text" placeholder="" />
+        <label for="geoMeshcomSourceBlacklist" style="margin-top:8px;">meshcom_source_blacklist (comma-separated)</label>
+        <input id="geoMeshcomSourceBlacklist" type="text" placeholder="" />
+        <div class="row">
+          <div>
+            <label for="geoSdsSourceIssi" style="margin-top:8px;">sds_source_issi (0..16777215)</label>
+            <input id="geoSdsSourceIssi" type="number" min="0" max="16777215" value="9999" style="max-width:160px;" />
+          </div>
+          <div>
+            <label for="geoSdsDestIssi" style="margin-top:8px;">sds_dest_issi (0..16777215)</label>
+            <input id="geoSdsDestIssi" type="number" min="0" max="16777215" value="0" style="max-width:160px;" />
+          </div>
+        </div>
+        <div class="checkbox-row" style="margin-top:10px;">
+          <input type="checkbox" id="geoSdsDestIsGroup" />
+          <label for="geoSdsDestIsGroup">sds_dest_is_group</label>
+        </div>
+        <div class="row">
+          <div>
+            <label for="geoTpg2200SourceIssi" style="margin-top:8px;">tpg2200_source_issi (0..16777215)</label>
+            <input id="geoTpg2200SourceIssi" type="number" min="0" max="16777215" value="9999" style="max-width:160px;" />
+          </div>
+          <div>
+            <label for="geoTpg2200DestIssi" style="margin-top:8px;">tpg2200_dest_issi (0..16777215)</label>
+            <input id="geoTpg2200DestIssi" type="number" min="0" max="16777215" value="0" style="max-width:160px;" />
+          </div>
+        </div>
+        <label for="geoTpg2200IncidentBase" style="margin-top:8px;">tpg2200_incident_base (1..256)</label>
+        <input id="geoTpg2200IncidentBase" type="number" min="1" max="256" value="1" style="max-width:140px;" />
+        <label for="geoTpg2200TextPrefix" style="margin-top:8px;">tpg2200_text_prefix</label>
+        <input id="geoTpg2200TextPrefix" type="text" value="GeoAlarm" />
+        <label for="geoTpg2200MaxTextChars" style="margin-top:8px;">tpg2200_max_text_chars (1..240)</label>
+        <input id="geoTpg2200MaxTextChars" type="number" min="1" max="240" value="80" style="max-width:140px;" />
+        <label for="geoSipTitlePrefix" style="margin-top:8px;">sip_title_prefix</label>
+        <input id="geoSipTitlePrefix" type="text" value="GeoAlarm" />
+        <label for="geoTelegramPrefix" style="margin-top:8px;">telegram_prefix</label>
+        <input id="geoTelegramPrefix" type="text" value="GeoAlarm" />
+      </div>
+    </section>
+  </div>
+  <div id="sectionAsterisk" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="asterisk_title">🔀 Asterisk Bridge [asterisk]</h2>
+      <div class="row">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableAsterisk" />
+            <label for="enableAsterisk" data-i18n="asterisk_enable">Enable Asterisk bridge</label>
+          </div>
+          <div class="hint" data-i18n="asterisk_hint">SIP/RTP bridge to an Asterisk PBX. Requires a special build (--features asterisk); not included in the default build. Disabled by default.</div>
+        </div>
+        <div></div>
+      </div>
+      <div id="asteriskFields" style="display:none; margin-top:12px;">
+        <div class="row">
+          <div>
+            <label for="astOutboundPrefix">outbound_prefix</label>
+            <input id="astOutboundPrefix" type="text" value="91" style="max-width:140px;" />
+          </div>
+          <div>
+            <label for="astInboundPrefix">inbound_prefix</label>
+            <input id="astInboundPrefix" type="text" value="T" style="max-width:140px;" />
+          </div>
+        </div>
+        <div class="checkbox-row" style="margin-top:10px;">
+          <input type="checkbox" id="astStripOutboundPrefix" checked />
+          <label for="astStripOutboundPrefix">strip_outbound_prefix</label>
+        </div>
+        <div class="checkbox-row" style="margin-top:6px;">
+          <input type="checkbox" id="astRegister" checked />
+          <label for="astRegister">register</label>
+        </div>
+        <label for="astCodec" style="margin-top:8px;">codec</label>
+        <input id="astCodec" type="text" value="PCMU" style="max-width:140px;" />
+        <label for="astServiceNumbers" style="margin-top:8px;">service_numbers (comma-separated)</label>
+        <input id="astServiceNumbers" type="text" value="600, 601" />
+        <div class="row">
+          <div>
+            <label for="astRtpPortMin" style="margin-top:8px;">rtp_port_min (1..65535)</label>
+            <input id="astRtpPortMin" type="number" min="1" max="65535" value="30000" style="max-width:140px;" />
+          </div>
+          <div>
+            <label for="astRtpPortMax" style="margin-top:8px;">rtp_port_max (1..65535)</label>
+            <input id="astRtpPortMax" type="number" min="1" max="65535" value="30100" style="max-width:140px;" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="astBindAddr" style="margin-top:8px;">bind_addr</label>
+            <input id="astBindAddr" type="text" value="0.0.0.0" />
+          </div>
+          <div>
+            <label for="astBindPort" style="margin-top:8px;">bind_port (1..65535)</label>
+            <input id="astBindPort" type="number" min="1" max="65535" value="5062" style="max-width:140px;" />
+          </div>
+        </div>
+        <div class="row">
+          <div>
+            <label for="astRemoteHost" style="margin-top:8px;">remote_host</label>
+            <input id="astRemoteHost" type="text" value="127.0.0.1" />
+          </div>
+          <div>
+            <label for="astRemotePort" style="margin-top:8px;">remote_port (1..65535)</label>
+            <input id="astRemotePort" type="number" min="1" max="65535" value="5060" style="max-width:140px;" />
+          </div>
+        </div>
+        <label for="astContactHost" style="margin-top:8px;">contact_host</label>
+        <input id="astContactHost" type="text" value="127.0.0.1" />
+        <label for="astFromDomain" style="margin-top:8px;">from_domain</label>
+        <input id="astFromDomain" type="text" value="127.0.0.1" />
+        <div class="row">
+          <div>
+            <label for="astLocalUser" style="margin-top:8px;">local_user</label>
+            <input id="astLocalUser" type="text" value="flowstation" />
+          </div>
+          <div>
+            <label for="astAuthUser" style="margin-top:8px;">auth_user</label>
+            <input id="astAuthUser" type="text" value="flowstation" />
+          </div>
+        </div>
+        <label for="astPassword" style="margin-top:8px;">password (optional)</label>
+        <input id="astPassword" type="password" placeholder="" />
+        <label for="astRealm" style="margin-top:8px;">realm</label>
+        <input id="astRealm" type="text" value="asterisk" />
+      </div>
+    </section>
+  </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="tg_names_title">📡 Talkgroup Names</h2>
@@ -1408,6 +1834,28 @@
       health_dl_critical: "dl_queue_critical (default 192)",
       health_sds_degraded: "sds_queue_degraded (default 32)",
       health_sds_critical: "sds_queue_critical (default 128)",
+      fs_stack_mode_label: "stack_mode",
+      fs_stack_mode_hint: "TETRA stack operating mode. Bs = base station, Ms = mobile station, Mon = monitor. Default Bs.",
+      fs_debug_log_enable: "Enable debug_log",
+      fs_debug_log_label: "debug_log (path)",
+      fs_debug_log_hint: "Optional path to a verbose debug log file. Omitted when empty.",
+      brew_pbx_gateway_label: "pbx_gateway_issis (comma-separated)",
+      brew_pbx_gateway_hint: "ISSIs routed through the PBX gateway. Omitted when empty.",
+      dapnet_title: "📟 DAPNET [dapnet]",
+      dapnet_enable: "Enable DAPNET",
+      dapnet_hint: "Bridge to the DAPNET pager network. Polls the DAPNET API and forwards calls to SDS/callout/Telegram. Disabled by default.",
+      tpg2200_title: "☎️ TPG2200 Action [tpg2200_action]",
+      tpg2200_enable: "Enable TPG2200 action",
+      tpg2200_hint: "Triggers a TPG2200 alarm panel action. Disabled by default.",
+      snom_title: "📲 Snom Notifications [snom_notify]",
+      snom_enable: "Enable Snom notifications",
+      snom_hint: "Push notifications to Snom desk phones via the Asterisk AMI. Disabled by default.",
+      geoalarm_title: "📍 GeoAlarm [geoalarm]",
+      geoalarm_enable: "Enable GeoAlarm",
+      geoalarm_hint: "Triggers alarms when a radio/MeshCom node enters a geofenced area. Disabled by default.",
+      asterisk_title: "🔀 Asterisk Bridge [asterisk]",
+      asterisk_enable: "Enable Asterisk bridge",
+      asterisk_hint: "SIP/RTP bridge to an Asterisk PBX. Requires a special build (--features asterisk); not included in the default build. Disabled by default.",
       emergency_title: "🚨 Emergencies [emergency]",
       emergency_forward_brew: "forward_to_brew (forward emergencies to the Brew server)",
       emergency_forward_brew_hint: "Disabled by default.",
@@ -1964,6 +2412,28 @@
       health_dl_critical: "dl_queue_critical (por defecto 192)",
       health_sds_degraded: "sds_queue_degraded (por defecto 32)",
       health_sds_critical: "sds_queue_critical (por defecto 128)",
+      fs_stack_mode_label: "stack_mode",
+      fs_stack_mode_hint: "Modo de operación de la pila TETRA. Bs = estación base, Ms = estación móvil, Mon = monitor. Por defecto Bs.",
+      fs_debug_log_enable: "Activar debug_log",
+      fs_debug_log_label: "debug_log (ruta)",
+      fs_debug_log_hint: "Ruta opcional a un archivo de log de depuración detallado. Se omite si está vacío.",
+      brew_pbx_gateway_label: "pbx_gateway_issis (separados por coma)",
+      brew_pbx_gateway_hint: "ISSIs enrutados a través de la pasarela PBX. Se omite si está vacío.",
+      dapnet_title: "📟 DAPNET [dapnet]",
+      dapnet_enable: "Activar DAPNET",
+      dapnet_hint: "Puente a la red de buscapersonas DAPNET. Consulta la API de DAPNET y reenvía llamadas a SDS/callout/Telegram. Desactivado por defecto.",
+      tpg2200_title: "☎️ Acción TPG2200 [tpg2200_action]",
+      tpg2200_enable: "Activar acción TPG2200",
+      tpg2200_hint: "Dispara una acción en el panel de alarmas TPG2200. Desactivado por defecto.",
+      snom_title: "📲 Notificaciones Snom [snom_notify]",
+      snom_enable: "Activar notificaciones Snom",
+      snom_hint: "Envía notificaciones a teléfonos de sobremesa Snom a través del AMI de Asterisk. Desactivado por defecto.",
+      geoalarm_title: "📍 GeoAlarma [geoalarm]",
+      geoalarm_enable: "Activar GeoAlarma",
+      geoalarm_hint: "Dispara alarmas cuando una radio/nodo MeshCom entra en una zona geográfica. Desactivado por defecto.",
+      asterisk_title: "🔀 Puente Asterisk [asterisk]",
+      asterisk_enable: "Activar puente Asterisk",
+      asterisk_hint: "Puente SIP/RTP a una centralita Asterisk. Requiere una compilación especial (--features asterisk); no incluida en la compilación por defecto. Desactivado por defecto.",
       emergency_title: "🚨 Emergencias [emergency]",
       emergency_forward_brew: "forward_to_brew (reenviar emergencias al servidor Brew)",
       emergency_forward_brew_hint: "Desactivado por defecto.",
@@ -4245,6 +4715,14 @@
       const snEnabled = el("enableServiceName").checked;
       const snVal = (el("fsServiceNameVal").value.trim()) || "tetra";
       lines.push(snEnabled ? `service_name = "${snVal}"` : `# service_name = "${snVal}"`);
+      // stack_mode: root-level enum, always written (has default Bs)
+      const stackModeRaw = el("fsStackMode").value;
+      const stackMode = (stackModeRaw === "Ms" || stackModeRaw === "Mon") ? stackModeRaw : "Bs";
+      lines.push(`stack_mode = "${stackMode}"`);
+      // debug_log: root-level optional path; omit line when empty/disabled
+      const dbgEnabled = el("enableDebugLog").checked;
+      const dbgVal = el("fsDebugLogVal").value.trim().replace(/"/g, "");
+      if (dbgEnabled && dbgVal) lines.push(`debug_log = "${dbgVal}"`);
       lines.push("");
     }
     lines.push("[phy_io_soapy]");
@@ -4394,6 +4872,12 @@
       if (el("enableWhitelist").checked && el("brewWhitelist").value.trim()){
         const ssis = el("brewWhitelist").value.trim().split(",").map(s => s.trim()).filter(Boolean);
         lines.push(`whitelisted_ssis = [${ssis.join(", ")}]`);
+      }
+      // pbx_gateway_issis — array<int>, omit line when empty
+      {
+        const pbxRaw = el("brewPbxGateway").value.trim();
+        const pbxArr = pbxRaw ? pbxRaw.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)) : [];
+        if (pbxArr.length > 0) lines.push(`pbx_gateway_issis = [${pbxArr.join(", ")}]`);
       }
       // feature_rssi_export — only emit if subsection is visible (Flowstation)
       if (document.getElementById("brewRssiSubsection")?.style.display !== "none") {
@@ -4598,6 +5082,152 @@
       if (cmdCaCert) lines.push(`${pc}ca_cert = "${cmdCaCert}"`);
       if (cmdUser) lines.push(`${pc}username = "${cmdUser}"`);
       if (cmdPass) lines.push(`${pc}password = "${cmdPass}"`);
+    }
+    // Shared helpers for the new flowstation sections
+    const clampI = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
+    const strArr = (v) => { const a = (v || "").trim() ? v.split(",").map(s => s.trim()).filter(Boolean) : []; return `[${a.map(s => `"${s.replace(/"/g, "")}"`).join(", ")}]`; };
+    const intArr = (v) => { const a = (v || "").trim() ? v.split(",").map(s => parseInt(s.trim(), 10)).filter(n => !isNaN(n)) : []; return `[${a.join(", ")}]`; };
+    const qstr = (v) => (v || "").replace(/"/g, "");
+    // DAPNET [dapnet] (Flowstation only)
+    if (document.getElementById("sectionDapnet")?.style.display !== "none") {
+      const en = el("enableDapnet").checked;
+      const p = en ? "" : "# ";
+      const ricIssi = el("dapnetRicIssiRoutes").value.trim();
+      const ricGssi = el("dapnetRicGssiRoutes").value.trim();
+      const callsign = qstr(el("dapnetRwthCoreCallsign").value.trim());
+      const authkey = qstr(el("dapnetRwthCoreAuthkey").value.trim());
+      lines.push("");
+      lines.push(`${p}[dapnet]`);
+      lines.push(`${p}enabled = ${en ? "true" : "false"}`);
+      lines.push(`${p}api_url = "${qstr(el("dapnetApiUrl").value.trim())}"`);
+      lines.push(`${p}username = "${qstr(el("dapnetUsername").value.trim())}"`);
+      lines.push(`${p}password = "${qstr(el("dapnetPassword").value)}"`);
+      lines.push(`${p}poll_interval_secs = ${clampI(el("dapnetPollInterval").value, 1, 3600, 30)}`);
+      lines.push(`${p}forward_sds = ${el("dapnetForwardSds").checked ? "true" : "false"}`);
+      lines.push(`${p}forward_callout = ${el("dapnetForwardCallout").checked ? "true" : "false"}`);
+      lines.push(`${p}forward_telegram = ${el("dapnetForwardTelegram").checked ? "true" : "false"}`);
+      lines.push(`${p}sds_source_issi = ${clampI(el("dapnetSdsSourceIssi").value, 0, 16777215, 9999)}`);
+      lines.push(`${p}sds_dest_issi = ${clampI(el("dapnetSdsDestIssi").value, 0, 16777215, 0)}`);
+      lines.push(`${p}sds_dest_is_group = ${el("dapnetSdsDestIsGroup").checked ? "true" : "false"}`);
+      if (ricIssi) lines.push(`${p}ric_issi_routes = { ${ricIssi} }`);
+      if (ricGssi) lines.push(`${p}ric_gssi_routes = { ${ricGssi} }`);
+      lines.push(`${p}sds_allowed_rics = ${strArr(el("dapnetSdsAllowedRics").value)}`);
+      lines.push(`${p}callout_allowed_rics = ${strArr(el("dapnetCalloutAllowedRics").value)}`);
+      lines.push(`${p}telegram_allowed_rics = ${strArr(el("dapnetTelegramAllowedRics").value)}`);
+      lines.push(`${p}callout_source_issi = ${clampI(el("dapnetCalloutSourceIssi").value, 0, 16777215, 9999)}`);
+      lines.push(`${p}callout_dest_issi = ${clampI(el("dapnetCalloutDestIssi").value, 0, 16777215, 0)}`);
+      lines.push(`${p}callout_incident_base = ${clampI(el("dapnetCalloutIncidentBase").value, 1, 256, 2)}`);
+      lines.push(`${p}callout_text_prefix = "${qstr(el("dapnetCalloutTextPrefix").value)}"`);
+      lines.push(`${p}telegram_prefix = "${qstr(el("dapnetTelegramPrefix").value)}"`);
+      lines.push(`${p}rwth_core_enabled = ${el("dapnetRwthCoreEnabled").checked ? "true" : "false"}`);
+      lines.push(`${p}rwth_core_host = "${qstr(el("dapnetRwthCoreHost").value.trim())}"`);
+      lines.push(`${p}rwth_core_port = ${clampI(el("dapnetRwthCorePort").value, 1, 65535, 43434)}`);
+      lines.push(`${p}rwth_core_device = "${qstr(el("dapnetRwthCoreDevice").value.trim())}"`);
+      lines.push(`${p}rwth_core_version = "${qstr(el("dapnetRwthCoreVersion").value.trim())}"`);
+      if (callsign) lines.push(`${p}rwth_core_callsign = "${callsign}"`);
+      if (authkey) lines.push(`${p}rwth_core_authkey = "${authkey}"`);
+      lines.push(`${p}rwth_messages_limit = ${clampI(el("dapnetRwthMessagesLimit").value, 1, 10000, 100)}`);
+    }
+    // TPG2200 Action [tpg2200_action] (Flowstation only)
+    if (document.getElementById("sectionTpg2200")?.style.display !== "none") {
+      const en = el("enableTpg2200").checked;
+      const p = en ? "" : "# ";
+      const token = qstr(el("tpgToken").value.trim());
+      lines.push("");
+      lines.push(`${p}[tpg2200_action]`);
+      lines.push(`${p}enabled = ${en ? "true" : "false"}`);
+      if (token) lines.push(`${p}token = "${token}"`);
+      lines.push(`${p}source_issi = ${clampI(el("tpgSourceIssi").value, 0, 16777215, 9999)}`);
+      lines.push(`${p}dest_issi = ${clampI(el("tpgDestIssi").value, 0, 16777215, 0)}`);
+      lines.push(`${p}incident_base = ${clampI(el("tpgIncidentBase").value, 1, 256, 1)}`);
+      lines.push(`${p}default_text = "${qstr(el("tpgDefaultText").value)}"`);
+      lines.push(`${p}max_text_chars = ${clampI(el("tpgMaxTextChars").value, 1, 240, 80)}`);
+    }
+    // Snom Notifications [snom_notify] (Flowstation only)
+    if (document.getElementById("sectionSnomNotify")?.style.display !== "none") {
+      const en = el("enableSnomNotify").checked;
+      const p = en ? "" : "# ";
+      const amiPass = qstr(el("snomAmiPassword").value);
+      lines.push("");
+      lines.push(`${p}[snom_notify]`);
+      lines.push(`${p}enabled = ${en ? "true" : "false"}`);
+      lines.push(`${p}ami_host = "${qstr(el("snomAmiHost").value.trim())}"`);
+      lines.push(`${p}ami_port = ${clampI(el("snomAmiPort").value, 1, 65535, 5038)}`);
+      lines.push(`${p}ami_username = "${qstr(el("snomAmiUsername").value.trim())}"`);
+      if (amiPass) lines.push(`${p}ami_password = "${amiPass}"`);
+      lines.push(`${p}endpoints = ${strArr(el("snomEndpoints").value)}`);
+      lines.push(`${p}notify_sds = ${el("snomNotifySds").checked ? "true" : "false"}`);
+      lines.push(`${p}notify_dapnet = ${el("snomNotifyDapnet").checked ? "true" : "false"}`);
+      lines.push(`${p}notify_telegram = ${el("snomNotifyTelegram").checked ? "true" : "false"}`);
+      lines.push(`${p}sds_directions = ${strArr(el("snomSdsDirections").value)}`);
+      lines.push(`${p}dapnet_allowed_rics = ${strArr(el("snomDapnetAllowedRics").value)}`);
+      lines.push(`${p}sds_allowed_issis = ${intArr(el("snomSdsAllowedIssis").value)}`);
+      lines.push(`${p}title_prefix = "${qstr(el("snomTitlePrefix").value)}"`);
+      lines.push(`${p}notify_event = "${qstr(el("snomNotifyEvent").value)}"`);
+      lines.push(`${p}content_type = "${qstr(el("snomContentType").value)}"`);
+      lines.push(`${p}subscription_state = "${qstr(el("snomSubscriptionState").value)}"`);
+      lines.push(`${p}max_text_chars = ${clampI(el("snomMaxTextChars").value, 1, 1000, 240)}`);
+      lines.push(`${p}connect_timeout_secs = ${clampI(el("snomConnectTimeout").value, 1, 60, 3)}`);
+    }
+    // GeoAlarm [geoalarm] (Flowstation only)
+    if (document.getElementById("sectionGeoalarm")?.style.display !== "none") {
+      const en = el("enableGeoalarm").checked;
+      const p = en ? "" : "# ";
+      const fnum = (v, def) => { const n = Number(v); return Number.isFinite(n) ? n : def; };
+      lines.push("");
+      lines.push(`${p}[geoalarm]`);
+      lines.push(`${p}enabled = ${en ? "true" : "false"}`);
+      lines.push(`${p}flowstation_lat = ${fnum(el("geoLat").value, 0.0)}`);
+      lines.push(`${p}flowstation_lon = ${fnum(el("geoLon").value, 0.0)}`);
+      lines.push(`${p}radius_m = ${fnum(el("geoRadiusM").value, 500.0)}`);
+      lines.push(`${p}cooldown_secs = ${clampI(el("geoCooldownSecs").value, 1, 86400, 300)}`);
+      lines.push(`${p}trigger_tetra = ${el("geoTriggerTetra").checked ? "true" : "false"}`);
+      lines.push(`${p}trigger_meshcom = ${el("geoTriggerMeshcom").checked ? "true" : "false"}`);
+      lines.push(`${p}forward_tpg2200 = ${el("geoForwardTpg2200").checked ? "true" : "false"}`);
+      lines.push(`${p}forward_sds = ${el("geoForwardSds").checked ? "true" : "false"}`);
+      lines.push(`${p}forward_sip = ${el("geoForwardSip").checked ? "true" : "false"}`);
+      lines.push(`${p}forward_telegram = ${el("geoForwardTelegram").checked ? "true" : "false"}`);
+      lines.push(`${p}tetra_issi_whitelist = ${intArr(el("geoTetraIssiWhitelist").value)}`);
+      lines.push(`${p}tetra_issi_blacklist = ${intArr(el("geoTetraIssiBlacklist").value)}`);
+      lines.push(`${p}meshcom_source_whitelist = ${strArr(el("geoMeshcomSourceWhitelist").value)}`);
+      lines.push(`${p}meshcom_source_blacklist = ${strArr(el("geoMeshcomSourceBlacklist").value)}`);
+      lines.push(`${p}sds_source_issi = ${clampI(el("geoSdsSourceIssi").value, 0, 16777215, 9999)}`);
+      lines.push(`${p}sds_dest_issi = ${clampI(el("geoSdsDestIssi").value, 0, 16777215, 0)}`);
+      lines.push(`${p}sds_dest_is_group = ${el("geoSdsDestIsGroup").checked ? "true" : "false"}`);
+      lines.push(`${p}tpg2200_source_issi = ${clampI(el("geoTpg2200SourceIssi").value, 0, 16777215, 9999)}`);
+      lines.push(`${p}tpg2200_dest_issi = ${clampI(el("geoTpg2200DestIssi").value, 0, 16777215, 0)}`);
+      lines.push(`${p}tpg2200_incident_base = ${clampI(el("geoTpg2200IncidentBase").value, 1, 256, 1)}`);
+      lines.push(`${p}tpg2200_text_prefix = "${qstr(el("geoTpg2200TextPrefix").value)}"`);
+      lines.push(`${p}tpg2200_max_text_chars = ${clampI(el("geoTpg2200MaxTextChars").value, 1, 240, 80)}`);
+      lines.push(`${p}sip_title_prefix = "${qstr(el("geoSipTitlePrefix").value)}"`);
+      lines.push(`${p}telegram_prefix = "${qstr(el("geoTelegramPrefix").value)}"`);
+    }
+    // Asterisk Bridge [asterisk] (Flowstation only)
+    if (document.getElementById("sectionAsterisk")?.style.display !== "none") {
+      const en = el("enableAsterisk").checked;
+      const p = en ? "" : "# ";
+      const astPass = qstr(el("astPassword").value);
+      lines.push("");
+      lines.push(`${p}[asterisk]`);
+      lines.push(`${p}enabled = ${en ? "true" : "false"}`);
+      lines.push(`${p}outbound_prefix = "${qstr(el("astOutboundPrefix").value)}"`);
+      lines.push(`${p}strip_outbound_prefix = ${el("astStripOutboundPrefix").checked ? "true" : "false"}`);
+      lines.push(`${p}inbound_prefix = "${qstr(el("astInboundPrefix").value)}"`);
+      lines.push(`${p}register = ${el("astRegister").checked ? "true" : "false"}`);
+      lines.push(`${p}codec = "${qstr(el("astCodec").value)}"`);
+      lines.push(`${p}service_numbers = ${strArr(el("astServiceNumbers").value)}`);
+      lines.push(`${p}rtp_port_min = ${clampI(el("astRtpPortMin").value, 1, 65535, 30000)}`);
+      lines.push(`${p}rtp_port_max = ${clampI(el("astRtpPortMax").value, 1, 65535, 30100)}`);
+      lines.push(`${p}bind_addr = "${qstr(el("astBindAddr").value.trim())}"`);
+      lines.push(`${p}bind_port = ${clampI(el("astBindPort").value, 1, 65535, 5062)}`);
+      lines.push(`${p}remote_host = "${qstr(el("astRemoteHost").value.trim())}"`);
+      lines.push(`${p}remote_port = ${clampI(el("astRemotePort").value, 1, 65535, 5060)}`);
+      lines.push(`${p}contact_host = "${qstr(el("astContactHost").value.trim())}"`);
+      lines.push(`${p}from_domain = "${qstr(el("astFromDomain").value.trim())}"`);
+      lines.push(`${p}local_user = "${qstr(el("astLocalUser").value.trim())}"`);
+      lines.push(`${p}auth_user = "${qstr(el("astAuthUser").value.trim())}"`);
+      if (astPass) lines.push(`${p}password = "${astPass}"`);
+      lines.push(`${p}realm = "${qstr(el("astRealm").value.trim())}"`);
     }
     return lines.join("\n");
   }
@@ -5105,6 +5735,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           el("enableWhitelist").dispatchEvent(new Event("change"));
           el("brewWhitelist").value = data.brew.whitelisted_ssis.join(", ");
         }
+        if (data.brew.pbx_gateway_issis && data.brew.pbx_gateway_issis.length > 0) {
+          el("brewPbxGateway").value = data.brew.pbx_gateway_issis.join(", ");
+        }
       }
       // feature_rssi_export (works whether brew enabled or commented)
       if (data.brew.feature_rssi_export_enabled !== undefined) {
@@ -5177,6 +5810,15 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       if (data.service_name) {
         el("enableServiceName").checked = !!data.service_name.enabled;
         if (data.service_name.value) el("fsServiceNameVal").value = data.service_name.value;
+        if (data.service_name.stack_mode) {
+          const sm = String(data.service_name.stack_mode);
+          el("fsStackMode").value = (sm === "Ms" || sm === "Mon") ? sm : "Bs";
+        }
+        if (data.service_name.debug_log) {
+          el("enableDebugLog").checked = true;
+          el("fsDebugLogVal").value = String(data.service_name.debug_log);
+        }
+        el("enableDebugLog").dispatchEvent(new Event("change"));
       }
 
       // ── Dashboard [dashboard]
@@ -5250,6 +5892,139 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         setNum("healthSdsDegraded", data.health.sds_queue_degraded);
         setNum("healthSdsCritical", data.health.sds_queue_critical);
         el("enableHealth").dispatchEvent(new Event("change"));
+      }
+
+      // helpers for the new flowstation sections
+      const setV = (id, v) => { if (v !== null && v !== undefined && String(v) !== "") el(id).value = String(v); };
+      const setBool = (id, v) => { if (v !== null && v !== undefined) el(id).checked = (v === true || v === "true"); };
+      const setArr = (id, v) => {
+        if (v === null || v === undefined) return;
+        const raw = String(v).replace(/^\s*\[/, "").replace(/\]\s*$/, "").replace(/"/g, "").trim();
+        el(id).value = raw === "" ? "" : raw.split(",").map(s => s.trim()).filter(Boolean).join(", ");
+      };
+      const setMap = (id, v) => { if (v !== null && v !== undefined) { const raw = String(v).replace(/^\s*\{/, "").replace(/\}\s*$/, "").trim(); el(id).value = raw; } };
+
+      // ── DAPNET [dapnet]
+      if (data.dapnet) {
+        el("enableDapnet").checked = !!data.dapnet.enabled;
+        setV("dapnetApiUrl", data.dapnet.api_url);
+        setV("dapnetUsername", data.dapnet.username);
+        setV("dapnetPassword", data.dapnet.password);
+        setV("dapnetPollInterval", data.dapnet.poll_interval_secs);
+        setBool("dapnetForwardSds", data.dapnet.forward_sds);
+        setBool("dapnetForwardCallout", data.dapnet.forward_callout);
+        setBool("dapnetForwardTelegram", data.dapnet.forward_telegram);
+        setV("dapnetSdsSourceIssi", data.dapnet.sds_source_issi);
+        setV("dapnetSdsDestIssi", data.dapnet.sds_dest_issi);
+        setBool("dapnetSdsDestIsGroup", data.dapnet.sds_dest_is_group);
+        setMap("dapnetRicIssiRoutes", data.dapnet.ric_issi_routes);
+        setMap("dapnetRicGssiRoutes", data.dapnet.ric_gssi_routes);
+        setArr("dapnetSdsAllowedRics", data.dapnet.sds_allowed_rics);
+        setArr("dapnetCalloutAllowedRics", data.dapnet.callout_allowed_rics);
+        setArr("dapnetTelegramAllowedRics", data.dapnet.telegram_allowed_rics);
+        setV("dapnetCalloutSourceIssi", data.dapnet.callout_source_issi);
+        setV("dapnetCalloutDestIssi", data.dapnet.callout_dest_issi);
+        setV("dapnetCalloutIncidentBase", data.dapnet.callout_incident_base);
+        setV("dapnetCalloutTextPrefix", data.dapnet.callout_text_prefix);
+        setV("dapnetTelegramPrefix", data.dapnet.telegram_prefix);
+        setBool("dapnetRwthCoreEnabled", data.dapnet.rwth_core_enabled);
+        setV("dapnetRwthCoreHost", data.dapnet.rwth_core_host);
+        setV("dapnetRwthCorePort", data.dapnet.rwth_core_port);
+        setV("dapnetRwthCoreDevice", data.dapnet.rwth_core_device);
+        setV("dapnetRwthCoreVersion", data.dapnet.rwth_core_version);
+        setV("dapnetRwthCoreCallsign", data.dapnet.rwth_core_callsign);
+        setV("dapnetRwthCoreAuthkey", data.dapnet.rwth_core_authkey);
+        setV("dapnetRwthMessagesLimit", data.dapnet.rwth_messages_limit);
+        el("enableDapnet").dispatchEvent(new Event("change"));
+      }
+
+      // ── TPG2200 Action [tpg2200_action]
+      if (data.tpg2200_action) {
+        el("enableTpg2200").checked = !!data.tpg2200_action.enabled;
+        setV("tpgToken", data.tpg2200_action.token);
+        setV("tpgSourceIssi", data.tpg2200_action.source_issi);
+        setV("tpgDestIssi", data.tpg2200_action.dest_issi);
+        setV("tpgIncidentBase", data.tpg2200_action.incident_base);
+        setV("tpgDefaultText", data.tpg2200_action.default_text);
+        setV("tpgMaxTextChars", data.tpg2200_action.max_text_chars);
+        el("enableTpg2200").dispatchEvent(new Event("change"));
+      }
+
+      // ── Snom Notifications [snom_notify]
+      if (data.snom_notify) {
+        el("enableSnomNotify").checked = !!data.snom_notify.enabled;
+        setV("snomAmiHost", data.snom_notify.ami_host);
+        setV("snomAmiPort", data.snom_notify.ami_port);
+        setV("snomAmiUsername", data.snom_notify.ami_username);
+        setV("snomAmiPassword", data.snom_notify.ami_password);
+        setArr("snomEndpoints", data.snom_notify.endpoints);
+        setBool("snomNotifySds", data.snom_notify.notify_sds);
+        setBool("snomNotifyDapnet", data.snom_notify.notify_dapnet);
+        setBool("snomNotifyTelegram", data.snom_notify.notify_telegram);
+        setArr("snomSdsDirections", data.snom_notify.sds_directions);
+        setArr("snomDapnetAllowedRics", data.snom_notify.dapnet_allowed_rics);
+        setArr("snomSdsAllowedIssis", data.snom_notify.sds_allowed_issis);
+        setV("snomTitlePrefix", data.snom_notify.title_prefix);
+        setV("snomNotifyEvent", data.snom_notify.notify_event);
+        setV("snomContentType", data.snom_notify.content_type);
+        setV("snomSubscriptionState", data.snom_notify.subscription_state);
+        setV("snomMaxTextChars", data.snom_notify.max_text_chars);
+        setV("snomConnectTimeout", data.snom_notify.connect_timeout_secs);
+        el("enableSnomNotify").dispatchEvent(new Event("change"));
+      }
+
+      // ── GeoAlarm [geoalarm]
+      if (data.geoalarm) {
+        el("enableGeoalarm").checked = !!data.geoalarm.enabled;
+        setV("geoLat", data.geoalarm.flowstation_lat);
+        setV("geoLon", data.geoalarm.flowstation_lon);
+        setV("geoRadiusM", data.geoalarm.radius_m);
+        setV("geoCooldownSecs", data.geoalarm.cooldown_secs);
+        setBool("geoTriggerTetra", data.geoalarm.trigger_tetra);
+        setBool("geoTriggerMeshcom", data.geoalarm.trigger_meshcom);
+        setBool("geoForwardTpg2200", data.geoalarm.forward_tpg2200);
+        setBool("geoForwardSds", data.geoalarm.forward_sds);
+        setBool("geoForwardSip", data.geoalarm.forward_sip);
+        setBool("geoForwardTelegram", data.geoalarm.forward_telegram);
+        setArr("geoTetraIssiWhitelist", data.geoalarm.tetra_issi_whitelist);
+        setArr("geoTetraIssiBlacklist", data.geoalarm.tetra_issi_blacklist);
+        setArr("geoMeshcomSourceWhitelist", data.geoalarm.meshcom_source_whitelist);
+        setArr("geoMeshcomSourceBlacklist", data.geoalarm.meshcom_source_blacklist);
+        setV("geoSdsSourceIssi", data.geoalarm.sds_source_issi);
+        setV("geoSdsDestIssi", data.geoalarm.sds_dest_issi);
+        setBool("geoSdsDestIsGroup", data.geoalarm.sds_dest_is_group);
+        setV("geoTpg2200SourceIssi", data.geoalarm.tpg2200_source_issi);
+        setV("geoTpg2200DestIssi", data.geoalarm.tpg2200_dest_issi);
+        setV("geoTpg2200IncidentBase", data.geoalarm.tpg2200_incident_base);
+        setV("geoTpg2200TextPrefix", data.geoalarm.tpg2200_text_prefix);
+        setV("geoTpg2200MaxTextChars", data.geoalarm.tpg2200_max_text_chars);
+        setV("geoSipTitlePrefix", data.geoalarm.sip_title_prefix);
+        setV("geoTelegramPrefix", data.geoalarm.telegram_prefix);
+        el("enableGeoalarm").dispatchEvent(new Event("change"));
+      }
+
+      // ── Asterisk Bridge [asterisk]
+      if (data.asterisk) {
+        el("enableAsterisk").checked = !!data.asterisk.enabled;
+        setV("astOutboundPrefix", data.asterisk.outbound_prefix);
+        setBool("astStripOutboundPrefix", data.asterisk.strip_outbound_prefix);
+        setV("astInboundPrefix", data.asterisk.inbound_prefix);
+        setBool("astRegister", data.asterisk.register);
+        setV("astCodec", data.asterisk.codec);
+        setArr("astServiceNumbers", data.asterisk.service_numbers);
+        setV("astRtpPortMin", data.asterisk.rtp_port_min);
+        setV("astRtpPortMax", data.asterisk.rtp_port_max);
+        setV("astBindAddr", data.asterisk.bind_addr);
+        setV("astBindPort", data.asterisk.bind_port);
+        setV("astRemoteHost", data.asterisk.remote_host);
+        setV("astRemotePort", data.asterisk.remote_port);
+        setV("astContactHost", data.asterisk.contact_host);
+        setV("astFromDomain", data.asterisk.from_domain);
+        setV("astLocalUser", data.asterisk.local_user);
+        setV("astAuthUser", data.asterisk.auth_user);
+        setV("astPassword", data.asterisk.password);
+        setV("astRealm", data.asterisk.realm);
+        el("enableAsterisk").dispatchEvent(new Event("change"));
       }
 
       // ── Emergency [emergency]
@@ -5387,6 +6162,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       whitelistEnabled: el("enableWhitelist").checked,
       whitelisted_ssis: el("enableWhitelist").checked && el("brewWhitelist").value.trim()
         ? el("brewWhitelist").value.trim().split(",").map(s => s.trim()).filter(Boolean)
+        : [],
+      pbx_gateway_issis: el("brewPbxGateway").value.trim()
+        ? el("brewPbxGateway").value.trim().split(",").map(s => s.trim()).filter(Boolean)
         : []
     } : { enabled: false };
 
@@ -5405,6 +6183,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const serviceNameConfig = dashIsFlow ? {
       enabled: el("enableServiceName").checked,
       value: el("fsServiceNameVal").value.trim() || "tetra",
+      stack_mode: (function () { const v = el("fsStackMode").value; return (v === "Ms" || v === "Mon") ? v : "Bs"; })(),
+      debug_log_enabled: el("enableDebugLog").checked,
+      debug_log: el("fsDebugLogVal").value.trim(),
     } : null;
 
     // Collect Dashboard options (Flowstation only — null in bluestation)
@@ -5548,6 +6329,130 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       periodic_interval_secs: Math.max(300, clampInt(el("wxPeriodicInterval").value, 300, 86400, 1800)),
     } : null;
 
+    // Collect DAPNET options (Flowstation only — null in bluestation)
+    const dapnetIsFlow = document.getElementById("sectionDapnet")?.style.display !== "none";
+    const dapnetConfig = dapnetIsFlow ? {
+      enabled: el("enableDapnet").checked,
+      api_url: el("dapnetApiUrl").value.trim(),
+      username: el("dapnetUsername").value.trim(),
+      password: el("dapnetPassword").value,
+      poll_interval_secs: clampInt(el("dapnetPollInterval").value, 1, 3600, 30),
+      forward_sds: el("dapnetForwardSds").checked,
+      forward_callout: el("dapnetForwardCallout").checked,
+      forward_telegram: el("dapnetForwardTelegram").checked,
+      sds_source_issi: clampInt(el("dapnetSdsSourceIssi").value, 0, 16777215, 9999),
+      sds_dest_issi: clampInt(el("dapnetSdsDestIssi").value, 0, 16777215, 0),
+      sds_dest_is_group: el("dapnetSdsDestIsGroup").checked,
+      ric_issi_routes: el("dapnetRicIssiRoutes").value.trim(),
+      ric_gssi_routes: el("dapnetRicGssiRoutes").value.trim(),
+      sds_allowed_rics: el("dapnetSdsAllowedRics").value.trim(),
+      callout_allowed_rics: el("dapnetCalloutAllowedRics").value.trim(),
+      telegram_allowed_rics: el("dapnetTelegramAllowedRics").value.trim(),
+      callout_source_issi: clampInt(el("dapnetCalloutSourceIssi").value, 0, 16777215, 9999),
+      callout_dest_issi: clampInt(el("dapnetCalloutDestIssi").value, 0, 16777215, 0),
+      callout_incident_base: clampInt(el("dapnetCalloutIncidentBase").value, 1, 256, 2),
+      callout_text_prefix: el("dapnetCalloutTextPrefix").value,
+      telegram_prefix: el("dapnetTelegramPrefix").value,
+      rwth_core_enabled: el("dapnetRwthCoreEnabled").checked,
+      rwth_core_host: el("dapnetRwthCoreHost").value.trim(),
+      rwth_core_port: clampInt(el("dapnetRwthCorePort").value, 1, 65535, 43434),
+      rwth_core_device: el("dapnetRwthCoreDevice").value.trim(),
+      rwth_core_version: el("dapnetRwthCoreVersion").value.trim(),
+      rwth_core_callsign: el("dapnetRwthCoreCallsign").value.trim(),
+      rwth_core_authkey: el("dapnetRwthCoreAuthkey").value,
+      rwth_messages_limit: clampInt(el("dapnetRwthMessagesLimit").value, 1, 10000, 100),
+    } : null;
+
+    // Collect TPG2200 Action options (Flowstation only — null in bluestation)
+    const tpg2200IsFlow = document.getElementById("sectionTpg2200")?.style.display !== "none";
+    const tpg2200Config = tpg2200IsFlow ? {
+      enabled: el("enableTpg2200").checked,
+      token: el("tpgToken").value.trim(),
+      source_issi: clampInt(el("tpgSourceIssi").value, 0, 16777215, 9999),
+      dest_issi: clampInt(el("tpgDestIssi").value, 0, 16777215, 0),
+      incident_base: clampInt(el("tpgIncidentBase").value, 1, 256, 1),
+      default_text: el("tpgDefaultText").value,
+      max_text_chars: clampInt(el("tpgMaxTextChars").value, 1, 240, 80),
+    } : null;
+
+    // Collect Snom Notify options (Flowstation only — null in bluestation)
+    const snomIsFlow = document.getElementById("sectionSnomNotify")?.style.display !== "none";
+    const snomNotifyConfig = snomIsFlow ? {
+      enabled: el("enableSnomNotify").checked,
+      ami_host: el("snomAmiHost").value.trim(),
+      ami_port: clampInt(el("snomAmiPort").value, 1, 65535, 5038),
+      ami_username: el("snomAmiUsername").value.trim(),
+      ami_password: el("snomAmiPassword").value,
+      endpoints: el("snomEndpoints").value.trim(),
+      notify_sds: el("snomNotifySds").checked,
+      notify_dapnet: el("snomNotifyDapnet").checked,
+      notify_telegram: el("snomNotifyTelegram").checked,
+      sds_directions: el("snomSdsDirections").value.trim(),
+      dapnet_allowed_rics: el("snomDapnetAllowedRics").value.trim(),
+      sds_allowed_issis: el("snomSdsAllowedIssis").value.trim(),
+      title_prefix: el("snomTitlePrefix").value,
+      notify_event: el("snomNotifyEvent").value,
+      content_type: el("snomContentType").value,
+      subscription_state: el("snomSubscriptionState").value,
+      max_text_chars: clampInt(el("snomMaxTextChars").value, 1, 1000, 240),
+      connect_timeout_secs: clampInt(el("snomConnectTimeout").value, 1, 60, 3),
+    } : null;
+
+    // Collect GeoAlarm options (Flowstation only — null in bluestation)
+    const geoalarmIsFlow = document.getElementById("sectionGeoalarm")?.style.display !== "none";
+    const geoFloat = (v, def) => { const n = Number(v); return Number.isFinite(n) ? n : def; };
+    const geoalarmConfig = geoalarmIsFlow ? {
+      enabled: el("enableGeoalarm").checked,
+      flowstation_lat: geoFloat(el("geoLat").value, 0.0),
+      flowstation_lon: geoFloat(el("geoLon").value, 0.0),
+      radius_m: geoFloat(el("geoRadiusM").value, 500.0),
+      cooldown_secs: clampInt(el("geoCooldownSecs").value, 1, 86400, 300),
+      trigger_tetra: el("geoTriggerTetra").checked,
+      trigger_meshcom: el("geoTriggerMeshcom").checked,
+      forward_tpg2200: el("geoForwardTpg2200").checked,
+      forward_sds: el("geoForwardSds").checked,
+      forward_sip: el("geoForwardSip").checked,
+      forward_telegram: el("geoForwardTelegram").checked,
+      tetra_issi_whitelist: el("geoTetraIssiWhitelist").value.trim(),
+      tetra_issi_blacklist: el("geoTetraIssiBlacklist").value.trim(),
+      meshcom_source_whitelist: el("geoMeshcomSourceWhitelist").value.trim(),
+      meshcom_source_blacklist: el("geoMeshcomSourceBlacklist").value.trim(),
+      sds_source_issi: clampInt(el("geoSdsSourceIssi").value, 0, 16777215, 9999),
+      sds_dest_issi: clampInt(el("geoSdsDestIssi").value, 0, 16777215, 0),
+      sds_dest_is_group: el("geoSdsDestIsGroup").checked,
+      tpg2200_source_issi: clampInt(el("geoTpg2200SourceIssi").value, 0, 16777215, 9999),
+      tpg2200_dest_issi: clampInt(el("geoTpg2200DestIssi").value, 0, 16777215, 0),
+      tpg2200_incident_base: clampInt(el("geoTpg2200IncidentBase").value, 1, 256, 1),
+      tpg2200_text_prefix: el("geoTpg2200TextPrefix").value,
+      tpg2200_max_text_chars: clampInt(el("geoTpg2200MaxTextChars").value, 1, 240, 80),
+      sip_title_prefix: el("geoSipTitlePrefix").value,
+      telegram_prefix: el("geoTelegramPrefix").value,
+    } : null;
+
+    // Collect Asterisk options (Flowstation only — null in bluestation)
+    const asteriskIsFlow = document.getElementById("sectionAsterisk")?.style.display !== "none";
+    const asteriskConfig = asteriskIsFlow ? {
+      enabled: el("enableAsterisk").checked,
+      outbound_prefix: el("astOutboundPrefix").value,
+      strip_outbound_prefix: el("astStripOutboundPrefix").checked,
+      inbound_prefix: el("astInboundPrefix").value,
+      register: el("astRegister").checked,
+      codec: el("astCodec").value,
+      service_numbers: el("astServiceNumbers").value.trim(),
+      rtp_port_min: clampInt(el("astRtpPortMin").value, 1, 65535, 30000),
+      rtp_port_max: clampInt(el("astRtpPortMax").value, 1, 65535, 30100),
+      bind_addr: el("astBindAddr").value.trim(),
+      bind_port: clampInt(el("astBindPort").value, 1, 65535, 5062),
+      remote_host: el("astRemoteHost").value.trim(),
+      remote_port: clampInt(el("astRemotePort").value, 1, 65535, 5060),
+      contact_host: el("astContactHost").value.trim(),
+      from_domain: el("astFromDomain").value.trim(),
+      local_user: el("astLocalUser").value.trim(),
+      auth_user: el("astAuthUser").value.trim(),
+      password: el("astPassword").value,
+      realm: el("astRealm").value.trim(),
+    } : null;
+
     // Collect neighbor cells (always send so server can write commented when disabled)
     const neighborCellsConfig = {
       enabled: el("enableNeighborCells").checked,
@@ -5583,7 +6488,12 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           recoveryConfig,
           healthConfig,
           emergencyConfig,
-          telegramAlertsConfig
+          telegramAlertsConfig,
+          dapnetConfig,
+          tpg2200Config,
+          snomNotifyConfig,
+          geoalarmConfig,
+          asteriskConfig
         })
       });
       const data = await res.json();
@@ -6259,6 +7169,58 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const node = el(id); if (!node) return;
     node.addEventListener(node.type === "checkbox" ? "change" : "input", updateTomlFromNew);
   });
+  // ── Root-level extras (stack_mode + debug_log)
+  el("fsStackMode").addEventListener("change", updateTomlFromNew);
+  el("enableDebugLog").addEventListener("change", function(){
+    updateTomlFromNew();
+  });
+  el("fsDebugLogVal").addEventListener("input", updateTomlFromNew);
+  el("brewPbxGateway").addEventListener("input", updateTomlFromNew);
+  // ── DAPNET [dapnet]
+  el("enableDapnet").addEventListener("change", function(){
+    el("dapnetFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["dapnetApiUrl","dapnetUsername","dapnetPassword","dapnetPollInterval","dapnetForwardSds","dapnetForwardCallout","dapnetForwardTelegram","dapnetSdsSourceIssi","dapnetSdsDestIssi","dapnetSdsDestIsGroup","dapnetRicIssiRoutes","dapnetRicGssiRoutes","dapnetSdsAllowedRics","dapnetCalloutAllowedRics","dapnetTelegramAllowedRics","dapnetCalloutSourceIssi","dapnetCalloutDestIssi","dapnetCalloutIncidentBase","dapnetCalloutTextPrefix","dapnetTelegramPrefix","dapnetRwthCoreEnabled","dapnetRwthCoreHost","dapnetRwthCorePort","dapnetRwthCoreDevice","dapnetRwthCoreVersion","dapnetRwthCoreCallsign","dapnetRwthCoreAuthkey","dapnetRwthMessagesLimit"].forEach(id => {
+    const node = el(id); if (!node) return;
+    node.addEventListener(node.type === "checkbox" ? "change" : "input", updateTomlFromNew);
+  });
+  // ── TPG2200 Action [tpg2200_action]
+  el("enableTpg2200").addEventListener("change", function(){
+    el("tpg2200Fields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["tpgToken","tpgSourceIssi","tpgDestIssi","tpgIncidentBase","tpgDefaultText","tpgMaxTextChars"].forEach(id => {
+    const node = el(id); if (!node) return;
+    node.addEventListener(node.type === "checkbox" ? "change" : "input", updateTomlFromNew);
+  });
+  // ── Snom Notifications [snom_notify]
+  el("enableSnomNotify").addEventListener("change", function(){
+    el("snomNotifyFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["snomAmiHost","snomAmiPort","snomAmiUsername","snomAmiPassword","snomEndpoints","snomNotifySds","snomNotifyDapnet","snomNotifyTelegram","snomSdsDirections","snomDapnetAllowedRics","snomSdsAllowedIssis","snomTitlePrefix","snomNotifyEvent","snomContentType","snomSubscriptionState","snomMaxTextChars","snomConnectTimeout"].forEach(id => {
+    const node = el(id); if (!node) return;
+    node.addEventListener(node.type === "checkbox" ? "change" : "input", updateTomlFromNew);
+  });
+  // ── GeoAlarm [geoalarm]
+  el("enableGeoalarm").addEventListener("change", function(){
+    el("geoalarmFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["geoLat","geoLon","geoRadiusM","geoCooldownSecs","geoTriggerTetra","geoTriggerMeshcom","geoForwardTpg2200","geoForwardSds","geoForwardSip","geoForwardTelegram","geoTetraIssiWhitelist","geoTetraIssiBlacklist","geoMeshcomSourceWhitelist","geoMeshcomSourceBlacklist","geoSdsSourceIssi","geoSdsDestIssi","geoSdsDestIsGroup","geoTpg2200SourceIssi","geoTpg2200DestIssi","geoTpg2200IncidentBase","geoTpg2200TextPrefix","geoTpg2200MaxTextChars","geoSipTitlePrefix","geoTelegramPrefix"].forEach(id => {
+    const node = el(id); if (!node) return;
+    node.addEventListener(node.type === "checkbox" ? "change" : "input", updateTomlFromNew);
+  });
+  // ── Asterisk Bridge [asterisk]
+  el("enableAsterisk").addEventListener("change", function(){
+    el("asteriskFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["astOutboundPrefix","astStripOutboundPrefix","astInboundPrefix","astRegister","astCodec","astServiceNumbers","astRtpPortMin","astRtpPortMax","astBindAddr","astBindPort","astRemoteHost","astRemotePort","astContactHost","astFromDomain","astLocalUser","astAuthUser","astPassword","astRealm"].forEach(id => {
+    const node = el(id); if (!node) return;
+    node.addEventListener(node.type === "checkbox" ? "change" : "input", updateTomlFromNew);
+  });
   // ── Telegram Bot helpers
   window._tgChatIds = window._tgChatIds || [];
 
@@ -6452,7 +7414,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "sectionWxService", "sectionRecovery", "sectionHealth", "sectionEmergency", "sectionTelegramAlerts", "sectionTelemetry", "sectionCommand", "brewRssiSubsection", "brewSdsFwdSubsection"];
+    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "sectionWxService", "sectionRecovery", "sectionHealth", "sectionEmergency", "sectionTelegramAlerts", "sectionTelemetry", "sectionCommand", "sectionDapnet", "sectionTpg2200", "sectionSnomNotify", "sectionGeoalarm", "sectionAsterisk", "brewRssiSubsection", "brewSdsFwdSubsection"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);
