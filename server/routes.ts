@@ -1512,6 +1512,7 @@ ${restartLine}
       let brewCommented = false; // true if [brew] header is commented out
       let brewActive = false;    // true if [brew] header is active
       let rssiExportActive = false; // true if feature_rssi_export appears as active under [brew]
+      let jitterActive = false; // true if jitter_initial_latency_frames appears as active under [brew]
       let securityActive = false; // true if [security] header is active
       let dashboardActive = false; // true if [dashboard] header is active
       let ctActive = false;      // true if any CT key appears as active (not commented) under [cell_info]
@@ -1576,6 +1577,12 @@ ${restartLine}
             if (rxM && !sections['brew']?.['feature_rssi_export']) {
               sections['brew'] = sections['brew'] || {};
               sections['brew']['feature_rssi_export'] = rxM[1].toLowerCase();
+            }
+            // Parse commented # jitter_initial_latency_frames = N (value loads even when disabled)
+            const jcM = line.match(/^#\s*jitter_initial_latency_frames\s*=\s*([0-9]+)/);
+            if (jcM && !sections['brew']?.['jitter_initial_latency_frames']) {
+              sections['brew'] = sections['brew'] || {};
+              sections['brew']['jitter_initial_latency_frames'] = jcM[1];
             }
           }
           if (inCommentedSecurity) {
@@ -1679,6 +1686,10 @@ ${restartLine}
           // Track active feature_rssi_export under [brew]
           if (currentSection === 'brew' && kk === 'feature_rssi_export') {
             rssiExportActive = true;
+          }
+          // Track active jitter_initial_latency_frames under [brew]
+          if (currentSection === 'brew' && kk === 'jitter_initial_latency_frames') {
+            jitterActive = true;
           }
         }
       }
@@ -2028,6 +2039,7 @@ ${restartLine}
           feature_rssi_export: bool('brew', 'feature_rssi_export'),
           feature_rssi_export_enabled: rssiExportActive,
           jitter_initial_latency_frames: num('brew', 'jitter_initial_latency_frames'),
+          jitter_initial_latency_frames_enabled: jitterActive,
           feature_sds_enabled: bool('brew', 'feature_sds_enabled'),
         },
         security: {
@@ -2336,6 +2348,7 @@ ${restartLine}
       const sdsFwdEnabled = !sdsFwdPresent || brewConfig.sdsFwd.enabled !== false; // default true
       // jitter_initial_latency_frames: managed when present (Flowstation only)
       const jitterPresent = sdsFwdPresent; // use same gate as sdsFwd (both Flowstation-only)
+      const jitterEnabled = jitterPresent && brewConfig.sdsFwd.jitter_enabled === true; // toggle: active line when true, commented when false
       const jitterVal = jitterPresent ? Math.max(0, Math.round(Number(brewConfig.sdsFwd.jitter) || 0)) : 0;
       const brewUpdates: Record<string, string> = {};
       if (brewEnabled) {
@@ -3097,7 +3110,7 @@ ${restartLine}
           if (rssiExportPresent) {
             lines.push(rssiExportEnabled ? `feature_rssi_export = ${rssiExportValue}` : `# feature_rssi_export = ${rssiExportValue}`);
           }
-          if (jitterPresent) lines.push(`jitter_initial_latency_frames = ${jitterVal}`);
+          if (jitterPresent) lines.push(`${jitterEnabled ? "" : "# "}jitter_initial_latency_frames = ${jitterVal}`);
           if (sdsFwdPresent) lines.push(sdsFwdEnabled ? `# feature_sds_enabled = true` : `feature_sds_enabled = false`);
         } else {
           // Uncomment header if needed
@@ -3124,7 +3137,7 @@ ${restartLine}
                 // bluestation: leave as-is
               } else if (k === 'jitter_initial_latency_frames' && jitterPresent) {
                 if (jitterFound) { lines.splice(i, 1); i--; continue; }
-                lines[i] = `jitter_initial_latency_frames = ${jitterVal}`;
+                lines[i] = `${jitterEnabled ? "" : "# "}jitter_initial_latency_frames = ${jitterVal}`;
                 jitterFound = true;
               } else if (k === 'feature_sds_enabled' && sdsFwdPresent) {
                 if (sdsFwdFound) { lines.splice(i, 1); i--; continue; }
@@ -3149,7 +3162,7 @@ ${restartLine}
                 rssiFound = true;
               } else if (k === 'jitter_initial_latency_frames' && jitterPresent) {
                 if (jitterFound) { lines.splice(i, 1); i--; continue; }
-                lines[i] = `${activeKV[1]}jitter_initial_latency_frames${activeKV[3]}${jitterVal}`;
+                lines[i] = `${activeKV[1]}${jitterEnabled ? "" : "# "}jitter_initial_latency_frames = ${jitterVal}`;
                 jitterFound = true;
               } else if (k === 'feature_sds_enabled' && sdsFwdPresent) {
                 if (sdsFwdFound) { lines.splice(i, 1); i--; continue; }
@@ -3177,7 +3190,7 @@ ${restartLine}
             insertAt++;
           }
           if (jitterPresent && !jitterFound) {
-            lines.splice(insertAt, 0, `jitter_initial_latency_frames = ${jitterVal}`);
+            lines.splice(insertAt, 0, `${jitterEnabled ? "" : "# "}jitter_initial_latency_frames = ${jitterVal}`);
             insertAt++;
           }
           if (sdsFwdPresent && !sdsFwdFound) {
