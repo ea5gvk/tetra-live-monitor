@@ -1504,6 +1504,11 @@ ${restartLine}
       let telemetryActive = false; // true if [telemetry] header is active
       let commandActive = false;   // true if [command] header is active
       let healthActive = false;    // true if [health] header is active
+      let dapnetActive = false;    // true if [dapnet] header is active
+      let tpg2200Active = false;   // true if [tpg2200_action] header is active
+      let snomNotifyActive = false;// true if [snom_notify] header is active
+      let geoalarmActive = false;  // true if [geoalarm] header is active
+      let asteriskActive = false;  // true if [asterisk] header is active
       let brewCommented = false; // true if [brew] header is commented out
       let brewActive = false;    // true if [brew] header is active
       let rssiExportActive = false; // true if feature_rssi_export appears as active under [brew]
@@ -1631,6 +1636,11 @@ ${restartLine}
           if (currentSection === 'telemetry') telemetryActive = true;
           if (currentSection === 'command') commandActive = true;
           if (currentSection === 'health') healthActive = true;
+          if (currentSection === 'dapnet') dapnetActive = true;
+          if (currentSection === 'tpg2200_action') tpg2200Active = true;
+          if (currentSection === 'snom_notify') snomNotifyActive = true;
+          if (currentSection === 'geoalarm') geoalarmActive = true;
+          if (currentSection === 'asterisk') asteriskActive = true;
           sections[currentSection] = sections[currentSection] || {};
           continue;
         }
@@ -1676,6 +1686,9 @@ ${restartLine}
       // Parse root-level service_name (active or commented, before any section header)
       let serviceNameValue: string | null = null;
       let serviceNameActive = false;
+      // Parse root-level stack_mode (active only) and debug_log (active only)
+      let stackModeValue: string | null = null;
+      let debugLogValue: string | null = null;
       {
         let inSection = false;
         for (const rawLine of lines) {
@@ -1688,6 +1701,10 @@ ${restartLine}
             if (activeM) { serviceNameValue = activeM[1]; serviceNameActive = true; continue; }
             const cmmtM = t.match(/^#\s*service_name\s*=\s*"([^"]*)"/);
             if (cmmtM && serviceNameValue === null) { serviceNameValue = cmmtM[1]; serviceNameActive = false; }
+            const stackM = t.match(/^stack_mode\s*=\s*"([^"]*)"/);
+            if (stackM) { stackModeValue = stackM[1]; continue; }
+            const dbgM = t.match(/^debug_log\s*=\s*"([^"]*)"/);
+            if (dbgM) { debugLogValue = dbgM[1]; continue; }
           }
         }
       }
@@ -1939,6 +1956,14 @@ ${restartLine}
         whitelistedSsis = nums;
       }
 
+      // Parse pbx_gateway_issis: [id, id, ...]
+      let pbxGatewayIssis: number[] = [];
+      const rawPbx = get('brew', 'pbx_gateway_issis');
+      if (rawPbx) {
+        const nums = rawPbx.replace(/[\[\]]/g, '').split(',').map((s: string) => parseInt(s.trim())).filter((n: number) => !isNaN(n));
+        pbxGatewayIssis = nums;
+      }
+
       // Parse security issi_whitelist: [id, id, ...]
       let securityIssiWhitelist: number[] = [];
       const rawSec = get('security', 'issi_whitelist');
@@ -1999,6 +2024,7 @@ ${restartLine}
           tls: bool('brew', 'tls'),
           reconnect_delay_secs: num('brew', 'reconnect_delay_secs'),
           whitelisted_ssis: whitelistedSsis,
+          pbx_gateway_issis: pbxGatewayIssis,
           feature_rssi_export: bool('brew', 'feature_rssi_export'),
           feature_rssi_export_enabled: rssiExportActive,
           jitter_initial_latency_frames: num('brew', 'jitter_initial_latency_frames'),
@@ -2067,6 +2093,8 @@ ${restartLine}
         service_name: {
           enabled: serviceNameActive,
           value: serviceNameValue,
+          stack_mode: stackModeValue,
+          debug_log: debugLogValue,
         },
         telemetry: {
           enabled: telemetryActive,
@@ -2086,6 +2114,114 @@ ${restartLine}
           username: str('command', 'username'),
           password: str('command', 'password'),
         },
+        dapnet: {
+          enabled: dapnetActive,
+          api_url: str('dapnet', 'api_url'),
+          username: str('dapnet', 'username'),
+          password: str('dapnet', 'password'),
+          poll_interval_secs: num('dapnet', 'poll_interval_secs'),
+          forward_sds: bool('dapnet', 'forward_sds'),
+          forward_callout: bool('dapnet', 'forward_callout'),
+          forward_telegram: bool('dapnet', 'forward_telegram'),
+          sds_source_issi: num('dapnet', 'sds_source_issi'),
+          sds_dest_issi: num('dapnet', 'sds_dest_issi'),
+          sds_dest_is_group: bool('dapnet', 'sds_dest_is_group'),
+          ric_issi_routes: get('dapnet', 'ric_issi_routes'),
+          ric_gssi_routes: get('dapnet', 'ric_gssi_routes'),
+          sds_allowed_rics: get('dapnet', 'sds_allowed_rics'),
+          callout_allowed_rics: get('dapnet', 'callout_allowed_rics'),
+          telegram_allowed_rics: get('dapnet', 'telegram_allowed_rics'),
+          callout_source_issi: num('dapnet', 'callout_source_issi'),
+          callout_dest_issi: num('dapnet', 'callout_dest_issi'),
+          callout_incident_base: num('dapnet', 'callout_incident_base'),
+          callout_text_prefix: str('dapnet', 'callout_text_prefix'),
+          telegram_prefix: str('dapnet', 'telegram_prefix'),
+          rwth_core_enabled: bool('dapnet', 'rwth_core_enabled'),
+          rwth_core_host: str('dapnet', 'rwth_core_host'),
+          rwth_core_port: num('dapnet', 'rwth_core_port'),
+          rwth_core_device: str('dapnet', 'rwth_core_device'),
+          rwth_core_version: str('dapnet', 'rwth_core_version'),
+          rwth_core_callsign: str('dapnet', 'rwth_core_callsign'),
+          rwth_core_authkey: str('dapnet', 'rwth_core_authkey'),
+          rwth_messages_limit: num('dapnet', 'rwth_messages_limit'),
+        },
+        tpg2200_action: {
+          enabled: tpg2200Active,
+          token: str('tpg2200_action', 'token'),
+          source_issi: num('tpg2200_action', 'source_issi'),
+          dest_issi: num('tpg2200_action', 'dest_issi'),
+          incident_base: num('tpg2200_action', 'incident_base'),
+          default_text: str('tpg2200_action', 'default_text'),
+          max_text_chars: num('tpg2200_action', 'max_text_chars'),
+        },
+        snom_notify: {
+          enabled: snomNotifyActive,
+          ami_host: str('snom_notify', 'ami_host'),
+          ami_port: num('snom_notify', 'ami_port'),
+          ami_username: str('snom_notify', 'ami_username'),
+          ami_password: str('snom_notify', 'ami_password'),
+          endpoints: get('snom_notify', 'endpoints'),
+          notify_sds: bool('snom_notify', 'notify_sds'),
+          notify_dapnet: bool('snom_notify', 'notify_dapnet'),
+          notify_telegram: bool('snom_notify', 'notify_telegram'),
+          sds_directions: get('snom_notify', 'sds_directions'),
+          dapnet_allowed_rics: get('snom_notify', 'dapnet_allowed_rics'),
+          sds_allowed_issis: get('snom_notify', 'sds_allowed_issis'),
+          title_prefix: str('snom_notify', 'title_prefix'),
+          notify_event: str('snom_notify', 'notify_event'),
+          content_type: str('snom_notify', 'content_type'),
+          subscription_state: str('snom_notify', 'subscription_state'),
+          max_text_chars: num('snom_notify', 'max_text_chars'),
+          connect_timeout_secs: num('snom_notify', 'connect_timeout_secs'),
+        },
+        geoalarm: {
+          enabled: geoalarmActive,
+          flowstation_lat: num('geoalarm', 'flowstation_lat'),
+          flowstation_lon: num('geoalarm', 'flowstation_lon'),
+          radius_m: num('geoalarm', 'radius_m'),
+          cooldown_secs: num('geoalarm', 'cooldown_secs'),
+          trigger_tetra: bool('geoalarm', 'trigger_tetra'),
+          trigger_meshcom: bool('geoalarm', 'trigger_meshcom'),
+          forward_tpg2200: bool('geoalarm', 'forward_tpg2200'),
+          forward_sds: bool('geoalarm', 'forward_sds'),
+          forward_sip: bool('geoalarm', 'forward_sip'),
+          forward_telegram: bool('geoalarm', 'forward_telegram'),
+          tetra_issi_whitelist: get('geoalarm', 'tetra_issi_whitelist'),
+          tetra_issi_blacklist: get('geoalarm', 'tetra_issi_blacklist'),
+          meshcom_source_whitelist: get('geoalarm', 'meshcom_source_whitelist'),
+          meshcom_source_blacklist: get('geoalarm', 'meshcom_source_blacklist'),
+          sds_source_issi: num('geoalarm', 'sds_source_issi'),
+          sds_dest_issi: num('geoalarm', 'sds_dest_issi'),
+          sds_dest_is_group: bool('geoalarm', 'sds_dest_is_group'),
+          tpg2200_source_issi: num('geoalarm', 'tpg2200_source_issi'),
+          tpg2200_dest_issi: num('geoalarm', 'tpg2200_dest_issi'),
+          tpg2200_incident_base: num('geoalarm', 'tpg2200_incident_base'),
+          tpg2200_text_prefix: str('geoalarm', 'tpg2200_text_prefix'),
+          tpg2200_max_text_chars: num('geoalarm', 'tpg2200_max_text_chars'),
+          sip_title_prefix: str('geoalarm', 'sip_title_prefix'),
+          telegram_prefix: str('geoalarm', 'telegram_prefix'),
+        },
+        asterisk: {
+          enabled: asteriskActive,
+          outbound_prefix: str('asterisk', 'outbound_prefix'),
+          strip_outbound_prefix: bool('asterisk', 'strip_outbound_prefix'),
+          inbound_prefix: str('asterisk', 'inbound_prefix'),
+          register: bool('asterisk', 'register'),
+          codec: str('asterisk', 'codec'),
+          service_numbers: get('asterisk', 'service_numbers'),
+          rtp_port_min: num('asterisk', 'rtp_port_min'),
+          rtp_port_max: num('asterisk', 'rtp_port_max'),
+          bind_addr: str('asterisk', 'bind_addr'),
+          bind_port: num('asterisk', 'bind_port'),
+          remote_host: str('asterisk', 'remote_host'),
+          remote_port: num('asterisk', 'remote_port'),
+          contact_host: str('asterisk', 'contact_host'),
+          from_domain: str('asterisk', 'from_domain'),
+          local_user: str('asterisk', 'local_user'),
+          auth_user: str('asterisk', 'auth_user'),
+          password: str('asterisk', 'password'),
+          realm: str('asterisk', 'realm'),
+        },
       });
     } catch (err: any) {
       res.status(500).json({ message: `Error leyendo config: ${err.message}` });
@@ -2093,7 +2229,7 @@ ${restartLine}
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig, telemetryConfig, commandConfig, recoveryConfig, healthConfig, emergencyConfig, telegramAlertsConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig, telemetryConfig, commandConfig, recoveryConfig, healthConfig, emergencyConfig, telegramAlertsConfig, dapnetConfig, tpg2200Config, snomNotifyConfig, geoalarmConfig, asteriskConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -2211,6 +2347,9 @@ ${restartLine}
         brewUpdates["reconnect_delay_secs"] = String(brewConfig.reconnect_delay_secs || 15);
         if (whitelistEnabled && Array.isArray(brewConfig.whitelisted_ssis) && brewConfig.whitelisted_ssis.length > 0) {
           brewUpdates["whitelisted_ssis"] = `[${brewConfig.whitelisted_ssis.join(", ")}]`;
+        }
+        if (Array.isArray(brewConfig.pbx_gateway_issis) && brewConfig.pbx_gateway_issis.length > 0) {
+          brewUpdates["pbx_gateway_issis"] = `[${brewConfig.pbx_gateway_issis.join(", ")}]`;
         }
       }
 
@@ -3172,6 +3311,43 @@ ${restartLine}
           // Insert the key followed by a blank separator
           lines.splice(firstSectionIdx, 0, finalLine, "");
         }
+
+        // stack_mode: root-level enum, always written (default Bs)
+        const smRaw = typeof serviceNameConfig.stack_mode === "string" ? serviceNameConfig.stack_mode : "Bs";
+        const smVal = (smRaw === "Ms" || smRaw === "Mon") ? smRaw : "Bs";
+        const smLine = `stack_mode = "${smVal}"`;
+        let smFound = false;
+        for (let i = 0; i < lines.length; i++) {
+          const t = lines[i].trim();
+          if (/^\[([a-zA-Z_][\w.]*)\]\s*$/.test(t) || /^#\s*\[/.test(t)) break;
+          if (/^\s*#?\s*stack_mode\s*=/.test(lines[i])) { lines[i] = smLine; smFound = true; break; }
+        }
+        if (!smFound) {
+          let firstSectionIdx = lines.length;
+          for (let i = 0; i < lines.length; i++) {
+            const t = lines[i].trim();
+            if (/^\[([a-zA-Z_][\w.]*)\]\s*$/.test(t) || /^#\s*\[/.test(t)) { firstSectionIdx = i; break; }
+          }
+          lines.splice(firstSectionIdx, 0, smLine);
+        }
+
+        // debug_log: root-level optional path; write when enabled & non-empty, else remove
+        const dbgEnabled = serviceNameConfig.debug_log_enabled === true;
+        const dbgVal = (typeof serviceNameConfig.debug_log === "string" ? serviceNameConfig.debug_log.trim() : "").replace(/"/g, "");
+        for (let i = 0; i < lines.length; i++) {
+          const t = lines[i].trim();
+          if (/^\[([a-zA-Z_][\w.]*)\]\s*$/.test(t) || /^#\s*\[/.test(t)) break;
+          if (/^\s*#?\s*debug_log\s*=/.test(lines[i])) { lines.splice(i, 1); i--; }
+        }
+        if (dbgEnabled && dbgVal) {
+          const dbgLine = `debug_log = "${dbgVal}"`;
+          let firstSectionIdx = lines.length;
+          for (let i = 0; i < lines.length; i++) {
+            const t = lines[i].trim();
+            if (/^\[([a-zA-Z_][\w.]*)\]\s*$/.test(t) || /^#\s*\[/.test(t)) { firstSectionIdx = i; break; }
+          }
+          lines.splice(firstSectionIdx, 0, dbgLine);
+        }
       }
 
       // ── DASHBOARD SECTION: comment/uncomment block (header + port) ──
@@ -3412,6 +3588,243 @@ ${restartLine}
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { hEnd = j; break; }
           }
           lines.splice(hStart, hEnd - hStart, ...block);
+        }
+      }
+
+      // ── DAPNET [dapnet] (Flowstation only) ──
+      if (dapnetConfig && typeof dapnetConfig === "object") {
+        const clampI = (v: any, min: number, max: number, def: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : def; };
+        const qstr = (v: any) => (typeof v === "string" ? v : "").replace(/"/g, "");
+        const strArr = (v: any) => { const a = (typeof v === "string" && v.trim()) ? v.split(",").map((s: string) => s.trim()).filter(Boolean) : []; return `[${a.map((s: string) => `"${s.replace(/"/g, "")}"`).join(", ")}]`; };
+        const en = dapnetConfig.enabled === true;
+        const p = en ? "" : "# ";
+        const ricIssi = typeof dapnetConfig.ric_issi_routes === "string" ? dapnetConfig.ric_issi_routes.trim() : "";
+        const ricGssi = typeof dapnetConfig.ric_gssi_routes === "string" ? dapnetConfig.ric_gssi_routes.trim() : "";
+        const callsign = qstr(typeof dapnetConfig.rwth_core_callsign === "string" ? dapnetConfig.rwth_core_callsign.trim() : "");
+        const authkey = qstr(dapnetConfig.rwth_core_authkey);
+        const block: string[] = [
+          `${p}[dapnet]`,
+          `${p}enabled = ${en ? "true" : "false"}`,
+          `${p}api_url = "${qstr(typeof dapnetConfig.api_url === "string" ? dapnetConfig.api_url.trim() : "")}"`,
+          `${p}username = "${qstr(typeof dapnetConfig.username === "string" ? dapnetConfig.username.trim() : "")}"`,
+          `${p}password = "${qstr(dapnetConfig.password)}"`,
+          `${p}poll_interval_secs = ${clampI(dapnetConfig.poll_interval_secs, 1, 3600, 30)}`,
+          `${p}forward_sds = ${dapnetConfig.forward_sds === true ? "true" : "false"}`,
+          `${p}forward_callout = ${dapnetConfig.forward_callout === true ? "true" : "false"}`,
+          `${p}forward_telegram = ${dapnetConfig.forward_telegram === true ? "true" : "false"}`,
+          `${p}sds_source_issi = ${clampI(dapnetConfig.sds_source_issi, 0, 16777215, 9999)}`,
+          `${p}sds_dest_issi = ${clampI(dapnetConfig.sds_dest_issi, 0, 16777215, 0)}`,
+          `${p}sds_dest_is_group = ${dapnetConfig.sds_dest_is_group === true ? "true" : "false"}`,
+          ...(ricIssi ? [`${p}ric_issi_routes = { ${ricIssi} }`] : []),
+          ...(ricGssi ? [`${p}ric_gssi_routes = { ${ricGssi} }`] : []),
+          `${p}sds_allowed_rics = ${strArr(dapnetConfig.sds_allowed_rics)}`,
+          `${p}callout_allowed_rics = ${strArr(dapnetConfig.callout_allowed_rics)}`,
+          `${p}telegram_allowed_rics = ${strArr(dapnetConfig.telegram_allowed_rics)}`,
+          `${p}callout_source_issi = ${clampI(dapnetConfig.callout_source_issi, 0, 16777215, 9999)}`,
+          `${p}callout_dest_issi = ${clampI(dapnetConfig.callout_dest_issi, 0, 16777215, 0)}`,
+          `${p}callout_incident_base = ${clampI(dapnetConfig.callout_incident_base, 1, 256, 2)}`,
+          `${p}callout_text_prefix = "${qstr(dapnetConfig.callout_text_prefix)}"`,
+          `${p}telegram_prefix = "${qstr(dapnetConfig.telegram_prefix)}"`,
+          `${p}rwth_core_enabled = ${dapnetConfig.rwth_core_enabled === true ? "true" : "false"}`,
+          `${p}rwth_core_host = "${qstr(typeof dapnetConfig.rwth_core_host === "string" ? dapnetConfig.rwth_core_host.trim() : "")}"`,
+          `${p}rwth_core_port = ${clampI(dapnetConfig.rwth_core_port, 1, 65535, 43434)}`,
+          `${p}rwth_core_device = "${qstr(typeof dapnetConfig.rwth_core_device === "string" ? dapnetConfig.rwth_core_device.trim() : "")}"`,
+          `${p}rwth_core_version = "${qstr(typeof dapnetConfig.rwth_core_version === "string" ? dapnetConfig.rwth_core_version.trim() : "")}"`,
+          ...(callsign ? [`${p}rwth_core_callsign = "${callsign}"`] : []),
+          ...(authkey ? [`${p}rwth_core_authkey = "${authkey}"`] : []),
+          `${p}rwth_messages_limit = ${clampI(dapnetConfig.rwth_messages_limit, 1, 10000, 100)}`,
+        ];
+        let dStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[dapnet\]/) || lines[i].match(/^\s*#\s*\[dapnet\]/)) { dStart = i; break; }
+        }
+        if (dStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          let dEnd = lines.length;
+          for (let j = dStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { dEnd = j; break; }
+          }
+          lines.splice(dStart, dEnd - dStart, ...block);
+        }
+      }
+
+      // ── TPG2200 Action [tpg2200_action] (Flowstation only) ──
+      if (tpg2200Config && typeof tpg2200Config === "object") {
+        const clampI = (v: any, min: number, max: number, def: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : def; };
+        const qstr = (v: any) => (typeof v === "string" ? v : "").replace(/"/g, "");
+        const en = tpg2200Config.enabled === true;
+        const p = en ? "" : "# ";
+        const token = qstr(typeof tpg2200Config.token === "string" ? tpg2200Config.token.trim() : "");
+        const block: string[] = [
+          `${p}[tpg2200_action]`,
+          `${p}enabled = ${en ? "true" : "false"}`,
+          ...(token ? [`${p}token = "${token}"`] : []),
+          `${p}source_issi = ${clampI(tpg2200Config.source_issi, 0, 16777215, 9999)}`,
+          `${p}dest_issi = ${clampI(tpg2200Config.dest_issi, 0, 16777215, 0)}`,
+          `${p}incident_base = ${clampI(tpg2200Config.incident_base, 1, 256, 1)}`,
+          `${p}default_text = "${qstr(tpg2200Config.default_text)}"`,
+          `${p}max_text_chars = ${clampI(tpg2200Config.max_text_chars, 1, 240, 80)}`,
+        ];
+        let tStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[tpg2200_action\]/) || lines[i].match(/^\s*#\s*\[tpg2200_action\]/)) { tStart = i; break; }
+        }
+        if (tStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          let tEnd = lines.length;
+          for (let j = tStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { tEnd = j; break; }
+          }
+          lines.splice(tStart, tEnd - tStart, ...block);
+        }
+      }
+
+      // ── Snom Notifications [snom_notify] (Flowstation only) ──
+      if (snomNotifyConfig && typeof snomNotifyConfig === "object") {
+        const clampI = (v: any, min: number, max: number, def: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : def; };
+        const qstr = (v: any) => (typeof v === "string" ? v : "").replace(/"/g, "");
+        const strArr = (v: any) => { const a = (typeof v === "string" && v.trim()) ? v.split(",").map((s: string) => s.trim()).filter(Boolean) : []; return `[${a.map((s: string) => `"${s.replace(/"/g, "")}"`).join(", ")}]`; };
+        const intArr = (v: any) => { const a = (typeof v === "string" && v.trim()) ? v.split(",").map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n)) : []; return `[${a.join(", ")}]`; };
+        const en = snomNotifyConfig.enabled === true;
+        const p = en ? "" : "# ";
+        const amiPass = qstr(snomNotifyConfig.ami_password);
+        const block: string[] = [
+          `${p}[snom_notify]`,
+          `${p}enabled = ${en ? "true" : "false"}`,
+          `${p}ami_host = "${qstr(typeof snomNotifyConfig.ami_host === "string" ? snomNotifyConfig.ami_host.trim() : "")}"`,
+          `${p}ami_port = ${clampI(snomNotifyConfig.ami_port, 1, 65535, 5038)}`,
+          `${p}ami_username = "${qstr(typeof snomNotifyConfig.ami_username === "string" ? snomNotifyConfig.ami_username.trim() : "")}"`,
+          ...(amiPass ? [`${p}ami_password = "${amiPass}"`] : []),
+          `${p}endpoints = ${strArr(snomNotifyConfig.endpoints)}`,
+          `${p}notify_sds = ${snomNotifyConfig.notify_sds === true ? "true" : "false"}`,
+          `${p}notify_dapnet = ${snomNotifyConfig.notify_dapnet === true ? "true" : "false"}`,
+          `${p}notify_telegram = ${snomNotifyConfig.notify_telegram === true ? "true" : "false"}`,
+          `${p}sds_directions = ${strArr(snomNotifyConfig.sds_directions)}`,
+          `${p}dapnet_allowed_rics = ${strArr(snomNotifyConfig.dapnet_allowed_rics)}`,
+          `${p}sds_allowed_issis = ${intArr(snomNotifyConfig.sds_allowed_issis)}`,
+          `${p}title_prefix = "${qstr(snomNotifyConfig.title_prefix)}"`,
+          `${p}notify_event = "${qstr(snomNotifyConfig.notify_event)}"`,
+          `${p}content_type = "${qstr(snomNotifyConfig.content_type)}"`,
+          `${p}subscription_state = "${qstr(snomNotifyConfig.subscription_state)}"`,
+          `${p}max_text_chars = ${clampI(snomNotifyConfig.max_text_chars, 1, 1000, 240)}`,
+          `${p}connect_timeout_secs = ${clampI(snomNotifyConfig.connect_timeout_secs, 1, 60, 3)}`,
+        ];
+        let sStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[snom_notify\]/) || lines[i].match(/^\s*#\s*\[snom_notify\]/)) { sStart = i; break; }
+        }
+        if (sStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          let sEnd = lines.length;
+          for (let j = sStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { sEnd = j; break; }
+          }
+          lines.splice(sStart, sEnd - sStart, ...block);
+        }
+      }
+
+      // ── GeoAlarm [geoalarm] (Flowstation only) ──
+      if (geoalarmConfig && typeof geoalarmConfig === "object") {
+        const clampI = (v: any, min: number, max: number, def: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : def; };
+        const qstr = (v: any) => (typeof v === "string" ? v : "").replace(/"/g, "");
+        const strArr = (v: any) => { const a = (typeof v === "string" && v.trim()) ? v.split(",").map((s: string) => s.trim()).filter(Boolean) : []; return `[${a.map((s: string) => `"${s.replace(/"/g, "")}"`).join(", ")}]`; };
+        const intArr = (v: any) => { const a = (typeof v === "string" && v.trim()) ? v.split(",").map((s: string) => parseInt(s.trim(), 10)).filter((n: number) => !isNaN(n)) : []; return `[${a.join(", ")}]`; };
+        const fnum = (v: any, def: number) => { const n = Number(v); return Number.isFinite(n) ? n : def; };
+        const en = geoalarmConfig.enabled === true;
+        const p = en ? "" : "# ";
+        const block: string[] = [
+          `${p}[geoalarm]`,
+          `${p}enabled = ${en ? "true" : "false"}`,
+          `${p}flowstation_lat = ${fnum(geoalarmConfig.flowstation_lat, 0.0)}`,
+          `${p}flowstation_lon = ${fnum(geoalarmConfig.flowstation_lon, 0.0)}`,
+          `${p}radius_m = ${fnum(geoalarmConfig.radius_m, 500.0)}`,
+          `${p}cooldown_secs = ${clampI(geoalarmConfig.cooldown_secs, 1, 86400, 300)}`,
+          `${p}trigger_tetra = ${geoalarmConfig.trigger_tetra === true ? "true" : "false"}`,
+          `${p}trigger_meshcom = ${geoalarmConfig.trigger_meshcom === true ? "true" : "false"}`,
+          `${p}forward_tpg2200 = ${geoalarmConfig.forward_tpg2200 === true ? "true" : "false"}`,
+          `${p}forward_sds = ${geoalarmConfig.forward_sds === true ? "true" : "false"}`,
+          `${p}forward_sip = ${geoalarmConfig.forward_sip === true ? "true" : "false"}`,
+          `${p}forward_telegram = ${geoalarmConfig.forward_telegram === true ? "true" : "false"}`,
+          `${p}tetra_issi_whitelist = ${intArr(geoalarmConfig.tetra_issi_whitelist)}`,
+          `${p}tetra_issi_blacklist = ${intArr(geoalarmConfig.tetra_issi_blacklist)}`,
+          `${p}meshcom_source_whitelist = ${strArr(geoalarmConfig.meshcom_source_whitelist)}`,
+          `${p}meshcom_source_blacklist = ${strArr(geoalarmConfig.meshcom_source_blacklist)}`,
+          `${p}sds_source_issi = ${clampI(geoalarmConfig.sds_source_issi, 0, 16777215, 9999)}`,
+          `${p}sds_dest_issi = ${clampI(geoalarmConfig.sds_dest_issi, 0, 16777215, 0)}`,
+          `${p}sds_dest_is_group = ${geoalarmConfig.sds_dest_is_group === true ? "true" : "false"}`,
+          `${p}tpg2200_source_issi = ${clampI(geoalarmConfig.tpg2200_source_issi, 0, 16777215, 9999)}`,
+          `${p}tpg2200_dest_issi = ${clampI(geoalarmConfig.tpg2200_dest_issi, 0, 16777215, 0)}`,
+          `${p}tpg2200_incident_base = ${clampI(geoalarmConfig.tpg2200_incident_base, 1, 256, 1)}`,
+          `${p}tpg2200_text_prefix = "${qstr(geoalarmConfig.tpg2200_text_prefix)}"`,
+          `${p}tpg2200_max_text_chars = ${clampI(geoalarmConfig.tpg2200_max_text_chars, 1, 240, 80)}`,
+          `${p}sip_title_prefix = "${qstr(geoalarmConfig.sip_title_prefix)}"`,
+          `${p}telegram_prefix = "${qstr(geoalarmConfig.telegram_prefix)}"`,
+        ];
+        let gStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[geoalarm\]/) || lines[i].match(/^\s*#\s*\[geoalarm\]/)) { gStart = i; break; }
+        }
+        if (gStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          let gEnd = lines.length;
+          for (let j = gStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { gEnd = j; break; }
+          }
+          lines.splice(gStart, gEnd - gStart, ...block);
+        }
+      }
+
+      // ── Asterisk Bridge [asterisk] (Flowstation only) ──
+      if (asteriskConfig && typeof asteriskConfig === "object") {
+        const clampI = (v: any, min: number, max: number, def: number) => { const n = Number(v); return Number.isFinite(n) ? Math.min(max, Math.max(min, Math.round(n))) : def; };
+        const qstr = (v: any) => (typeof v === "string" ? v : "").replace(/"/g, "");
+        const strArr = (v: any) => { const a = (typeof v === "string" && v.trim()) ? v.split(",").map((s: string) => s.trim()).filter(Boolean) : []; return `[${a.map((s: string) => `"${s.replace(/"/g, "")}"`).join(", ")}]`; };
+        const en = asteriskConfig.enabled === true;
+        const p = en ? "" : "# ";
+        const astPass = qstr(asteriskConfig.password);
+        const block: string[] = [
+          `${p}[asterisk]`,
+          `${p}enabled = ${en ? "true" : "false"}`,
+          `${p}outbound_prefix = "${qstr(asteriskConfig.outbound_prefix)}"`,
+          `${p}strip_outbound_prefix = ${asteriskConfig.strip_outbound_prefix === true ? "true" : "false"}`,
+          `${p}inbound_prefix = "${qstr(asteriskConfig.inbound_prefix)}"`,
+          `${p}register = ${asteriskConfig.register === true ? "true" : "false"}`,
+          `${p}codec = "${qstr(asteriskConfig.codec)}"`,
+          `${p}service_numbers = ${strArr(asteriskConfig.service_numbers)}`,
+          `${p}rtp_port_min = ${clampI(asteriskConfig.rtp_port_min, 1, 65535, 30000)}`,
+          `${p}rtp_port_max = ${clampI(asteriskConfig.rtp_port_max, 1, 65535, 30100)}`,
+          `${p}bind_addr = "${qstr(typeof asteriskConfig.bind_addr === "string" ? asteriskConfig.bind_addr.trim() : "")}"`,
+          `${p}bind_port = ${clampI(asteriskConfig.bind_port, 1, 65535, 5062)}`,
+          `${p}remote_host = "${qstr(typeof asteriskConfig.remote_host === "string" ? asteriskConfig.remote_host.trim() : "")}"`,
+          `${p}remote_port = ${clampI(asteriskConfig.remote_port, 1, 65535, 5060)}`,
+          `${p}contact_host = "${qstr(typeof asteriskConfig.contact_host === "string" ? asteriskConfig.contact_host.trim() : "")}"`,
+          `${p}from_domain = "${qstr(typeof asteriskConfig.from_domain === "string" ? asteriskConfig.from_domain.trim() : "")}"`,
+          `${p}local_user = "${qstr(typeof asteriskConfig.local_user === "string" ? asteriskConfig.local_user.trim() : "")}"`,
+          `${p}auth_user = "${qstr(typeof asteriskConfig.auth_user === "string" ? asteriskConfig.auth_user.trim() : "")}"`,
+          ...(astPass ? [`${p}password = "${astPass}"`] : []),
+          `${p}realm = "${qstr(typeof asteriskConfig.realm === "string" ? asteriskConfig.realm.trim() : "")}"`,
+        ];
+        let aStart = -1;
+        for (let i = 0; i < lines.length; i++) {
+          if (lines[i].match(/^\s*\[asterisk\]/) || lines[i].match(/^\s*#\s*\[asterisk\]/)) { aStart = i; break; }
+        }
+        if (aStart === -1) {
+          if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
+          lines.push(...block);
+        } else {
+          let aEnd = lines.length;
+          for (let j = aStart + 1; j < lines.length; j++) {
+            if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { aEnd = j; break; }
+          }
+          lines.splice(aStart, aEnd - aStart, ...block);
         }
       }
 
