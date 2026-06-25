@@ -1513,6 +1513,8 @@ ${restartLine}
       let brewActive = false;    // true if [brew] header is active
       let rssiExportActive = false; // true if feature_rssi_export appears as active under [brew]
       let jitterActive = false; // true if jitter_initial_latency_frames appears as active under [brew]
+      let sdsFwdActive = false; // true if feature_sds_enabled appears as active under [brew]
+      let sdsFwdCommented = false; // true if a commented # feature_sds_enabled is present under active [brew]
       let securityActive = false; // true if [security] header is active
       let dashboardActive = false; // true if [dashboard] header is active
       let ctActive = false;      // true if any CT key appears as active (not commented) under [cell_info]
@@ -1583,6 +1585,15 @@ ${restartLine}
             if (jcM && !sections['brew']?.['jitter_initial_latency_frames']) {
               sections['brew'] = sections['brew'] || {};
               sections['brew']['jitter_initial_latency_frames'] = jcM[1];
+            }
+            // Parse commented # feature_sds_enabled = <bool> (value/presence loads even when disabled)
+            const scM = line.match(/^#\s*feature_sds_enabled\s*=\s*(true|false)/i);
+            if (scM) {
+              sdsFwdCommented = true;
+              if (!sections['brew']?.['feature_sds_enabled']) {
+                sections['brew'] = sections['brew'] || {};
+                sections['brew']['feature_sds_enabled'] = scM[1].toLowerCase();
+              }
             }
           }
           if (inCommentedSecurity) {
@@ -1690,6 +1701,10 @@ ${restartLine}
           // Track active jitter_initial_latency_frames under [brew]
           if (currentSection === 'brew' && kk === 'jitter_initial_latency_frames') {
             jitterActive = true;
+          }
+          // Track active feature_sds_enabled under [brew]
+          if (currentSection === 'brew' && kk === 'feature_sds_enabled') {
+            sdsFwdActive = true;
           }
         }
       }
@@ -2041,6 +2056,8 @@ ${restartLine}
           jitter_initial_latency_frames: num('brew', 'jitter_initial_latency_frames'),
           jitter_initial_latency_frames_enabled: jitterActive,
           feature_sds_enabled: bool('brew', 'feature_sds_enabled'),
+          feature_sds_enabled_active: sdsFwdActive,
+          feature_sds_enabled_present: sdsFwdActive || sdsFwdCommented,
         },
         security: {
           enabled: securityActive,
@@ -3111,7 +3128,7 @@ ${restartLine}
             lines.push(rssiExportEnabled ? `feature_rssi_export = ${rssiExportValue}` : `# feature_rssi_export = ${rssiExportValue}`);
           }
           if (jitterPresent) lines.push(`${jitterEnabled ? "" : "# "}jitter_initial_latency_frames = ${jitterVal}`);
-          if (sdsFwdPresent) lines.push(sdsFwdEnabled ? `# feature_sds_enabled = true` : `feature_sds_enabled = false`);
+          if (sdsFwdPresent) lines.push(`${sdsFwdEnabled ? "" : "# "}feature_sds_enabled = true`);
         } else {
           // Uncomment header if needed
           if (!brewIsActive) lines[brewHeaderIdx] = "[brew]";
@@ -3141,7 +3158,7 @@ ${restartLine}
                 jitterFound = true;
               } else if (k === 'feature_sds_enabled' && sdsFwdPresent) {
                 if (sdsFwdFound) { lines.splice(i, 1); i--; continue; }
-                lines[i] = sdsFwdEnabled ? `# feature_sds_enabled = true` : `feature_sds_enabled = false`;
+                lines[i] = `${sdsFwdEnabled ? "" : "# "}feature_sds_enabled = true`;
                 sdsFwdFound = true;
               } else if (brewUpdates[k] !== undefined) {
                 lines[i] = `${k} = ${brewUpdates[k]}`;
@@ -3166,9 +3183,7 @@ ${restartLine}
                 jitterFound = true;
               } else if (k === 'feature_sds_enabled' && sdsFwdPresent) {
                 if (sdsFwdFound) { lines.splice(i, 1); i--; continue; }
-                lines[i] = sdsFwdEnabled
-                  ? `${activeKV[1]}# feature_sds_enabled = true`
-                  : `${activeKV[1]}feature_sds_enabled = false`;
+                lines[i] = `${activeKV[1]}${sdsFwdEnabled ? "" : "# "}feature_sds_enabled = true`;
                 sdsFwdFound = true;
               } else if (brewUpdates[k] !== undefined) {
                 lines[i] = `${activeKV[1]}${k}${activeKV[3]}${brewUpdates[k]}`;
@@ -3194,7 +3209,7 @@ ${restartLine}
             insertAt++;
           }
           if (sdsFwdPresent && !sdsFwdFound) {
-            lines.splice(insertAt, 0, sdsFwdEnabled ? `# feature_sds_enabled = true` : `feature_sds_enabled = false`);
+            lines.splice(insertAt, 0, `${sdsFwdEnabled ? "" : "# "}feature_sds_enabled = true`);
           }
         }
       } else {
