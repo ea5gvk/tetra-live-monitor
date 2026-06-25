@@ -1483,6 +1483,14 @@ export default function Dashboard() {
 
         <BtsDetails />
 
+        <TerminalTable
+          terminals={terminalList}
+          title={t("local_terminals")}
+          icon="local"
+          isLocal={true}
+          issiCallsign={issiCallsign}
+        />
+
         {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} />}
 
         {(lastHeard.length > 0 || txQuality) && (
@@ -1491,14 +1499,6 @@ export default function Dashboard() {
             <TxQualityPanel q={txQuality} />
           </div>
         )}
-
-        <TerminalTable
-          terminals={terminalList}
-          title={t("local_terminals")}
-          icon="local"
-          isLocal={true}
-          issiCallsign={issiCallsign}
-        />
 
         <TerminalTable
           terminals={terminalList}
