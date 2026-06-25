@@ -3976,7 +3976,49 @@ ${restartLine}
         }
       }
 
-      content = lines.join("\n");
+      // Reorder top-level sections to match flowstation's example_config canonical order.
+      // Subsections (with dots, e.g. [phy_io.soapysdr], [[cell_info.*]]) stay inside
+      // their parent block. Unknown sections keep their position relative to the
+      // preceding known section. Bails out (returns input) if the line multiset
+      // would change, so it can only ever reorder — never add/drop content.
+      const reorderTomlCanonical = (text: string): string => {
+        const CANON = ['phy_io','net_info','cell_info','security','recovery','health','wx_service','telegram_alerts','emergency','dashboard','telemetry','command','brew','dapnet','tpg2200_action','snom_notify','geoalarm','asterisk'];
+        const rank = new Map<string, number>();
+        CANON.forEach((n, i) => rank.set(n, i));
+        const topName = (line: string): string | null => {
+          // Match bracket-only top-level headers: [x], # [x], [[x]], # [[x]], with an
+          // optional trailing inline comment. Enforces matched bracket pairs and
+          // rejects dotted subsection names (those stay inside their parent block).
+          const m = line.match(/^\s*#?\s*(?:\[([A-Za-z_][A-Za-z0-9_]*)\]|\[\[([A-Za-z_][A-Za-z0-9_]*)\]\])\s*(?:#.*)?$/);
+          return m ? (m[1] || m[2]) : null;
+        };
+        const preamble: string[] = [];
+        const blocks: { name: string | null; lines: string[] }[] = [];
+        let cur: { name: string | null; lines: string[] } | null = null;
+        for (const line of text.split("\n")) {
+          const name = topName(line);
+          if (name !== null) { cur = { name, lines: [line] }; blocks.push(cur); }
+          else if (cur) { cur.lines.push(line); }
+          else { preamble.push(line); }
+        }
+        let lastRank = -1;
+        const keyed = blocks.map((b, idx) => {
+          let key: number;
+          if (b.name && rank.has(b.name)) { key = rank.get(b.name)!; lastRank = key; }
+          else { key = lastRank + 0.5; }
+          return { b, key, idx };
+        });
+        keyed.sort((a, z) => (a.key - z.key) || (a.idx - z.idx));
+        const out = [...preamble];
+        for (const k of keyed) out.push(...k.b.lines);
+        const result = out.join("\n");
+        const norm = (s: string) => s.split("\n").map((l) => l.trim()).filter((l) => l.length > 0).sort();
+        const a = norm(text), b = norm(result);
+        if (a.length !== b.length || a.some((v, i) => v !== b[i])) return text;
+        return result;
+      };
+
+      content = reorderTomlCanonical(lines.join("\n"));
 
       fs.writeFileSync(configPath, content, "utf-8");
 
