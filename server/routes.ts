@@ -2372,7 +2372,7 @@ ${restartLine}
       const jitterVal = jitterPresent ? Math.max(0, Math.round(Number(brewConfig.sdsFwd.jitter) || 0)) : 0;
 
       // Dual carrier + DGNA fields (Flowstation v0.3.8)
-      const dualCarrierConfig = (body as any).dualCarrierConfig || null;
+      const dualCarrierConfig = (req.body as any).dualCarrierConfig || null;
       const dcPresent = !!dualCarrierConfig;
       const dcSecondaryEnabled = dualCarrierConfig?.secondaryCarrier?.enabled === true;
       const dcSecondaryVal = Math.max(0, Math.min(4095, Number(dualCarrierConfig?.secondaryCarrier?.value) || 0));
