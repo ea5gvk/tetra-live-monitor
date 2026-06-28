@@ -2005,6 +2005,7 @@ ${restartLine}
           rx_freq: num('phy_io.soapysdr', 'rx_freq'),
           tx_center_freq: num('phy_io.soapysdr', 'tx_center_freq'),
           rx_center_freq: num('phy_io.soapysdr', 'rx_center_freq'),
+          sample_rate: num('phy_io.soapysdr', 'sample_rate'),
         },
         cell_info: {
           freq_band: num('cell_info', 'freq_band'),
@@ -2381,6 +2382,7 @@ ${restartLine}
       const dcTxCenter = Number(dualCarrierConfig?.centerFreq?.tx) || 0;
       const dcRxCenter = Number(dualCarrierConfig?.centerFreq?.rx) || 0;
       const dcDgnaEnabled = !dualCarrierConfig || dualCarrierConfig.dgna?.ss_facility !== false; // absent = true
+      const dcSampleRate = dcPresent ? (Math.max(0, Math.round(Number(dualCarrierConfig?.sampleRate) || 0))) : 0;
 
       const brewUpdates: Record<string, string> = {};
       if (brewEnabled) {
@@ -2409,6 +2411,7 @@ ${restartLine}
       let dgnaFound = false;
       let txCenterFound = false;
       let rxCenterFound = false;
+      let srFound = false;
 
       for (let i = 0; i < lines.length; i++) {
         // Match ONLY real section headers: [identifier] alone on its line.
@@ -2423,6 +2426,11 @@ ${restartLine}
         // [[sub-table]] headers — skip without changing currentSection
         if (/^\s*\[\[[\w.]+\]\]\s*$/.test(lines[i])) continue;
 
+        // phy_io.soapysdr: sample_rate (required for dual carrier, Flowstation v0.3.8)
+        if (dcPresent && dcSampleRate > 0 && (currentSection === "phy_io.soapysdr" || currentSection === "phy_io_soapy")) {
+          const srM = lines[i].match(/^(\s*)sample_rate\s*=\s*(.*)/);
+          if (srM) { lines[i] = `${srM[1]}sample_rate = ${dcSampleRate}`; srFound = true; continue; }
+        }
         // phy_io.soapysdr: tx_center_freq / rx_center_freq (dual-carrier, Flowstation v0.3.8)
         if (dcPresent && (currentSection === "phy_io.soapysdr" || currentSection === "phy_io_soapy")) {
           const commentedTxCf = lines[i].match(/^(\s*)#\s*tx_center_freq\s*=\s*(.*)/);
@@ -2741,14 +2749,15 @@ ${restartLine}
           const ins = cellInfoInsertAt();
           if (ins >= 0) lines.splice(ins, 0, `dgna_use_ss_facility = false`);
         }
-        // Center freq: insert under [phy_io.soapysdr]
-        if (!txCenterFound || !rxCenterFound) {
+        // Center freq + sample_rate: insert under [phy_io.soapysdr]
+        if (!txCenterFound || !rxCenterFound || (!srFound && dcSampleRate > 0)) {
           const phyPattern = /^\s*\[(phy_io\.soapysdr|phy_io_soapy)\]\s*$/;
           for (let i = 0; i < lines.length; i++) {
             if (phyPattern.test(lines[i])) {
               let ins = i + 1;
               while (ins < lines.length && !lines[ins].match(/^\s*\[/) && lines[ins].trim() !== "") ins++;
               const newLines: string[] = [];
+              if (!srFound && dcSampleRate > 0) newLines.push(`sample_rate = ${dcSampleRate}`);
               if (!txCenterFound) newLines.push(dcCenterEnabled ? `tx_center_freq = ${dcTxCenter}` : `# tx_center_freq = ${dcTxCenter}`);
               if (!rxCenterFound) newLines.push(dcCenterEnabled ? `rx_center_freq = ${dcRxCenter}` : `# rx_center_freq = ${dcRxCenter}`);
               lines.splice(ins, 0, ...newLines);
