@@ -1322,6 +1322,39 @@ ${restartLine}
     sendFlowstationCommand(payload, okBody, res);
   });
 
+  // DGNA (Dynamic Group Number Assignment) via flowstation's dashboard WebSocket.
+  // attach=true assigns the GSSI to the terminal, attach=false deassigns it.
+  // Mirrors flowstation's own `{type:'dgna', issi, gssi, attach}` command. Same gating as SDS/kick.
+  app.post("/api/dgna", async (req, res) => {
+    const { password, issi, gssi, attach } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
+    }
+    const target = parseInt(String(issi), 10);
+    if (!target || isNaN(target) || target <= 0 || target > 16777215) {
+      return res.status(400).json({ ok: false, message: "ISSI inválido" });
+    }
+    const group = parseInt(String(gssi), 10);
+    if (!group || isNaN(group) || group <= 0 || group > 16777215) {
+      return res.status(400).json({ ok: false, message: "GSSI inválido" });
+    }
+    const doAttach = attach !== false; // default to assign
+    const flow = serviceState(STATION_SERVICE.flowstation);
+    if (!flow.active) {
+      return res.status(409).json({
+        ok: false,
+        message: "Flowstation no está activa. Cambia a FLOW para usar DGNA.",
+      });
+    }
+    const payload = { type: "dgna", issi: target, gssi: group, attach: doAttach };
+    const okBody = {
+      ok: true,
+      message: doAttach ? `DGNA: grupo ${group} asignado a ${target}` : `DGNA: grupo ${group} quitado de ${target}`,
+      issi: target, gssi: group, attach: doAttach,
+    };
+    sendFlowstationCommand(payload, okBody, res);
+  });
+
   app.post("/api/station/switch", (req, res) => {
     const { password, station } = req.body || {};
     if (!password || password !== getSystemPassword()) {

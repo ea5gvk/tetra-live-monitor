@@ -3,6 +3,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network, Eye, EyeOff, Signal as SignalIcon, RadioTower, Clock as ClockIcon, ShieldCheck, ShieldAlert, Siren, Activity, Gauge } from "lucide-react";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
 import { useI18n } from "@/lib/i18n";
+import { DgnaSender } from "@/components/DgnaSender";
 import tetraLogo from "@assets/tetra_1771538916537.png";
 
 function Clock() {
@@ -264,7 +265,7 @@ function StatusDot({ status }: { status: string }) {
   );
 }
 
-function TerminalRow({ t: terminal, tgName, issiCallsign }: { t: Terminal; tgName: (id: string | number) => string; issiCallsign: (id: string | number) => string }) {
+function TerminalRow({ t: terminal, tgName, issiCallsign, showDgna, fsActive }: { t: Terminal; tgName: (id: string | number) => string; issiCallsign: (id: string | number) => string; showDgna?: boolean; fsActive?: boolean }) {
   const selectedNum = terminal.selectedTg.replace("TG ", "");
   const privDst = terminal.selectedTg.startsWith("PRIV") ? terminal.selectedTg.replace(/^PRIV\s*[→←]\s*/, "") : "";
   const privDstCs = privDst ? issiCallsign(privDst) : "";
@@ -317,6 +318,9 @@ function TerminalRow({ t: terminal, tgName, issiCallsign }: { t: Terminal; tgNam
           ) : null}
           {typeof terminal.rssiDbfs === "number" ? (
             <RssiBadge dbfs={terminal.rssiDbfs} />
+          ) : null}
+          {showDgna ? (
+            <DgnaSender issi={terminal.id} groups={terminal.groups} enabled={!!fsActive} />
           ) : null}
         </span>
       </td>
@@ -763,12 +767,13 @@ function TxQualityPanel({ q }: { q: TxQuality | null }) {
   );
 }
 
-function TerminalTable({ terminals, title, icon, isLocal, issiCallsign }: {
+function TerminalTable({ terminals, title, icon, isLocal, issiCallsign, fsActive }: {
   terminals: Terminal[];
   title: string;
   icon: "local" | "external";
   isLocal: boolean;
   issiCallsign: (id: string | number) => string;
+  fsActive?: boolean;
 }) {
   const { t } = useI18n();
   const tgName = useTgNames();
@@ -861,7 +866,7 @@ function TerminalTable({ terminals, title, icon, isLocal, issiCallsign }: {
                 </td>
               </tr>
             ) : (
-              sorted.map(terminal => <TerminalRow key={terminal.id} t={terminal} tgName={tgName} issiCallsign={issiCallsign} />)
+              sorted.map(terminal => <TerminalRow key={terminal.id} t={terminal} tgName={tgName} issiCallsign={issiCallsign} showDgna={isLocal} fsActive={fsActive} />)
             )}
           </tbody>
         </table>
@@ -1617,6 +1622,7 @@ export default function Dashboard() {
           icon="local"
           isLocal={true}
           issiCallsign={issiCallsign}
+          fsActive={fsDashboardActive}
         />
 
         {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} />}
