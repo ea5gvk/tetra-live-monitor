@@ -635,6 +635,7 @@
         <div id="secondaryCarrierFields" style="display:none; margin-top:10px;">
           <label for="secondaryCarrierVal" data-i18n="dual_secondary_label">secondary_carrier (0–4095)</label>
           <input id="secondaryCarrierVal" type="number" min="0" max="4095" value="1522" style="max-width:160px;" data-testid="input-secondary-carrier" />
+          <span id="secondaryCarrierAutoHint" style="display:none; margin-left:10px; font-size:0.83em; color:var(--muted);">⟵ auto (tx_center_freq / 25 kHz)</span>
           <div style="margin-top:12px;">
             <div class="checkbox-row">
               <input type="checkbox" id="dualCarrierActive" checked data-testid="checkbox-dual-carrier-active" />
@@ -5652,6 +5653,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     updateBase();
     updateDuplexHintAndCustomRow();
     tryRecalc();
+    updateSecondaryFromCenter();
   });
   el("duplexCode").addEventListener("change", ()=>{
     updateDuplexHintAndCustomRow();
@@ -7126,13 +7128,41 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     });
   });
 
+  // Dual carrier: auto-calculate secondary_carrier from tx_center_freq (same formula as main_carrier)
+  function updateSecondaryFromCenter() {
+    const cfEnabled = el("enableCenterFreq").checked;
+    const scEnabled = el("enableSecondaryCarrier").checked;
+    const autoMode = cfEnabled && scEnabled;
+    const inp = el("secondaryCarrierVal");
+    const hint = document.getElementById("secondaryCarrierAutoHint");
+    if (autoMode) {
+      const txCf = Number(el("txCenterFreqVal").value);
+      const band = Number(el("freqBand").value);
+      const baseHz = BASE_BY_BAND[band] || 400_000_000;
+      if (txCf > 0) {
+        const sc = Math.max(0, Math.min(4095, Math.round((txCf - baseHz) / 25_000)));
+        inp.value = String(sc);
+      }
+      inp.readOnly = true;
+      inp.style.opacity = "0.65";
+      if (hint) hint.style.display = "";
+    } else {
+      inp.readOnly = false;
+      inp.style.opacity = "1";
+      if (hint) hint.style.display = "none";
+    }
+  }
+
   // Dual carrier toggles
   el("enableSecondaryCarrier").addEventListener("change", function(){
     el("secondaryCarrierFields").style.display = this.checked ? "block" : "none";
+    updateSecondaryFromCenter();
   });
   el("enableCenterFreq").addEventListener("change", function(){
     el("centerFreqFields").style.display = this.checked ? "block" : "none";
+    updateSecondaryFromCenter();
   });
+  el("txCenterFreqVal").addEventListener("input", updateSecondaryFromCenter);
 
   // Brew toggle
   el("enableBrew").addEventListener("change", function(){
