@@ -465,9 +465,10 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
       return { ts: tsNum, mode: "voice", label: t("rf_voice_rx"), sub: t("rf_voice_activity") };
     }
     if (tsNum === 1) {
-      // Main carrier control channel (MCCH) vs secondary carrier broadcast (BCCH).
+      // Main carrier control channel (MCCH, active/highlighted) vs secondary carrier
+      // broadcast (BCCH) — which Razvan shows as an idle/free block, not a control one.
       if (isMain) return { ts: 1, mode: "mcch", label: t("rf_mcch"), sub: t("rf_control") };
-      return { ts: 1, mode: "bcch", label: "BCCH", sub: t("rf_control") };
+      return { ts: 1, mode: "bcch", label: "BCCH", sub: t("rf_idle") };
     }
     return { ts: tsNum, mode: "idle", label: "—", sub: t("rf_idle") };
   };
@@ -507,7 +508,9 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
   }
 
   const renderSlotCard = (s: SlotInfo, key: string, testid: string) => {
-    const isMcch = s.mode === "mcch" || s.mode === "bcch";
+    // BCCH (secondary carrier TS1) is rendered as an idle/free block, like Razvan's;
+    // only the main carrier's MCCH gets the cyan "active control" highlight.
+    const isMcch = s.mode === "mcch";
     const isActive = s.mode === "active";
     const isVoice = s.mode === "voice";
     const borderCls = isMcch
