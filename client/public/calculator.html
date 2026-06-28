@@ -643,6 +643,11 @@
             </div>
             <div class="hint" data-i18n="dual_active_hint">Checked = omit line (default: dual carrier active). Unchecked = writes 'dual_carrier_enabled = false' to run single-carrier while keeping the carrier number.</div>
           </div>
+          <div style="margin-top:14px;">
+            <label for="sampleRateVal" data-i18n="dual_sample_rate">sample_rate [phy_io.soapysdr] (Hz)</label>
+            <input id="sampleRateVal" type="number" min="100000" step="250000" value="2000000" data-testid="input-sample-rate" style="max-width:200px;" />
+            <div class="hint" data-i18n="dual_sample_rate_hint">Required by flowstation for dual carrier. Must fit both carriers in the SDR passband. Common: 1000000, 2000000, 5000000.</div>
+          </div>
         </div>
       </div>
       <div class="subsection">
@@ -1965,6 +1970,8 @@
       dual_rx_center: "rx_center_freq (Hz)",
       dgna_ss_enable: "dgna_use_ss_facility (absent = true)",
       dgna_ss_hint: "Checked = omit line (SS-DGNA path, default). Unchecked = writes 'dgna_use_ss_facility = false' to use legacy DGNA path.",
+      dual_sample_rate: "sample_rate [phy_io.soapysdr] (Hz)",
+      dual_sample_rate_hint: "Required by flowstation for dual carrier. SDR sample rate must be large enough to fit both carriers in the passband. Common: 1000000, 2000000, 5000000.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Forwards SDS between local clients and Brew. Enabled by default. Disable to block all Brew SDS.",
       dashboard_public_overview: "public_overview (read-only public view)",
@@ -2245,6 +2252,8 @@
       dual_rx_center: "rx_center_freq（Hz）",
       dgna_ss_enable: "dgna_use_ss_facility（缺省 = true）",
       dgna_ss_hint: "勾选 = 不写入该行（SS-DGNA 路径，默认）。取消 = 写入 'dgna_use_ss_facility = false' 使用传统 DGNA 路径。",
+      dual_sample_rate: "sample_rate [phy_io.soapysdr]（Hz）",
+      dual_sample_rate_hint: "双载波模式下 flowstation 必须设置此项。SDR 采样率须足够大以覆盖两个载波。常用值：1000000、2000000、5000000。",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "在本地客户端和 Brew 之间转发 SDS。默认启用。禁用以阻止所有 Brew SDS。",
       dashboard_public_overview: "public_overview（只读公开视图）",
@@ -2568,6 +2577,8 @@
       dual_rx_center: "rx_center_freq (Hz)",
       dgna_ss_enable: "dgna_use_ss_facility (ausente = true)",
       dgna_ss_hint: "Marcado = no se escribe la línea (vía SS-DGNA, por defecto). Desmarcado = escribe 'dgna_use_ss_facility = false' para la vía DGNA heredada.",
+      dual_sample_rate: "sample_rate [phy_io.soapysdr] (Hz)",
+      dual_sample_rate_hint: "Requerido por flowstation para doble portadora. La tasa de muestreo SDR debe ser suficientemente grande para caber ambas portadoras. Común: 1000000, 2000000, 5000000.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Reenvía SDS entre clientes locales y Brew. Habilitado por defecto. Desactivar para bloquear todo SDS Brew.",
       dashboard_public_overview: "public_overview (vista pública de solo lectura)",
@@ -2848,6 +2859,8 @@
       dual_rx_center: "rx_center_freq (Hz)",
       dgna_ss_enable: "dgna_use_ss_facility (ausente = true)",
       dgna_ss_hint: "Marcado = linha omitida (caminho SS-DGNA, predefinição). Desmarcado = escreve 'dgna_use_ss_facility = false' para o caminho DGNA legado.",
+      dual_sample_rate: "sample_rate [phy_io.soapysdr] (Hz)",
+      dual_sample_rate_hint: "Obrigatório pelo flowstation para portadora dupla. A taxa de amostragem SDR deve ser grande o suficiente para caber ambas as portadoras. Comum: 1000000, 2000000, 5000000.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Encaminha SDS entre clientes locais e Brew. Ativado por padrão. Desativar para bloquear todo SDS Brew.",
       dashboard_public_overview: "public_overview (vista pública somente leitura)",
@@ -3128,6 +3141,8 @@
       dual_rx_center: "rx_center_freq (Hz)",
       dgna_ss_enable: "dgna_use_ss_facility (fehlend = true)",
       dgna_ss_hint: "Aktiviert = Zeile weglassen (SS-DGNA-Pfad, Standard). Deaktiviert = schreibt 'dgna_use_ss_facility = false' für den Legacy-DGNA-Pfad.",
+      dual_sample_rate: "sample_rate [phy_io.soapysdr] (Hz)",
+      dual_sample_rate_hint: "Für Doppelträgerbetrieb von flowstation erforderlich. Die SDR-Abtastrate muss groß genug sein, um beide Träger abzudecken. Üblich: 1000000, 2000000, 5000000.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Leitet SDS zwischen lokalen Clients und Brew weiter. Standardmäßig aktiviert. Deaktivieren, um alle Brew-SDS zu blockieren.",
       dashboard_public_overview: "public_overview (öffentliche Nur-Lese-Ansicht)",
@@ -3408,6 +3423,8 @@
       dual_rx_center: "rx_center_freq (Hz)",
       dgna_ss_enable: "dgna_use_ss_facility (absent = true)",
       dgna_ss_hint: "Coché = ligne omise (chemin SS-DGNA, par défaut). Décoché = écrit 'dgna_use_ss_facility = false' pour le chemin DGNA hérité.",
+      dual_sample_rate: "sample_rate [phy_io.soapysdr] (Hz)",
+      dual_sample_rate_hint: "Requis par flowstation pour la double porteuse. Le débit d'échantillonnage SDR doit être suffisamment grand pour couvrir les deux porteuses. Courant : 1000000, 2000000, 5000000.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Transfère les SDS entre les clients locaux et Brew. Activé par défaut. Désactiver pour bloquer tous les SDS Brew.",
       dashboard_public_overview: "public_overview (vue publique en lecture seule)",
@@ -3688,6 +3705,8 @@
       dual_rx_center: "rx_center_freq (Hz)",
       dgna_ss_enable: "dgna_use_ss_facility (assente = true)",
       dgna_ss_hint: "Selezionato = riga omessa (percorso SS-DGNA, predefinito). Deselezionato = scrive 'dgna_use_ss_facility = false' per il percorso DGNA legacy.",
+      dual_sample_rate: "sample_rate [phy_io.soapysdr] (Hz)",
+      dual_sample_rate_hint: "Richiesto da flowstation per la doppia portante. La frequenza di campionamento SDR deve essere sufficientemente grande da contenere entrambe le portanti. Comune: 1000000, 2000000, 5000000.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Invia SDS tra client locali e Brew. Abilitato per impostazione predefinita. Disabilitare per bloccare tutti i SDS Brew.",
       dashboard_public_overview: "public_overview (vista pubblica di sola lettura)",
@@ -3968,6 +3987,8 @@
       dual_rx_center: "rx_center_freq (Hz)",
       dgna_ss_enable: "dgna_use_ss_facility (fraværende = true)",
       dgna_ss_hint: "Markeret = linje udelades (SS-DGNA-sti, standard). Ikke markeret = skriver 'dgna_use_ss_facility = false' for ældre DGNA-sti.",
+      dual_sample_rate: "sample_rate [phy_io.soapysdr] (Hz)",
+      dual_sample_rate_hint: "Krævet af flowstation for dobbelt bærebølge. SDR-samplingshastigheden skal være stor nok til at rumme begge bærebølger. Almindelige: 1000000, 2000000, 5000000.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Videresender SDS mellem lokale klienter og Brew. Aktiveret som standard. Deaktiver for at blokere alle Brew-SDS.",
       dashboard_public_overview: "public_overview (offentlig læsevisning)",
@@ -4248,6 +4269,8 @@
       dual_rx_center: "rx_center_freq (Hz)",
       dgna_ss_enable: "dgna_use_ss_facility (afwezig = true)",
       dgna_ss_hint: "Aangevinkt = regel weggelaten (SS-DGNA-pad, standaard). Uitgevinkt = schrijft 'dgna_use_ss_facility = false' voor het verouderde DGNA-pad.",
+      dual_sample_rate: "sample_rate [phy_io.soapysdr] (Hz)",
+      dual_sample_rate_hint: "Vereist door flowstation voor dubbele draaggolf. De SDR-samplingfrequentie moet groot genoeg zijn voor beide draaggolven. Gangbaar: 1000000, 2000000, 5000000.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Stuurt SDS door tussen lokale clients en Brew. Standaard ingeschakeld. Uitschakelen om alle Brew-SDS te blokkeren.",
       dashboard_public_overview: "public_overview (publiek alleen-lezen overzicht)",
@@ -4528,6 +4551,8 @@
       dual_rx_center: "rx_center_freq (Hz)",
       dgna_ss_enable: "dgna_use_ss_facility (absent = true)",
       dgna_ss_hint: "Bifat = linie omisă (calea SS-DGNA, implicit). Nebifat = scrie 'dgna_use_ss_facility = false' pentru calea DGNA moștenită.",
+      dual_sample_rate: "sample_rate [phy_io.soapysdr] (Hz)",
+      dual_sample_rate_hint: "Necesar de flowstation pentru purtătoare dublă. Rata de eșantionare SDR trebuie să fie suficient de mare pentru a cuprinde ambele purtătoare. Comune: 1000000, 2000000, 5000000.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Redirecționează SDS între clienții locali și Brew. Activat implicit. Dezactivați pentru a bloca toate SDS-urile Brew.",
       dashboard_public_overview: "public_overview (vedere publică doar citire)",
@@ -4904,8 +4929,13 @@
     lines.push("[phy_io_soapy]");
     lines.push(`tx_freq = ${out.txHz}`);
     lines.push(`rx_freq = ${out.rxHz}`);
-    // Dual carrier center frequencies (Flowstation only)
+    // Dual carrier: sample_rate + center frequencies (Flowstation only)
     if (document.getElementById("sectionDualCarrier")?.style.display !== "none") {
+      const scEnabled = el("enableSecondaryCarrier").checked;
+      if (scEnabled) {
+        const sr = Math.max(0, Number(el("sampleRateVal").value) || 0);
+        if (sr > 0) lines.push(`sample_rate = ${sr}`);
+      }
       const cfEnabled = el("enableCenterFreq").checked;
       const txCf = Number(el("txCenterFreqVal").value) || 0;
       const rxCf = Number(el("rxCenterFreqVal").value) || 0;
@@ -5905,6 +5935,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         var dcActive = true; // default: absent = ON
         var cfEnabled = false, txCf = null, rxCf = null;
         var dgnaEnabled = true; // default: absent = true
+        var srVal = null;
         for (var i = 0; i < lines.length; i++) {
           var t = lines[i].trim();
           if (!t) continue;
@@ -5918,6 +5949,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           }
           if (inPhyIo) {
             var m;
+            m = t.match(/^sample_rate\s*=\s*(\d+)/); if (m) { srVal = Number(m[1]); continue; }
             m = t.match(/^tx_center_freq\s*=\s*(\d+)/); if (m) { cfEnabled = true; txCf = Number(m[1]); continue; }
             m = t.match(/^#\s*tx_center_freq\s*=\s*(\d+)/); if (m && txCf === null) { txCf = Number(m[1]); continue; }
             m = t.match(/^rx_center_freq\s*=\s*(\d+)/); if (m) { rxCf = Number(m[1]); continue; }
@@ -5939,6 +5971,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         el("enableCenterFreq").dispatchEvent(new Event("change"));
         if (txCf !== null) el("txCenterFreqVal").value = String(txCf);
         if (rxCf !== null) el("rxCenterFreqVal").value = String(rxCf);
+        if (srVal !== null) el("sampleRateVal").value = String(srVal);
         el("dgnaUseSsFacility").checked = dgnaEnabled;
       })();
 
@@ -6511,6 +6544,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         tx: Number(el("txCenterFreqVal").value) || 0,
         rx: Number(el("rxCenterFreqVal").value) || 0,
       },
+      sampleRate: Math.max(0, Number(el("sampleRateVal").value) || 0),
       dgna: {
         ss_facility: el("dgnaUseSsFacility").checked,
       }
