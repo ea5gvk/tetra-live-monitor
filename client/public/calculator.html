@@ -623,6 +623,55 @@
       </div>
     </section>
   </div>
+  <div id="sectionDualCarrier" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="dual_title">📡 Dual Carrier &amp; DGNA [cell_info] [phy_io.soapysdr]</h2>
+      <div class="subsection">
+        <div class="checkbox-row">
+          <input type="checkbox" id="enableSecondaryCarrier" data-testid="checkbox-enable-secondary-carrier" />
+          <label for="enableSecondaryCarrier" data-i18n="dual_secondary_enable">Enable secondary_carrier</label>
+        </div>
+        <div class="hint" data-i18n="dual_secondary_hint">Second carrier number for dual-carrier operation. Written commented when disabled.</div>
+        <div id="secondaryCarrierFields" style="display:none; margin-top:10px;">
+          <label for="secondaryCarrierVal" data-i18n="dual_secondary_label">secondary_carrier (0–4095)</label>
+          <input id="secondaryCarrierVal" type="number" min="0" max="4095" value="1522" style="max-width:160px;" data-testid="input-secondary-carrier" />
+          <div style="margin-top:12px;">
+            <div class="checkbox-row">
+              <input type="checkbox" id="dualCarrierActive" checked data-testid="checkbox-dual-carrier-active" />
+              <label for="dualCarrierActive" data-i18n="dual_active_enable">dual_carrier_enabled (absent = ON)</label>
+            </div>
+            <div class="hint" data-i18n="dual_active_hint">Checked = omit line (default: dual carrier active). Unchecked = writes 'dual_carrier_enabled = false' to run single-carrier while keeping the carrier number.</div>
+          </div>
+        </div>
+      </div>
+      <div class="subsection">
+        <div class="checkbox-row">
+          <input type="checkbox" id="enableCenterFreq" data-testid="checkbox-enable-center-freq" />
+          <label for="enableCenterFreq" data-i18n="dual_center_enable">Enable tx_center_freq / rx_center_freq</label>
+        </div>
+        <div class="hint" data-i18n="dual_center_hint">SDR center frequencies for dual-carrier. When disabled, written as comments.</div>
+        <div id="centerFreqFields" style="display:none; margin-top:10px;">
+          <div class="row">
+            <div>
+              <label for="txCenterFreqVal" data-i18n="dual_tx_center">tx_center_freq (Hz)</label>
+              <input id="txCenterFreqVal" type="number" placeholder="e.g. 430000000" data-testid="input-tx-center-freq" />
+            </div>
+            <div>
+              <label for="rxCenterFreqVal" data-i18n="dual_rx_center">rx_center_freq (Hz)</label>
+              <input id="rxCenterFreqVal" type="number" placeholder="e.g. 420000000" data-testid="input-rx-center-freq" />
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="subsection">
+        <div class="checkbox-row">
+          <input type="checkbox" id="dgnaUseSsFacility" checked data-testid="checkbox-dgna-ss-facility" />
+          <label for="dgnaUseSsFacility" data-i18n="dgna_ss_enable">dgna_use_ss_facility (absent = true)</label>
+        </div>
+        <div class="hint" data-i18n="dgna_ss_hint">Checked = omit line (SS-DGNA path, default). Unchecked = writes 'dgna_use_ss_facility = false' for legacy DGNA path.</div>
+      </div>
+    </section>
+  </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="brew_title">🍺 Homebrew Protocol [brew]</h2>
@@ -1903,6 +1952,18 @@
       brew_jitter: "jitter_initial_latency_frames (default 0)",
       brew_jitter_enable: "Enable jitter_initial_latency_frames",
       brew_jitter_hint: "Initial latency in frames for Brew audio jitter buffer. Increase if you hear artifacts at the start of transmissions.",
+      dual_title: "📡 Dual Carrier & DGNA [cell_info] [phy_io.soapysdr]",
+      dual_secondary_enable: "Enable secondary_carrier",
+      dual_secondary_hint: "Second carrier number for dual-carrier operation (adjacent carrier ±25 kHz). Written commented when disabled.",
+      dual_secondary_label: "secondary_carrier (0–4095)",
+      dual_active_enable: "dual_carrier_enabled (absent = ON)",
+      dual_active_hint: "Checked = omit line (default: dual carrier active). Unchecked = writes 'dual_carrier_enabled = false' to run single-carrier while keeping the number.",
+      dual_center_enable: "Enable tx_center_freq / rx_center_freq",
+      dual_center_hint: "SDR center frequencies for dual-carrier. When disabled, written as comments (# tx_center_freq = ...).",
+      dual_tx_center: "tx_center_freq (Hz)",
+      dual_rx_center: "rx_center_freq (Hz)",
+      dgna_ss_enable: "dgna_use_ss_facility (absent = true)",
+      dgna_ss_hint: "Checked = omit line (SS-DGNA path, default). Unchecked = writes 'dgna_use_ss_facility = false' to use legacy DGNA path.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Forwards SDS between local clients and Brew. Enabled by default. Disable to block all Brew SDS.",
       dashboard_public_overview: "public_overview (read-only public view)",
@@ -2171,6 +2232,18 @@
       telegram_verify_first: "请先验证 bot token。",
       brew_jitter: "jitter_initial_latency_frames（默认 0）",
       brew_jitter_hint: "Brew 音频抖动缓冲区的初始延迟帧数。如果传输开始时有音频失真，请增大此值。",
+      dual_title: "📡 双载波 & DGNA [cell_info] [phy_io.soapysdr]",
+      dual_secondary_enable: "启用 secondary_carrier（第二载波）",
+      dual_secondary_hint: "双载波操作的第二载波编号（相邻载波 ±25 kHz）。禁用时写为注释行。",
+      dual_secondary_label: "secondary_carrier（0–4095）",
+      dual_active_enable: "dual_carrier_enabled（缺省 = 开启）",
+      dual_active_hint: "勾选 = 不写入该行（默认：双载波激活）。取消 = 写入 'dual_carrier_enabled = false' 以单载波运行。",
+      dual_center_enable: "启用 tx_center_freq / rx_center_freq",
+      dual_center_hint: "双载波的 SDR 中心频率。禁用时写为注释行（# tx_center_freq = ...）。",
+      dual_tx_center: "tx_center_freq（Hz）",
+      dual_rx_center: "rx_center_freq（Hz）",
+      dgna_ss_enable: "dgna_use_ss_facility（缺省 = true）",
+      dgna_ss_hint: "勾选 = 不写入该行（SS-DGNA 路径，默认）。取消 = 写入 'dgna_use_ss_facility = false' 使用传统 DGNA 路径。",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "在本地客户端和 Brew 之间转发 SDS。默认启用。禁用以阻止所有 Brew SDS。",
       dashboard_public_overview: "public_overview（只读公开视图）",
@@ -2482,6 +2555,18 @@
       brew_jitter: "jitter_initial_latency_frames (por defecto 0)",
       brew_jitter_enable: "Activar jitter_initial_latency_frames",
       brew_jitter_hint: "Latencia inicial en frames para el buffer de jitter de audio Brew. Aumentar si hay artefactos al inicio de las transmisiones.",
+      dual_title: "📡 Doble Portadora & DGNA [cell_info] [phy_io.soapysdr]",
+      dual_secondary_enable: "Habilitar secondary_carrier",
+      dual_secondary_hint: "Número de segunda portadora para operación de doble portadora (portadora adyacente ±25 kHz). Se escribe comentada cuando está desactivada.",
+      dual_secondary_label: "secondary_carrier (0–4095)",
+      dual_active_enable: "dual_carrier_enabled (ausente = ACTIVO)",
+      dual_active_hint: "Marcado = no se escribe la línea (doble portadora activa por defecto). Desmarcado = escribe 'dual_carrier_enabled = false' para portadora única.",
+      dual_center_enable: "Habilitar tx_center_freq / rx_center_freq",
+      dual_center_hint: "Frecuencias centrales SDR para doble portadora. Desactivadas se escriben como comentarios (# tx_center_freq = ...).",
+      dual_tx_center: "tx_center_freq (Hz)",
+      dual_rx_center: "rx_center_freq (Hz)",
+      dgna_ss_enable: "dgna_use_ss_facility (ausente = true)",
+      dgna_ss_hint: "Marcado = no se escribe la línea (vía SS-DGNA, por defecto). Desmarcado = escribe 'dgna_use_ss_facility = false' para la vía DGNA heredada.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Reenvía SDS entre clientes locales y Brew. Habilitado por defecto. Desactivar para bloquear todo SDS Brew.",
       dashboard_public_overview: "public_overview (vista pública de solo lectura)",
@@ -2750,6 +2835,18 @@
       telegram_verify_first: "Primeiro verifique o token do bot.",
       brew_jitter: "jitter_initial_latency_frames (padrão 0)",
       brew_jitter_hint: "Latência inicial em frames para o buffer de jitter de áudio Brew. Aumentar se houver artefatos no início das transmissões.",
+      dual_title: "📡 Portadora Dupla & DGNA [cell_info] [phy_io.soapysdr]",
+      dual_secondary_enable: "Ativar secondary_carrier",
+      dual_secondary_hint: "Número da segunda portadora para operação de portadora dupla (portadora adjacente ±25 kHz). Escrita como comentário quando desativada.",
+      dual_secondary_label: "secondary_carrier (0–4095)",
+      dual_active_enable: "dual_carrier_enabled (ausente = ATIVO)",
+      dual_active_hint: "Marcado = linha omitida (portadora dupla ativa por defeito). Desmarcado = escreve 'dual_carrier_enabled = false' para portadora única.",
+      dual_center_enable: "Ativar tx_center_freq / rx_center_freq",
+      dual_center_hint: "Frequências centrais SDR para portadora dupla. Desativadas são escritas como comentários (# tx_center_freq = ...).",
+      dual_tx_center: "tx_center_freq (Hz)",
+      dual_rx_center: "rx_center_freq (Hz)",
+      dgna_ss_enable: "dgna_use_ss_facility (ausente = true)",
+      dgna_ss_hint: "Marcado = linha omitida (caminho SS-DGNA, predefinição). Desmarcado = escreve 'dgna_use_ss_facility = false' para o caminho DGNA legado.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Encaminha SDS entre clientes locais e Brew. Ativado por padrão. Desativar para bloquear todo SDS Brew.",
       dashboard_public_overview: "public_overview (vista pública somente leitura)",
@@ -3018,6 +3115,18 @@
       telegram_verify_first: "Bitte zuerst den Bot-Token verifizieren.",
       brew_jitter: "jitter_initial_latency_frames (Standard 0)",
       brew_jitter_hint: "Anfangslatenz in Frames für den Brew-Audio-Jitter-Buffer. Erhöhen, wenn zu Beginn Audioartefakte auftreten.",
+      dual_title: "📡 Doppelträger & DGNA [cell_info] [phy_io.soapysdr]",
+      dual_secondary_enable: "secondary_carrier aktivieren",
+      dual_secondary_hint: "Zweite Trägernummer für Doppelträgerbetrieb (benachbarter Träger ±25 kHz). Wird als Kommentar geschrieben, wenn deaktiviert.",
+      dual_secondary_label: "secondary_carrier (0–4095)",
+      dual_active_enable: "dual_carrier_enabled (fehlend = EIN)",
+      dual_active_hint: "Aktiviert = Zeile weglassen (Standard: Doppelträger aktiv). Deaktiviert = schreibt 'dual_carrier_enabled = false' für Einzelträgerbetrieb.",
+      dual_center_enable: "tx_center_freq / rx_center_freq aktivieren",
+      dual_center_hint: "SDR-Mittenfrequenzen für Doppelträger. Deaktiviert werden sie als Kommentare geschrieben (# tx_center_freq = ...).",
+      dual_tx_center: "tx_center_freq (Hz)",
+      dual_rx_center: "rx_center_freq (Hz)",
+      dgna_ss_enable: "dgna_use_ss_facility (fehlend = true)",
+      dgna_ss_hint: "Aktiviert = Zeile weglassen (SS-DGNA-Pfad, Standard). Deaktiviert = schreibt 'dgna_use_ss_facility = false' für den Legacy-DGNA-Pfad.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Leitet SDS zwischen lokalen Clients und Brew weiter. Standardmäßig aktiviert. Deaktivieren, um alle Brew-SDS zu blockieren.",
       dashboard_public_overview: "public_overview (öffentliche Nur-Lese-Ansicht)",
@@ -3286,6 +3395,18 @@
       telegram_verify_first: "Vérifiez d'abord le token du bot.",
       brew_jitter: "jitter_initial_latency_frames (défaut 0)",
       brew_jitter_hint: "Latence initiale en frames pour le tampon de gigue audio Brew. Augmenter en cas d'artefacts au début des transmissions.",
+      dual_title: "📡 Double Porteuse & DGNA [cell_info] [phy_io.soapysdr]",
+      dual_secondary_enable: "Activer secondary_carrier",
+      dual_secondary_hint: "Numéro de la deuxième porteuse pour l'opération à double porteuse (porteuse adjacente ±25 kHz). Écrit en commentaire lorsque désactivé.",
+      dual_secondary_label: "secondary_carrier (0–4095)",
+      dual_active_enable: "dual_carrier_enabled (absent = ACTIF)",
+      dual_active_hint: "Coché = ligne omise (double porteuse active par défaut). Décoché = écrit 'dual_carrier_enabled = false' pour mode porteuse unique.",
+      dual_center_enable: "Activer tx_center_freq / rx_center_freq",
+      dual_center_hint: "Fréquences centrales SDR pour double porteuse. Désactivées, elles sont écrites en commentaires (# tx_center_freq = ...).",
+      dual_tx_center: "tx_center_freq (Hz)",
+      dual_rx_center: "rx_center_freq (Hz)",
+      dgna_ss_enable: "dgna_use_ss_facility (absent = true)",
+      dgna_ss_hint: "Coché = ligne omise (chemin SS-DGNA, par défaut). Décoché = écrit 'dgna_use_ss_facility = false' pour le chemin DGNA hérité.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Transfère les SDS entre les clients locaux et Brew. Activé par défaut. Désactiver pour bloquer tous les SDS Brew.",
       dashboard_public_overview: "public_overview (vue publique en lecture seule)",
@@ -3554,6 +3675,18 @@
       telegram_verify_first: "Prima verifica il token del bot.",
       brew_jitter: "jitter_initial_latency_frames (default 0)",
       brew_jitter_hint: "Latenza iniziale in frame per il buffer di jitter audio Brew. Aumentare se si sentono artefatti all'inizio delle trasmissioni.",
+      dual_title: "📡 Doppia Portante & DGNA [cell_info] [phy_io.soapysdr]",
+      dual_secondary_enable: "Abilita secondary_carrier",
+      dual_secondary_hint: "Numero della seconda portante per operazione a doppia portante (portante adiacente ±25 kHz). Scritto commentato quando disabilitato.",
+      dual_secondary_label: "secondary_carrier (0–4095)",
+      dual_active_enable: "dual_carrier_enabled (assente = ATTIVO)",
+      dual_active_hint: "Selezionato = riga omessa (doppia portante attiva per default). Deselezionato = scrive 'dual_carrier_enabled = false' per portante singola.",
+      dual_center_enable: "Abilita tx_center_freq / rx_center_freq",
+      dual_center_hint: "Frequenze centrali SDR per doppia portante. Disabilitate, sono scritte come commenti (# tx_center_freq = ...).",
+      dual_tx_center: "tx_center_freq (Hz)",
+      dual_rx_center: "rx_center_freq (Hz)",
+      dgna_ss_enable: "dgna_use_ss_facility (assente = true)",
+      dgna_ss_hint: "Selezionato = riga omessa (percorso SS-DGNA, predefinito). Deselezionato = scrive 'dgna_use_ss_facility = false' per il percorso DGNA legacy.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Invia SDS tra client locali e Brew. Abilitato per impostazione predefinita. Disabilitare per bloccare tutti i SDS Brew.",
       dashboard_public_overview: "public_overview (vista pubblica di sola lettura)",
@@ -3822,6 +3955,18 @@
       telegram_verify_first: "First verify the bot token.",
       brew_jitter: "jitter_initial_latency_frames (standard 0)",
       brew_jitter_hint: "Indledende latens i frames for Brew-lydjittperbufferen. Forøg, hvis der høres artefakter ved starten af transmissioner.",
+      dual_title: "📡 Dobbelt Bærebølge & DGNA [cell_info] [phy_io.soapysdr]",
+      dual_secondary_enable: "Aktiver secondary_carrier",
+      dual_secondary_hint: "Andet bærebølgenummer til dobbelt bærebølge-drift (tilstødende bærebølge ±25 kHz). Skrives som kommentar når deaktiveret.",
+      dual_secondary_label: "secondary_carrier (0–4095)",
+      dual_active_enable: "dual_carrier_enabled (fraværende = TIL)",
+      dual_active_hint: "Markeret = linje udelades (dobbelt bærebølge aktiv som standard). Ikke markeret = skriver 'dual_carrier_enabled = false' for enkelt bærebølge.",
+      dual_center_enable: "Aktiver tx_center_freq / rx_center_freq",
+      dual_center_hint: "SDR-centerfrekvenser til dobbelt bærebølge. Deaktiveret skrives de som kommentarer (# tx_center_freq = ...).",
+      dual_tx_center: "tx_center_freq (Hz)",
+      dual_rx_center: "rx_center_freq (Hz)",
+      dgna_ss_enable: "dgna_use_ss_facility (fraværende = true)",
+      dgna_ss_hint: "Markeret = linje udelades (SS-DGNA-sti, standard). Ikke markeret = skriver 'dgna_use_ss_facility = false' for ældre DGNA-sti.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Videresender SDS mellem lokale klienter og Brew. Aktiveret som standard. Deaktiver for at blokere alle Brew-SDS.",
       dashboard_public_overview: "public_overview (offentlig læsevisning)",
@@ -4090,6 +4235,18 @@
       telegram_verify_first: "First verify the bot token.",
       brew_jitter: "jitter_initial_latency_frames (standaard 0)",
       brew_jitter_hint: "Initiële latentie in frames voor de Brew-audiojitterbuffer. Verhoog als er artefacten hoorbaar zijn bij het begin van transmissies.",
+      dual_title: "📡 Dubbele Draaggolf & DGNA [cell_info] [phy_io.soapysdr]",
+      dual_secondary_enable: "Schakel secondary_carrier in",
+      dual_secondary_hint: "Tweede draaggolfnummer voor dubbele draaggolfoperatie (aangrenzende draaggolf ±25 kHz). Wordt als commentaar geschreven wanneer uitgeschakeld.",
+      dual_secondary_label: "secondary_carrier (0–4095)",
+      dual_active_enable: "dual_carrier_enabled (afwezig = AAN)",
+      dual_active_hint: "Aangevinkt = regel weggelaten (dubbele draaggolf standaard actief). Uitgevinkt = schrijft 'dual_carrier_enabled = false' voor enkelvoudige draaggolf.",
+      dual_center_enable: "Schakel tx_center_freq / rx_center_freq in",
+      dual_center_hint: "SDR-middenfrequenties voor dubbele draaggolf. Uitgeschakeld worden ze als commentaar geschreven (# tx_center_freq = ...).",
+      dual_tx_center: "tx_center_freq (Hz)",
+      dual_rx_center: "rx_center_freq (Hz)",
+      dgna_ss_enable: "dgna_use_ss_facility (afwezig = true)",
+      dgna_ss_hint: "Aangevinkt = regel weggelaten (SS-DGNA-pad, standaard). Uitgevinkt = schrijft 'dgna_use_ss_facility = false' voor het verouderde DGNA-pad.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Stuurt SDS door tussen lokale clients en Brew. Standaard ingeschakeld. Uitschakelen om alle Brew-SDS te blokkeren.",
       dashboard_public_overview: "public_overview (publiek alleen-lezen overzicht)",
@@ -4358,6 +4515,18 @@
       telegram_verify_first: "Verifică mai întâi token-ul botului.",
       brew_jitter: "jitter_initial_latency_frames (implicit 0)",
       brew_jitter_hint: "Latența inițială în cadre pentru bufferul de jitter audio Brew. Măriți dacă auziți artefacte la începutul transmisiunilor.",
+      dual_title: "📡 Purtătoare Dublă & DGNA [cell_info] [phy_io.soapysdr]",
+      dual_secondary_enable: "Activați secondary_carrier",
+      dual_secondary_hint: "Numărul celei de-a doua purtătoare pentru operare cu purtătoare dublă (purtătoare adiacentă ±25 kHz). Scris comentat când este dezactivat.",
+      dual_secondary_label: "secondary_carrier (0–4095)",
+      dual_active_enable: "dual_carrier_enabled (absent = ACTIV)",
+      dual_active_hint: "Bifat = linie omisă (purtătoare dublă activă implicit). Nebifat = scrie 'dual_carrier_enabled = false' pentru purtătoare unică.",
+      dual_center_enable: "Activați tx_center_freq / rx_center_freq",
+      dual_center_hint: "Frecvențe centrale SDR pentru purtătoare dublă. Dezactivate, sunt scrise ca comentarii (# tx_center_freq = ...).",
+      dual_tx_center: "tx_center_freq (Hz)",
+      dual_rx_center: "rx_center_freq (Hz)",
+      dgna_ss_enable: "dgna_use_ss_facility (absent = true)",
+      dgna_ss_hint: "Bifat = linie omisă (calea SS-DGNA, implicit). Nebifat = scrie 'dgna_use_ss_facility = false' pentru calea DGNA moștenită.",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Redirecționează SDS între clienții locali și Brew. Activat implicit. Dezactivați pentru a bloca toate SDS-urile Brew.",
       dashboard_public_overview: "public_overview (vedere publică doar citire)",
@@ -4734,6 +4903,14 @@
     lines.push("[phy_io_soapy]");
     lines.push(`tx_freq = ${out.txHz}`);
     lines.push(`rx_freq = ${out.rxHz}`);
+    // Dual carrier center frequencies (Flowstation only)
+    if (document.getElementById("sectionDualCarrier")?.style.display !== "none") {
+      const cfEnabled = el("enableCenterFreq").checked;
+      const txCf = Number(el("txCenterFreqVal").value) || 0;
+      const rxCf = Number(el("rxCenterFreqVal").value) || 0;
+      lines.push(cfEnabled ? `tx_center_freq = ${txCf}` : `# tx_center_freq = ${txCf}`);
+      lines.push(cfEnabled ? `rx_center_freq = ${rxCf}` : `# rx_center_freq = ${rxCf}`);
+    }
     lines.push("");
     lines.push("[cell_info]");
     lines.push(`freq_band = ${out.band}`);
@@ -4781,6 +4958,18 @@
       const clamp = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
       const pr = clamp(el("periodicRegSecs").value, 0, 86400, 0);
       lines.push(`${prefix}periodic_registration_secs = ${pr}`);
+    }
+    // Dual carrier direct [cell_info] fields (Flowstation only)
+    if (document.getElementById("sectionDualCarrier")?.style.display !== "none") {
+      const scEnabled = el("enableSecondaryCarrier").checked;
+      const scVal = Math.max(0, Math.min(4095, Number(el("secondaryCarrierVal").value) || 0));
+      lines.push(scEnabled ? `secondary_carrier = ${scVal}` : `# secondary_carrier = ${scVal}`);
+      if (!el("dualCarrierActive").checked) {
+        lines.push(`dual_carrier_enabled = false`);
+      }
+      if (!el("dgnaUseSsFacility").checked) {
+        lines.push(`dgna_use_ss_facility = false`);
+      }
     }
     // Neighbor Cells — emit blocks at end of [cell_info] direct fields, before [net_info]/[brew]/[security]
     {
@@ -5702,6 +5891,55 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         if (prVal !== null) el("periodicRegSecs").value = String(prVal);
       })();
 
+      // ── Dual Carrier (secondary_carrier, dual_carrier_enabled, tx/rx_center_freq, dgna_use_ss_facility)
+      // Parse from raw TOML client-side for maximum reliability.
+      (function() {
+        if (document.getElementById("sectionDualCarrier")?.style.display === "none") return;
+        var raw = (typeof data._raw === "string") ? data._raw : null;
+        if (!raw) return;
+        var lines = raw.split("\n");
+        var inPhyIo = false, inCellInfo = false;
+        var scEnabled = false, scVal = null;
+        var dcActive = true; // default: absent = ON
+        var cfEnabled = false, txCf = null, rxCf = null;
+        var dgnaEnabled = true; // default: absent = true
+        for (var i = 0; i < lines.length; i++) {
+          var t = lines[i].trim();
+          if (!t) continue;
+          if (/^\[\[[\w.]+\]\]\s*$/.test(t)) continue;
+          var sm = t.match(/^\[([a-zA-Z_][\w.]*)\]\s*$/);
+          if (sm) {
+            var sn = sm[1];
+            inPhyIo = (sn === "phy_io.soapysdr" || sn === "phy_io_soapy");
+            inCellInfo = (sn === "cell_info" || sn.indexOf("cell_info.") === 0);
+            continue;
+          }
+          if (inPhyIo) {
+            var m;
+            m = t.match(/^tx_center_freq\s*=\s*(\d+)/); if (m) { cfEnabled = true; txCf = Number(m[1]); continue; }
+            m = t.match(/^#\s*tx_center_freq\s*=\s*(\d+)/); if (m && txCf === null) { txCf = Number(m[1]); continue; }
+            m = t.match(/^rx_center_freq\s*=\s*(\d+)/); if (m) { rxCf = Number(m[1]); continue; }
+            m = t.match(/^#\s*rx_center_freq\s*=\s*(\d+)/); if (m && rxCf === null) { rxCf = Number(m[1]); continue; }
+          }
+          if (inCellInfo) {
+            var m;
+            m = t.match(/^secondary_carrier\s*=\s*(\d+)/); if (m) { scEnabled = true; scVal = Number(m[1]); continue; }
+            m = t.match(/^#\s*secondary_carrier\s*=\s*(\d+)/); if (m && scVal === null) { scVal = Number(m[1]); continue; }
+            m = t.match(/^dual_carrier_enabled\s*=\s*(true|false)/); if (m) { dcActive = (m[1] === "true"); continue; }
+            m = t.match(/^dgna_use_ss_facility\s*=\s*(true|false)/); if (m) { dgnaEnabled = (m[1] === "true"); continue; }
+          }
+        }
+        el("enableSecondaryCarrier").checked = scEnabled;
+        el("enableSecondaryCarrier").dispatchEvent(new Event("change"));
+        if (scVal !== null) el("secondaryCarrierVal").value = String(scVal);
+        el("dualCarrierActive").checked = dcActive;
+        el("enableCenterFreq").checked = cfEnabled;
+        el("enableCenterFreq").dispatchEvent(new Event("change"));
+        if (txCf !== null) el("txCenterFreqVal").value = String(txCf);
+        if (rxCf !== null) el("rxCenterFreqVal").value = String(rxCf);
+        el("dgnaUseSsFacility").checked = dgnaEnabled;
+      })();
+
       // ── Home Mode Display ([cell_info.home_mode_display] block, active or commented)
       if (data.cell_info && data.cell_info.home_mode_display) {
         const hmd = data.cell_info.home_mode_display;
@@ -6258,6 +6496,24 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       };
     }
 
+    // Collect Dual Carrier options (Flowstation only — null in bluestation)
+    const dcIsFlow = document.getElementById("sectionDualCarrier")?.style.display !== "none";
+    const dualCarrierConfig = dcIsFlow ? {
+      secondaryCarrier: {
+        enabled: el("enableSecondaryCarrier").checked,
+        value: Math.max(0, Math.min(4095, Number(el("secondaryCarrierVal").value) || 0)),
+        active: el("dualCarrierActive").checked,
+      },
+      centerFreq: {
+        enabled: el("enableCenterFreq").checked,
+        tx: Number(el("txCenterFreqVal").value) || 0,
+        rx: Number(el("rxCenterFreqVal").value) || 0,
+      },
+      dgna: {
+        ss_facility: el("dgnaUseSsFacility").checked,
+      }
+    } : null;
+
     // Collect Telemetry options (Flowstation only — null in bluestation)
     const telIsFlow = document.getElementById("sectionTelemetry")?.style.display !== "none";
     const telemetryConfig = telIsFlow ? {
@@ -6508,7 +6764,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           tpg2200Config,
           snomNotifyConfig,
           geoalarmConfig,
-          asteriskConfig
+          asteriskConfig,
+          dualCarrierConfig
         })
       });
       const data = await res.json();
@@ -6867,6 +7124,14 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       customDuplexHz: lastComputedResult.custom_duplex_spacing,
       reverse: lastComputedResult.reverse_operation
     });
+  });
+
+  // Dual carrier toggles
+  el("enableSecondaryCarrier").addEventListener("change", function(){
+    el("secondaryCarrierFields").style.display = this.checked ? "block" : "none";
+  });
+  el("enableCenterFreq").addEventListener("change", function(){
+    el("centerFreqFields").style.display = this.checked ? "block" : "none";
   });
 
   // Brew toggle
@@ -7429,7 +7694,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionSecurity", "sectionDashboard", "sectionWxService", "sectionRecovery", "sectionHealth", "sectionEmergency", "sectionTelegramAlerts", "sectionTelemetry", "sectionCommand", "sectionDapnet", "sectionTpg2200", "sectionSnomNotify", "sectionGeoalarm", "sectionAsterisk", "brewRssiSubsection", "brewSdsFwdSubsection"];
+    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionDualCarrier", "sectionSecurity", "sectionDashboard", "sectionWxService", "sectionRecovery", "sectionHealth", "sectionEmergency", "sectionTelegramAlerts", "sectionTelemetry", "sectionCommand", "sectionDapnet", "sectionTpg2200", "sectionSnomNotify", "sectionGeoalarm", "sectionAsterisk", "brewRssiSubsection", "brewSdsFwdSubsection"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);
