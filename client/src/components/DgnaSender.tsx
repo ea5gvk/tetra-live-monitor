@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { createPortal } from "react-dom";
 import { Hexagon, X, Lock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
@@ -71,7 +72,7 @@ export function DgnaSender({ issi, groups, enabled }: {
         <span className="hidden lg:inline">DGNA</span>
       </button>
 
-      {open && (
+      {open && createPortal(
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
           <div className="bg-card border border-border rounded-lg w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
@@ -188,7 +189,8 @@ export function DgnaSender({ issi, groups, enabled }: {
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   );
