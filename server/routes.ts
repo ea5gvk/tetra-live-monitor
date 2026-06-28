@@ -2003,6 +2003,8 @@ ${restartLine}
         phy_io_soapysdr: {
           tx_freq: num('phy_io.soapysdr', 'tx_freq'),
           rx_freq: num('phy_io.soapysdr', 'rx_freq'),
+          tx_center_freq: num('phy_io.soapysdr', 'tx_center_freq'),
+          rx_center_freq: num('phy_io.soapysdr', 'rx_center_freq'),
         },
         cell_info: {
           freq_band: num('cell_info', 'freq_band'),
@@ -2016,6 +2018,7 @@ ${restartLine}
           system_code: num('cell_info', 'system_code'),
           timezone_broadcast: bool('cell_info', 'timezone_broadcast'),
           timezone: str('cell_info', 'timezone'),
+          secondary_carrier: num('cell_info', 'secondary_carrier'),
           local_ssi_ranges: ssiRanges,
           ssi_ranges_enabled: ssiRangesEnabled,
           neighbor_cells: neighborCells,
@@ -2367,6 +2370,18 @@ ${restartLine}
       const jitterPresent = sdsFwdPresent; // use same gate as sdsFwd (both Flowstation-only)
       const jitterEnabled = jitterPresent && brewConfig.sdsFwd.jitter_enabled === true; // toggle: active line when true, commented when false
       const jitterVal = jitterPresent ? Math.max(0, Math.round(Number(brewConfig.sdsFwd.jitter) || 0)) : 0;
+
+      // Dual carrier + DGNA fields (Flowstation v0.3.8)
+      const dualCarrierConfig = (body as any).dualCarrierConfig || null;
+      const dcPresent = !!dualCarrierConfig;
+      const dcSecondaryEnabled = dualCarrierConfig?.secondaryCarrier?.enabled === true;
+      const dcSecondaryVal = Math.max(0, Math.min(4095, Number(dualCarrierConfig?.secondaryCarrier?.value) || 0));
+      const dcActiveEnabled = !dualCarrierConfig || dualCarrierConfig.secondaryCarrier?.active !== false; // absent = ON
+      const dcCenterEnabled = dualCarrierConfig?.centerFreq?.enabled === true;
+      const dcTxCenter = Number(dualCarrierConfig?.centerFreq?.tx) || 0;
+      const dcRxCenter = Number(dualCarrierConfig?.centerFreq?.rx) || 0;
+      const dcDgnaEnabled = !dualCarrierConfig || dualCarrierConfig.dgna?.ss_facility !== false; // absent = true
+
       const brewUpdates: Record<string, string> = {};
       if (brewEnabled) {
         brewUpdates["host"] = `"${brewConfig.host || ""}"`;
@@ -2389,6 +2404,11 @@ ${restartLine}
       let tzFound = false;
       const netInfoKeyFound: Record<string, boolean> = {};
       let netInfoSectionExists = false;
+      let scFound = false;
+      let dcActiveFound = false;
+      let dgnaFound = false;
+      let txCenterFound = false;
+      let rxCenterFound = false;
 
       for (let i = 0; i < lines.length; i++) {
         // Match ONLY real section headers: [identifier] alone on its line.
@@ -2402,6 +2422,39 @@ ${restartLine}
         }
         // [[sub-table]] headers — skip without changing currentSection
         if (/^\s*\[\[[\w.]+\]\]\s*$/.test(lines[i])) continue;
+
+        // phy_io.soapysdr: tx_center_freq / rx_center_freq (dual-carrier, Flowstation v0.3.8)
+        if (dcPresent && (currentSection === "phy_io.soapysdr" || currentSection === "phy_io_soapy")) {
+          const commentedTxCf = lines[i].match(/^(\s*)#\s*tx_center_freq\s*=\s*(.*)/);
+          if (commentedTxCf) {
+            lines[i] = dcCenterEnabled
+              ? `${commentedTxCf[1]}tx_center_freq = ${dcTxCenter}`
+              : `${commentedTxCf[1]}# tx_center_freq = ${dcTxCenter}`;
+            txCenterFound = true; continue;
+          }
+          const commentedRxCf = lines[i].match(/^(\s*)#\s*rx_center_freq\s*=\s*(.*)/);
+          if (commentedRxCf) {
+            lines[i] = dcCenterEnabled
+              ? `${commentedRxCf[1]}rx_center_freq = ${dcRxCenter}`
+              : `${commentedRxCf[1]}# rx_center_freq = ${dcRxCenter}`;
+            rxCenterFound = true; continue;
+          }
+          const cfKMatch = lines[i].match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
+          if (cfKMatch) {
+            if (cfKMatch[2] === "tx_center_freq") {
+              lines[i] = dcCenterEnabled
+                ? `${cfKMatch[1]}tx_center_freq${cfKMatch[3]}${dcTxCenter}`
+                : `${cfKMatch[1]}# tx_center_freq = ${dcTxCenter}`;
+              txCenterFound = true; continue;
+            }
+            if (cfKMatch[2] === "rx_center_freq") {
+              lines[i] = dcCenterEnabled
+                ? `${cfKMatch[1]}rx_center_freq${cfKMatch[3]}${dcRxCenter}`
+                : `${cfKMatch[1]}# rx_center_freq = ${dcRxCenter}`;
+              rxCenterFound = true; continue;
+            }
+          }
+        }
 
         // Treat any [cell_info.X] subsection as cell_info for direct-field updates.
         // Upstream flowstation example_config places [cell_info.home_mode_display]
@@ -2430,6 +2483,37 @@ ${restartLine}
               : `${commentedPrMatch[1]}# periodic_registration_secs = ${prVal}`;
             prFound = true;
             continue;
+          }
+          // Dual carrier: secondary_carrier, dual_carrier_enabled, dgna_use_ss_facility (commented variants)
+          if (dcPresent) {
+            const commentedSc = lines[i].match(/^(\s*)#\s*secondary_carrier\s*=\s*(\d+)/);
+            if (commentedSc) {
+              if (scFound) { lines.splice(i, 1); i--; continue; }
+              lines[i] = dcSecondaryEnabled
+                ? `${commentedSc[1]}secondary_carrier = ${dcSecondaryVal}`
+                : `${commentedSc[1]}# secondary_carrier = ${dcSecondaryVal}`;
+              scFound = true; continue;
+            }
+            const commentedDce = lines[i].match(/^(\s*)#\s*dual_carrier_enabled\s*=\s*(.*)/);
+            if (commentedDce) {
+              if (dcActiveFound) { lines.splice(i, 1); i--; continue; }
+              if (dcActiveEnabled) {
+                // absent = ON → remove commented line
+                lines.splice(i, 1); i--; dcActiveFound = true; continue;
+              }
+              lines[i] = `${commentedDce[1]}dual_carrier_enabled = false`;
+              dcActiveFound = true; continue;
+            }
+            const commentedDgna = lines[i].match(/^(\s*)#\s*dgna_use_ss_facility\s*=\s*(.*)/);
+            if (commentedDgna) {
+              if (dgnaFound) { lines.splice(i, 1); i--; continue; }
+              if (dcDgnaEnabled) {
+                // absent = true → remove commented line
+                lines.splice(i, 1); i--; dgnaFound = true; continue;
+              }
+              lines[i] = `${commentedDgna[1]}dgna_use_ss_facility = false`;
+              dgnaFound = true; continue;
+            }
           }
           // Handle commented # timezone = "..." line
           const commentedTzMatch = lines[i].match(/^(\s*)#\s*timezone\s*=\s*"(.*)"/);
@@ -2492,6 +2576,34 @@ ${restartLine}
                 : `${keyMatch[1]}# periodic_registration_secs = ${prVal}`;
               prFound = true;
               continue;
+            }
+            // Dual carrier active-KV handling
+            if (dcPresent) {
+              if (k === "secondary_carrier") {
+                if (scFound) { lines.splice(i, 1); i--; continue; }
+                lines[i] = dcSecondaryEnabled
+                  ? `${keyMatch[1]}secondary_carrier${keyMatch[3]}${dcSecondaryVal}`
+                  : `${keyMatch[1]}# secondary_carrier = ${dcSecondaryVal}`;
+                scFound = true; continue;
+              }
+              if (k === "dual_carrier_enabled") {
+                if (dcActiveFound) { lines.splice(i, 1); i--; continue; }
+                if (dcActiveEnabled) {
+                  // absent = ON → remove the active line
+                  lines.splice(i, 1); i--; dcActiveFound = true; continue;
+                }
+                lines[i] = `${keyMatch[1]}dual_carrier_enabled = false`;
+                dcActiveFound = true; continue;
+              }
+              if (k === "dgna_use_ss_facility") {
+                if (dgnaFound) { lines.splice(i, 1); i--; continue; }
+                if (dcDgnaEnabled) {
+                  // absent = true → remove the line
+                  lines.splice(i, 1); i--; dgnaFound = true; continue;
+                }
+                lines[i] = `${keyMatch[1]}dgna_use_ss_facility = false`;
+                dgnaFound = true; continue;
+              }
             }
           }
         }
@@ -2593,6 +2705,55 @@ ${restartLine}
             while (insertAt > i + 1 && lines[insertAt - 1].trim() === "") insertAt--;
             lines.splice(insertAt, 0, prEnabled ? `periodic_registration_secs = ${prVal}` : `# periodic_registration_secs = ${prVal}`);
             break;
+          }
+        }
+      }
+
+      // Dual carrier post-loop inserts: secondary_carrier, dual_carrier_enabled, dgna_use_ss_facility, tx/rx_center_freq
+      if (dcPresent) {
+        // Helper: find insertion point at end of [cell_info] direct fields
+        const cellInfoInsertAt = () => {
+          for (let i = 0; i < lines.length; i++) {
+            if (lines[i].match(/^\s*\[cell_info\]\s*$/)) {
+              let ins = i + 1;
+              let depth = 0;
+              while (ins < lines.length) {
+                const t = lines[ins];
+                if (depth === 0 && t.match(/^\s*\[/)) break;
+                for (const ch of t) { if (ch === '[') depth++; else if (ch === ']') depth--; }
+                ins++;
+              }
+              while (ins > i + 1 && lines[ins - 1].trim() === "") ins--;
+              return ins;
+            }
+          }
+          return -1;
+        };
+        if (!scFound) {
+          const ins = cellInfoInsertAt();
+          if (ins >= 0) lines.splice(ins, 0, dcSecondaryEnabled ? `secondary_carrier = ${dcSecondaryVal}` : `# secondary_carrier = ${dcSecondaryVal}`);
+        }
+        if (!dcActiveFound && !dcActiveEnabled) {
+          const ins = cellInfoInsertAt();
+          if (ins >= 0) lines.splice(ins, 0, `dual_carrier_enabled = false`);
+        }
+        if (!dgnaFound && !dcDgnaEnabled) {
+          const ins = cellInfoInsertAt();
+          if (ins >= 0) lines.splice(ins, 0, `dgna_use_ss_facility = false`);
+        }
+        // Center freq: insert under [phy_io.soapysdr]
+        if (!txCenterFound || !rxCenterFound) {
+          const phyPattern = /^\s*\[(phy_io\.soapysdr|phy_io_soapy)\]\s*$/;
+          for (let i = 0; i < lines.length; i++) {
+            if (phyPattern.test(lines[i])) {
+              let ins = i + 1;
+              while (ins < lines.length && !lines[ins].match(/^\s*\[/) && lines[ins].trim() !== "") ins++;
+              const newLines: string[] = [];
+              if (!txCenterFound) newLines.push(dcCenterEnabled ? `tx_center_freq = ${dcTxCenter}` : `# tx_center_freq = ${dcTxCenter}`);
+              if (!rxCenterFound) newLines.push(dcCenterEnabled ? `rx_center_freq = ${dcRxCenter}` : `# rx_center_freq = ${dcRxCenter}`);
+              lines.splice(ins, 0, ...newLines);
+              break;
+            }
           }
         }
       }
