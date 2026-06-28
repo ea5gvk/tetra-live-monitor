@@ -75,6 +75,11 @@ export interface RfCall {
   // Carrier / RF channel the call sits on. Absent (null/undefined) for legacy
   // single-carrier flowstation builds; present when dual carrier is active.
   carrier?: number | null;
+  // The other end of a duplex individual (private) call — may be on a different
+  // carrier/timeslot. simplex private calls share a single slot for both ends.
+  peerCarrier?: number | null;
+  peerTs?: number | null;
+  simplex?: boolean;
 }
 
 export interface EmergencyEntry {

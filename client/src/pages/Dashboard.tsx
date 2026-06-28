@@ -405,13 +405,27 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
 
   // Razvan's approach: calls tracked by call_id from the trunking layer, keyed by
   // carrier_num + ts. call_started → add; call_ended → remove.
-  const byCarrier = new Map<string, Record<number, RfCall | undefined>>();
-  for (const c of rfCalls) {
-    if (c.ts < 1 || c.ts > 4) continue;
-    const k = c.carrier == null ? "single" : String(c.carrier);
+  // A duplex private call occupies TWO slots (caller + called), possibly on different
+  // carriers/timeslots, so it is placed on both with the matching role.
+  type Role = "caller" | "called" | "shared" | null;
+  type Placement = { call: RfCall; role: Role };
+  const byCarrier = new Map<string, Record<number, Placement | undefined>>();
+  const place = (carrier: number | null | undefined, ts: number | null | undefined, call: RfCall, role: Role) => {
+    if (ts == null || ts < 1 || ts > 4) return;
+    const k = carrier == null ? "single" : String(carrier);
     let m = byCarrier.get(k);
     if (!m) { m = {}; byCarrier.set(k, m); }
-    if (!m[c.ts]) m[c.ts] = c;
+    if (!m[ts]) m[ts] = { call, role };
+  };
+  for (const c of rfCalls) {
+    const individual = c.callType === "individual";
+    const hasPeer = c.peerCarrier != null || c.peerTs != null;
+    if (individual && hasPeer && !c.simplex) {
+      place(c.carrier, c.ts, c, "caller");
+      place(c.peerCarrier != null ? c.peerCarrier : c.carrier, c.peerTs != null ? c.peerTs : c.ts, c, "called");
+    } else {
+      place(c.carrier, c.ts, c, individual ? "shared" : null);
+    }
   }
   // The set of carriers to render = configured carriers (always shown, even idle) plus
   // any carrier seen on a live call that config didn't list (defensive).
@@ -441,21 +455,27 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
     srcCs?: string;
     dstCs?: string;
   };
+  const roleSub = (role: Role): string =>
+    role === "caller" ? t("rf_caller_slot")
+      : role === "called" ? t("rf_called_slot")
+        : role === "shared" ? t("rf_shared_slot")
+          : t("rf_p2p");
   const renderSlot = (
     carrierNum: number | null,
     tsNum: number,
-    callByTs: Record<number, RfCall | undefined>,
+    callByTs: Record<number, Placement | undefined>,
     isMain: boolean,
   ): SlotInfo => {
     // On the main carrier TS1 is the MCCH (control) and never carries an assigned call.
-    const c = (isMain && tsNum === 1) ? undefined : callByTs[tsNum];
-    if (c) {
+    const p = (isMain && tsNum === 1) ? undefined : callByTs[tsNum];
+    if (p) {
+      const c = p.call;
       if (c.callType === "individual") {
         const srcResolved = issiCallsign(c.callerIssi);
         const dstResolved = issiCallsign(c.calledIssi);
         const srcCs = srcResolved || String(c.callerIssi);
         const dstCs = dstResolved || String(c.calledIssi);
-        return { ts: tsNum, mode: "active", label: `${srcCs} → ${dstCs}`, sub: t("rf_p2p"), detail: `ISSI ${c.callerIssi} → ${c.calledIssi}`, srcCs: srcResolved || undefined, dstCs: dstResolved || undefined };
+        return { ts: tsNum, mode: "active", label: `${srcCs} → ${dstCs}`, sub: roleSub(p.role), detail: `ISSI ${c.callerIssi} → ${c.calledIssi}`, srcCs: srcResolved || undefined, dstCs: dstResolved || undefined };
       }
       const resolved = c.callerIssi ? issiCallsign(c.callerIssi) : "";
       const speakerCs = c.callerIssi ? (resolved || String(c.callerIssi)) : "?";
@@ -495,9 +515,10 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
       };
     });
   } else {
-    // Single carrier: merge all calls (carrier-agnostic) into one row.
-    const merged: Record<number, RfCall | undefined> = {};
-    for (const c of rfCalls) { if (c.ts >= 1 && c.ts <= 4 && !merged[c.ts]) merged[c.ts] = c; }
+    // Single carrier: merge all placements (carrier-agnostic) into one row, keeping
+    // both ends of a duplex private call on their respective timeslots.
+    const merged: Record<number, Placement | undefined> = {};
+    for (const m of Array.from(byCarrier.values())) for (const ts of [1, 2, 3, 4]) if (m[ts] && !merged[ts]) merged[ts] = m[ts];
     rows = [{
       key: "single",
       carrier: null,
