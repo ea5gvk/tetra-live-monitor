@@ -2381,6 +2381,8 @@ ${restartLine}
       const dcTxCenter = Number(dualCarrierConfig?.centerFreq?.tx) || 0;
       const dcRxCenter = Number(dualCarrierConfig?.centerFreq?.rx) || 0;
       const dcDgnaEnabled = !dualCarrierConfig || dualCarrierConfig.dgna?.ss_facility !== false; // absent = true
+      // sample_rate [phy_io.soapysdr]: fixed value, uncommented when secondary_carrier is enabled, re-commented when disabled
+      const dcSampleRateVal = 60000;
 
       const brewUpdates: Record<string, string> = {};
       if (brewEnabled) {
@@ -2409,6 +2411,7 @@ ${restartLine}
       let dgnaFound = false;
       let txCenterFound = false;
       let rxCenterFound = false;
+      let srFound = false;
 
       for (let i = 0; i < lines.length; i++) {
         // Match ONLY real section headers: [identifier] alone on its line.
@@ -2425,6 +2428,23 @@ ${restartLine}
 
         // phy_io.soapysdr: tx_center_freq / rx_center_freq (dual-carrier, Flowstation v0.3.8)
         if (dcPresent && (currentSection === "phy_io.soapysdr" || currentSection === "phy_io_soapy")) {
+          // sample_rate: uncomment when secondary_carrier enabled, re-comment (default) when disabled
+          const commentedSr = lines[i].match(/^(\s*)#\s*sample_rate\s*=\s*(.*)/);
+          if (commentedSr) {
+            if (srFound) { lines.splice(i, 1); i--; continue; }
+            lines[i] = dcSecondaryEnabled
+              ? `${commentedSr[1]}sample_rate = ${dcSampleRateVal}`
+              : `${commentedSr[1]}# sample_rate = ${dcSampleRateVal}`;
+            srFound = true; continue;
+          }
+          const activeSr = lines[i].match(/^(\s*)sample_rate\s*=\s*(.*)/);
+          if (activeSr) {
+            if (srFound) { lines.splice(i, 1); i--; continue; }
+            lines[i] = dcSecondaryEnabled
+              ? `${activeSr[1]}sample_rate = ${dcSampleRateVal}`
+              : `${activeSr[1]}# sample_rate = ${dcSampleRateVal}`;
+            srFound = true; continue;
+          }
           const commentedTxCf = lines[i].match(/^(\s*)#\s*tx_center_freq\s*=\s*(.*)/);
           if (commentedTxCf) {
             lines[i] = dcCenterEnabled
@@ -2748,14 +2768,15 @@ ${restartLine}
           const ins = cellInfoInsertAt();
           if (ins >= 0) lines.splice(ins, 0, `dgna_use_ss_facility = false`);
         }
-        // Center freq: insert under [phy_io.soapysdr]
-        if (!txCenterFound || !rxCenterFound) {
+        // sample_rate + center freq: insert under [phy_io.soapysdr]
+        if (!txCenterFound || !rxCenterFound || !srFound) {
           const phyPattern = /^\s*\[(phy_io\.soapysdr|phy_io_soapy)\]\s*$/;
           for (let i = 0; i < lines.length; i++) {
             if (phyPattern.test(lines[i])) {
               let ins = i + 1;
               while (ins < lines.length && !lines[ins].match(/^\s*\[/) && lines[ins].trim() !== "") ins++;
               const newLines: string[] = [];
+              if (!srFound) newLines.push(dcSecondaryEnabled ? `sample_rate = ${dcSampleRateVal}` : `# sample_rate = ${dcSampleRateVal}`);
               if (!txCenterFound) newLines.push(dcCenterEnabled ? `tx_center_freq = ${dcTxCenter}` : `# tx_center_freq = ${dcTxCenter}`);
               if (!rxCenterFound) newLines.push(dcCenterEnabled ? `rx_center_freq = ${dcRxCenter}` : `# rx_center_freq = ${dcRxCenter}`);
               lines.splice(ins, 0, ...newLines);
