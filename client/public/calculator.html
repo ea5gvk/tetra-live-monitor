@@ -4908,7 +4908,7 @@
     if (document.getElementById("sectionDualCarrier")?.style.display !== "none") {
       // sample_rate: uncommented when secondary_carrier enabled, commented (default) otherwise
       const scOn = el("enableSecondaryCarrier").checked;
-      lines.push(scOn ? `sample_rate = 60000` : `# sample_rate = 60000`);
+      lines.push(scOn ? `sample_rate = 600000` : `# sample_rate = 600000`);
       const cfEnabled = el("enableCenterFreq").checked;
       const txCf = Number(el("txCenterFreqVal").value) || 0;
       const rxCf = Number(el("rxCenterFreqVal").value) || 0;

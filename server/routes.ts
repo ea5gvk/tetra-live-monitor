@@ -2382,7 +2382,7 @@ ${restartLine}
       const dcRxCenter = Number(dualCarrierConfig?.centerFreq?.rx) || 0;
       const dcDgnaEnabled = !dualCarrierConfig || dualCarrierConfig.dgna?.ss_facility !== false; // absent = true
       // sample_rate [phy_io.soapysdr]: fixed value, uncommented when secondary_carrier is enabled, re-commented when disabled
-      const dcSampleRateVal = 60000;
+      const dcSampleRateVal = 600000;
 
       const brewUpdates: Record<string, string> = {};
       if (brewEnabled) {
