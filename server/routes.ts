@@ -4702,12 +4702,6 @@ ${restartLine}
     fsWs.on('message', (raw: any) => {
       try {
         const m = JSON.parse(raw.toString());
-        // [TEMP DEBUG dual-carrier] Dump the raw flowstation JSON for call events so we
-        // can see exactly which field carries the carrier / RF channel number.
-        // Remove this block once the carrier field name is confirmed.
-        if (m.type === 'call_started' || (m.type === 'snapshot' && Array.isArray(m.calls) && m.calls.length)) {
-          console.log('[DUALCARRIER-DEBUG]', raw.toString());
-        }
         // last_heard is also embedded (as an object) in call_started/speaker_changed.
         // The snapshot carries it as an array, which is handled below — skip that here.
         if (m.last_heard && !Array.isArray(m.last_heard) && m.last_heard.issi != null) {
