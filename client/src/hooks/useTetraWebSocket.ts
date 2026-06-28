@@ -141,7 +141,8 @@ export interface TetraState {
   gpsHistory: Record<string, GpsPosition[]>;
   rfCalls: RfCall[];
   fsDashboardActive: boolean;
-  tsVoiceActivity: Record<number, number>;
+  // Voice activity keyed by `${carrier}:${ts}` ("single" carrier when none reported).
+  tsVoiceActivity: Record<string, number>;
   emergencies: EmergencyEntry[];
   brewStatus: BrewStatus | null;
   lastHeard: LastHeardEntry[];
@@ -162,7 +163,7 @@ export function useTetraWebSocket(): TetraState {
   const [gpsHistory, setGpsHistory] = useState<Record<string, GpsPosition[]>>({});
   const [rfCalls, setRfCalls] = useState<RfCall[]>([]);
   const [fsDashboardActive, setFsDashboardActive] = useState(false);
-  const [tsVoiceActivity, setTsVoiceActivity] = useState<Record<number, number>>({});
+  const [tsVoiceActivity, setTsVoiceActivity] = useState<Record<string, number>>({});
   const [emergencies, setEmergencies] = useState<EmergencyEntry[]>([]);
   const [brewStatus, setBrewStatus] = useState<BrewStatus | null>(null);
   const [lastHeard, setLastHeard] = useState<LastHeardEntry[]>([]);
@@ -258,7 +259,8 @@ export function useTetraWebSocket(): TetraState {
 
           case "rf_ts_voice":
             if (msg.payload?.ts >= 1 && msg.payload?.ts <= 4) {
-              setTsVoiceActivity(prev => ({ ...prev, [msg.payload.ts]: Date.now() }));
+              const vc = msg.payload.carrier != null ? String(msg.payload.carrier) : "single";
+              setTsVoiceActivity(prev => ({ ...prev, [`${vc}:${msg.payload.ts}`]: Date.now() }));
             }
             break;
 

@@ -363,7 +363,7 @@ function TerminalRow({ t: terminal, tgName, issiCallsign }: { t: Terminal; tgNam
 function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
   rfCalls: RfCall[];
   issiCallsign: (id: string | number) => string;
-  tsVoiceActivity: Record<number, number>;
+  tsVoiceActivity: Record<string, number>;
 }) {
   const { t } = useI18n();
   // Force re-render every 500ms so the "voice activity" fade-out reacts to time
@@ -374,9 +374,11 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
     return () => clearInterval(id);
   }, []);
 
-  // Authoritative main/control carrier from BTS info. With dual carrier active this
-  // decides which carrier row carries the MCCH (control channel) on TS1.
+  // Configured RF carriers from BTS info. Like Razvan's dashboard, every configured
+  // carrier (main + secondary when dual carrier is active) gets its own 4-timeslot row,
+  // whether or not it currently carries traffic. mainCarrier carries the MCCH on TS1.
   const [mainCarrier, setMainCarrier] = useState<number | null>(null);
+  const [btsCarriers, setBtsCarriers] = useState<number[]>([]);
   useEffect(() => {
     let alive = true;
     const load = async () => {
@@ -384,18 +386,25 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
         const r = await fetch("/api/btsinfo");
         if (!r.ok) return;
         const d = await r.json();
-        if (alive) setMainCarrier(d?.main_carrier ?? null);
-      } catch { /* leave null — falls back to first carrier as control */ }
+        if (!alive) return;
+        const list: number[] = Array.isArray(d?.carriers)
+          ? d.carriers.map((c: any) => c?.carrier_num).filter((n: any) => n != null).map(Number)
+          : [];
+        if (!list.length && d?.main_carrier != null) list.push(Number(d.main_carrier));
+        if (d?.dual_carrier_active && d?.secondary_carrier != null && !list.includes(Number(d.secondary_carrier))) {
+          list.push(Number(d.secondary_carrier));
+        }
+        setMainCarrier(d?.main_carrier ?? null);
+        setBtsCarriers(list);
+      } catch { /* leave defaults — single carrier */ }
     };
     load();
     const id = setInterval(load, 30000);
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  // Razvan's approach: calls tracked by call_id from the trunking layer.
-  // call_started → add; call_ended → remove. No terminal activity inference needed.
-  // Group per carrier (RF channel) so dual carrier shows 4 timeslots per carrier.
-  // carrier == null → legacy single-carrier flowstation: everything collapses into one row.
+  // Razvan's approach: calls tracked by call_id from the trunking layer, keyed by
+  // carrier_num + ts. call_started → add; call_ended → remove.
   const byCarrier = new Map<string, Record<number, RfCall | undefined>>();
   for (const c of rfCalls) {
     if (c.ts < 1 || c.ts > 4) continue;
@@ -404,25 +413,27 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
     if (!m) { m = {}; byCarrier.set(k, m); }
     if (!m[c.ts]) m[c.ts] = c;
   }
-  // Distinct real carriers seen on active calls (ignores legacy null-carrier calls).
-  const carrierSet = new Set<number>(rfCalls.filter(c => c.carrier != null).map(c => Number(c.carrier)));
+  // The set of carriers to render = configured carriers (always shown, even idle) plus
+  // any carrier seen on a live call that config didn't list (defensive).
+  const carrierSet = new Set<number>(btsCarriers);
+  for (const c of rfCalls) if (c.carrier != null) carrierSet.add(Number(c.carrier));
   if (mainCarrier != null && carrierSet.size > 0) carrierSet.add(mainCarrier);
-  // Dual carrier when 2+ distinct carriers are active (incl. the known main carrier).
+  // Dual carrier when 2+ carriers exist (configured or active).
   const multi = carrierSet.size >= 2;
 
-  // Fallback (flowstation v0.2.2+): consider a TS "voice-active" when a ts_voice
-  // event arrived within the last 2 s. Useful when call_started events are missing
-  // (e.g. flowstation v0.2.3 group-attach-cap regression). ts_voice carries no carrier,
-  // so in dual-carrier mode it is only applied to the control carrier row.
   const now = Date.now();
-  const isVoiceActive = (n: number) => {
-    const last = tsVoiceActivity[n];
-    return last != null && (now - last) < 2000;
+  // Voice activity is keyed by `${carrier}:${ts}` (flowstation ts_voice carries carrier_num).
+  // Legacy carrier-less pings ("single:ts") are honoured only on the control carrier.
+  const isVoiceActive = (carrierNum: number | null, ts: number, isMain: boolean) => {
+    const keys: string[] = [];
+    if (carrierNum != null) keys.push(`${carrierNum}:${ts}`);
+    if (isMain) keys.push(`single:${ts}`);
+    return keys.some(k => { const last = tsVoiceActivity[k]; return last != null && (now - last) < 2000; });
   };
 
   type SlotInfo = {
     ts: number;
-    mode: "active" | "voice" | "mcch" | "idle";
+    mode: "active" | "voice" | "mcch" | "bcch" | "idle";
     label: string;
     sub: string;
     detail?: string;
@@ -431,11 +442,13 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
     dstCs?: string;
   };
   const renderSlot = (
+    carrierNum: number | null,
     tsNum: number,
     callByTs: Record<number, RfCall | undefined>,
-    opts: { control: boolean; voice: boolean },
+    isMain: boolean,
   ): SlotInfo => {
-    const c = callByTs[tsNum];
+    // On the main carrier TS1 is the MCCH (control) and never carries an assigned call.
+    const c = (isMain && tsNum === 1) ? undefined : callByTs[tsNum];
     if (c) {
       if (c.callType === "individual") {
         const srcResolved = issiCallsign(c.callerIssi);
@@ -448,17 +461,19 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
       const speakerCs = c.callerIssi ? (resolved || String(c.callerIssi)) : "?";
       return { ts: tsNum, mode: "active", label: `GSSI ${c.gssi}`, sub: t("rf_group_call"), detail: speakerCs, detailCs: resolved || undefined };
     }
-    if (opts.voice && isVoiceActive(tsNum)) {
+    if (isVoiceActive(carrierNum, tsNum, isMain)) {
       return { ts: tsNum, mode: "voice", label: t("rf_voice_rx"), sub: t("rf_voice_activity") };
     }
-    if (tsNum === 1 && opts.control) {
-      return { ts: 1, mode: "mcch", label: t("rf_mcch"), sub: t("rf_control") };
+    if (tsNum === 1) {
+      // Main carrier control channel (MCCH) vs secondary carrier broadcast (BCCH).
+      if (isMain) return { ts: 1, mode: "mcch", label: t("rf_mcch"), sub: t("rf_control") };
+      return { ts: 1, mode: "bcch", label: "BCCH", sub: t("rf_control") };
     }
     return { ts: tsNum, mode: "idle", label: "—", sub: t("rf_idle") };
   };
 
-  // One row per carrier. Single-carrier (legacy) keeps the original single row and
-  // testids; dual carrier renders the control carrier first, then the rest ascending.
+  // One row per carrier. Single-carrier keeps the original unlabelled row and testids;
+  // dual carrier renders the control carrier first, then the rest ascending.
   type Row = { key: string; carrier: number | null; label: string | null; control: boolean; slots: SlotInfo[] };
   let rows: Row[];
   if (multi) {
@@ -475,11 +490,11 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
         carrier,
         label: `RF ${carrier}`,
         control,
-        slots: [1, 2, 3, 4].map(ts => renderSlot(ts, callByTs, { control, voice: control })),
+        slots: [1, 2, 3, 4].map(ts => renderSlot(carrier, ts, callByTs, control)),
       };
     });
   } else {
-    // Legacy single-carrier: merge all calls (carrier-agnostic) into one row.
+    // Single carrier: merge all calls (carrier-agnostic) into one row.
     const merged: Record<number, RfCall | undefined> = {};
     for (const c of rfCalls) { if (c.ts >= 1 && c.ts <= 4 && !merged[c.ts]) merged[c.ts] = c; }
     rows = [{
@@ -487,12 +502,12 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
       carrier: null,
       label: null,
       control: true,
-      slots: [1, 2, 3, 4].map(ts => renderSlot(ts, merged, { control: true, voice: true })),
+      slots: [1, 2, 3, 4].map(ts => renderSlot(mainCarrier, ts, merged, true)),
     }];
   }
 
   const renderSlotCard = (s: SlotInfo, key: string, testid: string) => {
-    const isMcch = s.mode === "mcch";
+    const isMcch = s.mode === "mcch" || s.mode === "bcch";
     const isActive = s.mode === "active";
     const isVoice = s.mode === "voice";
     const borderCls = isMcch
@@ -1377,6 +1392,9 @@ interface BtsInfo {
   mcc: number | null;
   mnc: number | null;
   main_carrier: number | null;
+  secondary_carrier?: number | null;
+  dual_carrier_active?: boolean;
+  carriers?: { carrier_num: number | null; tx_freq_hz: number | null; rx_freq_hz: number | null }[];
   neighbor_count: number;
   hangtime_secs: number | null;
   whitelist_restricted: boolean;

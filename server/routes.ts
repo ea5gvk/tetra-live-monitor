@@ -995,6 +995,18 @@ ${restartLine}
       const mnc = numIn(net, "mnc");
       const mainCarrier = numIn(cell, "main_carrier");
       const hangtime = numIn(cell, "hangtime_secs");
+      // Dual carrier (mirrors flowstation's DualCarrierState): `secondary_carrier = N`
+      // is the configured carrier; `dual_carrier_enabled` is the switch (absent => true).
+      // Active only when enabled AND a secondary carrier is configured (uncommented).
+      const secondaryCarrier = numIn(cell, "secondary_carrier");
+      const dceMatch = cell.match(/^\s*dual_carrier_enabled\s*=\s*(true|false)/m);
+      const dualEnabled = dceMatch ? dceMatch[1] === "true" : true;
+      const dualCarrierActive = dualEnabled && secondaryCarrier != null;
+      // carriers[]: one entry per RF channel that should get its own timeslot row.
+      // The secondary carrier appears even while idle (it is configured, not call-derived).
+      const carriers: { carrier_num: number | null; tx_freq_hz: number | null; rx_freq_hz: number | null }[] =
+        [{ carrier_num: mainCarrier, tx_freq_hz: tx, rx_freq_hz: rx }];
+      if (dualCarrierActive) carriers.push({ carrier_num: secondaryCarrier, tx_freq_hz: null, rx_freq_hz: null });
       const neighborMatches = content.match(/^\s*\[\[cell_info\.neighbor_cells_ca\]\]/gm);
       const neighborCount = neighborMatches ? neighborMatches.length : 0;
       // Whitelist may be a single- or multi-line TOML array; capture across newlines
@@ -1010,6 +1022,9 @@ ${restartLine}
         mcc,
         mnc,
         main_carrier: mainCarrier,
+        secondary_carrier: dualCarrierActive ? secondaryCarrier : null,
+        dual_carrier_active: dualCarrierActive,
+        carriers,
         neighbor_count: neighborCount,
         hangtime_secs: hangtime != null ? hangtime : 5,
         whitelist_restricted: wlCount > 0,
@@ -4771,7 +4786,7 @@ ${restartLine}
           // Forward to clients so the RF Timeslots panel can show RX activity even
           // when call_started events are missing (e.g. flowstation v0.2.3 group-attach
           // cap stalls call setup but voice frames still reach the BS).
-          broadcast(JSON.stringify({ type: 'rf_ts_voice', payload: { ts: m.ts } }));
+          broadcast(JSON.stringify({ type: 'rf_ts_voice', payload: { ts: m.ts, carrier: pickCarrier(m) } }));
         } else if (m.type === 'emergency_added' && m.issi != null) {
           fsEmergencies.set(m.issi, { issi: m.issi, dest_ssi: m.dest_ssi ?? 0, started_secs_ago: m.started_secs_ago ?? 0 });
           broadcast(JSON.stringify({ type: 'fs_emergency', payload: { emergencies: fsEmergencyList() } }));
