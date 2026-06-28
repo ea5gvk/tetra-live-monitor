@@ -72,6 +72,9 @@ export interface RfCall {
   callerIssi: number;
   calledIssi: number;
   ts: number;
+  // Carrier / RF channel the call sits on. Absent (null/undefined) for legacy
+  // single-carrier flowstation builds; present when dual carrier is active.
+  carrier?: number | null;
 }
 
 export interface EmergencyEntry {

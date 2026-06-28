@@ -4456,8 +4456,15 @@ ${restartLine}
   const energySavingByIssi: Map<string, string | null> = new Map();
 
   // ── Active RF calls — populated from flowstation call_started/call_ended ──
-  // Mirrors Razvan's state.calls: keyed by call_id, each entry has ts (timeslot).
-  interface RfCallEntry { callId: number; callType: string; gssi: number; callerIssi: number; calledIssi: number; ts: number; }
+  // Mirrors Razvan's state.calls: keyed by call_id, each entry has ts (timeslot)
+  // and (when dual carrier is active) the carrier/RF channel the call sits on.
+  interface RfCallEntry { callId: number; callType: string; gssi: number; callerIssi: number; calledIssi: number; ts: number; carrier?: number | null; }
+  // Defensive: flowstation may label the carrier field differently across versions.
+  // Take whichever key is present; null/undefined means single-carrier (legacy behaviour).
+  const pickCarrier = (c: any): number | null => {
+    const v = c?.carrier ?? c?.carrier_num ?? c?.carrier_number ?? c?.rf_carrier ?? c?.carrier_no ?? null;
+    return v == null ? null : Number(v);
+  };
   const activeCalls = new Map<number, RfCallEntry>();
   const rfCallsSnapshot = () => Array.from(activeCalls.values());
   const modeToStr = (m: number | null | undefined): string | null => {
@@ -4695,6 +4702,12 @@ ${restartLine}
     fsWs.on('message', (raw: any) => {
       try {
         const m = JSON.parse(raw.toString());
+        // [TEMP DEBUG dual-carrier] Dump the raw flowstation JSON for call events so we
+        // can see exactly which field carries the carrier / RF channel number.
+        // Remove this block once the carrier field name is confirmed.
+        if (m.type === 'call_started' || (m.type === 'snapshot' && Array.isArray(m.calls) && m.calls.length)) {
+          console.log('[DUALCARRIER-DEBUG]', raw.toString());
+        }
         // last_heard is also embedded (as an object) in call_started/speaker_changed.
         // The snapshot carries it as an array, which is handled below — skip that here.
         if (m.last_heard && !Array.isArray(m.last_heard) && m.last_heard.issi != null) {
@@ -4719,7 +4732,7 @@ ${restartLine}
             activeCalls.clear();
             for (const c of m.calls as any[]) {
               if (c && c.call_id != null) {
-                activeCalls.set(c.call_id, { callId: c.call_id, callType: c.call_type || 'group', gssi: c.gssi || 0, callerIssi: c.caller_issi || c.active_speaker || 0, calledIssi: c.called_issi || 0, ts: c.ts || 0 });
+                activeCalls.set(c.call_id, { callId: c.call_id, callType: c.call_type || 'group', gssi: c.gssi || 0, callerIssi: c.caller_issi || c.active_speaker || 0, calledIssi: c.called_issi || 0, ts: c.ts || 0, carrier: pickCarrier(c) });
               }
             }
             broadcast(JSON.stringify({ type: 'rf_calls_state', payload: rfCallsSnapshot() }));
@@ -4737,7 +4750,7 @@ ${restartLine}
           if (m.last_sys_health !== undefined) { fsSysHealth = m.last_sys_health ?? null; broadcast(JSON.stringify({ type: 'fs_sys_health', payload: fsSysHealth })); }
           if (m.health !== undefined) { fsHealth = m.health ?? null; broadcast(JSON.stringify({ type: 'fs_health', payload: fsHealth })); }
         } else if (m.type === 'call_started' && m.call_id != null) {
-          const entry: RfCallEntry = { callId: m.call_id, callType: m.call_type || 'group', gssi: m.gssi || 0, callerIssi: m.caller_issi || 0, calledIssi: m.called_issi || 0, ts: m.ts || 0 };
+          const entry: RfCallEntry = { callId: m.call_id, callType: m.call_type || 'group', gssi: m.gssi || 0, callerIssi: m.caller_issi || 0, calledIssi: m.called_issi || 0, ts: m.ts || 0, carrier: pickCarrier(m) };
           activeCalls.set(m.call_id, entry);
           broadcast(JSON.stringify({ type: 'rf_call_started', payload: entry }));
         } else if (m.type === 'call_ended' && m.call_id != null) {

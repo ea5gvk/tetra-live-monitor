@@ -374,16 +374,46 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
     return () => clearInterval(id);
   }, []);
 
+  // Authoritative main/control carrier from BTS info. With dual carrier active this
+  // decides which carrier row carries the MCCH (control channel) on TS1.
+  const [mainCarrier, setMainCarrier] = useState<number | null>(null);
+  useEffect(() => {
+    let alive = true;
+    const load = async () => {
+      try {
+        const r = await fetch("/api/btsinfo");
+        if (!r.ok) return;
+        const d = await r.json();
+        if (alive) setMainCarrier(d?.main_carrier ?? null);
+      } catch { /* leave null — falls back to first carrier as control */ }
+    };
+    load();
+    const id = setInterval(load, 30000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+
   // Razvan's approach: calls tracked by call_id from the trunking layer.
   // call_started → add; call_ended → remove. No terminal activity inference needed.
-  const callByTs: Record<number, RfCall | undefined> = {};
+  // Group per carrier (RF channel) so dual carrier shows 4 timeslots per carrier.
+  // carrier == null → legacy single-carrier flowstation: everything collapses into one row.
+  const byCarrier = new Map<string, Record<number, RfCall | undefined>>();
   for (const c of rfCalls) {
-    const ts = c.ts;
-    if (ts >= 1 && ts <= 4 && !callByTs[ts]) callByTs[ts] = c;
+    if (c.ts < 1 || c.ts > 4) continue;
+    const k = c.carrier == null ? "single" : String(c.carrier);
+    let m = byCarrier.get(k);
+    if (!m) { m = {}; byCarrier.set(k, m); }
+    if (!m[c.ts]) m[c.ts] = c;
   }
+  // Distinct real carriers seen on active calls (ignores legacy null-carrier calls).
+  const carrierSet = new Set<number>(rfCalls.filter(c => c.carrier != null).map(c => Number(c.carrier)));
+  if (mainCarrier != null && carrierSet.size > 0) carrierSet.add(mainCarrier);
+  // Dual carrier when 2+ distinct carriers are active (incl. the known main carrier).
+  const multi = carrierSet.size >= 2;
+
   // Fallback (flowstation v0.2.2+): consider a TS "voice-active" when a ts_voice
   // event arrived within the last 2 s. Useful when call_started events are missing
-  // (e.g. flowstation v0.2.3 group-attach-cap regression).
+  // (e.g. flowstation v0.2.3 group-attach-cap regression). ts_voice carries no carrier,
+  // so in dual-carrier mode it is only applied to the control carrier row.
   const now = Date.now();
   const isVoiceActive = (n: number) => {
     const last = tsVoiceActivity[n];
@@ -400,7 +430,11 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
     srcCs?: string;
     dstCs?: string;
   };
-  const renderSlot = (tsNum: number): SlotInfo => {
+  const renderSlot = (
+    tsNum: number,
+    callByTs: Record<number, RfCall | undefined>,
+    opts: { control: boolean; voice: boolean },
+  ): SlotInfo => {
     const c = callByTs[tsNum];
     if (c) {
       if (c.callType === "individual") {
@@ -414,16 +448,99 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
       const speakerCs = c.callerIssi ? (resolved || String(c.callerIssi)) : "?";
       return { ts: tsNum, mode: "active", label: `GSSI ${c.gssi}`, sub: t("rf_group_call"), detail: speakerCs, detailCs: resolved || undefined };
     }
-    if (isVoiceActive(tsNum)) {
+    if (opts.voice && isVoiceActive(tsNum)) {
       return { ts: tsNum, mode: "voice", label: t("rf_voice_rx"), sub: t("rf_voice_activity") };
     }
-    if (tsNum === 1) {
+    if (tsNum === 1 && opts.control) {
       return { ts: 1, mode: "mcch", label: t("rf_mcch"), sub: t("rf_control") };
     }
     return { ts: tsNum, mode: "idle", label: "—", sub: t("rf_idle") };
   };
 
-  const slots = [renderSlot(1), renderSlot(2), renderSlot(3), renderSlot(4)];
+  // One row per carrier. Single-carrier (legacy) keeps the original single row and
+  // testids; dual carrier renders the control carrier first, then the rest ascending.
+  type Row = { key: string; carrier: number | null; label: string | null; control: boolean; slots: SlotInfo[] };
+  let rows: Row[];
+  if (multi) {
+    const ordered = Array.from(carrierSet).sort((a, b) => {
+      if (a === mainCarrier) return -1;
+      if (b === mainCarrier) return 1;
+      return a - b;
+    });
+    rows = ordered.map((carrier, idx) => {
+      const control = mainCarrier != null ? carrier === mainCarrier : idx === 0;
+      const callByTs = byCarrier.get(String(carrier)) || {};
+      return {
+        key: String(carrier),
+        carrier,
+        label: `RF ${carrier}`,
+        control,
+        slots: [1, 2, 3, 4].map(ts => renderSlot(ts, callByTs, { control, voice: control })),
+      };
+    });
+  } else {
+    // Legacy single-carrier: merge all calls (carrier-agnostic) into one row.
+    const merged: Record<number, RfCall | undefined> = {};
+    for (const c of rfCalls) { if (c.ts >= 1 && c.ts <= 4 && !merged[c.ts]) merged[c.ts] = c; }
+    rows = [{
+      key: "single",
+      carrier: null,
+      label: null,
+      control: true,
+      slots: [1, 2, 3, 4].map(ts => renderSlot(ts, merged, { control: true, voice: true })),
+    }];
+  }
+
+  const renderSlotCard = (s: SlotInfo, key: string, testid: string) => {
+    const isMcch = s.mode === "mcch";
+    const isActive = s.mode === "active";
+    const isVoice = s.mode === "voice";
+    const borderCls = isMcch
+      ? "border-cyan-400/30 bg-cyan-400/5"
+      : isActive
+        ? "border-emerald-400/60 bg-emerald-400/5 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
+        : isVoice
+          ? "border-amber-400/60 bg-amber-400/5 shadow-[0_0_12px_rgba(251,191,36,0.15)]"
+          : "border-white/10 bg-white/[0.02]";
+    const ledCls = isMcch
+      ? "bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.6)]"
+      : isActive
+        ? "bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.7)] animate-pulse"
+        : isVoice
+          ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.7)] animate-pulse"
+          : "bg-white/15";
+    const labelCls = isMcch ? "text-cyan-300" : isActive ? "text-emerald-300" : isVoice ? "text-amber-300" : "text-muted-foreground";
+    return (
+      <div
+        key={key}
+        className={`relative rounded-md border ${borderCls} px-3 py-3 text-center transition-colors overflow-hidden`}
+        data-testid={testid}
+      >
+        <div className="text-[11px] font-bold tracking-[0.18em] text-muted-foreground mb-1.5">TS {s.ts}</div>
+        <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ledCls}`} />
+        <div className={`text-sm font-mono font-bold tracking-wide truncate ${labelCls}`} title={s.label}>
+          {(s.srcCs || s.dstCs) ? (
+            <span className="inline-flex items-center gap-1 justify-center">
+              <span>{s.label.split(" → ")[0]}</span>
+              <CountryFlag callsign={s.srcCs} />
+              <span>→</span>
+              <span>{s.label.split(" → ")[1]}</span>
+              <CountryFlag callsign={s.dstCs} />
+            </span>
+          ) : s.label}
+        </div>
+        <div className="text-xs font-mono text-muted-foreground mt-1 truncate" title={s.sub}>
+          {s.sub}
+        </div>
+        {s.detail && (
+          <div className="text-[11px] font-mono text-muted-foreground/80 mt-0.5 truncate flex items-center gap-1 justify-center" title={s.detail}>
+            <span className="truncate">{s.detail}</span>
+            {s.detailCs && <CountryFlag callsign={s.detailCs} />}
+          </div>
+        )}
+      </div>
+    );
+  };
 
   return (
     <div className="glass-panel rounded-md overflow-hidden" data-testid="panel-rf-channel">
@@ -433,57 +550,26 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
           {t("rf_channel_timeslots")}
         </h2>
       </div>
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 p-3">
-        {slots.map(s => {
-          const isMcch = s.mode === "mcch";
-          const isActive = s.mode === "active";
-          const isVoice = s.mode === "voice";
-          const borderCls = isMcch
-            ? "border-cyan-400/30 bg-cyan-400/5"
-            : isActive
-              ? "border-emerald-400/60 bg-emerald-400/5 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-              : isVoice
-                ? "border-amber-400/60 bg-amber-400/5 shadow-[0_0_12px_rgba(251,191,36,0.15)]"
-                : "border-white/10 bg-white/[0.02]";
-          const ledCls = isMcch
-            ? "bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.6)]"
-            : isActive
-              ? "bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.7)] animate-pulse"
-              : isVoice
-                ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.7)] animate-pulse"
-                : "bg-white/15";
-          const labelCls = isMcch ? "text-cyan-300" : isActive ? "text-emerald-300" : isVoice ? "text-amber-300" : "text-muted-foreground";
-          return (
-            <div
-              key={s.ts}
-              className={`relative rounded-md border ${borderCls} px-3 py-3 text-center transition-colors overflow-hidden`}
-              data-testid={`rf-ts-${s.ts}`}
-            >
-              <div className="text-[11px] font-bold tracking-[0.18em] text-muted-foreground mb-1.5">TS {s.ts}</div>
-              <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ledCls}`} />
-              <div className={`text-sm font-mono font-bold tracking-wide truncate ${labelCls}`} title={s.label}>
-                {(s.srcCs || s.dstCs) ? (
-                  <span className="inline-flex items-center gap-1 justify-center">
-                    <span>{s.label.split(" → ")[0]}</span>
-                    <CountryFlag callsign={s.srcCs} />
-                    <span>→</span>
-                    <span>{s.label.split(" → ")[1]}</span>
-                    <CountryFlag callsign={s.dstCs} />
-                  </span>
-                ) : s.label}
+      <div className="p-3 space-y-3">
+        {rows.map(row => (
+          <div key={row.key} data-testid={`rf-carrier-${row.carrier ?? "single"}`}>
+            {row.label && (
+              <div className="flex items-center gap-2 mb-1.5 px-0.5">
+                <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-cyan-400/80">{row.label}</span>
+                {row.control && (
+                  <span className="text-[9px] font-bold tracking-wider uppercase text-cyan-300 bg-cyan-400/10 border border-cyan-400/30 rounded px-1.5 py-0.5">{t("rf_mcch")}</span>
+                )}
               </div>
-              <div className="text-xs font-mono text-muted-foreground mt-1 truncate" title={s.sub}>
-                {s.sub}
-              </div>
-              {s.detail && (
-                <div className="text-[11px] font-mono text-muted-foreground/80 mt-0.5 truncate flex items-center gap-1 justify-center" title={s.detail}>
-                  <span className="truncate">{s.detail}</span>
-                  {s.detailCs && <CountryFlag callsign={s.detailCs} />}
-                </div>
-              )}
+            )}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              {row.slots.map(s => renderSlotCard(
+                s,
+                multi ? `${row.carrier}-${s.ts}` : String(s.ts),
+                multi ? `rf-ts-${row.carrier}-${s.ts}` : `rf-ts-${s.ts}`,
+              ))}
             </div>
-          );
-        })}
+          </div>
+        ))}
       </div>
     </div>
   );
