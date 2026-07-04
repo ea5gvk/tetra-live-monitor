@@ -10,8 +10,9 @@ import GpsMap from "@/pages/GpsMap";
 import VpnManager from "@/pages/VpnManager";
 import WifiManager from "@/pages/WifiManager";
 import FlowstationDash from "@/pages/FlowstationDash";
+import DgnaCenter from "@/pages/DgnaCenter";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin, Gauge, Heart, Copy, Check, X, Tag } from "lucide-react";
+import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin, Gauge, Heart, Copy, Check, X, Tag, Hexagon } from "lucide-react";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 import { UpdateChecker } from "@/components/UpdateChecker";
 import { BluestationUpdater } from "@/components/BluestationUpdater";
@@ -242,6 +243,7 @@ function NavBar() {
     { href: "/vpn",        label: "VPN",            shortLabel: "VPN",    icon: <ShieldCheck className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-vpn" },
     { href: "/wifi",       label: t("wifi_manager"),shortLabel: "WIFI",   icon: <Wifi className="w-3.5 h-3.5 flex-shrink-0" />,    testId: "nav-link-wifi" },
     { href: "/flow-dash",  label: t("flow_dash"),   shortLabel: "FLOW",   icon: <Gauge className="w-3.5 h-3.5 flex-shrink-0" />,   testId: "nav-link-flow-dash" },
+    { href: "/dgna",       label: t("dgnac_title"), shortLabel: "DGNA",   icon: <Hexagon className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-dgna" },
   ];
 
   return (
@@ -332,6 +334,7 @@ function Router() {
           <Route path="/vpn" component={VpnManager} />
           <Route path="/wifi" component={WifiManager} />
           <Route path="/flow-dash" component={FlowstationDash} />
+          <Route path="/dgna" component={DgnaCenter} />
           <Route component={NotFound} />
         </Switch>
       </div>

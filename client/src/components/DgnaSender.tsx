@@ -14,6 +14,8 @@ export function DgnaSender({ issi, groups, enabled }: {
   const { t } = useI18n();
   const [open, setOpen] = useState(false);
   const [gssi, setGssi] = useState("");
+  const [mnemonic, setMnemonic] = useState("");
+  const [attachMode, setAttachMode] = useState("0");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -21,6 +23,8 @@ export function DgnaSender({ issi, groups, enabled }: {
 
   function openModal() {
     setGssi("");
+    setMnemonic("");
+    setAttachMode("0");
     setPassword("");
     setErr("");
     setDone("");
@@ -37,7 +41,14 @@ export function DgnaSender({ issi, groups, enabled }: {
       const r = await fetch("/api/dgna", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password, issi: parseInt(String(issi), 10), gssi: parseInt(gssi, 10), attach }),
+        body: JSON.stringify({
+          password,
+          issi: parseInt(String(issi), 10),
+          gssi: parseInt(gssi, 10),
+          mnemonic: mnemonic.trim(),
+          attachment_mode: parseInt(attachMode, 10) || 0,
+          attach,
+        }),
       });
       const j = await r.json();
       if (!r.ok || !j.ok) {
@@ -128,6 +139,39 @@ export function DgnaSender({ issi, groups, enabled }: {
                   className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:border-indigo-400 disabled:opacity-50"
                   data-testid="input-dgna-gssi"
                 />
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">{t("dgna_mnemonic")}</label>
+                  <input
+                    type="text"
+                    value={mnemonic}
+                    onChange={e => setMnemonic(e.target.value)}
+                    disabled={busy}
+                    maxLength={15}
+                    placeholder="ALFA"
+                    className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs font-mono text-foreground focus:outline-none focus:border-indigo-400 disabled:opacity-50"
+                    data-testid="input-dgna-mnemonic"
+                  />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] text-muted-foreground">{t("dgna_attach_mode")}</label>
+                  <select
+                    value={attachMode}
+                    onChange={e => setAttachMode(e.target.value)}
+                    disabled={busy}
+                    className="w-full bg-background border border-border rounded px-3 py-1.5 text-xs text-foreground focus:outline-none focus:border-indigo-400 disabled:opacity-50"
+                    data-testid="select-dgna-attach-mode"
+                  >
+                    <option value="0">0 — Attached permanently</option>
+                    <option value="1">1 — On next ITSI attach</option>
+                    <option value="2">2 — Not allowed on ITSI attach</option>
+                    <option value="3">3 — On next location update</option>
+                    <option value="4">4 — Not attached, may request</option>
+                    <option value="5">5 — Not attached, no request</option>
+                  </select>
+                </div>
               </div>
 
               <div className="space-y-1">

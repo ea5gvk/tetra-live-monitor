@@ -1324,9 +1324,9 @@ ${restartLine}
 
   // DGNA (Dynamic Group Number Assignment) via flowstation's dashboard WebSocket.
   // attach=true assigns the GSSI to the terminal, attach=false deassigns it.
-  // Mirrors flowstation's own `{type:'dgna', issi, gssi, attach}` command. Same gating as SDS/kick.
+  // Mirrors flowstation's own `{type:'dgna', issi, gssi, mnemonic, attachment_mode, attach}` command. Same gating as SDS/kick.
   app.post("/api/dgna", async (req, res) => {
-    const { password, issi, gssi, attach } = req.body || {};
+    const { password, issi, gssi, attach, mnemonic, attachment_mode } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
     }
@@ -1339,6 +1339,9 @@ ${restartLine}
       return res.status(400).json({ ok: false, message: "GSSI inválido" });
     }
     const doAttach = attach !== false; // default to assign
+    // Optional TG mnemonic (EN 300 392-9 Table 17 text string, ≤15 chars) and attachment mode (0..5).
+    const tgName = typeof mnemonic === "string" ? mnemonic.trim().slice(0, 15) : "";
+    const attachMode = Math.max(0, Math.min(5, parseInt(String(attachment_mode), 10) || 0));
     const flow = serviceState(STATION_SERVICE.flowstation);
     if (!flow.active) {
       return res.status(409).json({
@@ -1346,7 +1349,7 @@ ${restartLine}
         message: "Flowstation no está activa. Cambia a FLOW para usar DGNA.",
       });
     }
-    const payload = { type: "dgna", issi: target, gssi: group, attach: doAttach };
+    const payload = { type: "dgna", issi: target, gssi: group, mnemonic: tgName, attachment_mode: attachMode, attach: doAttach };
     const okBody = {
       ok: true,
       message: doAttach ? `DGNA: grupo ${group} asignado a ${target}` : `DGNA: grupo ${group} quitado de ${target}`,
@@ -2121,6 +2124,7 @@ ${restartLine}
           username: str('dashboard', 'username'),
           password: str('dashboard', 'password'),
           public_overview: bool('dashboard', 'public_overview'),
+          show_dgna_attachment_mode_picker: bool('dashboard', 'show_dgna_attachment_mode_picker'),
           source_dir: str('dashboard', 'source_dir'),
         },
         wx_service: {
@@ -2429,6 +2433,8 @@ ${restartLine}
       const dcTxCenter = Number(dualCarrierConfig?.centerFreq?.tx) || 0;
       const dcRxCenter = Number(dualCarrierConfig?.centerFreq?.rx) || 0;
       const dcDgnaEnabled = !dualCarrierConfig || dualCarrierConfig.dgna?.ss_facility !== false; // absent = true
+      const dcDamEnabled = dualCarrierConfig?.dgna?.attach_mode_enabled === true; // absent = commented (default 0)
+      const dcDamVal = Math.max(0, Math.min(5, Number(dualCarrierConfig?.dgna?.attachment_mode) || 0));
       // sample_rate [phy_io.soapysdr]: fixed value, uncommented when secondary_carrier is enabled, re-commented when disabled
       const dcSampleRateVal = 600000;
 
@@ -2457,6 +2463,7 @@ ${restartLine}
       let scFound = false;
       let dcActiveFound = false;
       let dgnaFound = false;
+      let damFound = false;
       let txCenterFound = false;
       let rxCenterFound = false;
       let srFound = false;
@@ -2586,6 +2593,14 @@ ${restartLine}
               lines[i] = `${commentedDgna[1]}dgna_use_ss_facility = false`;
               dgnaFound = true; continue;
             }
+            const commentedDam = lines[i].match(/^(\s*)#\s*dgna_attachment_mode\s*=\s*(\d+)/);
+            if (commentedDam) {
+              if (damFound) { lines.splice(i, 1); i--; continue; }
+              lines[i] = dcDamEnabled
+                ? `${commentedDam[1]}dgna_attachment_mode = ${dcDamVal}`
+                : `${commentedDam[1]}# dgna_attachment_mode = ${dcDamVal}`;
+              damFound = true; continue;
+            }
           }
           // Handle commented # timezone = "..." line
           const commentedTzMatch = lines[i].match(/^(\s*)#\s*timezone\s*=\s*"(.*)"/);
@@ -2678,6 +2693,13 @@ ${restartLine}
                 }
                 lines[i] = `${keyMatch[1]}dgna_use_ss_facility = false`;
                 dgnaFound = true; continue;
+              }
+              if (k === "dgna_attachment_mode") {
+                if (damFound) { lines.splice(i, 1); i--; continue; }
+                lines[i] = dcDamEnabled
+                  ? `${keyMatch[1]}dgna_attachment_mode${keyMatch[3]}${dcDamVal}`
+                  : `${keyMatch[1]}# dgna_attachment_mode = ${dcDamVal}`;
+                damFound = true; continue;
               }
             }
           }
@@ -2815,6 +2837,10 @@ ${restartLine}
         if (!dgnaFound && !dcDgnaEnabled) {
           const ins = cellInfoInsertAt();
           if (ins >= 0) lines.splice(ins, 0, `dgna_use_ss_facility = false`);
+        }
+        if (!damFound) {
+          const ins = cellInfoInsertAt();
+          if (ins >= 0) lines.splice(ins, 0, dcDamEnabled ? `dgna_attachment_mode = ${dcDamVal}` : `# dgna_attachment_mode = ${dcDamVal}`);
         }
         // sample_rate + center freq: insert under [phy_io.soapysdr]
         if (!txCenterFound || !rxCenterFound || !srFound) {
@@ -3625,6 +3651,7 @@ ${restartLine}
         const dashUser = typeof dashboardConfig.username === "string" ? dashboardConfig.username.trim() : "";
         const dashPass = typeof dashboardConfig.password === "string" ? dashboardConfig.password.trim() : "";
         const dashPublicOverview = dashboardConfig.public_overview === true;
+        const dashShowPicker = dashboardConfig.show_dgna_attachment_mode_picker === true;
         const dashSourceDir = typeof dashboardConfig.source_dir === "string" ? dashboardConfig.source_dir.trim() : "";
 
         const portLine   = `port = ${dashPort}`;
@@ -3632,6 +3659,7 @@ ${restartLine}
         const userLine   = dashUser ? `username = "${dashUser}"` : `# username = "admin"`;
         const passLine   = dashPass ? `password = "${dashPass}"` : `# password = "changeme"`;
         const pubOvLine  = dashPublicOverview ? `public_overview = true` : `# public_overview = false`;
+        const pickerLine = dashShowPicker ? `show_dgna_attachment_mode_picker = true` : `# show_dgna_attachment_mode_picker = false`;
         const srcDirLine = dashSourceDir ? `source_dir = "${dashSourceDir}"` : `# source_dir = "/path/to/flowstation"`;
 
         const mkLine = (l: string) => dashEnabled ? l : `# ${l.startsWith("# ") ? l.slice(2) : l}`;
@@ -3640,6 +3668,7 @@ ${restartLine}
         const finalUser   = dashEnabled ? userLine : `# username = "${dashUser || 'admin'}"`;
         const finalPass   = dashEnabled ? passLine : `# password = "${dashPass || 'changeme'}"`;
         const finalPubOv  = mkLine(pubOvLine);
+        const finalPicker = mkLine(pickerLine);
         const finalSrcDir = mkLine(srcDirLine);
 
         let dashHeaderIdx = -1;
@@ -3662,7 +3691,7 @@ ${restartLine}
           for (let i = 0; i < lines.length; i++) {
             if (lines[i].match(/^\s*\[brew\]/) || lines[i].match(/^\s*#\s*\[brew\]/)) { brewIdx = i; break; }
           }
-          const block = [headerLine, finalPort, finalBind, finalUser, finalPass, finalPubOv, finalSrcDir];
+          const block = [headerLine, finalPort, finalBind, finalUser, finalPass, finalPubOv, finalPicker, finalSrcDir];
           if (brewIdx === -1) {
             if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
             lines.push(...block);
@@ -3721,6 +3750,7 @@ ${restartLine}
             lines.splice(insertIdx, 0, newVal);
           };
           upsertDash(/^\s*#?\s*public_overview\s*=/, finalPubOv);
+          upsertDash(/^\s*#?\s*show_dgna_attachment_mode_picker\s*=/, finalPicker);
           upsertDash(/^\s*#?\s*source_dir\s*=/, finalSrcDir);
         }
       }

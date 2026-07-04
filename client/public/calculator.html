@@ -671,6 +671,24 @@
         </div>
         <div class="hint" data-i18n="dgna_ss_hint">Checked = omit line (SS-DGNA path, default). Unchecked = writes 'dgna_use_ss_facility = false' for legacy DGNA path.</div>
       </div>
+      <div class="subsection">
+        <div class="checkbox-row">
+          <input type="checkbox" id="enableDgnaAttachMode" data-testid="checkbox-dgna-attach-mode" />
+          <label for="enableDgnaAttachMode" data-i18n="dgna_attach_enable">dgna_attachment_mode (absent = 0)</label>
+        </div>
+        <div class="hint" data-i18n="dgna_attach_hint">Default SS-DGNA attachment mode used by the dashboard when the advanced picker is hidden. Checked = write the value; unchecked = commented (default 0).</div>
+        <div id="dgnaAttachModeField" style="display:none; margin-top:8px;">
+          <label for="dgnaAttachMode" data-i18n="dgna_attach_label">dgna_attachment_mode (0–5)</label>
+          <select id="dgnaAttachMode" style="max-width:360px;">
+            <option value="0">0 — Attached permanently</option>
+            <option value="1">1 — Attach on next ITSI attach</option>
+            <option value="2">2 — Not allowed on next ITSI attach</option>
+            <option value="3">3 — Attach on next location update</option>
+            <option value="4">4 — Not attached, MS may request</option>
+            <option value="5">5 — Not attached, MS may not request</option>
+          </select>
+        </div>
+      </div>
     </section>
   </div>
   <div style="max-width:1200px; margin:14px auto 0 auto;">
@@ -871,6 +889,11 @@
           <label for="dashPublicOverview" data-i18n="dashboard_public_overview">public_overview</label>
         </div>
         <div class="hint" data-i18n="dashboard_public_overview_hint">Show a read-only status page to unauthenticated visitors when auth is enabled.</div>
+        <div class="checkbox-row" style="margin-top:12px;">
+          <input type="checkbox" id="dashShowDgnaPicker" />
+          <label for="dashShowDgnaPicker" data-i18n="dashboard_show_dgna_picker">show_dgna_attachment_mode_picker</label>
+        </div>
+        <div class="hint" data-i18n="dashboard_show_dgna_picker_hint">Show the SS-DGNA attachment-mode picker in the dashboard so the operator can choose the mode per assign.</div>
         <label for="dashSourceDir" style="margin-top:10px; display:block;" data-i18n="dashboard_source_dir">source_dir (optional)</label>
         <input id="dashSourceDir" type="text" value="" placeholder="/path/to/flowstation" />
         <div class="hint" data-i18n="dashboard_source_dir_hint">Path to FlowStation git directory for the Update button. Leave empty for auto-detection.</div>
@@ -1965,10 +1988,15 @@
       dual_rx_center: "rx_center_freq (Hz)",
       dgna_ss_enable: "dgna_use_ss_facility (absent = true)",
       dgna_ss_hint: "Checked = omit line (SS-DGNA path, default). Unchecked = writes 'dgna_use_ss_facility = false' to use legacy DGNA path.",
+      dgna_attach_enable: "dgna_attachment_mode (absent = 0)",
+      dgna_attach_hint: "Default SS-DGNA attachment mode used by the dashboard when the advanced picker is hidden. Checked = write the value; unchecked = commented (default 0).",
+      dgna_attach_label: "dgna_attachment_mode (0–5)",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Forwards SDS between local clients and Brew. Enabled by default. Disable to block all Brew SDS.",
       dashboard_public_overview: "public_overview (read-only public view)",
       dashboard_public_overview_hint: "Shows a read-only status page to unauthenticated visitors when username/password are set.",
+      dashboard_show_dgna_picker: "show_dgna_attachment_mode_picker",
+      dashboard_show_dgna_picker_hint: "Shows the SS-DGNA attachment-mode picker in the dashboard so the operator can choose the mode per assign.",
       dashboard_source_dir: "source_dir (source directory, optional)",
       dashboard_source_dir_hint: "Path to FlowStation git directory for the Update button. Leave empty for auto-detection.",
       telemetry_title: "📡 Telemetry [telemetry]",
@@ -2568,10 +2596,15 @@
       dual_rx_center: "rx_center_freq (Hz)",
       dgna_ss_enable: "dgna_use_ss_facility (ausente = true)",
       dgna_ss_hint: "Marcado = no se escribe la línea (vía SS-DGNA, por defecto). Desmarcado = escribe 'dgna_use_ss_facility = false' para la vía DGNA heredada.",
+      dgna_attach_enable: "dgna_attachment_mode (ausente = 0)",
+      dgna_attach_hint: "Modo de attachment SS-DGNA por defecto que usa el dashboard cuando el selector avanzado está oculto. Marcado = escribe el valor; desmarcado = comentado (por defecto 0).",
+      dgna_attach_label: "dgna_attachment_mode (0–5)",
       brew_sds_enabled: "feature_sds_enabled",
       brew_sds_enabled_hint: "Reenvía SDS entre clientes locales y Brew. Habilitado por defecto. Desactivar para bloquear todo SDS Brew.",
       dashboard_public_overview: "public_overview (vista pública de solo lectura)",
       dashboard_public_overview_hint: "Muestra una página de solo lectura a visitantes no autenticados cuando username/password están configurados.",
+      dashboard_show_dgna_picker: "show_dgna_attachment_mode_picker",
+      dashboard_show_dgna_picker_hint: "Muestra el selector de modo de attachment SS-DGNA en el dashboard para elegir el modo en cada asignación.",
       dashboard_source_dir: "source_dir (directorio de código fuente, opcional)",
       dashboard_source_dir_hint: "Ruta al directorio git de FlowStation para el botón Update. Dejar vacío para autodetección.",
       telemetry_title: "📡 Telemetría [telemetry]",
@@ -4974,6 +5007,11 @@
       if (!el("dgnaUseSsFacility").checked) {
         lines.push(`dgna_use_ss_facility = false`);
       }
+      {
+        const damEnabled = el("enableDgnaAttachMode").checked;
+        const damVal = Math.max(0, Math.min(5, Number(el("dgnaAttachMode").value) || 0));
+        lines.push(damEnabled ? `dgna_attachment_mode = ${damVal}` : `# dgna_attachment_mode = ${damVal}`);
+      }
     }
     // Neighbor Cells — emit blocks at end of [cell_info] direct fields, before [net_info]/[brew]/[security]
     {
@@ -5117,6 +5155,7 @@
       const dashPass = el("dashboardPassword").value.trim();
       lines.push("");
       const dashPubOv = el("dashPublicOverview").checked;
+      const dashShowPicker = el("dashShowDgnaPicker").checked;
       const dashSrcDir = el("dashSourceDir").value.trim();
       if (el("enableDashboard").checked) {
         lines.push("[dashboard]");
@@ -5127,6 +5166,7 @@
         if (dashPass) lines.push(`password = "${dashPass}"`);
         else lines.push(`# password = "changeme"`);
         lines.push(`${dashPubOv ? "" : "# "}public_overview = ${dashPubOv ? "true" : "false"}`);
+        lines.push(`${dashShowPicker ? "" : "# "}show_dgna_attachment_mode_picker = ${dashShowPicker ? "true" : "false"}`);
         if (dashSrcDir) lines.push(`source_dir = "${dashSrcDir}"`);
         else lines.push(`# source_dir = "/path/to/flowstation"`);
       } else {
@@ -5136,6 +5176,7 @@
         lines.push(`# username = "${dashUser || 'admin'}"`);
         lines.push(`# password = "${dashPass || 'changeme'}"`);
         lines.push(`# public_overview = false`);
+        lines.push(`# show_dgna_attachment_mode_picker = false`);
         lines.push(`# source_dir = "/path/to/flowstation"`);
       }
     }
@@ -5908,6 +5949,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         var dcActive = true; // default: absent = ON
         var cfEnabled = false, txCf = null, rxCf = null;
         var dgnaEnabled = true; // default: absent = true
+        var dgnaAttachEnabled = false, dgnaAttachMode = null; // default: absent = 0 (commented)
         for (var i = 0; i < lines.length; i++) {
           var t = lines[i].trim();
           if (!t) continue;
@@ -5932,6 +5974,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
             m = t.match(/^#\s*secondary_carrier\s*=\s*(\d+)/); if (m && scVal === null) { scVal = Number(m[1]); continue; }
             m = t.match(/^dual_carrier_enabled\s*=\s*(true|false)/); if (m) { dcActive = (m[1] === "true"); continue; }
             m = t.match(/^dgna_use_ss_facility\s*=\s*(true|false)/); if (m) { dgnaEnabled = (m[1] === "true"); continue; }
+            m = t.match(/^dgna_attachment_mode\s*=\s*(\d+)/); if (m) { dgnaAttachEnabled = true; dgnaAttachMode = Number(m[1]); continue; }
+            m = t.match(/^#\s*dgna_attachment_mode\s*=\s*(\d+)/); if (m && dgnaAttachMode === null) { dgnaAttachMode = Number(m[1]); continue; }
           }
         }
         el("enableSecondaryCarrier").checked = scEnabled;
@@ -5943,6 +5987,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         if (txCf !== null) el("txCenterFreqVal").value = String(txCf);
         if (rxCf !== null) el("rxCenterFreqVal").value = String(rxCf);
         el("dgnaUseSsFacility").checked = dgnaEnabled;
+        el("enableDgnaAttachMode").checked = dgnaAttachEnabled;
+        el("enableDgnaAttachMode").dispatchEvent(new Event("change"));
+        if (dgnaAttachMode !== null) el("dgnaAttachMode").value = String(Math.max(0, Math.min(5, dgnaAttachMode)));
       })();
 
       // ── Home Mode Display ([cell_info.home_mode_display] block, active or commented)
@@ -6088,6 +6135,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         if (data.dashboard.username) el("dashboardUsername").value = data.dashboard.username;
         if (data.dashboard.password) el("dashboardPassword").value = data.dashboard.password;
         el("dashPublicOverview").checked = !!data.dashboard.public_overview;
+        el("dashShowDgnaPicker").checked = !!data.dashboard.show_dgna_attachment_mode_picker;
         if (data.dashboard.source_dir !== null && data.dashboard.source_dir !== undefined) {
           el("dashSourceDir").value = String(data.dashboard.source_dir);
         }
@@ -6453,6 +6501,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       username: el("dashboardUsername").value.trim(),
       password: el("dashboardPassword").value.trim(),
       public_overview: el("dashPublicOverview").checked,
+      show_dgna_attachment_mode_picker: el("dashShowDgnaPicker").checked,
       source_dir: el("dashSourceDir").value.trim(),
     } : null;
 
@@ -6516,6 +6565,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       },
       dgna: {
         ss_facility: el("dgnaUseSsFacility").checked,
+        attach_mode_enabled: el("enableDgnaAttachMode").checked,
+        attachment_mode: Math.max(0, Math.min(5, Number(el("dgnaAttachMode").value) || 0)),
       }
     } : null;
 
@@ -7164,6 +7215,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   el("enableCenterFreq").addEventListener("change", function(){
     el("centerFreqFields").style.display = this.checked ? "block" : "none";
     updateSecondaryFromCenter();
+  });
+  el("enableDgnaAttachMode").addEventListener("change", function(){
+    el("dgnaAttachModeField").style.display = this.checked ? "block" : "none";
   });
   el("txCenterFreqVal").addEventListener("input", updateSecondaryFromCenter);
 
