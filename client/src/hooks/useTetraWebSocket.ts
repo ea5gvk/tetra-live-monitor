@@ -1,11 +1,30 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
+export interface GroupCatalogEntry {
+  gssi: number;
+  mnemonic: string;
+  attachment_mode: number;
+  is_dynamic: boolean;
+  is_attached: boolean;
+}
+
+export interface DgnaLogEntry {
+  ts: string;
+  issi: number;
+  gssi: number;
+  accepted: boolean;
+  detail: string;
+  attach: boolean;
+  source: string;
+}
+
 export interface Terminal {
   id: string;
   callsign?: string;
   status: "Online" | "Offline" | "External";
   selectedTg: string;
   groups: string[];
+  groupCatalog?: GroupCatalogEntry[];
   lastSeen: string;
   isLocal: boolean;
   isActive?: boolean;
@@ -155,6 +174,7 @@ export interface TetraState {
   health: HealthSnapshot | null;
   sdrHealth: SdrHealth | null;
   sysHealth: SysHealth | null;
+  dgnaLog: DgnaLogEntry[];
   connected: boolean;
   mode: string;
 }
@@ -178,6 +198,7 @@ export function useTetraWebSocket(): TetraState {
   const [sysHealth, setSysHealth] = useState<SysHealth | null>(null);
   const [connected, setConnected] = useState(false);
   const [mode, setMode] = useState("connecting");
+  const [dgnaLog, setDgnaLog] = useState<DgnaLogEntry[]>([]);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimer = useRef<ReturnType<typeof setTimeout>>();
 
@@ -213,6 +234,19 @@ export function useTetraWebSocket(): TetraState {
             setHealth(msg.payload.health ?? null);
             setSdrHealth(msg.payload.sdrHealth ?? null);
             setSysHealth(msg.payload.sysHealth ?? null);
+            if (Array.isArray(msg.payload.dgnaLog)) setDgnaLog(msg.payload.dgnaLog);
+            break;
+
+          case "fs_dgna_status":
+            setDgnaLog(prev => [msg.payload as DgnaLogEntry, ...prev].slice(0, 200));
+            break;
+
+          case "fs_dgna_log":
+            setDgnaLog(msg.payload?.log || []);
+            break;
+
+          case "fs_dgna_log_cleared":
+            setDgnaLog([]);
             break;
 
           case "fs_emergency":
@@ -360,5 +394,5 @@ export function useTetraWebSocket(): TetraState {
     };
   }, [connect]);
 
-  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, rfCalls, fsDashboardActive, tsVoiceActivity, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, connected, mode };
+  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, rfCalls, fsDashboardActive, tsVoiceActivity, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, dgnaLog, connected, mode };
 }

@@ -4,3 +4,6 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+dgna-log.json
+vpn-data.json
+active-station.json

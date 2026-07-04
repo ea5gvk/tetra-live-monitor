@@ -4400,6 +4400,45 @@ ${restartLine}
     });
   }
 
+  // ── DGNA activity log (flowstation dgna_status telemetry) ──────────────────
+  // Persisted to disk so it survives our restarts and shows immediately in
+  // full_state. Also re-seeded authoritatively from flowstation's snapshot.
+  const DGNA_LOG_PATH = path.join(process.cwd(), "dgna-log.json");
+  const DGNA_LOG_MAX = 200;
+  let fsDgnaLog: any[] = [];
+  try { if (fs.existsSync(DGNA_LOG_PATH)) fsDgnaLog = JSON.parse(fs.readFileSync(DGNA_LOG_PATH, "utf-8")) || []; } catch {}
+  let dgnaLogWriteTimer: NodeJS.Timeout | null = null;
+  function persistDgnaLog() {
+    if (dgnaLogWriteTimer) return;
+    dgnaLogWriteTimer = setTimeout(() => {
+      dgnaLogWriteTimer = null;
+      try { fs.writeFileSync(DGNA_LOG_PATH, JSON.stringify(fsDgnaLog)); } catch {}
+    }, 1000);
+  }
+  function pushDgnaLog(m: any) {
+    const entry = {
+      ts: new Date().toTimeString().slice(0, 8),
+      issi: Number(m.issi),
+      gssi: Number(m.gssi),
+      accepted: !!m.accepted,
+      detail: String(m.detail || ""),
+      attach: !!m.attach,
+      source: String(m.source || ""),
+    };
+    fsDgnaLog.unshift(entry);
+    if (fsDgnaLog.length > DGNA_LOG_MAX) fsDgnaLog.length = DGNA_LOG_MAX;
+    persistDgnaLog();
+    broadcast(JSON.stringify({ type: "fs_dgna_status", payload: entry }));
+  }
+  // Return the persisted DGNA activity log; DELETE clears it.
+  app.get("/api/dgna-log", (_req, res) => res.json({ ok: true, log: fsDgnaLog }));
+  app.delete("/api/dgna-log", (_req, res) => {
+    fsDgnaLog = [];
+    try { fs.writeFileSync(DGNA_LOG_PATH, "[]"); } catch {}
+    broadcast(JSON.stringify({ type: "fs_dgna_log_cleared" }));
+    res.json({ ok: true });
+  });
+
   const MAX_GPS_HISTORY = 200; // max track points per ISSI
 
   const currentState: {
@@ -4582,11 +4621,25 @@ ${restartLine}
     const d = new Date(Date.now() - Math.max(0, secsAgo) * 1000);
     return d.toTimeString().slice(0, 8);
   };
+  function normalizeCatEntry(g: any) {
+    return {
+      gssi: Number(g?.gssi),
+      mnemonic: typeof g?.mnemonic === "string" ? g.mnemonic : "",
+      attachment_mode: Number(g?.attachment_mode) || 0,
+      is_dynamic: !!g?.is_dynamic,
+      is_attached: !!g?.is_attached,
+    };
+  }
   const upsertMsTerminal = (issi: string, m: any) => {
     const prev = currentState.terminals[issi];
     const groups: string[] = Array.isArray(m.groups)
       ? m.groups.map((g: any) => String(g))
       : (prev?.groups || []);
+    // Rich per-radio group catalog (flowstation ms_group_catalog): distinguishes
+    // dynamic (DGNA) vs static (codeplug) groups, attached/detached, and mnemonic.
+    const groupCatalog = Array.isArray(m.group_catalog)
+      ? m.group_catalog.map(normalizeCatEntry).filter((g: any) => Number.isFinite(g.gssi))
+      : ((prev as any)?.groupCatalog || []);
     let selectedTg = "---";
     if (m.selected_group != null) {
       selectedTg = `TG ${m.selected_group}`;
@@ -4604,6 +4657,7 @@ ${restartLine}
       status: "Online",
       selectedTg,
       groups,
+      groupCatalog,
       lastSeen: m.last_seen_secs_ago != null ? fmtSeen(Number(m.last_seen_secs_ago)) : (prev?.lastSeen || fmtSeen(0)),
       isLocal: true,
       isActive: prev?.isActive ?? false,
@@ -4631,6 +4685,12 @@ ${restartLine}
       ? (prev.groups || []).filter((g: string) => !incoming.includes(g))
       : incoming;
     upsertMsTerminal(issi, { issi, groups: next });
+  };
+  const updateMsGroupCatalog = (issi: string, catalog: any[]) => {
+    const cat = (Array.isArray(catalog) ? catalog : []).map(normalizeCatEntry).filter((g) => Number.isFinite(g.gssi));
+    // Attached entries define the flat groups list, mirroring flowstation's own logic.
+    const attachedGroups = cat.filter((g) => g.is_attached).map((g) => String(g.gssi));
+    upsertMsTerminal(issi, { issi, groups: attachedGroups, group_catalog: cat });
   };
   const markMsOffline = (issi: string) => {
     fsRegisteredMs.delete(issi);
@@ -4799,6 +4859,12 @@ ${restartLine}
               if (e && e.issi != null) upsertMsTerminal(String(e.issi), e);
             }
           }
+          // Authoritative DGNA activity log from flowstation's snapshot.
+          if (Array.isArray(m.dgna_log)) {
+            fsDgnaLog = m.dgna_log.slice(0, DGNA_LOG_MAX);
+            persistDgnaLog();
+            broadcast(JSON.stringify({ type: "fs_dgna_log", payload: { log: fsDgnaLog } }));
+          }
           // Active calls from calls array (Razvan's state.calls snapshot)
           if (Array.isArray(m.calls)) {
             fsWsCallDataActive = true;
@@ -4842,6 +4908,10 @@ ${restartLine}
           updateMsGroups(String(m.issi), m.groups || [], 'replace');
         } else if (m.type === 'ms_groups_detach' && m.issi != null) {
           updateMsGroups(String(m.issi), m.groups || [], 'detach');
+        } else if (m.type === 'ms_group_catalog' && m.issi != null) {
+          updateMsGroupCatalog(String(m.issi), m.groups || []);
+        } else if (m.type === 'dgna_status' && m.issi != null && m.gssi != null) {
+          pushDgnaLog(m);
         } else if (m.type === 'ms_rssi' && m.issi != null) {
           upsertMsTerminal(String(m.issi), { issi: m.issi, rssi_dbfs: m.rssi_dbfs });
         } else if (m.type === 'ms_energy_saving' && m.issi != null) {
@@ -4947,6 +5017,7 @@ ${restartLine}
         health: fsHealth,
         sdrHealth: fsSdrHealth,
         sysHealth: fsSysHealth,
+        dgnaLog: fsDgnaLog,
       }
     });
     ws.send(snapshot);
