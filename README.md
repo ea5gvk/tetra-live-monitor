@@ -15,7 +15,7 @@ Aplicación nativa para Android que se conecta a tu dashboard:
 - **DGNA**: asignar/quitar grupos, librería de TGs guardados para reasignar con un toque, estado de grupos por equipo y registro.
 - **Envío de SDS** e historial de mensajes SDS.
 - **LOG** en vivo de la flowstation.
-- **Control** del sistema: reiniciar servicio, reiniciar/apagar la Pi.
+- **Control** del sistema: lista blanca de ISSI (activar/desactivar/editar), activar/desactivar dual carrier, reiniciar servicio y reiniciar/apagar la Pi.
 
 **➡️ [Descargar tetra-live-monitor.apk](https://github.com/ea5gvk/tetra-live-monitor/releases/latest/download/tetra-live-monitor.apk)**
 
