@@ -40,6 +40,7 @@ import androidx.compose.ui.unit.sp
 import com.ea5gvk.tetralivemonitor.net.BtsInfo
 import com.ea5gvk.tetralivemonitor.net.CallLogEntry
 import com.ea5gvk.tetralivemonitor.net.RfCall
+import com.ea5gvk.tetralivemonitor.net.SdsMessage
 import com.ea5gvk.tetralivemonitor.net.SystemStats
 import com.ea5gvk.tetralivemonitor.net.Terminal
 import com.ea5gvk.tetralivemonitor.net.TetraApi
@@ -95,6 +96,8 @@ fun MonitorScreen(state: TetraState, base: String?, password: String) {
 
             item { HealthPanel(stats, state.brewStatus?.connected == true, state.brewStatus?.version) }
 
+            item { BtsDetailsPanel(base) }
+
             item { RfTimeslots(state, base) }
 
             if (state.emergencies.isNotEmpty()) {
@@ -132,6 +135,13 @@ fun MonitorScreen(state: TetraState, base: String?, password: String) {
                 item { EmptyHint("Sin actividad reciente.") }
             } else {
                 items(calls.take(30), key = { it.id }) { CallRow(it) }
+            }
+
+            item { SectionHeader("MENSAJES SDS (${state.sdsMessages.size})") }
+            if (state.sdsMessages.isEmpty()) {
+                item { EmptyHint("Sin mensajes SDS.") }
+            } else {
+                items(state.sdsMessages.take(30), key = { it.id }) { SdsRow(it) }
             }
         }
     }
@@ -209,6 +219,80 @@ private fun HealthChip(label: String, value: String, accent: Color, modifier: Mo
         Text(value, color = accent, fontWeight = FontWeight.Black, fontSize = 15.sp)
         Text(label, color = Muted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
     }
+}
+
+// ─── BTS TETRA details ──────────────────────────────────────────────────────
+
+@Composable
+private fun BtsDetailsPanel(base: String?) {
+    var bts by remember { mutableStateOf<BtsInfo?>(null) }
+    LaunchedEffect(base) {
+        while (base != null) { bts = TetraApi.getBtsInfo(base); delay(30000) }
+    }
+    val info = bts
+    fun mhz(hz: Long?): String = if (hz != null) "%.4f MHz".format(java.util.Locale.US, hz / 1_000_000.0) else "—"
+    val shift = info?.shiftHz?.let {
+        "${if (it >= 0) "+" else ""}${"%.3f".format(java.util.Locale.US, it / 1_000_000.0)} MHz"
+    } ?: "—"
+    val n = info?.neighborCount ?: 0
+    val restricted = info?.whitelistRestricted == true
+
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Surface)
+            .border(1.dp, Border, RoundedCornerShape(10.dp)).padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text("DETALLES BTS TETRA", color = Cyan, fontWeight = FontWeight.Black, fontSize = 10.sp, letterSpacing = 1.sp)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Chip("Vecina · ${if (n > 0) "ON ($n)" else "OFF"}", if (n > 0) Ok else Muted)
+            Chip("HangTime · ${info?.hangtimeSecs ?: "—"}s", Cyan)
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            BtsTile("FREC. TX", mhz(info?.txFreqHz), Ok, Modifier.weight(1f))
+            BtsTile("FREC. RX", mhz(info?.rxFreqHz), Cyan, Modifier.weight(1f))
+            BtsTile("DÚPLEX", shift, OnBg, Modifier.weight(1f))
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+            BtsTile("MCC", info?.mcc?.toString() ?: "—", OnBg, Modifier.weight(1f))
+            BtsTile("MNC", info?.mnc?.toString() ?: "—", OnBg, Modifier.weight(1f))
+            BtsTile("PORTADORA", info?.mainCarrier?.toString() ?: "—", Warn, Modifier.weight(1f))
+        }
+        Row(
+            Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(SurfaceHi)
+                .border(1.dp, (if (restricted) Warn else Ok).copy(alpha = 0.4f), RoundedCornerShape(8.dp))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            StatusDot(if (restricted) Warn else Ok, 9)
+            Text(
+                if (restricted) "Acceso restringido · ${info?.whitelistCount ?: 0} ISSI en lista blanca"
+                else "Acceso de registro abierto",
+                color = OnBg, fontSize = 11.sp, modifier = Modifier.weight(1f),
+            )
+            Text(if (restricted) "RESTRINGIDO" else "ABIERTO",
+                color = if (restricted) Warn else Ok, fontSize = 10.sp, fontWeight = FontWeight.Black)
+        }
+    }
+}
+
+@Composable
+private fun BtsTile(label: String, value: String, accent: Color, modifier: Modifier) {
+    Column(
+        modifier.clip(RoundedCornerShape(8.dp)).background(SurfaceHi).padding(vertical = 7.dp, horizontal = 6.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(label, color = Muted, fontSize = 8.sp, fontWeight = FontWeight.Bold)
+        Text(value, color = accent, fontSize = 12.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, maxLines = 1)
+    }
+}
+
+@Composable
+private fun Chip(text: String, color: Color) {
+    Text(
+        text, color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(color.copy(alpha = 0.12f))
+            .border(1.dp, color.copy(alpha = 0.4f), RoundedCornerShape(6.dp)).padding(horizontal = 8.dp, vertical = 4.dp),
+    )
 }
 
 // ─── RF carriers / timeslots ────────────────────────────────────────────────
@@ -464,6 +548,35 @@ private fun Badge(text: String, color: Color) {
             .border(1.dp, color.copy(alpha = 0.5f), RoundedCornerShape(4.dp)).padding(horizontal = 6.dp, vertical = 2.dp)
     ) {
         Text(text, color = color, fontSize = 9.sp, fontWeight = FontWeight.Black)
+    }
+}
+
+@Composable
+private fun SdsRow(m: SdsMessage) {
+    val out = m.direction == "outgoing"
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(SurfaceHi).padding(horizontal = 10.dp, vertical = 7.dp),
+        verticalArrangement = Arrangement.spacedBy(3.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (m.timestamp.isNotBlank()) {
+                Text("[${m.timestamp}]", color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            }
+            Badge(if (out) "TX" else "RX", if (out) Cyan else Ok)
+            Text(m.srcIssi + (m.srcCallsign?.let { " ($it)" } ?: ""), color = Cyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            Text("→", color = Muted, fontSize = 11.sp)
+            Text(m.dstIssi, color = Warn, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        }
+        m.textContent?.takeIf { it.isNotBlank() }?.let {
+            Text(it, color = OnBg, fontSize = 11.sp)
+        }
+        m.lipData?.let { lip ->
+            Text(
+                "📍 ${"%.5f".format(java.util.Locale.US, lip.lat)}, ${"%.5f".format(java.util.Locale.US, lip.lon)}" +
+                    (lip.speed?.let { "  ${it.toInt()} km/h" } ?: ""),
+                color = Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+            )
+        }
     }
 }
 

@@ -170,6 +170,31 @@ data class BtsInfo(
     @SerialName("secondary_carrier") val secondaryCarrier: Int? = null,
     @SerialName("dual_carrier_active") val dualCarrierActive: Boolean = false,
     val carriers: List<BtsCarrier> = emptyList(),
+    @SerialName("tx_freq_hz") val txFreqHz: Long? = null,
+    @SerialName("rx_freq_hz") val rxFreqHz: Long? = null,
+    @SerialName("shift_hz") val shiftHz: Long? = null,
+    val mcc: Int? = null,
+    val mnc: Int? = null,
+    @SerialName("neighbor_count") val neighborCount: Int = 0,
+    @SerialName("hangtime_secs") val hangtimeSecs: Int? = null,
+    @SerialName("whitelist_restricted") val whitelistRestricted: Boolean = false,
+    @SerialName("whitelist_count") val whitelistCount: Int = 0,
+)
+
+/** One line from the SSE /api/log-stream endpoint (`data: {"line":"..."}`). */
+@Serializable
+data class LogLine(
+    val line: String? = null,
+    val error: String? = null,
+    val demo: Boolean? = null,
+)
+
+/** A talkgroup saved in the DGNA library for quick re-assignment. */
+@Serializable
+data class TgEntry(
+    val gssi: Int,
+    val mnemonic: String = "",
+    val attachMode: Int = 0,
 )
 
 @Serializable
@@ -200,6 +225,7 @@ data class TetraState(
     val gpsPositions: Map<String, GpsPosition> = emptyMap(),
     val gpsHistory: Map<String, List<GpsPosition>> = emptyMap(),
     val tsVoiceActivity: Map<String, Long> = emptyMap(),
+    val sdsMessages: List<SdsMessage> = emptyList(),
     val mode: String = "connecting",
     val connected: Boolean = false,
 )

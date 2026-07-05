@@ -116,6 +116,7 @@ class TetraClient(private val scope: CoroutineScope) {
                 dgnaLog = p.dgnaLog,
                 gpsPositions = p.gpsPositions,
                 gpsHistory = p.gpsHistory,
+                sdsMessages = p.sdsMessages,
             )
         } ?: s
 
@@ -167,6 +168,7 @@ class TetraClient(private val scope: CoroutineScope) {
         } ?: s
 
         "sds_message" -> decode<SdsMessage>(payload)?.let { sds ->
+            val msgs = (listOf(sds) + s.sdsMessages).distinctBy { it.id }.take(50)
             val lip = sds.lipData
             if (lip != null && sds.srcIssi.isNotBlank()) {
                 val pos = GpsPosition(
@@ -177,10 +179,11 @@ class TetraClient(private val scope: CoroutineScope) {
                 )
                 val history = (s.gpsHistory[sds.srcIssi] ?: emptyList()) + pos
                 s.copy(
+                    sdsMessages = msgs,
                     gpsPositions = s.gpsPositions + (sds.srcIssi to pos),
                     gpsHistory = s.gpsHistory + (sds.srcIssi to history.takeLast(200)),
                 )
-            } else s
+            } else s.copy(sdsMessages = msgs)
         } ?: s
 
         else -> s

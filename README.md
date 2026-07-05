@@ -6,7 +6,16 @@ Real-time TETRA radio network monitoring dashboard / Panel de monitoreo en tiemp
 
 ## 📱 App Android
 
-Aplicación nativa para Android que se conecta a tu dashboard: monitor en vivo (equipos locales/externos, TGs escaneados, celdas RF/timeslots), estado de la Raspberry Pi (temperatura, CPU, RAM, voltaje, Brew), mapa GPS con posiciones y trazas, gestión de DGNA, envío de SDS y control del sistema (reiniciar servicio, reiniciar/apagar la Pi).
+Aplicación nativa para Android que se conecta a tu dashboard:
+
+- **Monitor** en vivo: equipos locales/externos, TGs escaneados, celdas RF/timeslots con temporizador de conversación por celda.
+- **Detalles BTS TETRA**: celda vecina, HangTime, FREC. TX/RX, desplazamiento dúplex, MCC, MNC, portadora principal y acceso abierto/restringido.
+- **Estado de la Raspberry Pi**: temperatura, CPU, RAM, voltaje y conexión al servidor Brew.
+- **Mapa GPS** (OpenStreetMap) con posiciones y trazas de los equipos.
+- **DGNA**: asignar/quitar grupos, librería de TGs guardados para reasignar con un toque, estado de grupos por equipo y registro.
+- **Envío de SDS** e historial de mensajes SDS.
+- **LOG** en vivo de la flowstation.
+- **Control** del sistema: reiniciar servicio, reiniciar/apagar la Pi.
 
 **➡️ [Descargar tetra-live-monitor.apk](https://github.com/ea5gvk/tetra-live-monitor/releases/latest/download/tetra-live-monitor.apk)**
 

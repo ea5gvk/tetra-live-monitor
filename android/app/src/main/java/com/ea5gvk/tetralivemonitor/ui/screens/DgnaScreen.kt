@@ -23,9 +23,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
@@ -33,10 +35,12 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ea5gvk.tetralivemonitor.data.Settings
 import com.ea5gvk.tetralivemonitor.net.DgnaLogEntry
 import com.ea5gvk.tetralivemonitor.net.Terminal
 import com.ea5gvk.tetralivemonitor.net.TetraApi
 import com.ea5gvk.tetralivemonitor.net.TetraState
+import com.ea5gvk.tetralivemonitor.net.TgEntry
 import com.ea5gvk.tetralivemonitor.ui.theme.Border
 import com.ea5gvk.tetralivemonitor.ui.theme.Cyan
 import com.ea5gvk.tetralivemonitor.ui.theme.Danger
@@ -48,11 +52,15 @@ import com.ea5gvk.tetralivemonitor.ui.theme.SurfaceHi
 import com.ea5gvk.tetralivemonitor.ui.theme.Warn
 import kotlinx.coroutines.launch
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun DgnaScreen(state: TetraState, base: String?, password: String) {
     // DGNA solo aplica a equipos locales; los externos no se gestionan aquí.
     val radios = state.terminals.values.filter { it.isLocal }.sortedBy { it.id }
     val scope = rememberCoroutineScope()
+    val context = LocalContext.current
+    val settings = remember { Settings(context) }
+    val tgLib by settings.tgLibrary.collectAsState(initial = emptyList())
 
     var issi by remember { mutableStateOf("") }
     var gssi by remember { mutableStateOf("") }
@@ -73,6 +81,7 @@ fun DgnaScreen(state: TetraState, base: String?, password: String) {
                 busy = true
                 val r = TetraApi.dgna(base, password, i, g, attach, mnemonic.trim(), attachMode)
                 result = r.message; resultOk = r.ok; busy = false
+                if (r.ok && attach) settings.addTg(TgEntry(g, mnemonic.trim(), attachMode))
             }
         }
     }
@@ -110,6 +119,31 @@ fun DgnaScreen(state: TetraState, base: String?, password: String) {
                 }
                 Text("Consejo: toca un grupo de un equipo abajo para rellenar el formulario.",
                     color = Muted, fontSize = 10.sp)
+            }
+        }
+
+        item {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Surface)
+                    .border(1.dp, Border, RoundedCornerShape(10.dp)).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text("LIBRERÍA DE TGs (${tgLib.size})", color = Cyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                if (tgLib.isEmpty()) {
+                    Text("Asigna un TG y se guardará aquí para reasignarlo con un toque.",
+                        color = Muted, fontSize = 11.sp)
+                } else {
+                    Text("Toca para rellenar el formulario; ✕ para quitar.", color = Muted, fontSize = 10.sp)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        tgLib.forEach { e ->
+                            TgLibChip(
+                                e,
+                                onPick = { gssi = e.gssi.toString(); mnemonic = e.mnemonic; attachMode = e.attachMode },
+                                onRemove = { scope.launch { settings.removeTg(e.gssi) } },
+                            )
+                        }
+                    }
+                }
             }
         }
 
@@ -222,6 +256,25 @@ private fun GroupChip(label: String, color: Color, dynamic: Boolean, onClick: ()
     ) {
         if (dynamic) Text("◆", color = color, fontSize = 10.sp)
         Text(label, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
+    }
+}
+
+@Composable
+private fun TgLibChip(e: TgEntry, onPick: () -> Unit, onRemove: () -> Unit) {
+    val label = e.mnemonic.ifBlank { e.gssi.toString() }
+    Row(
+        Modifier.clip(RoundedCornerShape(6.dp)).background(Ok.copy(alpha = 0.12f))
+            .border(1.dp, Ok.copy(alpha = 0.5f), RoundedCornerShape(6.dp)),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Text(
+            "$label · ${e.gssi}", color = Ok, fontSize = 11.sp, fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace,
+            modifier = Modifier.clickable(onClick = onPick).padding(start = 8.dp, end = 4.dp, top = 4.dp, bottom = 4.dp),
+        )
+        Text(
+            "✕", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.Black,
+            modifier = Modifier.clickable(onClick = onRemove).padding(start = 2.dp, end = 8.dp, top = 4.dp, bottom = 4.dp),
+        )
     }
 }
 

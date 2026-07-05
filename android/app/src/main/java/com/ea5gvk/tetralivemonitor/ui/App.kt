@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Icon
 import androidx.compose.material3.NavigationBar
@@ -42,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.ea5gvk.tetralivemonitor.net.TetraState
 import com.ea5gvk.tetralivemonitor.ui.screens.ControlScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.DgnaScreen
+import com.ea5gvk.tetralivemonitor.ui.screens.LogScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.MapScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.MonitorScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.SettingsScreen
@@ -56,10 +58,11 @@ import com.ea5gvk.tetralivemonitor.ui.theme.SurfaceHi
 private data class Tab(val label: String, val icon: ImageVector)
 
 private val TABS = listOf(
-    Tab("MONITOR", Icons.Filled.Podcasts),
+    Tab("MON", Icons.Filled.Podcasts),
     Tab("MAPA", Icons.Filled.Map),
     Tab("DGNA", Icons.Filled.Hub),
-    Tab("CONTROL", Icons.Filled.Tune),
+    Tab("LOG", Icons.Filled.Terminal),
+    Tab("CTRL", Icons.Filled.Tune),
     Tab("AJUSTES", Icons.Filled.Settings),
 )
 
@@ -102,7 +105,8 @@ fun TetraApp(
                 0 -> MonitorScreen(state, base, password)
                 1 -> MapScreen(state)
                 2 -> DgnaScreen(state, base, password)
-                3 -> ControlScreen(state, base, password, hasPassword = password.isNotBlank())
+                3 -> LogScreen(base)
+                4 -> ControlScreen(state, base, password, hasPassword = password.isNotBlank())
                 else -> SettingsScreen(serverUrl, password, onSaveUrl, onSavePassword)
             }
         }
