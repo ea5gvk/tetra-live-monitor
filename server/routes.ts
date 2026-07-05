@@ -1394,13 +1394,17 @@ ${restartLine}
       : [];
     const on = enabled !== false;
     const newLine = `${on ? "" : "# "}issi_whitelist = [${list.join(", ")}]`;
+    // La cabecera [security] se comenta/descomenta junto con la línea de la whitelist.
+    const secHeader = on ? "[security]" : "# [security]";
+    const headerRe = /^([ \t]*)(#\s*)?\[security\]\s*$/m;
     let content = fs.readFileSync(filePath, "utf-8");
     if (WL_RE.test(content)) {
       content = content.replace(WL_RE, (_m, indent) => `${indent}${newLine}`);
-    } else if (/^\s*\[security\]\s*$/m.test(content)) {
-      content = content.replace(/^(\s*\[security\]\s*)$/m, `$1\n${newLine}`);
+      if (headerRe.test(content)) content = content.replace(headerRe, (_m, indent) => `${indent}${secHeader}`);
+    } else if (headerRe.test(content)) {
+      content = content.replace(headerRe, (_m, indent) => `${indent}${secHeader}\n${indent}${newLine}`);
     } else {
-      content = content.replace(/\s*$/, "") + `\n\n[security]\n${newLine}\n`;
+      content = content.replace(/\s*$/, "") + `\n\n${secHeader}\n${newLine}\n`;
     }
     try {
       fs.writeFileSync(filePath, content, "utf-8");
