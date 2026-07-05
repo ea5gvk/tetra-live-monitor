@@ -72,6 +72,27 @@ object TetraApi {
         put("restart", restart)
     })
 
+    suspend fun getDualCarrier(base: String): DualCarrierInfo? = withContext(Dispatchers.IO) {
+        runCatching {
+            val req = Request.Builder().url("$base/api/system/dualcarrier").get().build()
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string() ?: return@use null
+                json.decodeFromString<DualCarrierInfo>(body)
+            }
+        }.getOrNull()
+    }
+
+    suspend fun setDualCarrier(
+        base: String, password: String, enabled: Boolean,
+        path: String, serviceName: String, restart: Boolean,
+    ): ApiResult = post(base, "/api/system/dualcarrier", buildJsonObject {
+        put("password", password)
+        put("enabled", enabled)
+        put("path", path)
+        put("serviceName", serviceName)
+        put("restart", restart)
+    })
+
     suspend fun sendSds(base: String, password: String, destIssi: Int, message: String): ApiResult =
         post(base, "/api/sds/send", buildJsonObject {
             put("password", password); put("dest_issi", destIssi); put("message", message)

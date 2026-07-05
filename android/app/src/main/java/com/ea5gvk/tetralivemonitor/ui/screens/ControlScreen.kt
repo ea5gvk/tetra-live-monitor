@@ -110,6 +110,9 @@ fun ControlScreen(state: TetraState, base: String?, password: String, hasPasswor
         // ── Whitelist ──
         WhitelistCard(base, password, hasPassword)
 
+        // ── Dual carrier ──
+        DualCarrierCard(base, password, hasPassword)
+
         // ── Sistema ──
         Card {
             Text("SISTEMA / RASPBERRY PI", color = Cyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
@@ -201,18 +204,22 @@ private fun WhitelistCard(base: String?, password: String, hasPassword: Boolean)
     var result by remember { mutableStateOf<String?>(null) }
     var ok by remember { mutableStateOf(true) }
 
-    LaunchedEffect(base) {
-        val b = base ?: return@LaunchedEffect
-        val wl = TetraApi.getWhitelist(b)
-        if (wl != null && wl.ok) {
-            enabled = wl.enabled
-            issisText = wl.issis.joinToString(", ")
-            if (wl.path.isNotBlank()) path = wl.path
-            if (wl.service.isNotBlank()) service = wl.service
-        } else if (wl?.message != null) {
-            result = wl.message; ok = false
+    fun load(announce: Boolean = false) {
+        val b = base ?: return
+        scope.launch {
+            val wl = TetraApi.getWhitelist(b)
+            if (wl != null && wl.ok) {
+                enabled = wl.enabled
+                issisText = wl.issis.joinToString(", ")
+                if (wl.path.isNotBlank()) path = wl.path
+                if (wl.service.isNotBlank()) service = wl.service
+                if (announce) { result = "Datos cargados del config.toml"; ok = true }
+            } else if (wl?.message != null) {
+                result = wl.message; ok = false
+            }
         }
     }
+    LaunchedEffect(base) { load() }
 
     fun save(restart: Boolean) {
         val b = base ?: run { result = "Configura la URL en Ajustes"; ok = false; return }
@@ -243,16 +250,86 @@ private fun WhitelistCard(base: String?, password: String, hasPassword: Boolean)
         CtrlField("ISSIs permitidas (separadas por coma)", issisText) { issisText = it }
         CtrlField("Ruta config.toml", path) { path = it }
         CtrlField("Servicio a reiniciar", service) { service = it }
+        Button(
+            onClick = { save(true) }, enabled = !busy, modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = Cyan, contentColor = Surface),
+        ) { Text("GUARDAR + REINICIAR", fontWeight = FontWeight.Black, fontSize = 11.sp) }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
-            Button(
-                onClick = { save(true) }, enabled = !busy, modifier = Modifier.weight(1f),
-                colors = ButtonDefaults.buttonColors(containerColor = Cyan, contentColor = Surface),
-            ) { Text("GUARDAR + REINICIAR", fontWeight = FontWeight.Black, fontSize = 11.sp) }
             Button(
                 onClick = { save(false) }, enabled = !busy, modifier = Modifier.weight(1f),
                 colors = ButtonDefaults.buttonColors(containerColor = SurfaceHi, contentColor = OnBg),
             ) { Text("SOLO GUARDAR", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+            Button(
+                onClick = { load(announce = true) }, enabled = base != null && !busy, modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = SurfaceHi, contentColor = Cyan),
+            ) { Text("CARGAR DATOS", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
         }
+        result?.let { Text(it, color = if (ok) Ok else Danger, fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+    }
+}
+
+@Composable
+private fun DualCarrierCard(base: String?, password: String, hasPassword: Boolean) {
+    val scope = rememberCoroutineScope()
+    var configured by remember { mutableStateOf(false) }
+    var enabled by remember { mutableStateOf(false) }
+    var secondary by remember { mutableStateOf<Int?>(null) }
+    var path by remember { mutableStateOf("") }
+    var service by remember { mutableStateOf("flowstation.service") }
+    var busy by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<String?>(null) }
+    var ok by remember { mutableStateOf(true) }
+
+    fun load(announce: Boolean = false) {
+        val b = base ?: return
+        scope.launch {
+            val dc = TetraApi.getDualCarrier(b)
+            if (dc != null && dc.ok) {
+                configured = dc.configured; enabled = dc.enabled; secondary = dc.secondaryCarrier
+                if (dc.path.isNotBlank()) path = dc.path
+                if (dc.service.isNotBlank()) service = dc.service
+                if (announce) { result = "Datos cargados del config.toml"; ok = true }
+            } else if (dc?.message != null) { result = dc.message; ok = false }
+        }
+    }
+    LaunchedEffect(base) { load() }
+
+    fun apply(newEnabled: Boolean) {
+        val b = base ?: run { result = "Configura la URL en Ajustes"; ok = false; return }
+        if (!hasPassword) { result = "Configura la contraseña en Ajustes"; ok = false; return }
+        scope.launch {
+            busy = true
+            val r = TetraApi.setDualCarrier(b, password, newEnabled, path.trim(), service.trim(), true)
+            result = r.message; ok = r.ok; busy = false
+            if (r.ok) enabled = newEnabled
+        }
+    }
+
+    Card {
+        Text("DUAL CARRIER", color = Cyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
+        if (!configured) {
+            Text("No hay dual carrier configurado en el config.toml (falta secondary_carrier / dual_carrier_enabled). Botón bloqueado.",
+                color = Muted, fontSize = 11.sp)
+        } else {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Portadora secundaria: ${secondary ?: "—"}", color = OnBg, fontSize = 12.sp, modifier = Modifier.weight(1f))
+                Text(if (enabled) "ACTIVADO" else "DESACTIVADO", color = if (enabled) Ok else Muted,
+                    fontSize = 10.sp, fontWeight = FontWeight.Black)
+            }
+        }
+        Button(
+            onClick = { apply(!enabled) },
+            enabled = configured && !busy && base != null && hasPassword,
+            modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = if (enabled) Warn else Ok, contentColor = Surface),
+        ) {
+            Text(if (enabled) "DESHABILITAR + REINICIAR" else "ACTIVAR + REINICIAR",
+                fontWeight = FontWeight.Black, fontSize = 11.sp)
+        }
+        Button(
+            onClick = { load(announce = true) }, enabled = base != null && !busy, modifier = Modifier.fillMaxWidth(),
+            colors = ButtonDefaults.buttonColors(containerColor = SurfaceHi, contentColor = Cyan),
+        ) { Text("CARGAR DATOS", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
         result?.let { Text(it, color = if (ok) Ok else Danger, fontWeight = FontWeight.Bold, fontSize = 11.sp) }
     }
 }

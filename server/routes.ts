@@ -1418,6 +1418,61 @@ ${restartLine}
     }
   });
 
+  // ─── Dual carrier (comentar/descomentar líneas del config.toml) ─────────────
+  // Deshabilitar = comentar (#) estas líneas; habilitar = descomentarlas. El carrier
+  // principal (tx_freq/rx_freq/main_carrier) no se toca.
+  const DC_KEYS = ["sample_rate", "tx_center_freq", "rx_center_freq", "secondary_carrier", "dual_carrier_enabled"];
+  const dcLineRe = (key: string) => new RegExp(`^([ \\t]*)(#\\s*)?(${key}\\s*=.*)$`, "m");
+
+  app.get("/api/system/dualcarrier", (req, res) => {
+    try {
+      const p = typeof req.query.path === "string" && req.query.path.trim()
+        ? req.query.path.trim() : STATION_CONFIG_PATH.flowstation;
+      const service = STATION_SERVICE.flowstation;
+      if (!fs.existsSync(p)) return res.json({ ok: false, message: "config.toml no encontrado", path: p, service, configured: false, enabled: false });
+      const content = fs.readFileSync(p, "utf-8");
+      const secM = content.match(/^([ \t]*)(#\s*)?secondary_carrier\s*=\s*(\d+)/m);
+      const configured = !!secM;
+      const secUncommented = !!secM && !secM[2];
+      const dceM = content.match(/^[ \t]*dual_carrier_enabled\s*=\s*(true|false)/m); // solo descomentado
+      const dualEnabled = dceM ? dceM[1] === "true" : true;
+      const enabled = secUncommented && dualEnabled;
+      res.json({ ok: true, configured, enabled, secondary_carrier: secM ? Number(secM[3]) : null, path: p, service });
+    } catch (e: any) {
+      res.json({ ok: false, message: e?.message || String(e), configured: false, enabled: false });
+    }
+  });
+
+  app.post("/api/system/dualcarrier", (req, res) => {
+    const { password, enabled, path: rawPath, serviceName, restart } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
+    }
+    const filePath = typeof rawPath === "string" && rawPath.trim() ? rawPath.trim() : STATION_CONFIG_PATH.flowstation;
+    if (!filePath.endsWith(".toml")) return res.status(400).json({ ok: false, message: "La ruta debe terminar en .toml" });
+    if (!fs.existsSync(filePath)) return res.status(400).json({ ok: false, message: `No existe: ${filePath}` });
+    const wantEnabled = enabled !== false;
+    let content = fs.readFileSync(filePath, "utf-8");
+    for (const key of DC_KEYS) {
+      content = content.replace(dcLineRe(key), (_m, indent, _hash, rest) =>
+        wantEnabled ? `${indent}${rest}` : `${indent}# ${rest}`);
+    }
+    try {
+      fs.writeFileSync(filePath, content, "utf-8");
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, message: `No se pudo escribir: ${e?.message || e}` });
+    }
+    const svc = (typeof serviceName === "string" && serviceName.trim() ? serviceName : STATION_SERVICE.flowstation)
+      .replace(/[^a-zA-Z0-9._@-]/g, "");
+    const stateMsg = wantEnabled ? "Dual carrier activado" : "Dual carrier desactivado";
+    if (restart && svc) {
+      res.json({ ok: true, message: `${stateMsg}. Reiniciando ${svc}...`, enabled: wantEnabled });
+      setTimeout(() => { exec(`sudo systemctl restart ${svc}`, (err) => { if (err) console.error("restart err:", err.message); }); }, 500);
+    } else {
+      res.json({ ok: true, message: `${stateMsg}.`, enabled: wantEnabled });
+    }
+  });
+
   app.post("/api/station/switch", (req, res) => {
     const { password, station } = req.body || {};
     if (!password || password !== getSystemPassword()) {

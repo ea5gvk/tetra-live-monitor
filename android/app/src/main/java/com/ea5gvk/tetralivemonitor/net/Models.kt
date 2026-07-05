@@ -192,6 +192,18 @@ data class WhitelistInfo(
     val message: String? = null,
 )
 
+/** Dual carrier state from GET/POST /api/system/dualcarrier. */
+@Serializable
+data class DualCarrierInfo(
+    val ok: Boolean = false,
+    val configured: Boolean = false,
+    val enabled: Boolean = false,
+    @SerialName("secondary_carrier") val secondaryCarrier: Int? = null,
+    val path: String = "",
+    val service: String = "",
+    val message: String? = null,
+)
+
 /** One line from the SSE /api/log-stream endpoint (`data: {"line":"..."}`). */
 @Serializable
 data class LogLine(
