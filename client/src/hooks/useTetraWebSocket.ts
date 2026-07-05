@@ -99,6 +99,8 @@ export interface RfCall {
   peerCarrier?: number | null;
   peerTs?: number | null;
   simplex?: boolean;
+  // Epoch ms when the call started (server-stamped). Drives the per-cell talk timer.
+  startedAt?: number;
 }
 
 export interface EmergencyEntry {

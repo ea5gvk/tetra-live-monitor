@@ -213,8 +213,14 @@ private fun HealthChip(label: String, value: String, accent: Color, modifier: Mo
 
 // ─── RF carriers / timeslots ────────────────────────────────────────────────
 
-private data class Slot(val ts: Int, val mode: String, val label: String, val sub: String)
+private data class Slot(val ts: Int, val mode: String, val label: String, val sub: String, val timer: String? = null)
 private data class Placement(val call: RfCall, val role: String)
+
+// Tiempo de conversación estilo razvan: "7s" bajo un minuto, "1m05s" a partir de ahí.
+private fun formatDur(secs: Long): String {
+    val s = if (secs < 0) 0 else secs
+    return if (s < 60) "${s}s" else "${s / 60}m${(s % 60).toString().padStart(2, '0')}s"
+}
 
 @Composable
 private fun RfTimeslots(state: TetraState, base: String?) {
@@ -273,10 +279,11 @@ private fun RfTimeslots(state: TetraState, base: String?) {
         val p = if (isMain && ts == 1) null else callByTs[ts]
         if (p != null) {
             val c = p.call
+            val timer = c.startedAt?.let { formatDur((now - it) / 1000) }
             return if (c.callType == "individual")
-                Slot(ts, "active", "${issiName(c.callerIssi)} → ${issiName(c.calledIssi)}", "PRIVADA")
+                Slot(ts, "active", "${issiName(c.callerIssi)} → ${issiName(c.calledIssi)}", "PRIVADA", timer)
             else
-                Slot(ts, "active", "GSSI ${c.gssi}", issiName(c.callerIssi))
+                Slot(ts, "active", "GSSI ${c.gssi}", issiName(c.callerIssi), timer)
         }
         if (voiceActive(carrier, ts, isMain)) return Slot(ts, "voice", "VOZ RX", "actividad")
         if (ts == 1) return if (isMain) Slot(1, "mcch", "MCCH", "control") else Slot(1, "bcch", "BCCH", "libre")
@@ -319,14 +326,25 @@ private fun SlotCell(s: Slot, modifier: Modifier) {
         "mcch" -> Cyan
         else -> Muted
     }
-    Column(
+    Box(
         modifier.clip(RoundedCornerShape(6.dp)).background(color.copy(alpha = 0.10f))
-            .border(1.dp, color.copy(alpha = 0.45f), RoundedCornerShape(6.dp)).padding(vertical = 5.dp, horizontal = 3.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .border(1.dp, color.copy(alpha = 0.45f), RoundedCornerShape(6.dp)),
     ) {
-        Text("TS${s.ts}", color = Muted, fontSize = 7.sp, fontWeight = FontWeight.Bold)
-        Text(s.label, color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-        Text(s.sub, color = Muted, fontSize = 7.sp, maxLines = 1)
+        Column(
+            Modifier.fillMaxWidth().padding(vertical = 5.dp, horizontal = 3.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            Text("TS${s.ts}", color = Muted, fontSize = 7.sp, fontWeight = FontWeight.Bold)
+            Text(s.label, color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+            Text(s.sub, color = Muted, fontSize = 7.sp, maxLines = 1)
+        }
+        s.timer?.let {
+            Text(
+                it, color = if (s.mode == "voice") Danger else Warn, fontSize = 7.sp,
+                fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.align(Alignment.TopEnd).padding(top = 2.dp, end = 3.dp),
+            )
+        }
     }
 }
 

@@ -364,6 +364,13 @@ function TerminalRow({ t: terminal, tgName, issiCallsign, showDgna, fsActive }: 
   );
 }
 
+// Elapsed call time, Razvan-style: "7s" under a minute, "1m05s" beyond.
+function formatDur(secs: number): string {
+  if (secs < 0) secs = 0;
+  if (secs < 60) return `${secs}s`;
+  return `${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, "0")}s`;
+}
+
 function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
   rfCalls: RfCall[];
   issiCallsign: (id: string | number) => string;
@@ -458,6 +465,7 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
     detailCs?: string;
     srcCs?: string;
     dstCs?: string;
+    timer?: string;
   };
   const roleSub = (role: Role): string =>
     role === "caller" ? t("rf_caller_slot")
@@ -474,16 +482,17 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
     const p = (isMain && tsNum === 1) ? undefined : callByTs[tsNum];
     if (p) {
       const c = p.call;
+      const timer = c.startedAt ? formatDur(Math.floor((now - c.startedAt) / 1000)) : undefined;
       if (c.callType === "individual") {
         const srcResolved = issiCallsign(c.callerIssi);
         const dstResolved = issiCallsign(c.calledIssi);
         const srcCs = srcResolved || String(c.callerIssi);
         const dstCs = dstResolved || String(c.calledIssi);
-        return { ts: tsNum, mode: "active", label: `${srcCs} → ${dstCs}`, sub: roleSub(p.role), detail: `ISSI ${c.callerIssi} → ${c.calledIssi}`, srcCs: srcResolved || undefined, dstCs: dstResolved || undefined };
+        return { ts: tsNum, mode: "active", label: `${srcCs} → ${dstCs}`, sub: roleSub(p.role), detail: `ISSI ${c.callerIssi} → ${c.calledIssi}`, srcCs: srcResolved || undefined, dstCs: dstResolved || undefined, timer };
       }
       const resolved = c.callerIssi ? issiCallsign(c.callerIssi) : "";
       const speakerCs = c.callerIssi ? (resolved || String(c.callerIssi)) : "?";
-      return { ts: tsNum, mode: "active", label: `GSSI ${c.gssi}`, sub: t("rf_group_call"), detail: speakerCs, detailCs: resolved || undefined };
+      return { ts: tsNum, mode: "active", label: `GSSI ${c.gssi}`, sub: t("rf_group_call"), detail: speakerCs, detailCs: resolved || undefined, timer };
     }
     if (isVoiceActive(carrierNum, tsNum, isMain)) {
       return { ts: tsNum, mode: "voice", label: t("rf_voice_rx"), sub: t("rf_voice_activity") };
@@ -559,6 +568,14 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
         className={`relative rounded-md border ${borderCls} px-3 py-3 text-center transition-colors overflow-hidden`}
         data-testid={testid}
       >
+        {s.timer && (
+          <div
+            className={`absolute top-1.5 right-2 font-mono font-bold text-[9px] tracking-wide tabular-nums ${isVoice ? "text-red-300" : "text-amber-300"}`}
+            data-testid={`${testid}-timer`}
+          >
+            {s.timer}
+          </div>
+        )}
         <div className="text-[11px] font-bold tracking-[0.18em] text-muted-foreground mb-1.5">TS {s.ts}</div>
         <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ledCls}`} />
         <div className={`text-sm font-mono font-bold tracking-wide truncate ${labelCls}`} title={s.label}>

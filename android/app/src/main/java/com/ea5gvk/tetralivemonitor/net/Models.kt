@@ -83,6 +83,8 @@ data class RfCall(
     val peerCarrier: Int? = null,
     val peerTs: Int? = null,
     val simplex: Boolean? = null,
+    // Epoch ms when the call started (server-stamped); drives the per-cell talk timer.
+    val startedAt: Long? = null,
 )
 
 @Serializable

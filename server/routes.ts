@@ -4473,7 +4473,10 @@ ${restartLine}
         if (!fsWsCallDataActive && Array.isArray(event.payload.rfCalls)) {
           activeCalls.clear();
           for (const c of event.payload.rfCalls as RfCallEntry[]) {
-            if (c?.callId != null) activeCalls.set(c.callId, c);
+            if (c?.callId != null) {
+              if (c.startedAt == null) c.startedAt = Date.now();
+              activeCalls.set(c.callId, c);
+            }
           }
         }
         break;
@@ -4519,7 +4522,9 @@ ${restartLine}
       }
       case 'rf_call_started': {
         if (!fsWsCallDataActive && event.payload?.callId != null) {
-          activeCalls.set(event.payload.callId, event.payload as RfCallEntry);
+          const p = event.payload as RfCallEntry;
+          if (p.startedAt == null) p.startedAt = Date.now();
+          activeCalls.set(p.callId, p);
         }
         break;
       }
@@ -4577,7 +4582,7 @@ ${restartLine}
   // and (when dual carrier is active) the carrier/RF channel the call sits on.
   // peerCarrier/peerTs: the OTHER end of a duplex individual (private) call, which may sit
   // on a different carrier/timeslot. simplex calls share a single slot for both ends.
-  interface RfCallEntry { callId: number; callType: string; gssi: number; callerIssi: number; calledIssi: number; ts: number; carrier?: number | null; peerCarrier?: number | null; peerTs?: number | null; simplex?: boolean; }
+  interface RfCallEntry { callId: number; callType: string; gssi: number; callerIssi: number; calledIssi: number; ts: number; carrier?: number | null; peerCarrier?: number | null; peerTs?: number | null; simplex?: boolean; startedAt?: number; }
   // Defensive: flowstation may label the carrier field differently across versions.
   // Take whichever key is present; null/undefined means single-carrier (legacy behaviour).
   const pickCarrier = (c: any): number | null => {
@@ -4875,7 +4880,7 @@ ${restartLine}
             activeCalls.clear();
             for (const c of m.calls as any[]) {
               if (c && c.call_id != null) {
-                activeCalls.set(c.call_id, { callId: c.call_id, callType: c.call_type || 'group', gssi: c.gssi || 0, callerIssi: c.caller_issi || c.active_speaker || 0, calledIssi: c.called_issi || 0, ts: c.ts || 0, carrier: pickCarrier(c), ...peerFields(c) });
+                activeCalls.set(c.call_id, { callId: c.call_id, callType: c.call_type || 'group', gssi: c.gssi || 0, callerIssi: c.caller_issi || c.active_speaker || 0, calledIssi: c.called_issi || 0, ts: c.ts || 0, carrier: pickCarrier(c), ...peerFields(c), startedAt: Date.now() - ((c.started_secs_ago || 0) * 1000) });
               }
             }
             broadcast(JSON.stringify({ type: 'rf_calls_state', payload: rfCallsSnapshot() }));
@@ -4893,7 +4898,7 @@ ${restartLine}
           if (m.last_sys_health !== undefined) { fsSysHealth = m.last_sys_health ?? null; broadcast(JSON.stringify({ type: 'fs_sys_health', payload: fsSysHealth })); }
           if (m.health !== undefined) { fsHealth = m.health ?? null; broadcast(JSON.stringify({ type: 'fs_health', payload: fsHealth })); }
         } else if (m.type === 'call_started' && m.call_id != null) {
-          const entry: RfCallEntry = { callId: m.call_id, callType: m.call_type || 'group', gssi: m.gssi || 0, callerIssi: m.caller_issi || 0, calledIssi: m.called_issi || 0, ts: m.ts || 0, carrier: pickCarrier(m), ...peerFields(m) };
+          const entry: RfCallEntry = { callId: m.call_id, callType: m.call_type || 'group', gssi: m.gssi || 0, callerIssi: m.caller_issi || 0, calledIssi: m.called_issi || 0, ts: m.ts || 0, carrier: pickCarrier(m), ...peerFields(m), startedAt: Date.now() };
           activeCalls.set(m.call_id, entry);
           broadcast(JSON.stringify({ type: 'rf_call_started', payload: entry }));
         } else if (m.type === 'call_ended' && m.call_id != null) {
