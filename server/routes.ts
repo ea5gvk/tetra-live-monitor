@@ -1358,6 +1358,66 @@ ${restartLine}
     sendFlowstationCommand(payload, okBody, res);
   });
 
+  // ─── ISSI whitelist ([security] issi_whitelist en config.toml) ──────────────
+  // GET devuelve estado actual (activa/desactivada + lista). Comentar la línea =
+  // red abierta; descomentarla con entradas = red restringida.
+  const WL_RE = /^([ \t]*)(#\s*)?issi_whitelist\s*=\s*\[([\s\S]*?)\]/m;
+  const parseIssiList = (body: string): number[] =>
+    body.split(",").map(s => s.trim()).filter(s => /^\d+$/.test(s)).map(Number);
+
+  app.get("/api/system/whitelist", (req, res) => {
+    try {
+      const p = typeof req.query.path === "string" && req.query.path.trim()
+        ? req.query.path.trim() : STATION_CONFIG_PATH.flowstation;
+      const service = STATION_SERVICE.flowstation;
+      if (!fs.existsSync(p)) return res.json({ ok: false, message: "config.toml no encontrado", path: p, service, enabled: false, issis: [] });
+      const content = fs.readFileSync(p, "utf-8");
+      const m = content.match(WL_RE);
+      const enabled = !!m && !m[2];
+      const issis = m ? parseIssiList(m[3]) : [];
+      res.json({ ok: true, enabled, issis, path: p, service });
+    } catch (e: any) {
+      res.json({ ok: false, message: e?.message || String(e), enabled: false, issis: [] });
+    }
+  });
+
+  app.post("/api/system/whitelist", (req, res) => {
+    const { password, enabled, issis, path: rawPath, serviceName, restart } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
+    }
+    const filePath = typeof rawPath === "string" && rawPath.trim() ? rawPath.trim() : STATION_CONFIG_PATH.flowstation;
+    if (!filePath.endsWith(".toml")) return res.status(400).json({ ok: false, message: "La ruta debe terminar en .toml" });
+    if (!fs.existsSync(filePath)) return res.status(400).json({ ok: false, message: `No existe: ${filePath}` });
+    const list = Array.isArray(issis)
+      ? issis.map((x: any) => parseInt(String(x), 10)).filter((n: number) => Number.isFinite(n) && n > 0 && n <= 16777215)
+      : [];
+    const on = enabled !== false;
+    const newLine = `${on ? "" : "# "}issi_whitelist = [${list.join(", ")}]`;
+    let content = fs.readFileSync(filePath, "utf-8");
+    if (WL_RE.test(content)) {
+      content = content.replace(WL_RE, (_m, indent) => `${indent}${newLine}`);
+    } else if (/^\s*\[security\]\s*$/m.test(content)) {
+      content = content.replace(/^(\s*\[security\]\s*)$/m, `$1\n${newLine}`);
+    } else {
+      content = content.replace(/\s*$/, "") + `\n\n[security]\n${newLine}\n`;
+    }
+    try {
+      fs.writeFileSync(filePath, content, "utf-8");
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, message: `No se pudo escribir: ${e?.message || e}` });
+    }
+    const svc = (typeof serviceName === "string" && serviceName.trim() ? serviceName : STATION_SERVICE.flowstation)
+      .replace(/[^a-zA-Z0-9._@-]/g, "");
+    const stateMsg = on ? (list.length ? `activa, ${list.length} ISSI` : "activa (vacía = abierta)") : "desactivada";
+    if (restart && svc) {
+      res.json({ ok: true, message: `Whitelist ${stateMsg}. Reiniciando ${svc}...`, enabled: on, issis: list });
+      setTimeout(() => { exec(`sudo systemctl restart ${svc}`, (err) => { if (err) console.error("restart err:", err.message); }); }, 500);
+    } else {
+      res.json({ ok: true, message: `Whitelist ${stateMsg}.`, enabled: on, issis: list });
+    }
+  });
+
   app.post("/api/station/switch", (req, res) => {
     const { password, station } = req.body || {};
     if (!password || password !== getSystemPassword()) {

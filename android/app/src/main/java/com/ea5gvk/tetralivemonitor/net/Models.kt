@@ -181,6 +181,17 @@ data class BtsInfo(
     @SerialName("whitelist_count") val whitelistCount: Int = 0,
 )
 
+/** ISSI whitelist state from GET/POST /api/system/whitelist. */
+@Serializable
+data class WhitelistInfo(
+    val ok: Boolean = false,
+    val enabled: Boolean = false,
+    val issis: List<Int> = emptyList(),
+    val path: String = "",
+    val service: String = "",
+    val message: String? = null,
+)
+
 /** One line from the SSE /api/log-stream endpoint (`data: {"line":"..."}`). */
 @Serializable
 data class LogLine(

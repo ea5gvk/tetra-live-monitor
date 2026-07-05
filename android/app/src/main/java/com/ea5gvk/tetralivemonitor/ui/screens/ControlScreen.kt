@@ -15,14 +15,18 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
@@ -103,6 +107,9 @@ fun ControlScreen(state: TetraState, base: String?, password: String, hasPasswor
             ) { Text("EXPULSAR", fontWeight = FontWeight.Black) }
         }
 
+        // ── Whitelist ──
+        WhitelistCard(base, password, hasPassword)
+
         // ── Sistema ──
         Card {
             Text("SISTEMA / RASPBERRY PI", color = Cyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
@@ -181,4 +188,71 @@ private fun CtrlField(label: String, value: String, onChange: (String) -> Unit) 
             focusedContainerColor = SurfaceHi, unfocusedContainerColor = SurfaceHi,
         ),
     )
+}
+
+@Composable
+private fun WhitelistCard(base: String?, password: String, hasPassword: Boolean) {
+    val scope = rememberCoroutineScope()
+    var enabled by remember { mutableStateOf(false) }
+    var issisText by remember { mutableStateOf("") }
+    var path by remember { mutableStateOf("") }
+    var service by remember { mutableStateOf("flowstation.service") }
+    var busy by remember { mutableStateOf(false) }
+    var result by remember { mutableStateOf<String?>(null) }
+    var ok by remember { mutableStateOf(true) }
+
+    LaunchedEffect(base) {
+        val b = base ?: return@LaunchedEffect
+        val wl = TetraApi.getWhitelist(b)
+        if (wl != null && wl.ok) {
+            enabled = wl.enabled
+            issisText = wl.issis.joinToString(", ")
+            if (wl.path.isNotBlank()) path = wl.path
+            if (wl.service.isNotBlank()) service = wl.service
+        } else if (wl?.message != null) {
+            result = wl.message; ok = false
+        }
+    }
+
+    fun save(restart: Boolean) {
+        val b = base ?: run { result = "Configura la URL en Ajustes"; ok = false; return }
+        if (!hasPassword) { result = "Configura la contraseña en Ajustes"; ok = false; return }
+        val issis = Regex("\\d+").findAll(issisText).map { it.value.toInt() }.toList()
+        scope.launch {
+            busy = true
+            val r = TetraApi.setWhitelist(b, password, enabled, issis, path.trim(), service.trim(), restart)
+            result = r.message; ok = r.ok; busy = false
+        }
+    }
+
+    Card {
+        Text("LISTA BLANCA ISSI (WHITELIST)", color = Cyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+            Text(
+                if (enabled) "Activada · solo estas ISSI se registran" else "Desactivada · red abierta",
+                color = if (enabled) Ok else Muted, fontSize = 11.sp, modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = enabled, onCheckedChange = { enabled = it },
+                colors = SwitchDefaults.colors(
+                    checkedThumbColor = Surface, checkedTrackColor = Ok,
+                    uncheckedTrackColor = SurfaceHi, uncheckedBorderColor = Border,
+                ),
+            )
+        }
+        CtrlField("ISSIs permitidas (separadas por coma)", issisText) { issisText = it }
+        CtrlField("Ruta config.toml", path) { path = it }
+        CtrlField("Servicio a reiniciar", service) { service = it }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = { save(true) }, enabled = !busy, modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Cyan, contentColor = Surface),
+            ) { Text("GUARDAR + REINICIAR", fontWeight = FontWeight.Black, fontSize = 11.sp) }
+            Button(
+                onClick = { save(false) }, enabled = !busy, modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = SurfaceHi, contentColor = OnBg),
+            ) { Text("SOLO GUARDAR", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+        }
+        result?.let { Text(it, color = if (ok) Ok else Danger, fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+    }
 }

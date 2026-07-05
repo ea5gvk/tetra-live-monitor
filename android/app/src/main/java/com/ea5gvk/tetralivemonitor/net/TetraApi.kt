@@ -5,8 +5,10 @@ import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonArray
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -47,6 +49,28 @@ object TetraApi {
             }
         }.getOrNull()
     }
+
+    suspend fun getWhitelist(base: String): WhitelistInfo? = withContext(Dispatchers.IO) {
+        runCatching {
+            val req = Request.Builder().url("$base/api/system/whitelist").get().build()
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string() ?: return@use null
+                json.decodeFromString<WhitelistInfo>(body)
+            }
+        }.getOrNull()
+    }
+
+    suspend fun setWhitelist(
+        base: String, password: String, enabled: Boolean, issis: List<Int>,
+        path: String, serviceName: String, restart: Boolean,
+    ): ApiResult = post(base, "/api/system/whitelist", buildJsonObject {
+        put("password", password)
+        put("enabled", enabled)
+        putJsonArray("issis") { issis.forEach { add(it) } }
+        put("path", path)
+        put("serviceName", serviceName)
+        put("restart", restart)
+    })
 
     suspend fun sendSds(base: String, password: String, destIssi: Int, message: String): ApiResult =
         post(base, "/api/sds/send", buildJsonObject {
