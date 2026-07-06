@@ -710,53 +710,8 @@ pm2 restart tetra-monitor
     const child = spawn("bash", ["-c", dashScript], { cwd: UPDATE_DIR });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
-    child.on("close", async (code: number) => {
+    child.on("close", (code: number) => {
       res.write(`\n[Exit: ${code}]\n`);
-      if (code === 0) {
-        // Tras actualizar el dashboard, migrar el config.toml de flowstation a la
-        // estructura nueva de razvan, preservando los valores habilitados. Siempre
-        // con copia de seguridad y sin reiniciar flowstation.
-        try {
-          const cfgPath = "/root/flowstation/config.toml";
-          if (fs.existsSync(cfgPath)) {
-            res.write(`\n=== Migración config.toml de flowstation ===\n`);
-            let template = await downloadText("https://raw.githubusercontent.com/razvanzeces/flowstation/main/example_config/config.toml");
-            if (template) {
-              res.write("Plantilla: descargada de GitHub (razvanzeces/flowstation main)\n");
-            } else {
-              const localTpl = "/root/flowstation/example_config/config.toml";
-              if (fs.existsSync(localTpl)) { template = fs.readFileSync(localTpl, "utf-8"); res.write("Plantilla: example_config/config.toml (local; GitHub no disponible)\n"); }
-            }
-            if (!template || template.length < 500) {
-              res.write("Plantilla no disponible o inválida — se omite la migración (config actual intacta).\n");
-            } else {
-              const oldCfg = fs.readFileSync(cfgPath, "utf-8");
-              const { merged, applied, unmigrated, neighbors } = migrateFlowstationConfig(oldCfg, template);
-              if (!merged || merged.length < template.length * 0.5) {
-                res.write("Resultado de migración sospechoso — se omite (config actual intacta).\n");
-              } else if (merged === oldCfg) {
-                res.write("config.toml ya está al día — sin cambios.\n");
-              } else {
-                const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-                const bak = `${cfgPath}.bak-${stamp}`;
-                fs.copyFileSync(cfgPath, bak);
-                fs.writeFileSync(cfgPath, merged, "utf-8");
-                res.write(`Copia de seguridad: ${bak}\n`);
-                res.write(`Campos migrados (${applied.length}):\n`);
-                for (const a of applied) res.write(`  + ${a}\n`);
-                if (neighbors) res.write(`Celdas vecinas copiadas: ${neighbors}\n`);
-                if (unmigrated.length) {
-                  res.write(`\nRevisar a mano (ya no existen en la plantilla nueva):\n`);
-                  for (const u of unmigrated) res.write(`  ! ${u}\n`);
-                }
-                res.write(`\nconfig.toml actualizado. NO se reinició flowstation: revísalo y reinícialo desde Control cuando quieras.\n`);
-              }
-            }
-          }
-        } catch (e: any) {
-          res.write(`\n[Migración config.toml: error — ${e?.message || e}. Config actual intacta.]\n`);
-        }
-      }
       res.end();
     });
     child.on("error", (err: Error) => {
@@ -1032,10 +987,8 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
     res.setHeader("Cache-Control", "no-cache");
     res.flushHeaders();
 
-    const restartLine = cleanService
-      ? `if systemctl is-active --quiet ${cleanService}; then echo "=== Reiniciando ${cleanService}... ===" && sudo systemctl restart ${cleanService}; else echo "(${cleanService} no activo — no se reinicia)"; fi`
-      : `echo "No service configured."`;
-
+    // Solo git pull + build aquí. La migración del config y el reinicio se hacen
+    // en Node al terminar (para migrar ANTES de reiniciar y aplicar el config nuevo).
     const script = `
 set -e
 cd "${cleanDir}"
@@ -1047,13 +1000,69 @@ sudo git reset --hard "origin/$BRANCH"
 echo ""
 echo "=== cargo build --release ==="
 sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env; cargo build --release'
-echo ""
-${restartLine}
 `;
     const child = spawn("bash", ["-c", script], { cwd: cleanDir });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
-    child.on("close", (code: number) => { res.write(`\n[Exit: ${code}]\n`); res.end(); });
+    child.on("close", async (code: number) => {
+      if (code !== 0) { res.write(`\n[Exit: ${code}]\n`); res.end(); return; }
+      // Migrar config.toml a la nueva estructura (plantilla ya actualizada por el git reset),
+      // preservando los valores habilitados. Siempre con copia de seguridad.
+      try {
+        const cfgPath = `${cleanDir}/config.toml`;
+        if (fs.existsSync(cfgPath)) {
+          res.write(`\n=== Migración config.toml ===\n`);
+          let template: string | null = null;
+          const localTpl = `${cleanDir}/example_config/config.toml`;
+          if (fs.existsSync(localTpl)) {
+            template = fs.readFileSync(localTpl, "utf-8");
+            res.write("Plantilla: example_config/config.toml (local, recién actualizada por git)\n");
+          } else {
+            template = await downloadText("https://raw.githubusercontent.com/razvanzeces/flowstation/main/example_config/config.toml");
+            if (template) res.write("Plantilla: GitHub (razvanzeces/flowstation main)\n");
+          }
+          if (!template || template.length < 500) {
+            res.write("Plantilla no disponible o inválida — se omite la migración (config intacta).\n");
+          } else {
+            const oldCfg = fs.readFileSync(cfgPath, "utf-8");
+            const { merged, applied, unmigrated, neighbors } = migrateFlowstationConfig(oldCfg, template);
+            if (!merged || merged.length < template.length * 0.5) {
+              res.write("Resultado de migración sospechoso — se omite (config intacta).\n");
+            } else if (merged === oldCfg) {
+              res.write("config.toml ya está al día — sin cambios.\n");
+            } else {
+              const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+              const bak = `${cfgPath}.bak-${stamp}`;
+              fs.copyFileSync(cfgPath, bak);
+              fs.writeFileSync(cfgPath, merged, "utf-8");
+              res.write(`Copia de seguridad: ${bak}\n`);
+              res.write(`Campos migrados (${applied.length}):\n`);
+              for (const a of applied) res.write(`  + ${a}\n`);
+              if (neighbors) res.write(`Celdas vecinas copiadas: ${neighbors}\n`);
+              if (unmigrated.length) {
+                res.write(`\nRevisar a mano (ya no existen en la plantilla nueva):\n`);
+                for (const u of unmigrated) res.write(`  ! ${u}\n`);
+              }
+            }
+          }
+        }
+      } catch (e: any) {
+        res.write(`\n[Migración config.toml: error — ${e?.message || e}. Config intacta.]\n`);
+      }
+      // Reiniciar flowstation para aplicar binario + config nuevos, y reconectar rápido.
+      if (cleanService) {
+        res.write(`\n=== Reiniciando ${cleanService}... ===\n`);
+        exec(`if systemctl is-active --quiet ${cleanService}; then sudo systemctl restart ${cleanService}; else echo "(${cleanService} no activo — no se reinicia)"; fi`, (err) => {
+          if (err) res.write(`[restart err: ${err.message}]\n`);
+          setTimeout(kickFlowstationRestart, 1500);
+          res.write(`\n[Exit: ${code}]\n`);
+          res.end();
+        });
+      } else {
+        res.write(`\n[Exit: ${code}]\n`);
+        res.end();
+      }
+    });
     child.on("error", (err: Error) => { res.write(`\n[Error: ${err.message}]\n`); res.end(); });
   });
 
