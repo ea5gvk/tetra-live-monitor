@@ -204,6 +204,7 @@ export async function registerRoutes(
         if (err) console.error(`Error al reiniciar ${safeServiceName}:`, err.message);
       });
     }, 500);
+    if (safeServiceName === "flowstation.service") setTimeout(kickFlowstationRestart, 1500);
   });
 
   // ─── VPN / WireGuard ────────────────────────────────────────────────────
@@ -1417,6 +1418,7 @@ ${restartLine}
     if (restart && svc) {
       res.json({ ok: true, message: `Whitelist ${stateMsg}. Reiniciando ${svc}...`, enabled: on, issis: list });
       setTimeout(() => { exec(`sudo systemctl restart ${svc}`, (err) => { if (err) console.error("restart err:", err.message); }); }, 500);
+      if (svc === STATION_SERVICE.flowstation) setTimeout(kickFlowstationRestart, 1500);
     } else {
       res.json({ ok: true, message: `Whitelist ${stateMsg}.`, enabled: on, issis: list });
     }
@@ -1472,6 +1474,7 @@ ${restartLine}
     if (restart && svc) {
       res.json({ ok: true, message: `${stateMsg}. Reiniciando ${svc}...`, enabled: wantEnabled });
       setTimeout(() => { exec(`sudo systemctl restart ${svc}`, (err) => { if (err) console.error("restart err:", err.message); }); }, 500);
+      if (svc === STATION_SERVICE.flowstation) setTimeout(kickFlowstationRestart, 1500);
     } else {
       res.json({ ok: true, message: `${stateMsg}.`, enabled: wantEnabled });
     }
@@ -4930,8 +4933,9 @@ ${restartLine}
   let fsWsCallDataActive = false;
   let fsDashboardActive = false;
   let fsWs: WebSocket | null = null;
-  let fsBackoff = 2000;
-  const FS_BACKOFF_MAX = 5000;
+  const FS_BACKOFF_MIN = 600;
+  let fsBackoff = FS_BACKOFF_MIN;
+  const FS_BACKOFF_MAX = 1500;
   // Flowstation v0.6 telemetry caches — kept so a freshly (re)connected web client
   // gets the current state in full_state instead of waiting for the next event.
   const fsEmergencies = new Map<number, { issi: number; dest_ssi: number; started_secs_ago: number }>();
@@ -4957,7 +4961,7 @@ ${restartLine}
       return;
     }
     fsWs.on('open', () => {
-      fsBackoff = 2000;
+      fsBackoff = FS_BACKOFF_MIN;
       // Show the RF Timeslots panel as soon as we have a live dashboard connection,
       // instead of waiting for the first 'snapshot' with a calls[] array (which may
       // be delayed). Default timeslots render as "Libre" until calls arrive.
@@ -5108,6 +5112,13 @@ ${restartLine}
     });
   }
   setTimeout(connectFlowstationWs, 500);
+
+  // Fuerza una reconexión rápida al WS de flowstation (p.ej. justo tras reiniciar
+  // flowstation.service) para que los datos se limpien y repueblen sin esperar el backoff.
+  function kickFlowstationRestart() {
+    fsBackoff = FS_BACKOFF_MIN;
+    try { fsWs?.terminate(); } catch { /* ignore */ }
+  }
 
   wss.on('connection', (ws) => {
     // Enrich terminals with energy_saving from the flowstation map so the
