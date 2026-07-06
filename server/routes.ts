@@ -1,6 +1,7 @@
 import type { Express } from "express";
 import type { Server } from "http";
 import * as http from "http";
+import * as https from "https";
 import { WebSocketServer, WebSocket } from "ws";
 import { api } from "@shared/routes";
 import { spawn, exec, execSync, type ChildProcess } from "child_process";
@@ -516,6 +517,130 @@ export async function registerRoutes(
     });
   });
 
+  // Descarga texto por HTTPS (plantilla config.toml de razvan). Devuelve null si falla.
+  function downloadText(url: string, timeoutMs = 8000): Promise<string | null> {
+    return new Promise((resolve) => {
+      try {
+        const req2 = https.get(url, { headers: { "User-Agent": "tetra-live-monitor" } }, (resp) => {
+          if (resp.statusCode !== 200) { resp.resume(); resolve(null); return; }
+          let data = ""; resp.setEncoding("utf-8");
+          resp.on("data", (c) => { data += c; });
+          resp.on("end", () => resolve(data));
+        });
+        req2.on("error", () => resolve(null));
+        req2.setTimeout(timeoutMs, () => { req2.destroy(); resolve(null); });
+      } catch { resolve(null); }
+    });
+  }
+
+  // Migra los valores HABILITADOS (descomentados) del config viejo a la plantilla nueva,
+  // por sección. Las tablas repetidas [[cell_info.neighbor_cells_ca]] se copian en bloque.
+  function migrateFlowstationConfig(oldCfg: string, template: string): {
+    merged: string; applied: string[]; unmigrated: string[]; neighbors: number;
+  } {
+    const headerMatch = (line: string): { name: string; array: boolean } | null => {
+      const m = line.match(/^(\s*)(#\s*)?(\[\[?)\s*([^\]]+?)\s*(\]\]?)\s*$/);
+      return m ? { name: m[4], array: m[3] === "[[" } : null;
+    };
+    const stripInline = (v: string): string => {
+      const idx = v.search(/\s#/);
+      return (idx >= 0 ? v.slice(0, idx) : v).trim();
+    };
+    const NEIGHBOR = "cell_info.neighbor_cells_ca";
+
+    // 1) Valores viejos (descomentados) por sección de tabla simple.
+    const oldVals: Record<string, Record<string, string>> = {};
+    {
+      let cur = "";
+      let inArray = false;
+      for (const raw of oldCfg.split("\n")) {
+        const h = headerMatch(raw);
+        if (h) { cur = h.name; inArray = h.array; continue; }
+        if (inArray) continue;
+        if (/^\s*#/.test(raw)) continue;
+        const m = raw.match(/^(\s*)([A-Za-z0-9_]+)\s*=\s*(.*)$/);
+        if (m) { const val = stripInline(m[3]); if (val !== "") { if (!oldVals[cur]) oldVals[cur] = {}; oldVals[cur][m[2]] = val; } }
+      }
+    }
+
+    // 2) Reconstruir desde la plantilla aplicando los valores viejos.
+    const applied: string[] = [];
+    const used = new Set<string>();
+    const out: string[] = [];
+    {
+      let cur = "";
+      let inArray = false;
+      let headerIdx = -1;
+      for (const raw of template.split("\n")) {
+        const h = headerMatch(raw);
+        if (h) { cur = h.name; inArray = h.array; out.push(raw); headerIdx = out.length - 1; continue; }
+        if (inArray) { out.push(raw); continue; }
+        const m = raw.match(/^(\s*)(#\s*)?([A-Za-z0-9_]+)\s*=\s*(.*)$/);
+        if (m) {
+          const ov = oldVals[cur]?.[m[3]];
+          if (ov !== undefined) {
+            out.push(`${m[1]}${m[3]} = ${ov}`);
+            applied.push(`[${cur}] ${m[3]} = ${ov}`);
+            used.add(`${cur} ${m[3]}`);
+            if (headerIdx >= 0) out[headerIdx] = out[headerIdx].replace(/^(\s*)#\s*(\[)/, "$1$2");
+            continue;
+          }
+        }
+        out.push(raw);
+      }
+    }
+    let merged = out.join("\n");
+
+    // 3) Campos viejos que ya no existen en la plantilla nueva.
+    const unmigrated: string[] = [];
+    for (const [sec, kv] of Object.entries(oldVals)) {
+      if (sec === NEIGHBOR) continue;
+      for (const key of Object.keys(kv)) if (!used.has(`${sec} ${key}`)) unmigrated.push(`[${sec}] ${key} = ${kv[key]}`);
+    }
+
+    // 4) Celdas vecinas: copiar los bloques viejos (descomentados) verbatim.
+    const neighborRe = /^(\s*)(#\s*)?\[\[\s*cell_info\.neighbor_cells_ca\s*\]\]/;
+    const nextHeaderRe = /^\s*(#\s*)?\[/;
+    const extractBlocks = (cfg: string, onlyUncommented: boolean): string[] => {
+      const lines = cfg.split("\n");
+      const blocks: string[] = [];
+      for (let i = 0; i < lines.length; i++) {
+        const nm = lines[i].match(neighborRe);
+        if (nm && (!onlyUncommented || !nm[2])) {
+          const buf = [lines[i]];
+          let j = i + 1;
+          for (; j < lines.length; j++) { if (nextHeaderRe.test(lines[j])) break; buf.push(lines[j]); }
+          while (buf.length && buf[buf.length - 1].trim() === "") buf.pop();
+          blocks.push(buf.join("\n"));
+          i = j - 1;
+        }
+      }
+      return blocks;
+    };
+    const oldNeighbors = extractBlocks(oldCfg, true);
+    if (oldNeighbors.length) {
+      const mLines = merged.split("\n");
+      const outN: string[] = [];
+      let insertAt = -1;
+      for (let i = 0; i < mLines.length; i++) {
+        if (neighborRe.test(mLines[i])) {
+          if (insertAt === -1) insertAt = outN.length;
+          let j = i + 1;
+          for (; j < mLines.length; j++) { if (nextHeaderRe.test(mLines[j])) break; }
+          i = j - 1;
+          continue;
+        }
+        outN.push(mLines[i]);
+      }
+      const blockText = oldNeighbors.join("\n\n");
+      if (insertAt >= 0) outN.splice(insertAt, 0, blockText, "");
+      else outN.push("", blockText, "");
+      merged = outN.join("\n");
+    }
+
+    return { merged, applied, unmigrated, neighbors: oldNeighbors.length };
+  }
+
   app.post("/api/update/apply", (req, res) => {
     const { password } = req.body || {};
     if (!password || password !== getSystemPassword()) {
@@ -585,8 +710,53 @@ pm2 restart tetra-monitor
     const child = spawn("bash", ["-c", dashScript], { cwd: UPDATE_DIR });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
-    child.on("close", (code: number) => {
+    child.on("close", async (code: number) => {
       res.write(`\n[Exit: ${code}]\n`);
+      if (code === 0) {
+        // Tras actualizar el dashboard, migrar el config.toml de flowstation a la
+        // estructura nueva de razvan, preservando los valores habilitados. Siempre
+        // con copia de seguridad y sin reiniciar flowstation.
+        try {
+          const cfgPath = "/root/flowstation/config.toml";
+          if (fs.existsSync(cfgPath)) {
+            res.write(`\n=== Migración config.toml de flowstation ===\n`);
+            let template = await downloadText("https://raw.githubusercontent.com/razvanzeces/flowstation/main/example_config/config.toml");
+            if (template) {
+              res.write("Plantilla: descargada de GitHub (razvanzeces/flowstation main)\n");
+            } else {
+              const localTpl = "/root/flowstation/example_config/config.toml";
+              if (fs.existsSync(localTpl)) { template = fs.readFileSync(localTpl, "utf-8"); res.write("Plantilla: example_config/config.toml (local; GitHub no disponible)\n"); }
+            }
+            if (!template || template.length < 500) {
+              res.write("Plantilla no disponible o inválida — se omite la migración (config actual intacta).\n");
+            } else {
+              const oldCfg = fs.readFileSync(cfgPath, "utf-8");
+              const { merged, applied, unmigrated, neighbors } = migrateFlowstationConfig(oldCfg, template);
+              if (!merged || merged.length < template.length * 0.5) {
+                res.write("Resultado de migración sospechoso — se omite (config actual intacta).\n");
+              } else if (merged === oldCfg) {
+                res.write("config.toml ya está al día — sin cambios.\n");
+              } else {
+                const stamp = new Date().toISOString().replace(/[:.]/g, "-");
+                const bak = `${cfgPath}.bak-${stamp}`;
+                fs.copyFileSync(cfgPath, bak);
+                fs.writeFileSync(cfgPath, merged, "utf-8");
+                res.write(`Copia de seguridad: ${bak}\n`);
+                res.write(`Campos migrados (${applied.length}):\n`);
+                for (const a of applied) res.write(`  + ${a}\n`);
+                if (neighbors) res.write(`Celdas vecinas copiadas: ${neighbors}\n`);
+                if (unmigrated.length) {
+                  res.write(`\nRevisar a mano (ya no existen en la plantilla nueva):\n`);
+                  for (const u of unmigrated) res.write(`  ! ${u}\n`);
+                }
+                res.write(`\nconfig.toml actualizado. NO se reinició flowstation: revísalo y reinícialo desde Control cuando quieras.\n`);
+              }
+            }
+          }
+        } catch (e: any) {
+          res.write(`\n[Migración config.toml: error — ${e?.message || e}. Config actual intacta.]\n`);
+        }
+      }
       res.end();
     });
     child.on("error", (err: Error) => {
