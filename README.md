@@ -16,11 +16,13 @@ Aplicación nativa para Android que se conecta a tu dashboard:
 - **Envío de SDS** e historial de mensajes SDS.
 - **LOG** en vivo de la flowstation.
 - **Control** del sistema: lista blanca de ISSI (activar/desactivar/editar), activar/desactivar dual carrier, reiniciar servicio y reiniciar/apagar la Pi.
+- **Perfiles**: guarda varias flowstations (dirección + contraseña) y cambia entre ellas con un toque.
 
 **➡️ [Descargar tetra-live-monitor.apk](https://github.com/ea5gvk/tetra-live-monitor/releases/latest/download/tetra-live-monitor.apk)**
 
 1. Instala el `.apk` en el móvil (permite *instalar de orígenes desconocidos*).
 2. Abre la app → pestaña **Ajustes** → introduce la IP:puerto de tu dashboard (ej. `10.33.1.75:5000`) y la contraseña del sistema.
+3. Si tienes más de una flowstation, guárdala como **perfil** con un nombre y cambia entre ellas tocando el perfil.
 
 Requiere **Android 8+**. Código fuente en [`android/`](android/) (Kotlin + Jetpack Compose).
 

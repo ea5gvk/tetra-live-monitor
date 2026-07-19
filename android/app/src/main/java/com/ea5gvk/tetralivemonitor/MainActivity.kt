@@ -47,13 +47,17 @@ class MainActivity : ComponentActivity() {
                     val state by client.state.collectAsStateWithLifecycle()
                     val url by settings.serverUrl.collectAsStateWithLifecycle(initialValue = "")
                     val pw by settings.password.collectAsStateWithLifecycle(initialValue = "")
+                    val profiles by settings.profiles.collectAsStateWithLifecycle(initialValue = emptyList())
                     TetraApp(
                         state = state,
                         serverUrl = url,
                         password = pw,
                         base = Settings.normalize(url),
+                        profiles = profiles,
                         onSaveUrl = { lifecycleScope.launch { settings.setServerUrl(it) } },
                         onSavePassword = { lifecycleScope.launch { settings.setPassword(it) } },
+                        onSaveProfile = { lifecycleScope.launch { settings.saveProfile(it) } },
+                        onDeleteProfile = { lifecycleScope.launch { settings.removeProfile(it) } },
                     )
                 }
             }

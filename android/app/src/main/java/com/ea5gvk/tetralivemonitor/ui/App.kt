@@ -40,6 +40,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.ea5gvk.tetralivemonitor.data.ServerProfile
 import com.ea5gvk.tetralivemonitor.net.TetraState
 import com.ea5gvk.tetralivemonitor.ui.screens.ControlScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.DgnaScreen
@@ -72,8 +73,11 @@ fun TetraApp(
     serverUrl: String,
     password: String,
     base: String?,
+    profiles: List<ServerProfile>,
     onSaveUrl: (String) -> Unit,
     onSavePassword: (String) -> Unit,
+    onSaveProfile: (ServerProfile) -> Unit,
+    onDeleteProfile: (String) -> Unit,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
 
@@ -107,7 +111,10 @@ fun TetraApp(
                 2 -> DgnaScreen(state, base, password)
                 3 -> LogScreen(base)
                 4 -> ControlScreen(state, base, password, hasPassword = password.isNotBlank())
-                else -> SettingsScreen(serverUrl, password, onSaveUrl, onSavePassword)
+                else -> SettingsScreen(
+                    serverUrl, password, profiles,
+                    onSaveUrl, onSavePassword, onSaveProfile, onDeleteProfile,
+                )
             }
         }
     }
