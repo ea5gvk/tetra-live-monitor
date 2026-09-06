@@ -434,6 +434,8 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
   const [btsCarriers, setBtsCarriers] = useState<BtsCarrier[]>([]);
   useEffect(() => {
     let alive = true;
+    let known = false; // a carrier list has been shown at least once
+    let retry: ReturnType<typeof setTimeout> | undefined;
     const load = async () => {
       try {
         const r = await fetch("/api/btsinfo");
@@ -455,11 +457,17 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
         if (!list.length && d?.main_carrier == null) return;
         setMainCarrier(d?.main_carrier ?? null);
         setBtsCarriers(list);
+        if (list.length) known = true;
       } catch { /* keep the last known list */ }
+      finally {
+        // Right after a (re)start the first request can fail or come back empty: retry soon
+        // rather than showing "Waiting for RF info" until the next 30 s poll.
+        if (alive && !known) retry = setTimeout(load, 3000);
+      }
     };
     load();
     const id = setInterval(load, 30000);
-    return () => { alive = false; clearInterval(id); };
+    return () => { alive = false; clearInterval(id); if (retry) clearTimeout(retry); };
   }, []);
 
   // Calls tracked by call_id from the trunking layer, keyed by carrier + ts. A duplex private
