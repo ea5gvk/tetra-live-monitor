@@ -33,6 +33,9 @@ export interface Terminal {
   timeSlot?: number | null;
   rssiDbfs?: number | null;
   energySaving?: string | null;
+  // Air-interface ciphering of this terminal (flowstation-tea2): true = encrypted uplink,
+  // false = in the clear, null/undefined = not reported (clear-only stations).
+  ciphering?: boolean | null;
 }
 
 export interface CallLogEntry {
@@ -104,6 +107,8 @@ export interface RfCall {
   // and the current floor holder, when known.
   origCallerIssi?: number;
   speakerIssi?: number | null;
+  // Whether the call's traffic circuit is encrypted (flowstation-tea2 only; null = unknown).
+  encrypted?: boolean | null;
   simplex?: boolean;
   // Epoch ms when the call started (server-stamped). Drives the per-cell talk timer.
   startedAt?: number;

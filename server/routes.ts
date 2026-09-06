@@ -4951,7 +4951,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
   // and (when dual carrier is active) the carrier/RF channel the call sits on.
   // peerCarrier/peerTs: the OTHER end of a duplex individual (private) call, which may sit
   // on a different carrier/timeslot. simplex calls share a single slot for both ends.
-  interface RfCallEntry { callId: number; callType: string; gssi: number; callerIssi: number; calledIssi: number; ts: number; carrier?: number | null; peerCarrier?: number | null; peerTs?: number | null; simplex?: boolean; startedAt?: number; priority?: number; origCallerIssi?: number; speakerIssi?: number | null; }
+  interface RfCallEntry { callId: number; callType: string; gssi: number; callerIssi: number; calledIssi: number; ts: number; carrier?: number | null; peerCarrier?: number | null; peerTs?: number | null; simplex?: boolean; startedAt?: number; priority?: number; origCallerIssi?: number; speakerIssi?: number | null; encrypted?: boolean | null; }
   // Defensive: flowstation may label the carrier field differently across versions.
   // Take whichever key is present; null/undefined means single-carrier (legacy behaviour).
   const pickCarrier = (c: any): number | null => {
@@ -4962,6 +4962,9 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
   // Build the peer-slot fields common to snapshot calls and call_started messages.
   const peerFields = (c: any) => ({ peerCarrier: num(c?.peer_carrier_num), peerTs: num(c?.peer_ts), simplex: !!c?.simplex });
   const activeCalls = new Map<number, RfCallEntry>();
+  // Ciphering state of the open traffic circuits, keyed `${carrier}:${ts}` (flowstation-tea2
+  // ts_cipher events); a clear-only flowstation never sends them, so it stays empty there.
+  const tsCipher = new Map<string, boolean>();
   const rfCallsSnapshot = () => Array.from(activeCalls.values());
   const modeToStr = (m: number | null | undefined): string | null => {
     if (m === null || m === undefined || m === 0) return null;
@@ -5004,6 +5007,9 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
       is_attached: !!g?.is_attached,
     };
   }
+  // Air-interface ciphering per terminal (flowstation-tea2 `ciphering_on` / ms_cipher): kept
+  // apart so a snapshot without the field keeps the last known state.
+  const cipherByIssi = new Map<string, boolean>();
   const upsertMsTerminal = (issi: string, m: any) => {
     const prev = currentState.terminals[issi];
     const groups: string[] = Array.isArray(m.groups)
@@ -5025,6 +5031,8 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
     }
     const eg = energySavingByIssi.get(issi) ?? modeToStr(m.energy_saving_mode);
     if (eg != null) energySavingByIssi.set(issi, eg);
+    const ciph: boolean | null = m.ciphering_on != null ? !!m.ciphering_on : (cipherByIssi.get(issi) ?? null);
+    if (ciph != null) cipherByIssi.set(issi, ciph);
     const term = {
       id: issi,
       callsign: prev?.callsign,
@@ -5040,6 +5048,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
       timeSlot: prev?.timeSlot ?? null,
       rssiDbfs: m.rssi_dbfs != null ? m.rssi_dbfs : (prev?.rssiDbfs ?? null),
       energySaving: eg ?? null,
+      ciphering: ciph,
     };
     fsRegisteredMs.set(issi, term);
     currentState.terminals[issi] = term;
@@ -5255,7 +5264,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
             activeCalls.clear();
             for (const c of m.calls as any[]) {
               if (c && c.call_id != null) {
-                activeCalls.set(c.call_id, { callId: c.call_id, callType: c.call_type || 'group', gssi: c.gssi || 0, callerIssi: c.caller_issi || c.active_speaker || 0, calledIssi: c.called_issi || 0, ts: c.ts || 0, carrier: pickCarrier(c), ...peerFields(c), origCallerIssi: num(c.caller_issi) ?? undefined, speakerIssi: num(c.active_speaker), priority: num(c.priority) ?? 0, startedAt: Date.now() - ((c.started_secs_ago || 0) * 1000) });
+                activeCalls.set(c.call_id, { callId: c.call_id, callType: c.call_type || 'group', gssi: c.gssi || 0, callerIssi: c.caller_issi || c.active_speaker || 0, calledIssi: c.called_issi || 0, ts: c.ts || 0, carrier: pickCarrier(c), ...peerFields(c), origCallerIssi: num(c.caller_issi) ?? undefined, speakerIssi: num(c.active_speaker), encrypted: c.encrypted ?? null, priority: num(c.priority) ?? 0, startedAt: Date.now() - ((c.started_secs_ago || 0) * 1000) });
               }
             }
             broadcast(JSON.stringify({ type: 'rf_calls_state', payload: rfCallsSnapshot() }));
@@ -5273,7 +5282,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
           if (m.last_sys_health !== undefined) { fsSysHealth = m.last_sys_health ?? null; broadcast(JSON.stringify({ type: 'fs_sys_health', payload: fsSysHealth })); }
           if (m.health !== undefined) { fsHealth = m.health ?? null; broadcast(JSON.stringify({ type: 'fs_health', payload: fsHealth })); }
         } else if (m.type === 'call_started' && m.call_id != null) {
-          const entry: RfCallEntry = { callId: m.call_id, callType: m.call_type || 'group', gssi: m.gssi || 0, callerIssi: m.caller_issi || 0, calledIssi: m.called_issi || 0, ts: m.ts || 0, carrier: pickCarrier(m), ...peerFields(m), origCallerIssi: num(m.caller_issi) ?? undefined, speakerIssi: num(m.caller_issi), priority: num(m.priority) ?? 0, startedAt: Date.now() };
+          const entry: RfCallEntry = { callId: m.call_id, callType: m.call_type || 'group', gssi: m.gssi || 0, callerIssi: m.caller_issi || 0, calledIssi: m.called_issi || 0, ts: m.ts || 0, carrier: pickCarrier(m), ...peerFields(m), origCallerIssi: num(m.caller_issi) ?? undefined, speakerIssi: num(m.caller_issi), encrypted: tsCipher.get(`${pickCarrier(m)}:${m.ts}`) ?? null, priority: num(m.priority) ?? 0, startedAt: Date.now() };
           activeCalls.set(m.call_id, entry);
           broadcast(JSON.stringify({ type: 'rf_call_started', payload: entry }));
         } else if (m.type === 'call_ended' && m.call_id != null) {
@@ -5296,6 +5305,31 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
           upsertMsTerminal(String(m.issi), { issi: m.issi, rssi_dbfs: m.rssi_dbfs });
         } else if (m.type === 'ms_energy_saving' && m.issi != null) {
           applyEsAndBroadcast(String(m.issi), modeToStr(m.mode));
+        } else if (m.type === 'ms_cipher' && m.issi != null) {
+          const issi = String(m.issi);
+          const on = !!m.ciphering_on;
+          cipherByIssi.set(issi, on);
+          const prev = currentState.terminals[issi];
+          if (prev) {
+            const term: any = { ...prev, ciphering: on };
+            fsRegisteredMs.set(issi, term);
+            currentState.terminals[issi] = term;
+            broadcast(JSON.stringify({ type: 'update_terminal', payload: term }));
+          }
+        } else if (m.type === 'ts_cipher' && m.ts != null) {
+          const carrier = pickCarrier(m);
+          const key = `${carrier}:${m.ts}`;
+          if (m.encrypted == null) tsCipher.delete(key); else tsCipher.set(key, !!m.encrypted);
+          if (m.encrypted != null) {
+            for (const c of Array.from(activeCalls.values())) {
+              const own = (c.carrier ?? null) === carrier && c.ts === m.ts;
+              const peer = c.peerTs === m.ts && (c.peerCarrier ?? c.carrier ?? null) === carrier;
+              if (own || peer) {
+                c.encrypted = !!m.encrypted;
+                broadcast(JSON.stringify({ type: 'rf_call_started', payload: c }));
+              }
+            }
+          }
         } else if (m.type === 'ms_deregistered' && m.issi != null) {
           energySavingByIssi.delete(String(m.issi));
           markMsOffline(String(m.issi));
@@ -5346,6 +5380,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
       if (wasActive) {
         fsDashboardActive = false;
         activeCalls.clear();
+        tsCipher.clear();
         broadcast(JSON.stringify({ type: 'rf_calls_state', payload: [] }));
         broadcast(JSON.stringify({ type: 'fs_dashboard_status', payload: { active: false } }));
         // v0.6: flowstation gone — clear live telemetry (keep last_heard as history).

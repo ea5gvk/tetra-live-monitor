@@ -231,6 +231,21 @@ function RssiBadge({ dbfs }: { dbfs: number }) {
   );
 }
 
+// Air-interface ciphering state (flowstation-tea2 reports it per terminal and per circuit;
+// a clear-only station never does, so nothing is drawn there).
+function CipherBadge({ on }: { on: boolean | null | undefined }) {
+  if (on == null) return null;
+  return (
+    <span
+      className={`inline-flex items-center gap-0.5 text-[10px] font-mono font-bold border rounded px-1 py-px tracking-wide ${on ? "text-emerald-400 border-emerald-400/40 bg-emerald-400/10" : "text-red-400 border-red-400/40 bg-red-400/10"}`}
+      title={on ? "Air-interface encryption ON (TEA2)" : "Air interface in the CLEAR"}
+      data-testid={on ? "cipher-on" : "cipher-off"}
+    >
+      {on ? "\u{1F512} TEA2" : "\u{1F513} CLEAR"}
+    </span>
+  );
+}
+
 function EnergySavingBadge({ mode }: { mode: string }) {
   // Flowstation Energy Economy mode (Eg1..Eg7). StayAlive is not rendered.
   // Shown as "EG1" / "EG2" / "EG3" next to the callsign — matches the
@@ -316,6 +331,7 @@ function TerminalRow({ t: terminal, tgName, issiCallsign, showDgna, fsActive }: 
           {terminal.energySaving ? (
             <EnergySavingBadge mode={terminal.energySaving} />
           ) : null}
+          <CipherBadge on={terminal.ciphering} />
           {typeof terminal.rssiDbfs === "number" ? (
             <RssiBadge dbfs={terminal.rssiDbfs} />
           ) : null}
@@ -508,6 +524,7 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
     emergency: boolean;
     wave: number[];
     voiceAt?: number;
+    encrypted?: boolean | null;
   };
   const issiText = (issi: number | null | undefined): { text: string; cs?: string } => {
     if (!issi) return { text: "" };
@@ -545,11 +562,11 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
         const role = shown && shown === caller ? "CALLER" : shown && shown === c.calledIssi ? "CALLED" : "TALKER";
         const parts = [roleSub(p.role), who.text ? `${t("rf_tx")} ${role} ${who.text}` : ""].filter(Boolean).join(" | ");
         const sub = voice ? `${t("rf_tx")} ${parts}` : parts;
-        return { ts: tsNum, mode: voice ? "voice" : "call", bcch: false, label, sub, subCs: who.cs, timer, durPct, emergency, wave, voiceAt: voice?.at };
+        return { ts: tsNum, mode: voice ? "voice" : "call", bcch: false, label, sub, subCs: who.cs, encrypted: c.encrypted ?? null, timer, durPct, emergency, wave, voiceAt: voice?.at };
       }
       const label = c.gssi ? `GSSI ${c.gssi}` : t("rf_group");
       const sub = voice ? `${t("rf_tx")} ${sp.text}`.trim() : (sp.text || t("rf_group"));
-      return { ts: tsNum, mode: voice ? "voice" : "call", bcch: false, label, sub, subCs: sp.cs, timer, durPct, emergency, wave, voiceAt: voice?.at };
+      return { ts: tsNum, mode: voice ? "voice" : "call", bcch: false, label, sub, subCs: sp.cs, encrypted: c.encrypted ?? null, timer, durPct, emergency, wave, voiceAt: voice?.at };
     }
     if (voice) {
       // Uplink voice with no allocation reported (older flowstation builds): still a local TX.
@@ -621,6 +638,9 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
       <div className={`font-mono text-[11px] font-bold tracking-[0.05em] min-h-[13px] truncate transition-colors duration-150 ${s.emergency ? "text-[#ff4d6d]" : ACCENT[s.mode]}`} title={s.label}>
         {s.label}
       </div>
+      {s.encrypted != null && (
+        <div className="mt-[3px] flex justify-center"><CipherBadge on={s.encrypted} /></div>
+      )}
       <div className={`font-mono text-[9px] mt-[2px] min-h-[11px] truncate tabular-nums ${s.mode === "voice" ? "text-[rgba(255,60,80,0.7)]" : "text-[#4c628a]"}`} title={s.sub}>
         {s.subCs ? (
           <span className="inline-flex items-center gap-1 justify-center max-w-full">
