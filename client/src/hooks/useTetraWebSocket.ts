@@ -98,6 +98,12 @@ export interface RfCall {
   // carrier/timeslot. simplex private calls share a single slot for both ends.
   peerCarrier?: number | null;
   peerTs?: number | null;
+  // Call priority from the trunking layer (>= 15 = emergency), when reported.
+  priority?: number;
+  // The party that set the call up (callerIssi follows the current speaker for compatibility)
+  // and the current floor holder, when known.
+  origCallerIssi?: number;
+  speakerIssi?: number | null;
   simplex?: boolean;
   // Epoch ms when the call started (server-stamped). Drives the per-cell talk timer.
   startedAt?: number;
@@ -169,6 +175,8 @@ export interface TetraState {
   fsDashboardActive: boolean;
   // Voice activity keyed by `${carrier}:${ts}` ("single" carrier when none reported).
   tsVoiceActivity: Record<string, number>;
+  // ISSI of the local terminal whose uplink voice was last seen on `${carrier}:${ts}` (null if unknown).
+  tsVoiceSpeaker: Record<string, number | null>;
   emergencies: EmergencyEntry[];
   brewStatus: BrewStatus | null;
   lastHeard: LastHeardEntry[];
@@ -191,6 +199,7 @@ export function useTetraWebSocket(): TetraState {
   const [rfCalls, setRfCalls] = useState<RfCall[]>([]);
   const [fsDashboardActive, setFsDashboardActive] = useState(false);
   const [tsVoiceActivity, setTsVoiceActivity] = useState<Record<string, number>>({});
+  const [tsVoiceSpeaker, setTsVoiceSpeaker] = useState<Record<string, number | null>>({});
   const [emergencies, setEmergencies] = useState<EmergencyEntry[]>([]);
   const [brewStatus, setBrewStatus] = useState<BrewStatus | null>(null);
   const [lastHeard, setLastHeard] = useState<LastHeardEntry[]>([]);
@@ -301,7 +310,10 @@ export function useTetraWebSocket(): TetraState {
           case "rf_ts_voice":
             if (msg.payload?.ts >= 1 && msg.payload?.ts <= 4) {
               const vc = msg.payload.carrier != null ? String(msg.payload.carrier) : "single";
-              setTsVoiceActivity(prev => ({ ...prev, [`${vc}:${msg.payload.ts}`]: Date.now() }));
+              const vkey = `${vc}:${msg.payload.ts}`;
+              setTsVoiceActivity(prev => ({ ...prev, [vkey]: Date.now() }));
+              const sp = msg.payload.speakerIssi;
+              setTsVoiceSpeaker(prev => ({ ...prev, [vkey]: sp != null ? Number(sp) : null }));
             }
             break;
 
@@ -396,5 +408,5 @@ export function useTetraWebSocket(): TetraState {
     };
   }, [connect]);
 
-  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, rfCalls, fsDashboardActive, tsVoiceActivity, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, dgnaLog, connected, mode };
+  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, rfCalls, fsDashboardActive, tsVoiceActivity, tsVoiceSpeaker, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, dgnaLog, connected, mode };
 }

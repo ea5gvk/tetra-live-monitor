@@ -226,3 +226,25 @@ html.light [data-testid="log-live-container"] .text-gray-500      { color: hsl(2
     opacity: 0.1;
   }
 }
+
+/* RF timeslot tiles — animations mirrored from the flowstation's own dashboard panel. */
+@keyframes rf-led-pulse { 0% { box-shadow: 0 0 6px rgba(255,60,80,0.6); } 100% { box-shadow: 0 0 14px rgba(255,60,80,1); } }
+@keyframes rf-flash-in { 0% { opacity: 1; } 100% { opacity: 0; } }
+@keyframes rf-emergency-pulse {
+  0%, 100% { box-shadow: 0 0 0 1px #ff4d6d, 0 0 10px rgba(255,60,80,0.2); }
+  50% { box-shadow: 0 0 0 1px #ff4d6d, 0 0 22px rgba(255,60,80,0.5); }
+}
+@keyframes rf-ripple { 0% { opacity: .6; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(3.2); } }
+@keyframes rf-breathe { 0%, 100% { transform: scale(1); opacity: .5; } 50% { transform: scale(1.25); opacity: .9; } }
+.rf-led-voice { animation: rf-led-pulse 0.3s ease-in-out infinite alternate; }
+.rf-ts-flash { animation: rf-flash-in 0.08s ease-out forwards; }
+.rf-ts-emergency { border-color: #ff4d6d !important; animation: rf-emergency-pulse 1.1s ease-in-out infinite; }
+@media (prefers-reduced-motion: no-preference) {
+  .rf-led-idle { animation: rf-breathe 3.2s ease-in-out infinite; }
+  .rf-led-ripple { position: relative; }
+  .rf-led-ripple::after {
+    content: ""; position: absolute; left: 50%; top: 50%; width: 100%; height: 100%; border-radius: 50%;
+    border: 1.5px solid currentColor; transform: translate(-50%, -50%); pointer-events: none;
+    animation: rf-ripple var(--rf-ripple, 1.6s) ease-out infinite;
+  }
+}

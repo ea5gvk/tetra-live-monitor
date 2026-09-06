@@ -1138,7 +1138,55 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
   // Mirrors flowstation's /api/btsinfo contract so the dashboard can show the same
   // card for both bluestation and flowstation. tx_freq/rx_freq are in [phy_io.soapysdr];
   // mcc/mnc in [net_info]; main_carrier + hangtime_secs in [cell_info]; whitelist in [security].
-  app.get("/api/btsinfo", (_req, res) => {
+  // The base station's own /api/btsinfo: exact per-carrier DL/UL (band, offset and duplex are
+  // resolved by the stack itself) and its notion of the main carrier. Needs its dashboard
+  // ([dashboard] port) and, when credentials are configured, the fs_session cookie the WS
+  // client already maintains. Cached a few seconds: two panels poll this every 30 s.
+  type LiveCarrier = { carrier_num: number; tx_freq_hz: number | null; rx_freq_hz: number | null };
+  type LiveBts = { carriers: LiveCarrier[]; main_carrier: number | null };
+  let liveBtsCache: { at: number; data: LiveBts | null } = { at: 0, data: null };
+  let liveBtsInflight: Promise<LiveBts | null> | null = null;
+  async function fetchFlowstationBtsInfo(): Promise<LiveBts | null> {
+    if (Date.now() - liveBtsCache.at < 5000) return liveBtsCache.data;
+    if (liveBtsInflight) return liveBtsInflight; // the two panels poll at the same moment
+    // 8080 is the station's own default when [dashboard] has no port line (same as the WS client).
+    const port = getFlowstationDashboardConfig().port || 8080;
+    const get = (): Promise<{ status: number; body: string }> => new Promise((resolve) => {
+      const req = http.get(
+        { hostname: "127.0.0.1", port, path: "/api/btsinfo", headers: getFlowstationWsOptions().headers || {} },
+        (resp) => {
+          let body = "";
+          resp.on("data", (ch) => { body += ch; });
+          resp.on("end", () => resolve({ status: resp.statusCode || 0, body }));
+        },
+      );
+      req.on("error", () => resolve({ status: 0, body: "" }));
+      req.setTimeout(1500, () => { req.destroy(); resolve({ status: 0, body: "" }); });
+    });
+    liveBtsInflight = (async () => {
+      let data: LiveBts | null = null;
+      try {
+        await refreshFlowstationSession();
+        let r = await get();
+        if (r.status === 401) { invalidateFlowstationSession(); await refreshFlowstationSession(true); r = await get(); }
+        if (r.status === 200) {
+          const j = JSON.parse(r.body);
+          const carriers: LiveCarrier[] = Array.isArray(j?.carriers)
+            ? j.carriers.filter((c: any) => c?.carrier_num != null).map((c: any) => ({
+                carrier_num: Number(c.carrier_num),
+                tx_freq_hz: c.tx_freq_hz != null ? Number(c.tx_freq_hz) : null,
+                rx_freq_hz: c.rx_freq_hz != null ? Number(c.rx_freq_hz) : null,
+              }))
+            : [];
+          if (carriers.length) data = { carriers, main_carrier: j?.main_carrier != null ? Number(j.main_carrier) : null };
+        }
+      } catch { data = null; }
+      liveBtsCache = { at: Date.now(), data };
+      return data;
+    })().finally(() => { liveBtsInflight = null; });
+    return liveBtsInflight;
+  }
+  app.get("/api/btsinfo", async (_req, res) => {
     try {
       const station = readActiveStation();
       let cfgPath = STATION_CONFIG_PATH[station];
@@ -1186,7 +1234,27 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
       // The secondary carrier appears even while idle (it is configured, not call-derived).
       const carriers: { carrier_num: number | null; tx_freq_hz: number | null; rx_freq_hz: number | null }[] =
         [{ carrier_num: mainCarrier, tx_freq_hz: tx, rx_freq_hz: rx }];
-      if (dualCarrierActive) carriers.push({ carrier_num: secondaryCarrier, tx_freq_hz: null, rx_freq_hz: null });
+      if (dualCarrierActive) {
+        // Same band, offset and duplex spacing as the main carrier: 25 kHz per carrier number
+        // (the stack's own formula, tetra-core freqs.rs) — used when the base station's
+        // dashboard is not reachable.
+        const delta = mainCarrier != null && secondaryCarrier != null ? (secondaryCarrier - mainCarrier) * 25000 : null;
+        carriers.push({
+          carrier_num: secondaryCarrier,
+          tx_freq_hz: tx != null && delta != null ? tx + delta : null,
+          rx_freq_hz: rx != null && delta != null ? rx + delta : null,
+        });
+      }
+      // Prefer the base station's live per-carrier frequencies and main carrier when its
+      // dashboard is up; the config-derived list above is the fallback.
+      const live = station !== "bluestation" ? await fetchFlowstationBtsInfo() : null;
+      if (live) {
+        // The running station is authoritative for which carriers are on the air (the file may
+        // have been edited without a restart, or dual carrier toggled): replace, don't union.
+        carriers.length = 0;
+        carriers.push(...live.carriers);
+      }
+      const mainOut = live?.main_carrier ?? mainCarrier;
       const neighborMatches = content.match(/^\s*\[\[cell_info\.neighbor_cells_ca\]\]/gm);
       const neighborCount = neighborMatches ? neighborMatches.length : 0;
       // Whitelist may be a single- or multi-line TOML array; capture across newlines
@@ -1201,7 +1269,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
         shift_hz: shift,
         mcc,
         mnc,
-        main_carrier: mainCarrier,
+        main_carrier: mainOut,
         secondary_carrier: dualCarrierActive ? secondaryCarrier : null,
         dual_carrier_active: dualCarrierActive,
         carriers,
@@ -4883,7 +4951,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
   // and (when dual carrier is active) the carrier/RF channel the call sits on.
   // peerCarrier/peerTs: the OTHER end of a duplex individual (private) call, which may sit
   // on a different carrier/timeslot. simplex calls share a single slot for both ends.
-  interface RfCallEntry { callId: number; callType: string; gssi: number; callerIssi: number; calledIssi: number; ts: number; carrier?: number | null; peerCarrier?: number | null; peerTs?: number | null; simplex?: boolean; startedAt?: number; }
+  interface RfCallEntry { callId: number; callType: string; gssi: number; callerIssi: number; calledIssi: number; ts: number; carrier?: number | null; peerCarrier?: number | null; peerTs?: number | null; simplex?: boolean; startedAt?: number; priority?: number; origCallerIssi?: number; speakerIssi?: number | null; }
   // Defensive: flowstation may label the carrier field differently across versions.
   // Take whichever key is present; null/undefined means single-carrier (legacy behaviour).
   const pickCarrier = (c: any): number | null => {
@@ -5034,13 +5102,13 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
       clearTimeout(timer);
       res.status(status).json(body);
     };
-    const timer = setTimeout(() => finish(504, { ok: false, message: "Timeout conectando con flowstation:8080" }), 5000);
+    const timer = setTimeout(() => finish(504, { ok: false, message: `Timeout conectando con flowstation:${getFlowstationDashboardConfig().port || 8080}` }), 5000);
 
     const attempt = async (isRetry: boolean): Promise<void> => {
       await refreshFlowstationSession(isRetry);
       let ws: WebSocket;
       try {
-        ws = new WebSocket("ws://127.0.0.1:8080/ws", getFlowstationWsOptions());
+        ws = new WebSocket(flowstationWsUrl(), getFlowstationWsOptions());
       } catch (e: any) {
         finish(502, { ok: false, message: `Error WS: ${e?.message || e}` });
         return;
@@ -5102,6 +5170,11 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
     }
   }
 
+  // The base station's dashboard WebSocket, on the port configured in its [dashboard] section
+  // (8080 is only the default: the operator may move it).
+  function flowstationWsUrl(): string {
+    return `ws://127.0.0.1:${getFlowstationDashboardConfig().port || 8080}/ws`;
+  }
   function getFlowstationWsOptions(): { headers?: Record<string, string> } {
     if (fsSessionToken && Date.now() < fsSessionExpiry) {
       return { headers: { Cookie: `fs_session=${fsSessionToken}` } };
@@ -5133,7 +5206,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
   async function connectFlowstationWs() {
     await refreshFlowstationSession();
     try {
-      fsWs = new WebSocket('ws://127.0.0.1:8080/ws', getFlowstationWsOptions());
+      fsWs = new WebSocket(flowstationWsUrl(), getFlowstationWsOptions());
     } catch {
       setTimeout(connectFlowstationWs, fsBackoff);
       fsBackoff = Math.min(fsBackoff * 2, FS_BACKOFF_MAX);
@@ -5182,7 +5255,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
             activeCalls.clear();
             for (const c of m.calls as any[]) {
               if (c && c.call_id != null) {
-                activeCalls.set(c.call_id, { callId: c.call_id, callType: c.call_type || 'group', gssi: c.gssi || 0, callerIssi: c.caller_issi || c.active_speaker || 0, calledIssi: c.called_issi || 0, ts: c.ts || 0, carrier: pickCarrier(c), ...peerFields(c), startedAt: Date.now() - ((c.started_secs_ago || 0) * 1000) });
+                activeCalls.set(c.call_id, { callId: c.call_id, callType: c.call_type || 'group', gssi: c.gssi || 0, callerIssi: c.caller_issi || c.active_speaker || 0, calledIssi: c.called_issi || 0, ts: c.ts || 0, carrier: pickCarrier(c), ...peerFields(c), origCallerIssi: num(c.caller_issi) ?? undefined, speakerIssi: num(c.active_speaker), priority: num(c.priority) ?? 0, startedAt: Date.now() - ((c.started_secs_ago || 0) * 1000) });
               }
             }
             broadcast(JSON.stringify({ type: 'rf_calls_state', payload: rfCallsSnapshot() }));
@@ -5200,7 +5273,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
           if (m.last_sys_health !== undefined) { fsSysHealth = m.last_sys_health ?? null; broadcast(JSON.stringify({ type: 'fs_sys_health', payload: fsSysHealth })); }
           if (m.health !== undefined) { fsHealth = m.health ?? null; broadcast(JSON.stringify({ type: 'fs_health', payload: fsHealth })); }
         } else if (m.type === 'call_started' && m.call_id != null) {
-          const entry: RfCallEntry = { callId: m.call_id, callType: m.call_type || 'group', gssi: m.gssi || 0, callerIssi: m.caller_issi || 0, calledIssi: m.called_issi || 0, ts: m.ts || 0, carrier: pickCarrier(m), ...peerFields(m), startedAt: Date.now() };
+          const entry: RfCallEntry = { callId: m.call_id, callType: m.call_type || 'group', gssi: m.gssi || 0, callerIssi: m.caller_issi || 0, calledIssi: m.called_issi || 0, ts: m.ts || 0, carrier: pickCarrier(m), ...peerFields(m), origCallerIssi: num(m.caller_issi) ?? undefined, speakerIssi: num(m.caller_issi), priority: num(m.priority) ?? 0, startedAt: Date.now() };
           activeCalls.set(m.call_id, entry);
           broadcast(JSON.stringify({ type: 'rf_call_started', payload: entry }));
         } else if (m.type === 'call_ended' && m.call_id != null) {
@@ -5208,7 +5281,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
           broadcast(JSON.stringify({ type: 'rf_call_ended', payload: { callId: m.call_id } }));
         } else if (m.type === 'speaker_changed' && m.call_id != null) {
           const c = activeCalls.get(m.call_id);
-          if (c) { c.callerIssi = m.speaker_issi || c.callerIssi; broadcast(JSON.stringify({ type: 'rf_call_started', payload: c })); }
+          if (c) { c.callerIssi = m.speaker_issi || c.callerIssi; c.speakerIssi = num(m.speaker_issi) ?? c.speakerIssi ?? null; broadcast(JSON.stringify({ type: 'rf_call_started', payload: c })); }
         } else if (m.type === 'ms_registered' && m.issi != null) {
           upsertMsTerminal(String(m.issi), m);
         } else if ((m.type === 'ms_groups' || m.type === 'ms_groups_all') && m.issi != null) {
@@ -5231,7 +5304,7 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
           // Forward to clients so the RF Timeslots panel can show RX activity even
           // when call_started events are missing (e.g. flowstation v0.2.3 group-attach
           // cap stalls call setup but voice frames still reach the BS).
-          broadcast(JSON.stringify({ type: 'rf_ts_voice', payload: { ts: m.ts, carrier: pickCarrier(m) } }));
+          broadcast(JSON.stringify({ type: 'rf_ts_voice', payload: { ts: m.ts, carrier: pickCarrier(m), speakerIssi: num(m.speaker_issi) } }));
         } else if (m.type === 'emergency_added' && m.issi != null) {
           fsEmergencies.set(m.issi, { issi: m.issi, dest_ssi: m.dest_ssi ?? 0, started_secs_ago: m.started_secs_ago ?? 0 });
           broadcast(JSON.stringify({ type: 'fs_emergency', payload: { emergencies: fsEmergencyList() } }));

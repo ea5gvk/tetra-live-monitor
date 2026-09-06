@@ -371,25 +371,51 @@ function formatDur(secs: number): string {
   return `${Math.floor(secs / 60)}m${String(secs % 60).padStart(2, "0")}s`;
 }
 
-function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
+type BtsCarrier = { carrier_num: number; tx_freq_hz: number | null; rx_freq_hz: number | null };
+
+// "439.9500 MHz" — four decimals, like the flowstation's own panel.
+const fmtMhz = (hz: number | null | undefined): string | null =>
+  hz == null || !isFinite(Number(hz)) ? null : `${(Number(hz) / 1e6).toFixed(4)} MHz`;
+// Deterministic "random" bar heights (4..17 px): every uplink voice burst reshuffles the bars
+// (seeded by its timestamp) without changing on every render tick.
+const waveHeights = (seed: number): number[] => Array.from({ length: 7 }, (_, i) => {
+  const x = Math.sin(seed * 0.001 + (i + 1) * 12.9898) * 43758.5453;
+  return 4 + Math.floor((x - Math.floor(x)) * 14);
+});
+const IDLE_WAVE = [3, 3, 3, 3, 3, 3, 3];
+// A slot stays "voice" (red, blinking) this long after the last uplink burst — the flowstation
+// throttles ts_voice to 4/s, so 800 ms bridges the gap between bursts of one talk-spurt.
+const TS_VOICE_DECAY_MS = 800;
+
+// Mirrors the flowstation dashboard's "RF CHANNEL — TIMESLOTS" panel: one row per carrier
+// ("CARRIER #n | MAIN", "DL x MHz | UL y MHz"), TS1 = MCCH on the main carrier / BCCH on a
+// secondary, and per-slot state: amber "call" while a call is allocated (the audio comes from
+// the network, or silence), blinking red "voice" while a local terminal is keyed up on it —
+// the flowstation only emits ts_voice for uplink bursts received over the air.
+function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpeaker }: {
   rfCalls: RfCall[];
   issiCallsign: (id: string | number) => string;
   tsVoiceActivity: Record<string, number>;
+  tsVoiceSpeaker: Record<string, number | null>;
 }) {
   const { t } = useI18n();
-  // Force re-render every 500ms so the "voice activity" fade-out reacts to time
-  // even when no new ts_voice arrives.
+  // Re-render every 150 ms (the flowstation's own refresh) so the voice decay and timers move
+  // even when no new message arrives.
   const [, setTick] = useState(0);
+  // 150 ms while something moves (calls, voice decay, timers); once a second when all is idle.
+  const busy = rfCalls.length > 0 || Object.values(tsVoiceActivity).some(at => Date.now() - at < TS_VOICE_DECAY_MS * 2);
   useEffect(() => {
-    const id = setInterval(() => setTick(x => x + 1), 500);
+    const id = setInterval(() => setTick(x => x + 1), busy ? 150 : 1000);
     return () => clearInterval(id);
-  }, []);
+  }, [busy]);
+  // The MCCH tile shows one fixed set of bars, drawn once.
+  const [mcchWave] = useState<number[]>(() => waveHeights(Date.now()));
 
-  // Configured RF carriers from BTS info. Like Razvan's dashboard, every configured
-  // carrier (main + secondary when dual carrier is active) gets its own 4-timeslot row,
-  // whether or not it currently carries traffic. mainCarrier carries the MCCH on TS1.
+  // Configured RF carriers with their DL/UL frequencies (our /api/btsinfo takes them from the
+  // base station itself when its dashboard is up). Every configured carrier gets a row whether
+  // or not it carries traffic; the main carrier hosts the MCCH on TS1.
   const [mainCarrier, setMainCarrier] = useState<number | null>(null);
-  const [btsCarriers, setBtsCarriers] = useState<number[]>([]);
+  const [btsCarriers, setBtsCarriers] = useState<BtsCarrier[]>([]);
   useEffect(() => {
     let alive = true;
     const load = async () => {
@@ -398,26 +424,30 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
         if (!r.ok) return;
         const d = await r.json();
         if (!alive) return;
-        const list: number[] = Array.isArray(d?.carriers)
-          ? d.carriers.map((c: any) => c?.carrier_num).filter((n: any) => n != null).map(Number)
+        const list: BtsCarrier[] = Array.isArray(d?.carriers)
+          ? d.carriers
+              .filter((c: any) => c?.carrier_num != null)
+              .map((c: any) => ({ carrier_num: Number(c.carrier_num), tx_freq_hz: c.tx_freq_hz ?? null, rx_freq_hz: c.rx_freq_hz ?? null }))
           : [];
-        if (!list.length && d?.main_carrier != null) list.push(Number(d.main_carrier));
-        if (d?.dual_carrier_active && d?.secondary_carrier != null && !list.includes(Number(d.secondary_carrier))) {
-          list.push(Number(d.secondary_carrier));
+        if (!list.length && d?.main_carrier != null) {
+          list.push({ carrier_num: Number(d.main_carrier), tx_freq_hz: d.tx_freq_hz ?? null, rx_freq_hz: d.rx_freq_hz ?? null });
         }
+        if (d?.dual_carrier_active && d?.secondary_carrier != null && !list.some(c => c.carrier_num === Number(d.secondary_carrier))) {
+          list.push({ carrier_num: Number(d.secondary_carrier), tx_freq_hz: null, rx_freq_hz: null });
+        }
+        // A transient empty reply (config unreadable, station switching) keeps the last list.
+        if (!list.length && d?.main_carrier == null) return;
         setMainCarrier(d?.main_carrier ?? null);
         setBtsCarriers(list);
-      } catch { /* leave defaults — single carrier */ }
+      } catch { /* keep the last known list */ }
     };
     load();
     const id = setInterval(load, 30000);
     return () => { alive = false; clearInterval(id); };
   }, []);
 
-  // Razvan's approach: calls tracked by call_id from the trunking layer, keyed by
-  // carrier_num + ts. call_started → add; call_ended → remove.
-  // A duplex private call occupies TWO slots (caller + called), possibly on different
-  // carriers/timeslots, so it is placed on both with the matching role.
+  // Calls tracked by call_id from the trunking layer, keyed by carrier + ts. A duplex private
+  // call occupies TWO slots (caller + called), possibly on different carriers/timeslots.
   type Role = "caller" | "called" | "shared" | null;
   type Placement = { call: RfCall; role: Role };
   const byCarrier = new Map<string, Record<number, Placement | undefined>>();
@@ -438,170 +468,176 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
       place(c.carrier, c.ts, c, individual ? "shared" : null);
     }
   }
-  // The set of carriers to render = configured carriers (always shown, even idle) plus
-  // any carrier seen on a live call that config didn't list (defensive).
-  const carrierSet = new Set<number>(btsCarriers);
+
+  // Carriers to draw = configured ones plus any seen on a live call, ascending by number like
+  // the flowstation's panel (the secondary usually sits above the main). Legacy carrier-less
+  // calls belong to the main carrier.
+  const carrierSet = new Set<number>(btsCarriers.map(c => c.carrier_num));
   for (const c of rfCalls) if (c.carrier != null) carrierSet.add(Number(c.carrier));
-  if (mainCarrier != null && carrierSet.size > 0) carrierSet.add(mainCarrier);
-  // Dual carrier when 2+ carriers exist (configured or active).
-  const multi = carrierSet.size >= 2;
+  if (mainCarrier != null) carrierSet.add(mainCarrier);
+  const carriers: (number | null)[] = carrierSet.size ? Array.from(carrierSet).sort((a, b) => a - b) : [null];
+  const infoOf = (n: number | null): BtsCarrier | undefined => (n == null ? undefined : btsCarriers.find(c => c.carrier_num === n));
+  // Main carrier unknown (no btsinfo yet): the first carrier hosts the MCCH, as before.
+  const isMainCarrier = (n: number | null): boolean => (n == null ? true : mainCarrier == null ? n === carriers[0] : n === mainCarrier);
 
   const now = Date.now();
-  // Voice activity is keyed by `${carrier}:${ts}` (flowstation ts_voice carries carrier_num).
-  // Legacy carrier-less pings ("single:ts") are honoured only on the control carrier.
-  const isVoiceActive = (carrierNum: number | null, ts: number, isMain: boolean) => {
+  // Uplink voice activity keyed by `${carrier}:${ts}`; legacy carrier-less pings ("single:ts")
+  // are honoured on the main carrier only.
+  const recentVoice = (carrierNum: number | null, ts: number, isMain: boolean): { key: string; at: number } | null => {
     const keys: string[] = [];
     if (carrierNum != null) keys.push(`${carrierNum}:${ts}`);
-    if (isMain) keys.push(`single:${ts}`);
-    return keys.some(k => { const last = tsVoiceActivity[k]; return last != null && (now - last) < 2000; });
+    if (isMain || carrierNum == null) keys.push(`single:${ts}`);
+    let best: { key: string; at: number } | null = null;
+    for (const k of keys) {
+      const at = tsVoiceActivity[k];
+      if (at != null && (!best || at > best.at)) best = { key: k, at };
+    }
+    return best && now - best.at < TS_VOICE_DECAY_MS ? best : null;
   };
 
+  type Mode = "mcch" | "voice" | "call" | "idle";
   type SlotInfo = {
     ts: number;
-    mode: "active" | "voice" | "mcch" | "bcch" | "idle";
+    mode: Mode;
+    bcch: boolean;
     label: string;
     sub: string;
-    detail?: string;
-    detailCs?: string;
-    srcCs?: string;
-    dstCs?: string;
+    subCs?: string;
     timer?: string;
+    durPct: number;
+    emergency: boolean;
+    wave: number[];
+    voiceAt?: number;
+  };
+  const issiText = (issi: number | null | undefined): { text: string; cs?: string } => {
+    if (!issi) return { text: "" };
+    const cs = issiCallsign(issi);
+    return cs ? { text: `${issi} | ${cs}`, cs } : { text: String(issi) };
   };
   const roleSub = (role: Role): string =>
-    role === "caller" ? t("rf_caller_slot")
-      : role === "called" ? t("rf_called_slot")
-        : role === "shared" ? t("rf_shared_slot")
-          : t("rf_p2p");
-  const renderSlot = (
-    carrierNum: number | null,
-    tsNum: number,
-    callByTs: Record<number, Placement | undefined>,
-    isMain: boolean,
-  ): SlotInfo => {
-    // On the main carrier TS1 is the MCCH (control) and never carries an assigned call.
-    const p = (isMain && tsNum === 1) ? undefined : callByTs[tsNum];
+    role === "caller" ? t("rf_caller_slot").toUpperCase()
+      : role === "called" ? t("rf_called_slot").toUpperCase()
+        : role === "shared" ? t("rf_shared_slot").toUpperCase()
+          : t("rf_p2p").toUpperCase();
+  const slotInfo = (carrierNum: number | null, tsNum: number, callByTs: Record<number, Placement | undefined>, isMain: boolean): SlotInfo => {
+    // The main carrier's TS1 is the MCCH (control) and never carries an assigned call.
+    if (isMain && tsNum === 1) {
+      return { ts: 1, mode: "mcch", bcch: false, label: t("rf_mcch"), sub: t("rf_active"), durPct: 0, emergency: false, wave: mcchWave };
+    }
+    const voice = recentVoice(carrierNum, tsNum, isMain);
+    const p = callByTs[tsNum];
     if (p) {
       const c = p.call;
-      const timer = c.startedAt ? formatDur(Math.floor((now - c.startedAt) / 1000)) : undefined;
+      const elapsedMs = c.startedAt ? Math.max(0, now - c.startedAt) : 0;
+      const timer = c.startedAt && elapsedMs >= 1000 ? formatDur(Math.floor(elapsedMs / 1000)) : undefined;
+      const durPct = c.startedAt ? Math.min(100, (elapsedMs / 120000) * 100) : 0;
+      const emergency = (c.priority ?? 0) >= 15;
+      const speaker = voice ? (tsVoiceSpeaker[voice.key] ?? c.speakerIssi ?? c.callerIssi) : (c.speakerIssi ?? c.callerIssi);
+      const sp = issiText(speaker);
+      const wave = voice ? waveHeights(voice.at) : IDLE_WAVE;
       if (c.callType === "individual") {
-        const srcResolved = issiCallsign(c.callerIssi);
-        const dstResolved = issiCallsign(c.calledIssi);
-        const srcCs = srcResolved || String(c.callerIssi);
-        const dstCs = dstResolved || String(c.calledIssi);
-        return { ts: tsNum, mode: "active", label: `${srcCs} → ${dstCs}`, sub: roleSub(p.role), detail: `ISSI ${c.callerIssi} → ${c.calledIssi}`, srcCs: srcResolved || undefined, dstCs: dstResolved || undefined, timer };
+        const caller = c.origCallerIssi ?? c.callerIssi;
+        const label = `${caller || "?"} <-> ${c.calledIssi || "?"}`;
+        // Like the base station: "CALLER SLOT | TX CALLER 1001 | EA5GVK" — the party shown is the
+        // one keyed up (or the last floor holder), else the party this slot belongs to.
+        const shown = (voice ? tsVoiceSpeaker[voice.key] : null) ?? c.speakerIssi ?? (p.role === "called" ? c.calledIssi : caller);
+        const who = issiText(shown);
+        const role = shown && shown === caller ? "CALLER" : shown && shown === c.calledIssi ? "CALLED" : "TALKER";
+        const parts = [roleSub(p.role), who.text ? `${t("rf_tx")} ${role} ${who.text}` : ""].filter(Boolean).join(" | ");
+        const sub = voice ? `${t("rf_tx")} ${parts}` : parts;
+        return { ts: tsNum, mode: voice ? "voice" : "call", bcch: false, label, sub, subCs: who.cs, timer, durPct, emergency, wave, voiceAt: voice?.at };
       }
-      const resolved = c.callerIssi ? issiCallsign(c.callerIssi) : "";
-      const speakerCs = c.callerIssi ? (resolved || String(c.callerIssi)) : "?";
-      return { ts: tsNum, mode: "active", label: `GSSI ${c.gssi}`, sub: t("rf_group_call"), detail: speakerCs, detailCs: resolved || undefined, timer };
+      const label = c.gssi ? `GSSI ${c.gssi}` : t("rf_group");
+      const sub = voice ? `${t("rf_tx")} ${sp.text}`.trim() : (sp.text || t("rf_group"));
+      return { ts: tsNum, mode: voice ? "voice" : "call", bcch: false, label, sub, subCs: sp.cs, timer, durPct, emergency, wave, voiceAt: voice?.at };
     }
-    if (isVoiceActive(carrierNum, tsNum, isMain)) {
-      return { ts: tsNum, mode: "voice", label: t("rf_voice_rx"), sub: t("rf_voice_activity") };
+    if (voice) {
+      // Uplink voice with no allocation reported (older flowstation builds): still a local TX.
+      const sp = issiText(tsVoiceSpeaker[voice.key]);
+      return { ts: tsNum, mode: "voice", bcch: false, label: t("rf_voice_rx"), sub: `${t("rf_tx")} ${sp.text}`.trim(), subCs: sp.cs, durPct: 0, emergency: false, wave: waveHeights(voice.at), voiceAt: voice.at };
     }
     if (tsNum === 1) {
-      // Main carrier control channel (MCCH, active/highlighted) vs secondary carrier
-      // broadcast (BCCH) — which Razvan shows as an idle/free block, not a control one.
-      if (isMain) return { ts: 1, mode: "mcch", label: t("rf_mcch"), sub: t("rf_control") };
-      return { ts: 1, mode: "bcch", label: "BCCH", sub: t("rf_idle") };
+      return { ts: 1, mode: "idle", bcch: true, label: t("rf_bcch"), sub: t("rf_secondary"), durPct: 0, emergency: false, wave: IDLE_WAVE };
     }
-    return { ts: tsNum, mode: "idle", label: "—", sub: t("rf_idle") };
+    return { ts: tsNum, mode: "idle", bcch: false, label: "-", sub: t("rf_idle"), durPct: 0, emergency: false, wave: IDLE_WAVE };
   };
 
-  // One row per carrier. Single-carrier keeps the original unlabelled row and testids;
-  // dual carrier renders the control carrier first, then the rest ascending.
-  type Row = { key: string; carrier: number | null; label: string | null; control: boolean; slots: SlotInfo[] };
-  let rows: Row[];
-  if (multi) {
-    const ordered = Array.from(carrierSet).sort((a, b) => {
-      if (a === mainCarrier) return -1;
-      if (b === mainCarrier) return 1;
-      return a - b;
-    });
-    rows = ordered.map((carrier, idx) => {
-      const control = mainCarrier != null ? carrier === mainCarrier : idx === 0;
-      const callByTs = byCarrier.get(String(carrier)) || {};
-      return {
-        key: String(carrier),
-        carrier,
-        label: `RF ${carrier}`,
-        control,
-        slots: [1, 2, 3, 4].map(ts => renderSlot(carrier, ts, callByTs, control)),
-      };
-    });
-  } else {
-    // Single carrier: merge all placements (carrier-agnostic) into one row, keeping
-    // both ends of a duplex private call on their respective timeslots.
-    const merged: Record<number, Placement | undefined> = {};
-    for (const m of Array.from(byCarrier.values())) for (const ts of [1, 2, 3, 4]) if (m[ts] && !merged[ts]) merged[ts] = m[ts];
-    rows = [{
-      key: "single",
-      carrier: null,
-      label: null,
-      control: true,
-      slots: [1, 2, 3, 4].map(ts => renderSlot(mainCarrier, ts, merged, true)),
-    }];
-  }
+  type Row = { key: string; carrier: number | null; main: boolean; info?: BtsCarrier; slots: SlotInfo[] };
+  const rows: Row[] = carriers.map(carrier => {
+    const main = isMainCarrier(carrier);
+    let callByTs: Record<number, Placement | undefined>;
+    if (carrier == null) {
+      // No RF info at all: merge every placement into the one row.
+      callByTs = {};
+      for (const m of Array.from(byCarrier.values())) for (const ts of [1, 2, 3, 4]) if (m[ts] && !callByTs[ts]) callByTs[ts] = m[ts];
+    } else {
+      callByTs = { ...(byCarrier.get(String(carrier)) || {}) };
+      if (main) { const legacy = byCarrier.get("single") || {}; for (const ts of [1, 2, 3, 4]) if (legacy[ts] && !callByTs[ts]) callByTs[ts] = legacy[ts]; }
+    }
+    return { key: carrier == null ? "single" : String(carrier), carrier, main, info: infoOf(carrier), slots: [1, 2, 3, 4].map(ts => slotInfo(carrier, ts, callByTs, main)) };
+  });
 
-  const renderSlotCard = (s: SlotInfo, key: string, testid: string) => {
-    // BCCH (secondary carrier TS1) is rendered as an idle/free block, like Razvan's;
-    // only the main carrier's MCCH gets the cyan "active control" highlight.
-    const isMcch = s.mode === "mcch";
-    const isActive = s.mode === "active";
-    const isVoice = s.mode === "voice";
-    const borderCls = isMcch
-      ? "border-cyan-400/30 bg-cyan-400/5"
-      : isActive
-        ? "border-emerald-400/60 bg-emerald-400/5 shadow-[0_0_12px_rgba(16,185,129,0.15)]"
-        : isVoice
-          ? "border-amber-400/60 bg-amber-400/5 shadow-[0_0_12px_rgba(251,191,36,0.15)]"
-          : "border-white/10 bg-white/[0.02]";
-    const ledCls = isMcch
-      ? "bg-cyan-400 shadow-[0_0_6px_rgba(34,211,238,0.6)]"
-      : isActive
-        ? "bg-emerald-400 shadow-[0_0_8px_rgba(16,185,129,0.7)] animate-pulse"
-        : isVoice
-          ? "bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.7)] animate-pulse"
-          : "bg-white/15";
-    const labelCls = isMcch ? "text-cyan-300" : isActive ? "text-emerald-300" : isVoice ? "text-amber-300" : "text-muted-foreground";
-    return (
+  // Palette of the flowstation's dark theme: tile #19212f / border #232e40, text #94abc9 / #4c628a,
+  // MCCH blue #4da6ff, call amber #ffb224, voice red #ff4d6d.
+  const TILE: Record<Mode, string> = {
+    idle: "border-[#232e40] bg-[#19212f]",
+    mcch: "border-[rgba(77,166,255,0.35)] bg-[linear-gradient(160deg,rgba(77,166,255,0.07)_0%,#19212f_100%)]",
+    call: "border-[rgba(255,180,36,0.5)] bg-[linear-gradient(160deg,rgba(255,180,36,0.06)_0%,#19212f_100%)] shadow-[0_0_14px_rgba(255,180,36,0.1)]",
+    voice: "border-[rgba(255,60,80,0.7)] bg-[linear-gradient(160deg,rgba(255,60,80,0.12)_0%,#19212f_100%)] shadow-[0_0_18px_rgba(255,60,80,0.25)]",
+  };
+  const ACCENT: Record<Mode, string> = { idle: "text-[#4c628a]", mcch: "text-[#4da6ff]", call: "text-[#ffb224]", voice: "text-[#ff4d6d]" };
+  const LED: Record<Mode, string> = {
+    idle: "bg-[#232e40] rf-led-idle",
+    mcch: "bg-[#4da6ff] shadow-[0_0_7px_rgba(77,166,255,0.6)] rf-led-ripple",
+    call: "bg-[#ffb224] shadow-[0_0_7px_rgba(255,180,36,0.5)] rf-led-ripple",
+    voice: "bg-[#ff4d6d] rf-led-voice rf-led-ripple",
+  };
+  const RIPPLE: Record<Mode, string> = { idle: "0s", mcch: "2.6s", call: "1.6s", voice: "0.9s" };
+  const BAR: Record<Mode, string> = { idle: "bg-[#4c628a]", mcch: "bg-[#4da6ff]", call: "bg-[#ffb224]", voice: "bg-[#ff4d6d]" };
+  const WAVE_OPACITY: Record<Mode, string> = { idle: "opacity-25", mcch: "opacity-25", call: "opacity-45", voice: "opacity-100" };
+
+  const renderSlotCard = (s: SlotInfo, key: string, testid: string) => (
+    <div
+      key={key}
+      className={`relative rounded-lg border ${TILE[s.mode]} ${s.emergency ? "rf-ts-emergency" : ""} px-2.5 pt-3 pb-2 text-center overflow-hidden transition-[border-color,box-shadow,background] duration-150`}
+      data-testid={testid}
+      data-mode={s.mode}
+    >
+      <div className={`absolute top-[7px] left-[9px] font-mono text-[9px] font-bold tracking-[0.1em] ${s.emergency ? "text-[#ff4d6d]" : ACCENT[s.mode]}`}>TS {s.ts}</div>
+      {s.timer && (
+        <div className={`absolute top-[7px] right-[9px] font-mono text-[9px] font-bold tracking-[0.04em] tabular-nums ${ACCENT[s.mode]}`} data-testid={`${testid}-timer`}>
+          {s.timer}
+        </div>
+      )}
       <div
-        key={key}
-        className={`relative rounded-md border ${borderCls} px-3 py-3 text-center transition-colors overflow-hidden`}
-        data-testid={testid}
-      >
-        {s.timer && (
-          <div
-            className={`absolute top-1.5 right-2 font-mono font-bold text-[9px] tracking-wide tabular-nums ${isVoice ? "text-red-300" : "text-amber-300"}`}
-            data-testid={`${testid}-timer`}
-          >
-            {s.timer}
-          </div>
-        )}
-        <div className="text-[11px] font-bold tracking-[0.18em] text-muted-foreground mb-1.5">TS {s.ts}</div>
-        <div className={`w-3 h-3 rounded-full mx-auto mb-2 ${ledCls}`} />
-        <div className={`text-sm font-mono font-bold tracking-wide truncate ${labelCls}`} title={s.label}>
-          {(s.srcCs || s.dstCs) ? (
-            <span className="inline-flex items-center gap-1 justify-center">
-              <span>{s.label.split(" → ")[0]}</span>
-              <CountryFlag callsign={s.srcCs} />
-              <span>→</span>
-              <span>{s.label.split(" → ")[1]}</span>
-              <CountryFlag callsign={s.dstCs} />
-            </span>
-          ) : s.label}
-        </div>
-        <div className="text-xs font-mono text-muted-foreground mt-1 truncate" title={s.sub}>
-          {s.sub}
-        </div>
-        {s.detail && (
-          <div className="text-[11px] font-mono text-muted-foreground/80 mt-0.5 truncate flex items-center gap-1 justify-center" title={s.detail}>
-            <span className="truncate">{s.detail}</span>
-            {s.detailCs && <CountryFlag callsign={s.detailCs} />}
-          </div>
-        )}
+        className={`w-[10px] h-[10px] rounded-full mx-auto mt-1 mb-[9px] transition-[background,box-shadow] duration-100 ${LED[s.mode]} ${ACCENT[s.mode]}`}
+        style={{ ["--rf-ripple" as any]: RIPPLE[s.mode] }}
+      />
+      <div className={`flex items-end justify-center gap-[2px] h-[22px] mx-auto mb-[5px] w-[60%] transition-opacity duration-150 ${WAVE_OPACITY[s.mode]}`}>
+        {s.wave.map((h, i) => (
+          <div key={i} className={`w-[3px] rounded-t-[2px] min-h-[3px] transition-[height] duration-100 ${BAR[s.mode]}`} style={{ height: `${h}px` }} />
+        ))}
       </div>
-    );
-  };
+      <div className={`font-mono text-[11px] font-bold tracking-[0.05em] min-h-[13px] truncate transition-colors duration-150 ${s.emergency ? "text-[#ff4d6d]" : ACCENT[s.mode]}`} title={s.label}>
+        {s.label}
+      </div>
+      <div className={`font-mono text-[9px] mt-[2px] min-h-[11px] truncate tabular-nums ${s.mode === "voice" ? "text-[rgba(255,60,80,0.7)]" : "text-[#4c628a]"}`} title={s.sub}>
+        {s.subCs ? (
+          <span className="inline-flex items-center gap-1 justify-center max-w-full">
+            <span className="truncate">{s.sub}</span>
+            <CountryFlag callsign={s.subCs} />
+          </span>
+        ) : s.sub}
+      </div>
+      {s.mode === "voice" && <div key={s.voiceAt} className="rf-ts-flash absolute inset-0 rounded-lg pointer-events-none bg-[rgba(255,60,80,0.18)]" />}
+      <div
+        className={`absolute bottom-0 left-0 h-[2px] rounded-b-lg transition-[width] duration-500 ease-linear ${s.mode === "voice" ? "bg-[#ff4d6d]" : "bg-[#ffb224]"}`}
+        style={{ width: `${s.durPct}%` }}
+      />
+    </div>
+  );
 
+  const single = rows.length === 1;
   return (
     <div className="glass-panel rounded-md overflow-hidden" data-testid="panel-rf-channel">
       <div className="flex items-center gap-2 px-4 py-2 border-b border-white/5 bg-cyan-500/5">
@@ -611,25 +647,28 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity }: {
         </h2>
       </div>
       <div className="p-3 space-y-3">
-        {rows.map(row => (
-          <div key={row.key} data-testid={`rf-carrier-${row.carrier ?? "single"}`}>
-            {row.label && (
-              <div className="flex items-center gap-2 mb-1.5 px-0.5">
-                <span className="text-[10px] font-bold tracking-[0.15em] uppercase text-cyan-400/80">{row.label}</span>
-                {row.control && (
-                  <span className="text-[9px] font-bold tracking-wider uppercase text-cyan-300 bg-cyan-400/10 border border-cyan-400/30 rounded px-1.5 py-0.5">{t("rf_mcch")}</span>
-                )}
+        {rows.map(row => {
+          const dl = fmtMhz(row.info?.tx_freq_hz);
+          const ul = fmtMhz(row.info?.rx_freq_hz);
+          const meta = [dl ? `${t("rf_dl")} ${dl}` : null, ul ? `${t("rf_ul")} ${ul}` : null].filter(Boolean).join(" | ") || t("rf_waiting_rf");
+          return (
+            <div key={row.key} className="space-y-2" data-testid={`rf-carrier-${row.carrier ?? "single"}`}>
+              <div className="flex items-baseline justify-between gap-2.5 px-0.5 max-sm:flex-col max-sm:items-start max-sm:gap-1">
+                <div className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-[#94abc9]" data-testid={`rf-carrier-title-${row.carrier ?? "single"}`}>
+                  {t("rf_carrier")}{row.carrier != null ? ` #${row.carrier}` : ""}{row.main && row.carrier != null ? ` | ${t("rf_main")}` : ""}
+                </div>
+                <div className="font-mono text-[10px] text-[#4c628a] whitespace-nowrap overflow-hidden text-ellipsis" title={meta}>{meta}</div>
               </div>
-            )}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-              {row.slots.map(s => renderSlotCard(
-                s,
-                multi ? `${row.carrier}-${s.ts}` : String(s.ts),
-                multi ? `rf-ts-${row.carrier}-${s.ts}` : `rf-ts-${s.ts}`,
-              ))}
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+                {row.slots.map(s => renderSlotCard(
+                  s,
+                  single ? String(s.ts) : `${row.carrier}-${s.ts}`,
+                  single ? `rf-ts-${s.ts}` : `rf-ts-${row.carrier}-${s.ts}`,
+                ))}
+              </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -1549,7 +1588,7 @@ function BtsDetails() {
 export default function Dashboard() {
   const { t } = useI18n();
   const tgName = useTgNames();
-  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, fsDashboardActive, tsVoiceActivity, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, connected } = useTetraWebSocket();
+  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, fsDashboardActive, tsVoiceActivity, tsVoiceSpeaker, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 
   // Build ISSI → callsign lookup so PRIV destinations can show callsign + flag.
@@ -1642,7 +1681,7 @@ export default function Dashboard() {
           fsActive={fsDashboardActive}
         />
 
-        {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} />}
+        {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} tsVoiceSpeaker={tsVoiceSpeaker} />}
 
         {(lastHeard.length > 0 || txQuality) && (
           <div className="flex flex-col md:flex-row gap-2 sm:gap-3">
