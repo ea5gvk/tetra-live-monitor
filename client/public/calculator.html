@@ -580,7 +580,7 @@
           </div>
           <div>
             <label for="individualHangtimeSecs" data-i18n="timing_ind_hangtime">individual_hangtime_secs (0 - 300)</label>
-            <input id="individualHangtimeSecs" type="number" min="0" max="300" value="13" />
+            <input id="individualHangtimeSecs" type="number" min="0" max="300" value="30" />
           </div>
           <div></div>
         </div>
@@ -4998,7 +4998,7 @@
       const hg = clamp(el("hangtimeSecs").value, 0, 300, 5);
       const ct = clamp(el("callTimeoutSecs").value, 30, 300, 120);
       const ul = clamp(el("ulInactivitySecs").value, 1, 30, 3);
-      const ih = clamp(el("individualHangtimeSecs").value, 0, 300, 13);
+      const ih = clamp(el("individualHangtimeSecs").value, 0, 300, 30);
       lines.push(`${prefix}hangtime_secs = ${hg}`);
       lines.push(`${prefix}call_timeout_secs = ${ct}`);
       lines.push(`${prefix}ul_inactivity_secs = ${ul}`);
@@ -6460,7 +6460,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       hangtime_secs: clampInt(el("hangtimeSecs").value, 0, 300, 5),
       call_timeout_secs: clampInt(el("callTimeoutSecs").value, 0, 600, 120),
       ul_inactivity_secs: clampInt(el("ulInactivitySecs").value, 1, 30, 3),
-      individual_hangtime_secs: clampInt(el("individualHangtimeSecs").value, 0, 300, 13),
+      individual_hangtime_secs: clampInt(el("individualHangtimeSecs").value, 0, 300, 30),
     };
 
     // Collect periodic registration options
