@@ -2058,7 +2058,7 @@ fi
           }
           // Parse commented call timing fields in [cell_info] so they load even when disabled
           if (inCellInfoCtx) {
-            const ctM = line.match(/^#\s*(hangtime_secs|call_timeout_secs|ul_inactivity_secs|individual_hangtime_secs)\s*=\s*([0-9]+)/);
+            const ctM = line.match(/^#\s*(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=\s*([0-9]+)/);
             if (ctM && !sections['cell_info']?.[ctM[1]]) {
               sections['cell_info'] = sections['cell_info'] || {};
               sections['cell_info'][ctM[1]] = ctM[2];
@@ -2118,7 +2118,7 @@ fi
           // appear under a [cell_info.X] subsection — this matches upstream flowstation
           // example_config layout and how the calculator presents these fields.
           const cellInfoKeys = new Set([
-            'hangtime_secs','call_timeout_secs','ul_inactivity_secs','individual_hangtime_secs',
+            'hangtime_secs','call_timeout_secs','ul_inactivity_secs',
             'periodic_registration_secs','timezone','location_area','colour_code',
             'system_code','local_ssi_ranges'
           ]);
@@ -2127,7 +2127,7 @@ fi
             if (!sections['cell_info'][kk]) sections['cell_info'][kk] = kvMatch[2].trim();
           }
           // Track active (non-commented) call timing keys under [cell_info] (or subsection)
-          if (inCellInfoCtx && (kk === 'hangtime_secs' || kk === 'call_timeout_secs' || kk === 'ul_inactivity_secs' || kk === 'individual_hangtime_secs')) {
+          if (inCellInfoCtx && (kk === 'hangtime_secs' || kk === 'call_timeout_secs' || kk === 'ul_inactivity_secs')) {
             ctActive = true;
           }
           // Track active periodic_registration_secs under [cell_info] (or subsection)
@@ -2474,8 +2474,6 @@ fi
             hangtime_secs: num('cell_info', 'hangtime_secs'),
             call_timeout_secs: num('cell_info', 'call_timeout_secs'),
             ul_inactivity_secs: num('cell_info', 'ul_inactivity_secs'),
-            // flowstation-tea2 >= 25fbd57: hangtime of simplex individual calls (0 = off).
-            individual_hangtime_secs: num('cell_info', 'individual_hangtime_secs'),
           },
           periodic_reg: {
             enabled: prActive,
@@ -2787,10 +2785,9 @@ fi
         hangtime_secs: clampInt(callTimingConfig?.hangtime_secs, 0, 300, 5),
         call_timeout_secs: clampInt(callTimingConfig?.call_timeout_secs, 0, 600, 120),
         ul_inactivity_secs: clampInt(callTimingConfig?.ul_inactivity_secs, 1, 30, 3),
-        individual_hangtime_secs: clampInt(callTimingConfig?.individual_hangtime_secs, 0, 300, 30),
       };
       const ctKeys = Object.keys(ctVals);
-      const ctFound: Record<string, boolean> = { hangtime_secs: false, call_timeout_secs: false, ul_inactivity_secs: false, individual_hangtime_secs: false };
+      const ctFound: Record<string, boolean> = { hangtime_secs: false, call_timeout_secs: false, ul_inactivity_secs: false };
 
       // Periodic Registration — single [cell_info] field with independent toggle.
       const prEnabled = periodicRegConfig?.enabled === true;
@@ -2929,7 +2926,7 @@ fi
         // to the subsection in strict TOML. We update them in place regardless.
         if (currentSection === "cell_info" || currentSection.startsWith("cell_info.")) {
           // Handle commented # <call_timing_key> = N lines (active or commented depending on toggle)
-          const commentedCtMatch = lines[i].match(/^(\s*)#\s*(hangtime_secs|call_timeout_secs|ul_inactivity_secs|individual_hangtime_secs)\s*=\s*([0-9]+)/);
+          const commentedCtMatch = lines[i].match(/^(\s*)#\s*(hangtime_secs|call_timeout_secs|ul_inactivity_secs)\s*=\s*([0-9]+)/);
           if (commentedCtMatch) {
             const k = commentedCtMatch[2];
             // Duplicate: a previous occurrence already handled this key → remove this line
