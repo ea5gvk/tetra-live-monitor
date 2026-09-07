@@ -5394,15 +5394,17 @@ fi
         }
       } catch { /* ignore */ }
     });
-    fsWs.on('unexpected-response', (_req: any, resp: any) => {
-      // 401 means our cached fs_session token is stale (flowstation restarted, session store wiped).
-      // Invalidate so the next connectFlowstationWs() call re-logs in fresh.
-      if (resp?.statusCode === 401) {
-        invalidateFlowstationSession();
-      }
-    });
-    fsWs.on('error', () => { /* silent — :8080 may not be active */ });
-    fsWs.on('close', () => {
+    // One teardown per socket, whether it closed after being open or never finished the
+    // handshake. With an 'unexpected-response' listener installed, `ws` does NOT abort the
+    // handshake on a non-101 reply (e.g. 401 with a stale/missing fs_session): the socket stayed
+    // CONNECTING for ever, 'close' never fired, no reconnect was ever scheduled and the RF
+    // timeslot panel vanished until the web service itself was restarted.
+    const thisWs = fsWs;
+    let goneHandled = false;
+    const onGone = () => {
+      if (goneHandled) return;
+      goneHandled = true;
+      if (fsWs !== thisWs) return; // already superseded by a newer connection
       const wasActive = fsDashboardActive;
       fsWs = null;
       fsWsCallDataActive = false;
@@ -5428,7 +5430,19 @@ fi
       }
       setTimeout(connectFlowstationWs, fsBackoff);
       fsBackoff = Math.min(fsBackoff * 2, FS_BACKOFF_MAX);
+    };
+    fsWs.on('unexpected-response', (req: any, resp: any) => {
+      // 401 means our cached fs_session token is stale (flowstation restarted, session store
+      // wiped) or the login had not completed yet: forget it so the retry logs in afresh.
+      if (resp?.statusCode === 401) {
+        invalidateFlowstationSession();
+      }
+      try { resp?.resume(); } catch { /* ignore */ }
+      try { req?.destroy(); } catch { /* ignore */ }
+      onGone();
     });
+    fsWs.on('error', () => { /* silent — :8080 may not be active */ });
+    fsWs.on('close', onGone);
   }
   setTimeout(connectFlowstationWs, 500);
 
