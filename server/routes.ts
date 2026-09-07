@@ -5360,7 +5360,10 @@ fi
           }
         } else if (m.type === 'ms_deregistered' && m.issi != null) {
           energySavingByIssi.delete(String(m.issi));
-          cipherByIssi.delete(String(m.issi));
+          // Deliberately NOT forgetting cipherByIssi here: the flowstation keeps a terminal's
+          // ciphering state across de/re-registration and only reports it again when it CHANGES,
+          // so a radio that drops and comes back (roaming update, EG sleep, cell loss) would
+          // otherwise re-register with no padlock until its next state change.
           markMsOffline(String(m.issi));
         } else if (m.type === 'ts_voice' && m.ts != null) {
           // Razvan v0.2.2+: rate-limited (4 Hz/TS) voice activity ping per timeslot.
