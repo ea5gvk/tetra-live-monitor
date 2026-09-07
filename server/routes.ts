@@ -2787,7 +2787,7 @@ fi
         hangtime_secs: clampInt(callTimingConfig?.hangtime_secs, 0, 300, 5),
         call_timeout_secs: clampInt(callTimingConfig?.call_timeout_secs, 0, 600, 120),
         ul_inactivity_secs: clampInt(callTimingConfig?.ul_inactivity_secs, 1, 30, 3),
-        individual_hangtime_secs: clampInt(callTimingConfig?.individual_hangtime_secs, 0, 300, 30),
+        individual_hangtime_secs: clampInt(callTimingConfig?.individual_hangtime_secs, 0, 300, 13),
       };
       const ctKeys = Object.keys(ctVals);
       const ctFound: Record<string, boolean> = { hangtime_secs: false, call_timeout_secs: false, ul_inactivity_secs: false, individual_hangtime_secs: false };
