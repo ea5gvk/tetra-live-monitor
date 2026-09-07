@@ -4848,6 +4848,9 @@ fi
         for (const [issi, t] of Object.entries(incoming) as [string, any][]) {
           const eg = energySavingByIssi.get(issi);
           if (eg !== undefined && t && t.energySaving == null) t.energySaving = eg;
+          // Same for the air-interface ciphering state (flowstation-tea2 ms_cipher).
+          const ci = cipherByIssi.get(issi);
+          if (ci !== undefined && t && t.ciphering == null) t.ciphering = ci;
         }
         currentState.terminals = incoming;
         // Re-seed flowstation-registered radios that Python's full_state doesn't
@@ -4875,6 +4878,11 @@ fi
           const issi = String(event.payload.id);
           if (energySavingByIssi.has(issi) && event.payload.energySaving == null) {
             event.payload.energySaving = energySavingByIssi.get(issi) ?? null;
+          }
+          // Python's terminal updates know nothing about ciphering: keep the last state reported
+          // by the flowstation, or the padlock blinks out on every journal update of that radio.
+          if (cipherByIssi.has(issi) && event.payload.ciphering == null) {
+            event.payload.ciphering = cipherByIssi.get(issi) ?? null;
           }
           currentState.terminals[issi] = event.payload;
         }
@@ -5352,6 +5360,7 @@ fi
           }
         } else if (m.type === 'ms_deregistered' && m.issi != null) {
           energySavingByIssi.delete(String(m.issi));
+          cipherByIssi.delete(String(m.issi));
           markMsOffline(String(m.issi));
         } else if (m.type === 'ts_voice' && m.ts != null) {
           // Razvan v0.2.2+: rate-limited (4 Hz/TS) voice activity ping per timeslot.
