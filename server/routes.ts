@@ -998,8 +998,23 @@ BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)
 echo "=== Sincronizando con origin/$BRANCH (reset --hard, soporta force-push) ==="
 sudo git reset --hard "origin/$BRANCH"
 echo ""
+MARK="/tmp/${cleanService}.was-active"
+sudo rm -f "$MARK"
+if systemctl is-active --quiet ${cleanService}; then
+  sudo touch "$MARK"
+  echo "=== Parando ${cleanService} mientras se compila (compilar con la estación en marcha estrangula el TDMA) ==="
+  sudo systemctl stop ${cleanService}
+fi
 echo "=== cargo build --release ==="
-sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env; cargo build --release'
+if ! sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env; cargo build --release'; then
+  echo "=== BUILD FALLIDO: se conserva el binario anterior ==="
+  if [ -f "$MARK" ]; then
+    echo "=== Arrancando ${cleanService} de nuevo ==="
+    sudo systemctl start ${cleanService}
+    sudo rm -f "$MARK"
+  fi
+  exit 1
+fi
 `;
     const child = spawn("bash", ["-c", script], { cwd: cleanDir });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
@@ -1051,8 +1066,13 @@ sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env
       }
       // Reiniciar flowstation para aplicar binario + config nuevos, y reconectar rápido.
       if (cleanService) {
-        res.write(`\n=== Reiniciando ${cleanService}... ===\n`);
-        exec(`if systemctl is-active --quiet ${cleanService}; then sudo systemctl restart ${cleanService}; else echo "(${cleanService} no activo — no se reinicia)"; fi`, (err) => {
+        const wasActiveMark = `/tmp/${cleanService}.was-active`;
+        const wasActive = fs.existsSync(wasActiveMark);
+        try { fs.unlinkSync(wasActiveMark); } catch { /* already gone */ }
+        res.write(`\n=== ${wasActive ? "Arrancando" : "Reiniciando"} ${cleanService}... ===\n`);
+        exec(wasActive
+          ? `sudo systemctl start ${cleanService}`
+          : `if systemctl is-active --quiet ${cleanService}; then sudo systemctl restart ${cleanService}; else echo "(${cleanService} no activo — no se arranca)"; fi`, (err) => {
           if (err) res.write(`[restart err: ${err.message}]\n`);
           setTimeout(kickFlowstationRestart, 1500);
           res.write(`\n[Exit: ${code}]\n`);
