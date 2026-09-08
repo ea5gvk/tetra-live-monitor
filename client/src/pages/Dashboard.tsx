@@ -294,7 +294,7 @@ function TerminalRow({ t: terminal, tgName, issiCallsign, showDgna, fsActive }: 
     const name = tgName(g);
     const flag = getTgFlag(name, g);
     if (g === selectedNum) {
-      return <span key={g} className="text-primary font-bold" title={(name || flag) ? `${flag ? flag+" " : ""}${name}` : undefined}>[{g}{(name||flag) ? <>{flag?<span className="text-sm"> {flag}</span>:null}{flag&&name?" ":""}{name}</>: ""}]</span>;
+      return <span key={g} className="text-primary font-bold" title={(name || flag) ? `${flag ? flag+" " : ""}${name}` : undefined}>[{g}{(name||flag) ? <>{flag?<span className="text-sm"> {flag}</span>:null}{name?" ":""}{name}</>: ""}]</span>;
     }
     return <span key={g} className="text-muted-foreground" title={name ? `${flag ? flag + " " : ""}${name}` : undefined}>{g}</span>;
   });
