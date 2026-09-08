@@ -453,7 +453,22 @@ export async function registerRoutes(
     return null;
   })();
 
-  app.get("/api/update/check", (_req, res) => {
+  // Ejecuta un comando SIN bloquear el bucle de eventos de Node.
+  // execSync detiene el servidor ENTERO mientras dura el comando: con `git ls-remote`
+  // (15 s de tope) y la API de GitHub (10 s) el dashboard se congelaba hasta 25 s cada vez
+  // que GitHub iba lento o nos limitaba las consultas anonimas — y el navegador llama a los
+  // tres comprobadores cada 5 minutos, por cada pestana abierta. Durante ese bloqueo el panel
+  // RF, las llamadas activas y el puente WS a la flowstation dejan de refrescarse.
+  function execOut(cmd: string, timeout: number): Promise<string> {
+    return new Promise((resolve, reject) => {
+      exec(cmd, { timeout, maxBuffer: 4 * 1024 * 1024 }, (err, stdout) => {
+        if (err) reject(err);
+        else resolve(stdout.toString());
+      });
+    });
+  }
+
+  app.get("/api/update/check", async (_req, res) => {
     if (!UPDATE_DIR) return res.json({ demo: true });
     try {
       execSync("which git", { timeout: 2000 });
@@ -469,10 +484,10 @@ export async function registerRoutes(
     // Use git ls-remote to get remote hash (same protocol as git pull, no API rate limits)
     let remoteHash = "";
     try {
-      const lsOut = execSync(
+      const lsOut = await execOut(
         `git ls-remote https://github.com/ea5gvk/tetra-live-monitor.git main`,
-        { timeout: 15000 }
-      ).toString();
+        15000
+      );
       remoteHash = lsOut.split(/\s+/)[0].trim();
     } catch (err) {
       return res.json({
@@ -492,10 +507,10 @@ export async function registerRoutes(
     let remoteMessage = "", remoteDate = "", remoteAuthor = "";
     try {
       const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
-      const raw = execSync(
+      const raw = await execOut(
         `curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/ea5gvk/tetra-live-monitor/commits/main"`,
-        { timeout: 10000 }
-      ).toString();
+        10000
+      );
       const data = JSON.parse(raw);
       remoteMessage = (data.commit?.message || "").split("\n")[0];
       remoteDate = data.commit?.author?.date || "";
@@ -722,7 +737,7 @@ pm2 restart tetra-monitor
 
   // ─── Bluestation update endpoints ───────────────────────────────────────────
 
-  app.get("/api/bluestation/check", (req, res) => {
+  app.get("/api/bluestation/check", async (req, res) => {
     const dir = (req.query.dir as string) || "/root/tetra-bluestation";
     const cleanDir = dir.replace(/[;&|`$]/g, "");
     if (!fs.existsSync(cleanDir)) return res.json({ demo: false, dirNotFound: true });
@@ -741,10 +756,10 @@ pm2 restart tetra-monitor
     // Use git ls-remote to get remote hash (same protocol as git pull, no API rate limits)
     let remoteHash = "";
     try {
-      const lsOut = execSync(
+      const lsOut = await execOut(
         `git ls-remote https://github.com/MidnightBlueLabs/tetra-bluestation.git main`,
-        { timeout: 15000 }
-      ).toString();
+        15000
+      );
       remoteHash = lsOut.split(/\s+/)[0].trim();
     } catch (err) {
       return res.json({
@@ -764,10 +779,10 @@ pm2 restart tetra-monitor
     let remoteMessage = "", remoteDate = "", remoteAuthor = "";
     try {
       const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
-      const raw = execSync(
+      const raw = await execOut(
         `curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/MidnightBlueLabs/tetra-bluestation/commits/main"`,
-        { timeout: 10000 }
-      ).toString();
+        10000
+      );
       const data = JSON.parse(raw);
       remoteMessage = (data.commit?.message || "").split("\n")[0];
       remoteDate = data.commit?.author?.date || "";
@@ -878,7 +893,7 @@ KillSignal=SIGINT
 WantedBy=multi-user.target
 `;
 
-  app.get("/api/flowstation/check", (_req, res) => {
+  app.get("/api/flowstation/check", async (_req, res) => {
     // Hard-coded path — ignore any user-supplied input to avoid command injection
     const dir = FLOW_DIR_DEFAULT;
     const installed = fs.existsSync(dir);
@@ -892,7 +907,7 @@ WantedBy=multi-user.target
 
     let remoteHash = "";
     try {
-      const lsOut = execSync(`git ls-remote https://github.com/${FLOW_REPO}.git main`, { timeout: 15000 }).toString();
+      const lsOut = await execOut(`git ls-remote https://github.com/${FLOW_REPO}.git main`, 15000);
       remoteHash = lsOut.split(/\s+/)[0].trim();
     } catch (err) {
       return res.json({
@@ -906,10 +921,10 @@ WantedBy=multi-user.target
     let remoteMessage = "", remoteDate = "", remoteAuthor = "";
     try {
       const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
-      const raw = execSync(
+      const raw = await execOut(
         `curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/${FLOW_REPO}/commits/main"`,
-        { timeout: 10000 }
-      ).toString();
+        10000
+      );
       const data = JSON.parse(raw);
       remoteMessage = (data.commit?.message || "").split("\n")[0];
       remoteDate = data.commit?.author?.date || "";
