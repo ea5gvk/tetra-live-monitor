@@ -5097,7 +5097,7 @@ fi
     currentState.terminals[issi] = term;
     broadcast(JSON.stringify({ type: 'update_terminal', payload: term }));
   };
-  const updateMsGroups = (issi: string, groups: any[], mode: 'replace' | 'detach') => {
+  const updateMsGroups = (issi: string, groups: any[], mode: 'replace' | 'merge' | 'detach') => {
     const incoming = (Array.isArray(groups) ? groups : []).map((g) => String(g));
     const prev = currentState.terminals[issi];
     if (!prev) {
@@ -5109,7 +5109,9 @@ fi
     }
     const next = mode === 'detach'
       ? (prev.groups || []).filter((g: string) => !incoming.includes(g))
-      : incoming;
+      : mode === 'merge'
+        ? Array.from(new Set([...(prev.groups || []), ...incoming]))
+        : incoming;
     upsertMsTerminal(issi, { issi, groups: next });
   };
   const updateMsGroupCatalog = (issi: string, catalog: any[]) => {
@@ -5336,8 +5338,15 @@ fi
           if (c) { c.callerIssi = m.speaker_issi || c.callerIssi; c.speakerIssi = num(m.speaker_issi) ?? c.speakerIssi ?? null; broadcast(JSON.stringify({ type: 'rf_call_started', payload: c })); }
         } else if (m.type === 'ms_registered' && m.issi != null) {
           upsertMsTerminal(String(m.issi), m);
-        } else if ((m.type === 'ms_groups' || m.type === 'ms_groups_all') && m.issi != null) {
+        } else if (m.type === 'ms_groups_all' && m.issi != null) {
           updateMsGroups(String(m.issi), m.groups || [], 'replace');
+        } else if (m.type === 'ms_groups' && m.issi != null) {
+          // ms_groups is INCREMENTAL ("these groups were just attached"), unlike ms_groups_all
+          // which carries the whole list. The flowstation emits one per affiliation batch, and
+          // since it confirms an oversized group attach in chunks a 15-group scan list arrives
+          // as 12 + 3. Replacing here made the second chunk wipe the first, so a scanning radio
+          // showed only its last 3 talkgroups even though the station held all 15.
+          updateMsGroups(String(m.issi), m.groups || [], 'merge');
         } else if (m.type === 'ms_groups_detach' && m.issi != null) {
           updateMsGroups(String(m.issi), m.groups || [], 'detach');
         } else if (m.type === 'ms_group_catalog' && m.issi != null) {

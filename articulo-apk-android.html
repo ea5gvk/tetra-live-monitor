@@ -1,0 +1,192 @@
+<!-- ==========================================================
+     TETRA Live Monitor — Artículo APK Android para WordPress
+     Pega este bloque en un bloque "HTML personalizado" de WordPress
+     ========================================================== -->
+<div class="tlm-article">
+  <style>
+    .tlm-article{
+      --bg:#0b1220; --card:#111c30; --card2:#0e1728;
+      --line:#1f3350; --txt:#dbe7f5; --muted:#8fa6c4;
+      --cyan:#22d3ee; --green:#34d399; --accent:#3b82f6;
+      font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+      color:var(--txt); line-height:1.65; max-width:900px; margin:0 auto;
+    }
+    .tlm-article *{box-sizing:border-box}
+    .tlm-hero{
+      background:radial-gradient(120% 140% at 0% 0%,#12203a 0%,#0b1220 55%,#08101d 100%);
+      border:1px solid var(--line); border-radius:20px; padding:44px 34px;
+      text-align:center; position:relative; overflow:hidden;
+    }
+    .tlm-hero:before{
+      content:""; position:absolute; inset:0;
+      background:radial-gradient(60% 60% at 85% 15%,rgba(34,211,238,.18),transparent 70%);
+      pointer-events:none;
+    }
+    .tlm-badge{
+      display:inline-block; font-size:12px; letter-spacing:.14em; text-transform:uppercase;
+      color:var(--cyan); border:1px solid rgba(34,211,238,.35);
+      background:rgba(34,211,238,.08); padding:6px 14px; border-radius:999px; margin-bottom:18px;
+    }
+    .tlm-hero h1{
+      font-size:34px; line-height:1.2; margin:0 0 12px; color:#fff; font-weight:800;
+    }
+    .tlm-hero h1 span{
+      background:linear-gradient(90deg,var(--cyan),var(--green));
+      -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+    }
+    .tlm-hero p{color:var(--muted); font-size:17px; margin:0 auto; max-width:620px}
+    .tlm-btn{
+      display:inline-flex; align-items:center; gap:10px; text-decoration:none;
+      font-weight:700; font-size:17px; padding:15px 30px; border-radius:14px;
+      background:linear-gradient(90deg,var(--green),var(--cyan)); color:#04121f;
+      box-shadow:0 10px 30px rgba(34,211,238,.25); transition:transform .15s ease,box-shadow .15s ease;
+    }
+    .tlm-btn:hover{transform:translateY(-2px); box-shadow:0 14px 38px rgba(34,211,238,.38)}
+    .tlm-btn.ghost{
+      background:transparent; color:var(--txt); border:1px solid var(--line); box-shadow:none;
+    }
+    .tlm-cta{margin-top:26px; display:flex; gap:14px; justify-content:center; flex-wrap:wrap}
+    .tlm-note{margin-top:14px; font-size:13px; color:var(--muted)}
+    .tlm-section{margin-top:40px}
+    .tlm-section h2{
+      font-size:24px; color:#fff; margin:0 0 6px; font-weight:800;
+    }
+    .tlm-section .lead{color:var(--muted); margin:0 0 22px}
+    .tlm-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px}
+    .tlm-feat{
+      background:linear-gradient(180deg,var(--card),var(--card2));
+      border:1px solid var(--line); border-radius:16px; padding:20px;
+    }
+    .tlm-feat .ico{font-size:24px; margin-bottom:8px; display:block}
+    .tlm-feat h3{margin:0 0 4px; font-size:16px; color:#fff}
+    .tlm-feat p{margin:0; font-size:14px; color:var(--muted)}
+    .tlm-steps{
+      background:var(--card2); border:1px solid var(--line); border-radius:16px;
+      padding:24px 26px; counter-reset:step;
+    }
+    .tlm-steps ol{margin:0; padding:0; list-style:none}
+    .tlm-steps li{
+      position:relative; padding:0 0 16px 44px; counter-increment:step;
+    }
+    .tlm-steps li:last-child{padding-bottom:0}
+    .tlm-steps li:before{
+      content:counter(step); position:absolute; left:0; top:-2px;
+      width:30px; height:30px; border-radius:50%; display:flex; align-items:center; justify-content:center;
+      font-weight:700; font-size:14px; color:#04121f;
+      background:linear-gradient(135deg,var(--cyan),var(--green));
+    }
+    .tlm-steps code{
+      background:#081426; border:1px solid var(--line); color:var(--cyan);
+      padding:2px 7px; border-radius:6px; font-size:13px;
+    }
+    .tlm-thanks{
+      margin-top:40px; text-align:center;
+      background:radial-gradient(120% 140% at 100% 0%,#1a2540 0%,#0e1728 60%);
+      border:1px solid var(--line); border-radius:20px; padding:34px 28px;
+    }
+    .tlm-thanks h2{font-size:22px; color:#fff; margin:0 0 12px}
+    .tlm-thanks p{color:var(--txt); max-width:640px; margin:0 auto 18px}
+    .tlm-people{display:flex; gap:14px; justify-content:center; flex-wrap:wrap}
+    .tlm-chip{
+      display:inline-flex; align-items:center; gap:8px;
+      background:rgba(52,211,153,.1); border:1px solid rgba(52,211,153,.35);
+      color:var(--green); font-weight:700; padding:10px 18px; border-radius:999px; font-size:15px;
+    }
+    .tlm-req{
+      margin-top:28px; display:flex; gap:12px; align-items:center; justify-content:center;
+      flex-wrap:wrap; color:var(--muted); font-size:14px;
+    }
+    .tlm-req span{border:1px solid var(--line); border-radius:999px; padding:6px 14px; background:var(--card2)}
+    @media (max-width:640px){
+      .tlm-hero{padding:34px 22px}
+      .tlm-hero h1{font-size:26px}
+      .tlm-grid{grid-template-columns:1fr}
+    }
+  </style>
+
+  <!-- HERO -->
+  <div class="tlm-hero">
+    <span class="tlm-badge">📱 Nueva App Android</span>
+    <h1>Ya disponible la <span>APK de TETRA Live Monitor</span></h1>
+    <p>Monitoriza y controla tu Flowstation desde el móvil: estado en vivo, mapa GPS, gestión DGNA, envío de SDS y control total del sistema. Nativa, ligera y en tu bolsillo.</p>
+    <div class="tlm-cta">
+      <a class="tlm-btn" href="https://github.com/ea5gvk/tetra-live-monitor/releases/latest/download/tetra-live-monitor.apk">⬇️ Descargar APK</a>
+      <a class="tlm-btn ghost" href="https://github.com/ea5gvk/tetra-live-monitor">Ver en GitHub</a>
+    </div>
+    <div class="tlm-note">Descarga directa desde la última <em>release</em> del proyecto · Android 8 o superior</div>
+  </div>
+
+  <!-- INTRO -->
+  <div class="tlm-section">
+    <h2>Tu Flowstation, en la palma de la mano</h2>
+    <p class="lead">Después de mucho trabajo, la aplicación nativa para Android ya es una realidad. Se conecta directamente a tu dashboard y te da acceso completo a la monitorización y al control de tu estación, estés donde estés.</p>
+    <div class="tlm-grid">
+      <div class="tlm-feat">
+        <span class="ico">📡</span>
+        <h3>Monitor en vivo</h3>
+        <p>Equipos locales y externos, grupos de habla (TGs) escaneados, celdas RF y timeslots en tiempo real.</p>
+      </div>
+      <div class="tlm-feat">
+        <span class="ico">🍓</span>
+        <h3>Estado de la Raspberry Pi</h3>
+        <p>Temperatura, CPU, RAM, voltaje y estado del Brew de un vistazo.</p>
+      </div>
+      <div class="tlm-feat">
+        <span class="ico">🗺️</span>
+        <h3>Mapa GPS</h3>
+        <p>Posiciones y trazas de los equipos sobre el mapa, actualizadas al momento.</p>
+      </div>
+      <div class="tlm-feat">
+        <span class="ico">👥</span>
+        <h3>Gestión DGNA</h3>
+        <p>Crea y administra grupos dinámicos directamente desde la app.</p>
+      </div>
+      <div class="tlm-feat">
+        <span class="ico">✉️</span>
+        <h3>Envío de SDS</h3>
+        <p>Manda mensajes de texto (SDS) a los terminales sin tocar el ordenador.</p>
+      </div>
+      <div class="tlm-feat">
+        <span class="ico">⚙️</span>
+        <h3>Control del sistema</h3>
+        <p>Reinicia el servicio o reinicia/apaga la Pi de forma segura y protegida.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- INSTALL -->
+  <div class="tlm-section">
+    <h2>Cómo instalarla</h2>
+    <p class="lead">En menos de un minuto la tienes funcionando:</p>
+    <div class="tlm-steps">
+      <ol>
+        <li><strong>Descarga la APK</strong> desde el botón de arriba o desde la sección <em>Releases</em> del GitHub del proyecto.</li>
+        <li><strong>Instálala en el móvil</strong> permitiendo <em>“instalar de orígenes desconocidos”</em> cuando Android lo pida.</li>
+        <li><strong>Abre la app</strong> y ve a la pestaña <strong>Ajustes</strong>.</li>
+        <li>Introduce la <strong>IP:puerto</strong> de tu dashboard (ej. <code>10.33.1.75:5000</code>) y la <strong>contraseña del sistema</strong>. ¡Listo!</li>
+      </ol>
+    </div>
+    <div class="tlm-req">
+      <span>✅ Android 8+</span>
+      <span>✅ Kotlin + Jetpack Compose</span>
+      <span>✅ Código abierto</span>
+      <span>✅ Descarga gratuita</span>
+    </div>
+  </div>
+
+  <!-- THANKS -->
+  <div class="tlm-thanks">
+    <h2>🙏 Agradecimientos</h2>
+    <p>Este proyecto no habría sido posible sin la dedicación y el apoyo de dos personas clave. Gracias de corazón por vuestro tiempo, vuestras pruebas y vuestro compromiso con la comunidad.</p>
+    <div class="tlm-people">
+      <span class="tlm-chip">📻 Rafa · EA7KEN</span>
+      <span class="tlm-chip">📻 Iñaki · EA8DJI</span>
+    </div>
+  </div>
+
+  <!-- FINAL CTA -->
+  <div class="tlm-section" style="text-align:center">
+    <a class="tlm-btn" href="https://github.com/ea5gvk/tetra-live-monitor/releases/latest/download/tetra-live-monitor.apk">⬇️ Descargar tetra-live-monitor.apk</a>
+    <div class="tlm-note" style="margin-top:16px">Proyecto disponible en <a href="https://github.com/ea5gvk/tetra-live-monitor" style="color:var(--cyan)">github.com/ea5gvk/tetra-live-monitor</a></div>
+  </div>
+</div>
