@@ -4908,6 +4908,17 @@ fi
           if (cipherByIssi.has(issi) && event.payload.ciphering == null) {
             event.payload.ciphering = cipherByIssi.get(issi) ?? null;
           }
+          // Same for group affiliations, and for the same reason. Python only has the GSSIs it
+          // could scrape out of log lines and no group catalog at all, so letting its payload win
+          // dropped a 16-group scan-list radio to a handful of groups with an empty catalog. Worse,
+          // the bad list then leaked into the authoritative copy: the next flowstation message that
+          // carries no groups (ms_rssi, constantly) reads it back as "previous" and stores it.
+          // The flowstation is the station — its affiliation list is the authoritative one.
+          const fsTerm: any = fsRegisteredMs.get(issi);
+          if (fsTerm) {
+            event.payload.groups = fsTerm.groups;
+            event.payload.groupCatalog = fsTerm.groupCatalog;
+          }
           currentState.terminals[issi] = event.payload;
         }
         break;
