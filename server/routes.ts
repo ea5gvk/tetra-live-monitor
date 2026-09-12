@@ -4869,9 +4869,18 @@ fi
         }
         currentState.terminals = incoming;
         // Re-seed flowstation-registered radios that Python's full_state doesn't
-        // know about (they registered before the monitor started tailing logs).
+        // know about (they registered before the monitor started tailing logs), and keep the
+        // flowstation's group data for the ones it DOES know about.
+        //
+        // The flowstation is authoritative for affiliations — it is the station. Python's
+        // full_state only carries what the log tailer could scrape out of log lines and has no
+        // notion of a group catalog at all, so letting it win wiped the real list: a radio with a
+        // 16-group scan list dropped to whatever 3 GSSIs the tailer last saw, with an empty
+        // catalog, a second after the live updates had correctly shown all 16.
         fsRegisteredMs.forEach((term, issi) => {
-          if (!currentState.terminals[issi]) currentState.terminals[issi] = term;
+          const cur = currentState.terminals[issi];
+          if (!cur) { currentState.terminals[issi] = term; return; }
+          currentState.terminals[issi] = { ...cur, groups: term.groups, groupCatalog: (term as any).groupCatalog };
         });
         currentState.localHistory = event.payload.localHistory || [];
         currentState.externalHistory = event.payload.externalHistory || [];
