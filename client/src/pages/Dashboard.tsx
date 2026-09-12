@@ -1235,6 +1235,31 @@ function SystemControls() {
   const [status, setStatus] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  // Follow the station that is actually running.
+  //
+  // The field is remembered in localStorage, so a browser that once restarted another station
+  // kept pointing at it after the user switched: on a TEA2 Pi the button kept firing
+  // "systemctl restart flowstation.service" against a dead unit and only reported
+  // "Command failed". Re-point it at the active station's unit, but leave a name the user typed
+  // themselves alone — only a stale *station* service is corrected.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/station/active");
+        if (!r.ok) return;
+        const d = await r.json();
+        const active: string | undefined = d?.services?.[d?.station]?.service;
+        if (!active || cancelled) return;
+        const stationServices = Object.values(d.services || {})
+          .map((s: any) => s?.service)
+          .filter(Boolean) as string[];
+        setServiceName((cur) => (!cur.trim() || stationServices.includes(cur.trim())) ? active : cur);
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   const executeAction = async (action: "shutdown" | "reboot" | "restart-service") => {
     let url: string;
     let body: Record<string, string>;
