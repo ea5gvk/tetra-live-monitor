@@ -893,25 +893,54 @@ KillSignal=SIGINT
 WantedBy=multi-user.target
 `;
 
-  app.get("/api/flowstation/check", async (_req, res) => {
+  // Fuentes de Flowstation: el original de razvan (main) o el fork EA5GVK (rama miura).
+  // Se puede consultar/actualizar cada uno y cambiar de una versión a otra.
+  type FlowSource = "razvan" | "miura";
+  const FLOW_SOURCES: Record<FlowSource, { repo: string; branch: string; label: string }> = {
+    razvan: { repo: "razvanzeces/flowstation", branch: "main", label: "razvanzeces/flowstation · main (original)" },
+    miura: { repo: "ea5gvk/flowstation", branch: "miura", label: "ea5gvk/flowstation · miura (EA5GVK)" },
+  };
+  const FLOW_SOURCE_PATH = path.join(process.cwd(), "flowstation-source.json");
+  const isFlowSource = (v: any): v is FlowSource => v === "razvan" || v === "miura";
+  function readFlowSource(): FlowSource {
+    try { const d = JSON.parse(fs.readFileSync(FLOW_SOURCE_PATH, "utf-8")); if (isFlowSource(d.source)) return d.source; } catch {}
+    return "razvan";
+  }
+  function writeFlowSource(s: FlowSource) { try { fs.writeFileSync(FLOW_SOURCE_PATH, JSON.stringify({ source: s })); } catch {} }
+  // Fuente realmente instalada (origin + rama actual del repo), o null si no encaja con ninguna.
+  function detectFlowSource(dir: string): FlowSource | null {
+    try {
+      const url = execSync(`git -C "${dir}" remote get-url origin 2>/dev/null`, { timeout: 5000 }).toString().trim().toLowerCase();
+      const branch = execSync(`git -C "${dir}" rev-parse --abbrev-ref HEAD 2>/dev/null`, { timeout: 5000 }).toString().trim();
+      for (const k of Object.keys(FLOW_SOURCES) as FlowSource[]) {
+        if (url.includes(FLOW_SOURCES[k].repo.toLowerCase()) && branch === FLOW_SOURCES[k].branch) return k;
+      }
+    } catch {}
+    return null;
+  }
+
+  app.get("/api/flowstation/check", async (req, res) => {
     // Hard-coded path — ignore any user-supplied input to avoid command injection
     const dir = FLOW_DIR_DEFAULT;
     const installed = fs.existsSync(dir);
-    if (!installed) return res.json({ demo: false, dirNotFound: true });
-    try { execSync("which git", { timeout: 2000 }); } catch { return res.json({ demo: true }); }
+    const active: FlowSource = (installed ? detectFlowSource(dir) : null) ?? readFlowSource();
+    const source: FlowSource = isFlowSource(req.query.source) ? req.query.source : active;
+    const src = FLOW_SOURCES[source];
+    if (!installed) return res.json({ demo: false, dirNotFound: true, source, active, sources: FLOW_SOURCES });
+    try { execSync("which git", { timeout: 2000 }); } catch { return res.json({ demo: true, source, active, sources: FLOW_SOURCES }); }
 
     let localHash = "";
     try {
       localHash = execSync(`git -C "${dir}" rev-parse HEAD 2>/dev/null`, { timeout: 5000 }).toString().trim();
-    } catch { return res.json({ demo: true }); }
+    } catch { return res.json({ demo: true, source, active, sources: FLOW_SOURCES }); }
 
     let remoteHash = "";
     try {
-      const lsOut = await execOut(`git ls-remote https://github.com/${FLOW_REPO}.git main`, 15000);
+      const lsOut = await execOut(`git ls-remote https://github.com/${src.repo}.git ${src.branch}`, 15000);
       remoteHash = lsOut.split(/\s+/)[0].trim();
     } catch (err) {
       return res.json({
-        demo: false, dirNotFound: false, upToDate: false,
+        demo: false, dirNotFound: false, upToDate: false, source, active, sources: FLOW_SOURCES,
         localHash: localHash.substring(0, 8), remoteHash: "??????",
         remoteMessage: "No se pudo contactar GitHub", remoteDate: "", remoteAuthor: "",
         apiError: String(err).substring(0, 160),
@@ -922,7 +951,7 @@ WantedBy=multi-user.target
     try {
       const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
       const raw = await execOut(
-        `curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/${FLOW_REPO}/commits/main"`,
+        `curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/${src.repo}/commits/${src.branch}"`,
         10000
       );
       const data = JSON.parse(raw);
@@ -932,11 +961,14 @@ WantedBy=multi-user.target
     } catch { remoteMessage = "(detalles no disponibles)"; }
 
     res.json({
-      upToDate: localHash === remoteHash,
+      // Al día solo si estás EN esa fuente y con su último commit; si pides otra fuente = hay que cambiar.
+      upToDate: active === source && localHash === remoteHash,
+      switching: active !== source,
       localHash: localHash.substring(0, 8),
       remoteHash: remoteHash.substring(0, 8),
       remoteMessage, remoteDate, remoteAuthor,
       demo: false, dirNotFound: false,
+      source, active, sources: FLOW_SOURCES,
     });
   });
 
@@ -987,7 +1019,7 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
   });
 
   app.post("/api/flowstation/apply", (req, res) => {
-    const { password } = req.body || {};
+    const { password, source: rawSource } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -997,6 +1029,9 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
     if (!fs.existsSync(cleanDir)) {
       return res.status(400).json({ message: "flowstation_dir_not_found" });
     }
+    // Fuente elegida (repo+rama del mapa constante, nunca del usuario → sin inyección).
+    const source: FlowSource = isFlowSource(rawSource) ? rawSource : (detectFlowSource(cleanDir) ?? readFlowSource());
+    const src = FLOW_SOURCES[source];
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Transfer-Encoding", "chunked");
     res.setHeader("Cache-Control", "no-cache");
@@ -1007,11 +1042,15 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
     const script = `
 set -e
 cd "${cleanDir}"
+echo "=== Fuente: ${src.label} ==="
+echo "=== git remote set-url origin https://github.com/${src.repo}.git ==="
+sudo git remote set-url origin https://github.com/${src.repo}.git
 echo "=== git fetch ==="
 sudo git fetch --all --prune
-BRANCH=$(git rev-parse --abbrev-ref HEAD 2>/dev/null || echo main)
-echo "=== Sincronizando con origin/$BRANCH (reset --hard, soporta force-push) ==="
-sudo git reset --hard "origin/$BRANCH"
+echo "=== Cambiando a origin/${src.branch} (reset --hard, soporta force-push y cambio de versión) ==="
+sudo git reset --hard
+sudo git checkout -B ${src.branch} "origin/${src.branch}"
+sudo git reset --hard "origin/${src.branch}"
 echo ""
 MARK="/tmp/${cleanService}.was-active"
 sudo rm -f "$MARK"
@@ -1036,6 +1075,7 @@ fi
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
     child.on("close", async (code: number) => {
       if (code !== 0) { res.write(`\n[Exit: ${code}]\n`); res.end(); return; }
+      writeFlowSource(source); // recordar la fuente instalada para el próximo check/apply
       // Migrar config.toml a la nueva estructura (plantilla ya actualizada por el git reset),
       // preservando los valores habilitados. Siempre con copia de seguridad.
       try {
@@ -1048,8 +1088,8 @@ fi
             template = fs.readFileSync(localTpl, "utf-8");
             res.write("Plantilla: example_config/config.toml (local, recién actualizada por git)\n");
           } else {
-            template = await downloadText("https://raw.githubusercontent.com/razvanzeces/flowstation/main/example_config/config.toml");
-            if (template) res.write("Plantilla: GitHub (razvanzeces/flowstation main)\n");
+            template = await downloadText(`https://raw.githubusercontent.com/${src.repo}/${src.branch}/example_config/config.toml`);
+            if (template) res.write(`Plantilla: GitHub (${src.repo} ${src.branch})\n`);
           }
           if (!template || template.length < 500) {
             res.write("Plantilla no disponible o inválida — se omite la migración (config intacta).\n");

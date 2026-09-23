@@ -2,21 +2,31 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { Waves, X, ArrowUpCircle, CheckCircle2, AlertTriangle, Lock, Download } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
+type FlowSource = "razvan" | "miura";
+
 interface UpdateInfo {
   demo?: boolean;
   dirNotFound?: boolean;
   upToDate?: boolean;
+  switching?: boolean;
   localHash?: string;
   remoteHash?: string;
   remoteMessage?: string;
   remoteDate?: string;
   remoteAuthor?: string;
   apiError?: string;
+  source?: FlowSource;
+  active?: FlowSource;
+  sources?: Record<FlowSource, { repo: string; branch: string; label: string }>;
 }
 
 const DIR = "/root/flowstation";
 const SERVICE = "flowstation.service";
 const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+const SOURCE_META: Record<FlowSource, { repo: string; branch: string; label: string }> = {
+  razvan: { repo: "razvanzeces/flowstation", branch: "main", label: "Original (razvan · main)" },
+  miura: { repo: "ea5gvk/flowstation", branch: "miura", label: "EA5GVK (miura)" },
+};
 
 export function FlowstationUpdater() {
   const { t } = useI18n();
@@ -28,13 +38,16 @@ export function FlowstationUpdater() {
   const [done, setDone] = useState(false);
   const [errMsg, setErrMsg] = useState("");
   const [mode, setMode] = useState<"update" | "install">("update");
+  const [source, setSource] = useState<FlowSource | null>(null);
   const outputRef = useRef<HTMLPreElement>(null);
 
-  const check = useCallback(async () => {
+  const check = useCallback(async (src?: FlowSource) => {
     try {
-      const r = await fetch(`/api/flowstation/check?dir=${encodeURIComponent(DIR)}`);
+      const q = src ? `?source=${src}` : "";
+      const r = await fetch(`/api/flowstation/check${q}`);
       const data = await r.json();
       setInfo(data);
+      setSource(prev => prev ?? (data.active as FlowSource) ?? "razvan");
     } catch {
       setInfo(null);
     }
@@ -42,7 +55,7 @@ export function FlowstationUpdater() {
 
   useEffect(() => {
     check();
-    const id = setInterval(check, CHECK_INTERVAL_MS);
+    const id = setInterval(() => check(), CHECK_INTERVAL_MS);
     return () => clearInterval(id);
   }, [check]);
 
@@ -50,13 +63,22 @@ export function FlowstationUpdater() {
     if (outputRef.current) outputRef.current.scrollTop = outputRef.current.scrollHeight;
   }, [output]);
 
-  const hasUpdate = info && !info.demo && !info.dirNotFound && info.upToDate === false;
+  const hasUpdate = info && !info.demo && !info.dirNotFound && info.upToDate === false && !info.switching;
   const notInstalled = info?.dirNotFound === true;
+  const sel: FlowSource = source ?? "razvan";
+  const meta = info?.sources?.[sel] ?? SOURCE_META[sel];
 
   function openModal() {
     setPassword(""); setOutput(""); setDone(false); setErrMsg(""); setBusy(false);
     setMode(notInstalled ? "install" : "update");
+    const a: FlowSource = info?.active ?? source ?? "razvan";
+    setSource(a); check(a);
     setModalOpen(true);
+  }
+
+  function pickSource(s: FlowSource) {
+    if (busy) return;
+    setSource(s); check(s);
   }
   function closeModal() {
     if (busy) return;
@@ -71,7 +93,7 @@ export function FlowstationUpdater() {
       const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password, dir: DIR, serviceName: SERVICE }),
+        body: JSON.stringify({ password, dir: DIR, serviceName: SERVICE, source: sel }),
       });
       if (!response.ok) {
         const err = await response.json().catch(() => ({ message: t("update_error") }));
@@ -130,7 +152,7 @@ export function FlowstationUpdater() {
               <span className="text-sm font-bold text-foreground flex items-center gap-2">
                 <Waves className="w-4 h-4 text-emerald-400" />
                 {mode === "install" ? t("flowstation_install_title") : t("flowstation_check_title")}
-                <span className="text-[10px] font-normal text-muted-foreground">razvanzeces/flowstation</span>
+                <span className="text-[10px] font-normal text-muted-foreground font-mono">{meta.repo} · {meta.branch}</span>
               </span>
               <button
                 onClick={closeModal}
@@ -147,6 +169,34 @@ export function FlowstationUpdater() {
                 <div><span className="font-medium">Dir:</span> <code className="text-emerald-400 font-mono">{DIR}</code></div>
                 <div><span className="font-medium">Service:</span> <code className="text-amber-400 font-mono">{SERVICE}</code></div>
               </div>
+
+              {mode === "update" && (
+                <div className="space-y-1.5">
+                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Versión / repositorio</div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["razvan", "miura"] as FlowSource[]).map(s => {
+                      const m = info?.sources?.[s] ?? SOURCE_META[s];
+                      const isSel = sel === s;
+                      const isActive = info?.active === s;
+                      return (
+                        <button
+                          key={s}
+                          onClick={() => pickSource(s)}
+                          disabled={busy}
+                          className={`text-left p-2 rounded border text-[11px] transition-colors disabled:opacity-50 ${isSel ? "border-emerald-500/60 bg-emerald-500/10 text-foreground" : "border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10"}`}
+                          data-testid={`button-flowstation-source-${s}`}
+                        >
+                          <div className="font-bold flex items-center gap-1">
+                            {m.label}
+                            {isActive && <span className="text-[9px] px-1 rounded bg-emerald-500/20 text-emerald-400">activa</span>}
+                          </div>
+                          <div className="font-mono text-[9px] text-muted-foreground truncate">{m.repo} · {m.branch}</div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               {info === null ? (
                 <p className="text-xs text-muted-foreground">{t("update_checking")}</p>
@@ -175,7 +225,7 @@ export function FlowstationUpdater() {
                 <div className="flex items-center gap-2 p-3 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 text-xs">
                   <ArrowUpCircle className="w-4 h-4 shrink-0" />
                   <div className="flex-1 min-w-0">
-                    <div className="font-bold">{t("update_new_version")}</div>
+                    <div className="font-bold">{info.switching ? `Cambiar a ${meta.label}` : t("update_new_version")}</div>
                     {info.remoteMessage && (
                       <div className="text-emerald-300 truncate mt-0.5">{info.remoteMessage}</div>
                     )}
@@ -202,8 +252,8 @@ export function FlowstationUpdater() {
                     </>
                   ) : (
                     <>
-                      <div className="text-green-400">$ cd {DIR}</div>
-                      <div className="text-green-400">$ sudo git pull</div>
+                      <div className="text-green-400">$ git remote set-url origin https://github.com/{meta.repo}.git</div>
+                      <div className="text-green-400">$ git fetch && git checkout -B {meta.branch} origin/{meta.branch}</div>
                       <div className="text-green-400">$ cargo build --release</div>
                       <div className="text-amber-400">$ sudo systemctl restart {SERVICE} (si activo)</div>
                     </>
@@ -241,7 +291,7 @@ export function FlowstationUpdater() {
                       data-testid="button-flowstation-apply"
                     >
                       {mode === "install" ? <Download className={`w-3 h-3 ${busy ? "animate-pulse" : ""}`} /> : <Waves className={`w-3 h-3 ${busy ? "animate-pulse" : ""}`} />}
-                      {busy ? t("update_applying") : (mode === "install" ? t("flowstation_install") : t("update_apply"))}
+                      {busy ? t("update_applying") : (mode === "install" ? t("flowstation_install") : (info?.switching ? "CAMBIAR VERSIÓN" : t("update_apply")))}
                     </button>
                   </div>
                   {errMsg && <p className="text-xs text-red-400">{errMsg}</p>}
@@ -273,7 +323,7 @@ export function FlowstationUpdater() {
 
             <div className="px-4 py-3 border-t border-border flex justify-between items-center">
               <button
-                onClick={check}
+                onClick={() => check(sel)}
                 disabled={busy}
                 className="text-[10px] text-muted-foreground hover:text-foreground disabled:opacity-40 flex items-center gap-1"
                 data-testid="button-flowstation-recheck"
