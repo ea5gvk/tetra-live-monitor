@@ -1897,9 +1897,10 @@ exit 0
     // Order: enable+start target FIRST, then stop+disable the other.
     // If target fails to start, return error WITHOUT having stopped the other.
     const enabled = run(`sudo systemctl enable ${targetService}`);
-    // --no-block: con el watchdog (Type=notify) el start esperaría a READY, que no llega mientras
-    // la otra estación retiene la SDR; aquí solo importa que el arranque quede en marcha.
-    const started = run(`sudo systemctl start --no-block ${targetService}`);
+    // --no-block solo con el watchdog (Type=notify): el start esperaría a READY, que no llega mientras
+    // la otra estación retiene la SDR. Sin él (tmo siempre) el start bloqueante sigue detectando un arranque fallido.
+    const noBlock = targetService === FLOW_SERVICE && fs.existsSync(FLOW_WATCHDOG_DROPIN) ? " --no-block" : "";
+    const started = run(`sudo systemctl start${noBlock} ${targetService}`);
 
     if (!started) {
       return res.status(500).json({
