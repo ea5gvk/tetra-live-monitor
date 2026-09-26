@@ -920,6 +920,9 @@ WantedBy=multi-user.target
   // (lleva este marcador, que miura mete en su READY) y se quita si no (razvan, un miura antiguo):
   // con Type=notify un binario que no avisa nunca llega a READY y systemd lo mataría en bucle.
   // Se busca en el binario en vez de ejecutarlo: no arranca nada y vale con el servicio parado.
+  // Solo se sincroniza aquí, con el servicio parado (un daemon-reload con él en marcha armaría el watchdog
+  // sobre un proceso sin NOTIFY_SOCKET): tras una OTA del dashboard de miura o una compilación a mano,
+  // el drop-in llega en el siguiente Actualizar. Se aplica aunque config.toml diga restart_on_core_stall=false.
   const FLOW_WATCHDOG_DROPIN = `/etc/systemd/system/${FLOW_SERVICE}.d/10-watchdog.conf`;
   const FLOW_SD_NOTIFY_MARKER = "flowstation-sd-notify-v1";
   const FLOW_WATCHDOG_CONF = `# Gestionado por tetra-live-monitor: se crea o se borra al actualizar Flowstation, segun el binario.
