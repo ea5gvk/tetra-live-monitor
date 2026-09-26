@@ -456,7 +456,10 @@ private fun LocalTerminalCard(t: Terminal, onSds: () -> Unit, onDgna: () -> Unit
                         Text(t.id, color = Muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                     }
                 }
-                Text("TG activo: ${t.selectedTg}", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("TG activo: ${t.selectedTg}", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    t.rssiDbfs?.let { RssiChip(it) }
+                }
             }
             t.activity?.let { Badge(it, if (it == "TX") Danger else Cyan) }
             ActionPill("SDS", Cyan, onSds)
@@ -500,6 +503,24 @@ private fun ExternalRow(t: Terminal) {
             Text("TG ${t.selectedTg}", color = Muted, fontSize = 10.sp)
         }
         Badge("EXT", Cyan)
+    }
+}
+
+/** Terminal RSSI in dBFS, same thresholds/colours as the dashboard's RssiBadge (LimeSDR Mini 2.0). */
+@Composable
+private fun RssiChip(dbfs: Double) {
+    val color = when {
+        dbfs < -45 -> Danger
+        dbfs < -35 -> Color(0xFFFB923C)
+        dbfs < -20 -> Ok
+        else -> Cyan
+    }
+    Box(
+        Modifier.clip(RoundedCornerShape(4.dp)).background(color.copy(alpha = 0.12f))
+            .border(1.dp, color.copy(alpha = 0.45f), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp)
+    ) {
+        Text("📶 ${String.format(java.util.Locale.US, "%.1f", dbfs)}", color = color, fontSize = 9.sp,
+            fontWeight = FontWeight.Bold, fontFamily = FontFamily.Monospace)
     }
 }
 

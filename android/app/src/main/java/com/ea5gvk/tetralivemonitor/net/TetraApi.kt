@@ -1,6 +1,9 @@
 package com.ea5gvk.tetralivemonitor.net
 
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
@@ -13,6 +16,7 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 data class ApiResult(val ok: Boolean, val message: String)
@@ -29,6 +33,42 @@ object TetraApi {
         .connectTimeout(8, TimeUnit.SECONDS)
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
+
+    // Updaters stream git + cargo build (minutes of silence possible): no read timeout.
+    private val streamClient = client.newBuilder().readTimeout(0, TimeUnit.SECONDS).build()
+
+    /** GET of an updater's check endpoint (/api/update/check, /api/bluestation/check, …). */
+    suspend fun checkUpdate(base: String, path: String): UpdateCheck? = withContext(Dispatchers.IO) {
+        runCatching {
+            val req = Request.Builder().url("$base$path").get().build()
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string() ?: return@use null
+                if (!resp.isSuccessful) null else json.decodeFromString<UpdateCheck>(body)
+            }
+        }.getOrNull()
+    }
+
+    /** POST whose text/plain response is streamed line by line (updater apply/install). */
+    fun streamPost(base: String, path: String, body: JsonObject): Flow<String> = flow {
+        val req = Request.Builder()
+            .url("$base$path")
+            .post(json.encodeToString(JsonObject.serializer(), body).toRequestBody(JSON_MEDIA))
+            .build()
+        streamClient.newCall(req).execute().use { resp ->
+            if (!resp.isSuccessful) {
+                val raw = resp.body?.string().orEmpty()
+                val msg = runCatching {
+                    (json.decodeFromString<JsonObject>(raw)["message"] as? JsonPrimitive)?.content
+                }.getOrNull()
+                throw IOException(msg ?: "Error ${resp.code}")
+            }
+            val src = resp.body?.source() ?: return@use
+            while (true) {
+                val line = src.readUtf8Line() ?: break
+                emit(line)
+            }
+        }
+    }.flowOn(Dispatchers.IO)
 
     suspend fun getBtsInfo(base: String): BtsInfo? = withContext(Dispatchers.IO) {
         runCatching {

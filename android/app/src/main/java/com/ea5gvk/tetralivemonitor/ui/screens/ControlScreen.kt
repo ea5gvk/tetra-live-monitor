@@ -113,6 +113,9 @@ fun ControlScreen(state: TetraState, base: String?, password: String, hasPasswor
         // ── Dual carrier ──
         DualCarrierCard(base, password, hasPassword)
 
+        // ── Actualizaciones (misma botonera que la web) ──
+        UpdatesSection(base, password, hasPassword)
+
         // ── Sistema ──
         Card {
             Text("SISTEMA / RASPBERRY PI", color = Cyan, fontWeight = FontWeight.Black, fontSize = 12.sp)

@@ -212,6 +212,22 @@ data class LogLine(
     val demo: Boolean? = null,
 )
 
+/** Updater state, same shape for /api/update/check, /api/bluestation/check, /api/flowstation/check, /api/tea2/check. */
+@Serializable
+data class UpdateCheck(
+    val demo: Boolean = false,
+    val dirNotFound: Boolean = false,
+    val upToDate: Boolean? = null,
+    val switching: Boolean = false,
+    val localHash: String = "",
+    val remoteHash: String = "",
+    val remoteMessage: String = "",
+    val remoteDate: String = "",
+    val remoteAuthor: String = "",
+    val apiError: String? = null,
+    val active: String? = null,
+)
+
 /** A talkgroup saved in the DGNA library for quick re-assignment. */
 @Serializable
 data class TgEntry(

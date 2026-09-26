@@ -17,6 +17,8 @@ Aplicación nativa para Android que se conecta a tu dashboard:
 - **LOG** en vivo de la flowstation.
 - **Control** del sistema: lista blanca de ISSI (activar/desactivar/editar), activar/desactivar dual carrier, reiniciar servicio y reiniciar/apagar la Pi.
 - **Perfiles**: guarda varias flowstations (dirección + contraseña) y cambia entre ellas con un toque.
+- **Actualizaciones** (pestaña Control): la misma botonera que la web — comprobar y actualizar Bluestation, Flowstation (original de razvan o EA5GVK miura, con cambio de versión) y el Dashboard, viendo la salida en vivo.
+- **RSSI** de cada terminal local (dBFS, con los mismos colores que el dashboard).
 
 **➡️ [Descargar tetra-live-monitor.apk](https://github.com/ea5gvk/tetra-live-monitor/releases/latest/download/tetra-live-monitor.apk)**
 
