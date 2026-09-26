@@ -467,6 +467,9 @@ export async function registerRoutes(
       });
     });
   }
+  // The update checks run on the Pi next to the station, at the lowest CPU and disk priority:
+  // their 5-minute polling lined up with the radios dropping the cell (26-09, flowstation-tea2).
+  const LOW_PRIO = "nice -n 19 ionice -c3";
 
   app.get("/api/update/check", async (_req, res) => {
     if (!UPDATE_DIR) return res.json({ demo: true });
@@ -485,7 +488,7 @@ export async function registerRoutes(
     let remoteHash = "";
     try {
       const lsOut = await execOut(
-        `git ls-remote https://github.com/ea5gvk/tetra-live-monitor.git main`,
+        `${LOW_PRIO} git ls-remote https://github.com/ea5gvk/tetra-live-monitor.git main`,
         15000
       );
       remoteHash = lsOut.split(/\s+/)[0].trim();
@@ -508,7 +511,7 @@ export async function registerRoutes(
     try {
       const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
       const raw = await execOut(
-        `curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/ea5gvk/tetra-live-monitor/commits/main"`,
+        `${LOW_PRIO} curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/ea5gvk/tetra-live-monitor/commits/main"`,
         10000
       );
       const data = JSON.parse(raw);
@@ -765,7 +768,7 @@ pm2 restart tetra-monitor
     let remoteHash = "";
     try {
       const lsOut = await execOut(
-        `git ls-remote https://github.com/MidnightBlueLabs/tetra-bluestation.git main`,
+        `${LOW_PRIO} git ls-remote https://github.com/MidnightBlueLabs/tetra-bluestation.git main`,
         15000
       );
       remoteHash = lsOut.split(/\s+/)[0].trim();
@@ -788,7 +791,7 @@ pm2 restart tetra-monitor
     try {
       const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
       const raw = await execOut(
-        `curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/MidnightBlueLabs/tetra-bluestation/commits/main"`,
+        `${LOW_PRIO} curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/MidnightBlueLabs/tetra-bluestation/commits/main"`,
         10000
       );
       const data = JSON.parse(raw);
@@ -944,7 +947,7 @@ WantedBy=multi-user.target
 
     let remoteHash = "";
     try {
-      const lsOut = await execOut(`git ls-remote https://github.com/${src.repo}.git ${src.branch}`, 15000);
+      const lsOut = await execOut(`${LOW_PRIO} git ls-remote https://github.com/${src.repo}.git ${src.branch}`, 15000);
       remoteHash = lsOut.split(/\s+/)[0].trim();
     } catch (err) {
       return res.json({
@@ -959,7 +962,7 @@ WantedBy=multi-user.target
     try {
       const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
       const raw = await execOut(
-        `curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/${src.repo}/commits/${src.branch}"`,
+        `${LOW_PRIO} curl -sf --max-time 8 -H "User-Agent: tetra-live-monitor" ${ghToken} "https://api.github.com/repos/${src.repo}/commits/${src.branch}"`,
         10000
       );
       const data = JSON.parse(raw);

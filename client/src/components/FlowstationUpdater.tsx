@@ -22,7 +22,9 @@ interface UpdateInfo {
 
 const DIR = "/root/flowstation";
 const SERVICE = "flowstation.service";
-const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+// Each check runs git/curl on the Pi next to the station; every 5 min (per open tab) lined up
+// with the radios dropping the cell. Once an hour, plus on page load and when the modal opens.
+const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 const SOURCE_META: Record<FlowSource, { repo: string; branch: string; label: string }> = {
   razvan: { repo: "razvanzeces/flowstation", branch: "main", label: "Original (razvan · main)" },
   miura: { repo: "ea5gvk/flowstation", branch: "miura", label: "EA5GVK (miura)" },

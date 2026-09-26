@@ -18,7 +18,9 @@ const DIR_KEY = "tetra_bluestation_dir";
 const SERVICE_KEY = "tetra_restart_service";
 const DEFAULT_DIR = "/root/tetra-bluestation";
 const DEFAULT_SERVICE = "tmo.service";
-const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+// Each check runs git/curl on the Pi next to the station; every 5 min (per open tab) lined up
+// with the radios dropping the cell. Once an hour, plus on page load and when the modal opens.
+const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
 function getStoredDir(): string {
   try { return localStorage.getItem(DIR_KEY) || DEFAULT_DIR; } catch { return DEFAULT_DIR; }
@@ -76,6 +78,7 @@ export function BluestationUpdater() {
     setApplying(false);
     setEditingDir(false);
     setDirDraft(dir);
+    check();
     setModalOpen(true);
   }
 

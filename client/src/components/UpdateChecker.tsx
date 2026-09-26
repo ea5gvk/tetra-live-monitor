@@ -15,7 +15,9 @@ interface UpdateInfo {
   updateDir?: string;
 }
 
-const CHECK_INTERVAL_MS = 5 * 60 * 1000;
+// Each check runs git/curl on the Pi next to the station; every 5 min (per open tab) lined up
+// with the radios dropping the cell. Once an hour, plus on page load and when the modal opens.
+const CHECK_INTERVAL_MS = 60 * 60 * 1000;
 
 export function UpdateChecker() {
   const { t } = useI18n();
@@ -58,6 +60,7 @@ export function UpdateChecker() {
     setDone(false);
     setApplyError("");
     setApplying(false);
+    check();
     setModalOpen(true);
   }
 
