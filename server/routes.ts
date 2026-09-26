@@ -673,7 +673,15 @@ export async function registerRoutes(
 set -e
 cd "${UPDATE_DIR}"
 echo "=== Updating npm ==="
-npm install -g npm@latest 2>&1 || echo "(npm self-update skipped)"
+if NPM_OUT=$(npm install -g npm@latest 2>&1); then
+  echo "$NPM_OUT"
+elif echo "$NPM_OUT" | grep -q "EBADENGINE"; then
+  echo "npm@latest needs a newer Node than $(node -v); installing the newest npm 11 instead"
+  npm install -g npm@11 2>&1 || echo "(npm self-update skipped)"
+else
+  echo "$NPM_OUT"
+  echo "(npm self-update skipped)"
+fi
 echo ""
 echo "=== git pull ==="
 if PULL_OUT=$(git pull 2>&1); then
