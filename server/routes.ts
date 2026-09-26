@@ -916,6 +916,20 @@ KillSignal=SIGINT
 WantedBy=multi-user.target
 `;
 
+  // Watchdog de systemd: se activa solo al actualizar si el binario recién compilado habla sd_notify
+  // (lleva este marcador, que miura mete en su READY) y se quita si no (razvan, un miura antiguo):
+  // con Type=notify un binario que no avisa nunca llega a READY y systemd lo mataría en bucle.
+  // Se busca en el binario en vez de ejecutarlo: no arranca nada y vale con el servicio parado.
+  const FLOW_WATCHDOG_DROPIN = `/etc/systemd/system/${FLOW_SERVICE}.d/10-watchdog.conf`;
+  const FLOW_SD_NOTIFY_MARKER = "flowstation-sd-notify-v1";
+  const FLOW_WATCHDOG_CONF = `# Gestionado por tetra-live-monitor: se crea o se borra al actualizar Flowstation, segun el binario.
+[Service]
+Type=notify
+NotifyAccess=main
+WatchdogSec=30s
+TimeoutStartSec=120s
+`;
+
   // Fuentes de Flowstation: el original de razvan (main) o el fork EA5GVK (rama miura).
   // Se puede consultar/actualizar cada uno y cambiar de una versión a otra.
   type FlowSource = "razvan" | "miura";
@@ -1029,6 +1043,7 @@ echo ""
 echo "=== Creando /etc/systemd/system/${FLOW_SERVICE} ==="
 sudo bash -c 'cat > /etc/systemd/system/${FLOW_SERVICE} <<'\\''EOF'\\''
 ${serviceFileEscaped}EOF'
+sudo rm -f "${FLOW_WATCHDOG_DROPIN}"
 sudo systemctl daemon-reload
 echo ""
 echo "=== Instalación completada ==="
@@ -1062,6 +1077,7 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
 
     // Solo git pull + build aquí. La migración del config y el reinicio se hacen
     // en Node al terminar (para migrar ANTES de reiniciar y aplicar el config nuevo).
+    const watchdogConfEscaped = FLOW_WATCHDOG_CONF.replace(/'/g, "'\\''");
     const script = `
 set -e
 cd "${cleanDir}"
@@ -1077,7 +1093,8 @@ sudo git reset --hard "origin/${src.branch}"
 echo ""
 MARK="/tmp/${cleanService}.was-active"
 sudo rm -f "$MARK"
-if systemctl is-active --quiet ${cleanService}; then
+# "activating" (esperando READY o reintentando) también cuenta: el drop-in del watchdog se toca con el servicio parado.
+if systemctl is-active --quiet ${cleanService} || [ "$(systemctl is-active ${cleanService})" = activating ]; then
   sudo touch "$MARK"
   echo "=== Parando ${cleanService} mientras se compila (compilar con la estación en marcha estrangula el TDMA) ==="
   sudo systemctl stop ${cleanService}
@@ -1092,6 +1109,21 @@ if ! sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.carg
   fi
   exit 1
 fi
+set +e # un fallo aquí no debe dejar la estación parada: el close la arranca igual
+DROPIN="${FLOW_WATCHDOG_DROPIN}"
+if sudo grep -aqF "${FLOW_SD_NOTIFY_MARKER}" target/release/bluestation-bs; then
+  echo "=== Watchdog de systemd: el binario lo soporta, activado (WatchdogSec=30s) ==="
+  if [ "$(cat "$DROPIN" 2>/dev/null)" != "$(printf '%s' '${watchdogConfEscaped}')" ]; then
+    sudo mkdir -p "$(dirname "$DROPIN")"
+    printf '%s' '${watchdogConfEscaped}' | sudo tee "$DROPIN" > /dev/null
+    sudo systemctl daemon-reload
+  fi
+elif [ -f "$DROPIN" ]; then
+  echo "=== Watchdog de systemd: el binario no lo soporta, desactivado ==="
+  sudo rm -f "$DROPIN"
+  sudo systemctl daemon-reload
+fi
+exit 0
 `;
     const child = spawn("bash", ["-c", script], { cwd: cleanDir });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
@@ -1865,7 +1897,9 @@ fi
     // Order: enable+start target FIRST, then stop+disable the other.
     // If target fails to start, return error WITHOUT having stopped the other.
     const enabled = run(`sudo systemctl enable ${targetService}`);
-    const started = run(`sudo systemctl start ${targetService}`);
+    // --no-block: con el watchdog (Type=notify) el start esperaría a READY, que no llega mientras
+    // la otra estación retiene la SDR; aquí solo importa que el arranque quede en marcha.
+    const started = run(`sudo systemctl start --no-block ${targetService}`);
 
     if (!started) {
       return res.status(500).json({
