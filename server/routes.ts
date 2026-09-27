@@ -931,6 +931,8 @@ Type=notify
 NotifyAccess=main
 WatchdogSec=30s
 TimeoutStartSec=120s
+# El SIGABRT del watchdog no debe dejar un volcado de cientos de MB en la SD.
+LimitCORE=0
 `;
 
   // Fuentes de Flowstation: el original de razvan (main) o el fork EA5GVK (rama miura).
