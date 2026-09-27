@@ -471,6 +471,18 @@ export async function registerRoutes(
   // their 5-minute polling lined up with the radios dropping the cell (26-09, flowstation-tea2).
   const LOW_PRIO = "nice -n 19 ionice -c3";
 
+  // Reserve cores 2-3 for the TETRA station and move everything else to 0-1
+  // (script/reserve-station-cores.sh, idempotent, only on a Raspberry Pi with a station installed).
+  // Run at every start so a Pi picks it up with its first Update Dashboard.
+  if (UPDATE_DIR && process.platform === "linux") {
+    const reserveCores = path.join(UPDATE_DIR, "script", "reserve-station-cores.sh");
+    if (fs.existsSync(reserveCores)) {
+      execOut(`${LOW_PRIO} bash "${reserveCores}"`, 30000)
+        .then(out => console.log(`[cores] ${out.trim()}`))
+        .catch(err => console.log(`[cores] ${String(err).substring(0, 200)}`));
+    }
+  }
+
   app.get("/api/update/check", async (_req, res) => {
     if (!UPDATE_DIR) return res.json({ demo: true });
     try {
