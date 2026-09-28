@@ -947,6 +947,106 @@
       </div>
     </section>
   </div>
+  <div id="sectionParrot" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="parrot_title">🦜 Loro / Parrot (eco privado) [cell_info]</h2>
+      <div class="checkbox-row">
+        <input type="checkbox" id="enableParrot" />
+        <label for="enableParrot" data-i18n="parrot_enable">Activar loro</label>
+      </div>
+      <div class="hint" data-i18n="parrot_hint">Haz una llamada privada SIMPLEX al ISSI del loro, habla y suelta el PTT: oirás lo grabado y la llamada se cuelga. Solo una llamada de loro a la vez. Requiere FlowStation miura (port de junio de 2026); desactivado, las claves parrot_* se escriben comentadas.</div>
+      <div id="parrotFields" style="display:none; margin-top:12px;">
+        <div class="row">
+          <div>
+            <label for="parrotIssi" data-i18n="parrot_issi_label">parrot_issi (1 - 16777214)</label>
+            <input id="parrotIssi" type="number" min="1" max="16777214" value="99999" style="max-width:220px" />
+            <div class="hint" data-i18n="parrot_issi_hint">ISSI al que se llama para oír el eco. Mientras está activo, una radio local con ese ISSI no se puede llamar.</div>
+          </div>
+          <div>
+            <label for="parrotMaxSecs" data-i18n="parrot_max_secs_label">parrot_max_secs (1 - 60)</label>
+            <input id="parrotMaxSecs" type="number" min="1" max="60" value="20" style="max-width:120px" />
+            <div class="hint" data-i18n="parrot_max_secs_hint">Duración máxima de la grabación, en segundos.</div>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+  <div id="sectionWap" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="wap_title">🌐 WAP y datos por paquetes [wap] [packet_data]</h2>
+      <div class="checkbox-row">
+        <input type="checkbox" id="enableWap" />
+        <label for="enableWap" data-i18n="wap_enable">Activar WAP y datos por paquetes</label>
+      </div>
+      <div class="hint" data-i18n="wap_hint">Pasarela WAP en la estación para radios con navegador WAP (p. ej. Motorola MXP600) sobre datos por paquetes SNDCP. Activado escribe también sndcp_service = true y advanced_link = true en [cell_info]; desactivado, [wap] y [packet_data] se escriben comentados. Requiere FlowStation miura (port de junio de 2026).</div>
+      <div id="wapFields" style="display:none; margin-top:12px;">
+        <div class="row">
+          <div>
+            <label for="wapGatewayIpv4">gateway_ipv4</label>
+            <input id="wapGatewayIpv4" type="text" value="10.0.0.1" style="max-width:220px" />
+            <div class="hint" data-i18n="wap_gateway_hint">Dirección a la que las radios envían las peticiones WAP.</div>
+          </div>
+          <div>
+            <label for="wapMtu">mtu</label>
+            <select id="wapMtu" style="max-width:160px">
+              <option value="296">296</option>
+              <option value="576" selected>576</option>
+              <option value="1006">1006</option>
+              <option value="1500">1500</option>
+              <option value="2002">2002</option>
+            </select>
+            <div class="hint" data-i18n="wap_mtu_hint">Datagrama IPv4 más grande que se envía. 296 no está probado.</div>
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div>
+            <label for="wapBearer">bearer</label>
+            <select id="wapBearer" style="max-width:160px">
+              <option value="pdch" selected>pdch</option>
+              <option value="mcch">mcch</option>
+            </select>
+            <div class="hint" data-i18n="wap_bearer_hint">pdch: canal de datos de 1 slot de la portadora principal (el Motorola MXP600 necesita pdch). mcch: datos por el canal de control. La voz siempre recupera el slot.</div>
+          </div>
+          <div>
+            <label for="wapPdchTimeslots" data-i18n="wap_timeslots_label">pdch_timeslots (2, 3 o 4, por orden de preferencia)</label>
+            <input id="wapPdchTimeslots" type="text" value="4, 3, 2" style="max-width:220px" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:10px;">
+          <div>
+            <label for="wapPdchIdle" data-i18n="wap_idle_label">pdch_idle_release_secs (1 - 300)</label>
+            <input id="wapPdchIdle" type="number" min="1" max="300" value="10" style="max-width:120px" />
+            <div class="hint" data-i18n="wap_idle_hint">Un PDCH sin datos durante este tiempo vuelve al pool.</div>
+          </div>
+          <div>
+            <label for="wapPoolFirst">pool_first / pool_last</label>
+            <div style="display:flex; gap:8px; flex-wrap:wrap;">
+              <input id="wapPoolFirst" type="text" value="10.0.0.2" style="max-width:160px" />
+              <input id="wapPoolLast" type="text" value="10.0.0.254" style="max-width:160px" />
+            </div>
+            <div class="hint" data-i18n="wap_pool_hint">Direcciones IPv4 de las radios: como máximo 1024 y sin incluir gateway_ipv4.</div>
+          </div>
+        </div>
+        <div class="subsection">
+          <div class="checkbox-row">
+            <input type="checkbox" id="wapBrowseEnabled" />
+            <label for="wapBrowseEnabled" data-i18n="wap_browse_enable">Navegación por Internet [wap.browse]</label>
+          </div>
+          <div class="hint" data-i18n="wap_browse_hint">Las radios de la lista pueden buscar y abrir páginas de texto; el resto solo ve las páginas locales de estado.</div>
+          <div id="wapBrowseFields" style="display:none; margin-top:10px;">
+            <label for="wapAllowedIssis" data-i18n="wap_allowed_issis_label">allowed_issis (ISSIs separados por coma)</label>
+            <input id="wapAllowedIssis" type="text" value="" placeholder="2145007, 1030036" />
+            <div class="hint" data-i18n="wap_allowed_issis_hint">Vacío = nadie navega.</div>
+            <label for="wapSearchUrl" style="margin-top:10px;">search_url</label>
+            <input id="wapSearchUrl" type="text" value="http://lite.duckduckgo.com/lite/?q=" />
+            <label for="wapBookmarks" style="margin-top:10px;" data-i18n="wap_bookmarks_label">bookmarks (URLs separadas por coma)</label>
+            <input id="wapBookmarks" type="text" value="http://68k.news/, http://wiby.me/, http://text.npr.org/" />
+          </div>
+        </div>
+        <div class="hint" style="margin-top:12px;" data-i18n="wap_codeplug_hint">Codeplug de la radio: datos por paquetes activados y proxy/pasarela WAP = gateway_ipv4, puerto 9201.</div>
+      </div>
+    </section>
+  </div>
   <div id="sectionRecovery" style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
       <h2 data-i18n="recovery_title">🔄 Recuperación [recovery]</h2>
@@ -1855,6 +1955,29 @@
       wx_hint: "Replies with METAR to radios that send an SDS to the service ISSI. When disabled, the whole [wx_service] block is written commented out.",
       wx_service_issi_label: "service_issi",
       wx_service_issi_hint: "ISSI that radios send an SDS to in order to request the weather.",
+      parrot_title: "🦜 Parrot (private echo) [cell_info]",
+      parrot_enable: "Enable parrot",
+      parrot_hint: "Make a SIMPLEX private call to the parrot ISSI, talk and release the PTT: you hear the recording back and the call is cleared. Only one parrot call at a time. Needs FlowStation miura (June 2026 port); when disabled, the parrot_* keys are written commented out.",
+      parrot_issi_label: "parrot_issi (1 - 16777214)",
+      parrot_issi_hint: "ISSI you call to hear the echo. While enabled, a local radio with that ISSI cannot be called.",
+      parrot_max_secs_label: "parrot_max_secs (1 - 60)",
+      parrot_max_secs_hint: "Maximum recording length, in seconds.",
+      wap_title: "🌐 WAP and packet data [wap] [packet_data]",
+      wap_enable: "Enable WAP and packet data",
+      wap_hint: "WAP gateway in the station for radios with a WAP browser (e.g. Motorola MXP600) over SNDCP packet data. When enabled it also writes sndcp_service = true and advanced_link = true in [cell_info]; when disabled, [wap] and [packet_data] are written commented out. Needs FlowStation miura (June 2026 port).",
+      wap_gateway_hint: "Address the radios send WAP requests to.",
+      wap_mtu_hint: "Largest IPv4 datagram sent. 296 is untested.",
+      wap_bearer_hint: "pdch: 1-slot packet-data channel on the main carrier (the Motorola MXP600 needs pdch). mcch: data on the control channel. Voice always takes the slot back.",
+      wap_timeslots_label: "pdch_timeslots (2, 3 or 4, in order of preference)",
+      wap_idle_label: "pdch_idle_release_secs (1 - 300)",
+      wap_idle_hint: "A PDCH without data for this long goes back to the pool.",
+      wap_pool_hint: "IPv4 addresses for the radios: at most 1024, and gateway_ipv4 must not be inside.",
+      wap_browse_enable: "Internet browsing [wap.browse]",
+      wap_browse_hint: "Listed radios can search and open text pages; the others only see the local status pages.",
+      wap_allowed_issis_label: "allowed_issis (comma-separated ISSIs)",
+      wap_allowed_issis_hint: "Empty = nobody browses.",
+      wap_bookmarks_label: "bookmarks (comma-separated URLs)",
+      wap_codeplug_hint: "Radio codeplug: packet data enabled and WAP proxy/gateway = gateway_ipv4, port 9201.",
       wx_periodic_enable: "Enable automatic periodic broadcast",
       wx_periodic_hint: "Automatically broadcasts the METAR of a fixed station at a set interval.",
       wx_periodic_issi_label: "periodic_issi",
@@ -2183,6 +2306,29 @@
       wx_hint: "當無線電向服務 ISSI 發送 SDS 時以 METAR 回覆。停用時，整個 [wx_service] 區塊會以註解形式寫入。",
       wx_service_issi_label: "service_issi",
       wx_service_issi_hint: "無線電發送 SDS 以索取天氣的目標 ISSI。",
+      parrot_title: "🦜 鸚鵡回音（私人回音）[cell_info]",
+      parrot_enable: "啟用鸚鵡回音",
+      parrot_hint: "以單工（SIMPLEX）私人呼叫撥打鸚鵡 ISSI，說話後放開 PTT：會播放錄音，然後掛斷。同一時間只能有一通鸚鵡呼叫。需要 FlowStation miura（2026 年 6 月移植）；停用時 parrot_* 鍵會以註解形式寫入。",
+      parrot_issi_label: "parrot_issi (1 - 16777214)",
+      parrot_issi_hint: "撥打此 ISSI 以聽取回音。啟用期間，使用該 ISSI 的本地無線電無法被呼叫。",
+      parrot_max_secs_label: "parrot_max_secs (1 - 60)",
+      parrot_max_secs_hint: "錄音最長秒數。",
+      wap_title: "🌐 WAP 與封包數據 [wap] [packet_data]",
+      wap_enable: "啟用 WAP 與封包數據",
+      wap_hint: "基地台內建 WAP 閘道，供具備 WAP 瀏覽器的無線電（例如 Motorola MXP600）透過 SNDCP 封包數據使用。啟用時也會在 [cell_info] 寫入 sndcp_service = true 與 advanced_link = true；停用時 [wap] 與 [packet_data] 以註解形式寫入。需要 FlowStation miura（2026 年 6 月移植）。",
+      wap_gateway_hint: "無線電傳送 WAP 請求的目標位址。",
+      wap_mtu_hint: "送出的最大 IPv4 資料包。296 未經測試。",
+      wap_bearer_hint: "pdch：主載波上 1 個時槽的封包數據通道（Motorola MXP600 需要 pdch）。mcch：數據走控制通道。語音永遠可收回該時槽。",
+      wap_timeslots_label: "pdch_timeslots（2、3 或 4，依優先順序）",
+      wap_idle_label: "pdch_idle_release_secs (1 - 300)",
+      wap_idle_hint: "PDCH 無數據超過此時間即歸還。",
+      wap_pool_hint: "無線電的 IPv4 位址：最多 1024 個，且不可包含 gateway_ipv4。",
+      wap_browse_enable: "網際網路瀏覽 [wap.browse]",
+      wap_browse_hint: "清單中的無線電可搜尋並開啟文字網頁；其他無線電只能看到本地狀態頁面。",
+      wap_allowed_issis_label: "allowed_issis（以逗號分隔的 ISSI）",
+      wap_allowed_issis_hint: "空白 = 無人可瀏覽。",
+      wap_bookmarks_label: "bookmarks（以逗號分隔的網址）",
+      wap_codeplug_hint: "無線電 codeplug：啟用封包數據，WAP 代理/閘道 = gateway_ipv4，連接埠 9201。",
       wx_periodic_enable: "啟用自動定時播報",
       wx_periodic_hint: "依設定的間隔自動播報固定測站的 METAR。",
       wx_periodic_issi_label: "periodic_issi",
@@ -2463,6 +2609,29 @@
       wx_hint: "Responde con METAR a las radios que envían un SDS al ISSI del servicio. Si está desactivado, todo el bloque [wx_service] se escribe comentado.",
       wx_service_issi_label: "service_issi",
       wx_service_issi_hint: "ISSI al que las radios envían un SDS para pedir el tiempo.",
+      parrot_title: "🦜 Loro / Parrot (eco privado) [cell_info]",
+      parrot_enable: "Activar loro",
+      parrot_hint: "Haz una llamada privada SIMPLEX al ISSI del loro, habla y suelta el PTT: oirás lo grabado y la llamada se cuelga. Solo una llamada de loro a la vez. Requiere FlowStation miura (port de junio de 2026); desactivado, las claves parrot_* se escriben comentadas.",
+      parrot_issi_label: "parrot_issi (1 - 16777214)",
+      parrot_issi_hint: "ISSI al que se llama para oír el eco. Mientras está activo, una radio local con ese ISSI no se puede llamar.",
+      parrot_max_secs_label: "parrot_max_secs (1 - 60)",
+      parrot_max_secs_hint: "Duración máxima de la grabación, en segundos.",
+      wap_title: "🌐 WAP y datos por paquetes [wap] [packet_data]",
+      wap_enable: "Activar WAP y datos por paquetes",
+      wap_hint: "Pasarela WAP en la estación para radios con navegador WAP (p. ej. Motorola MXP600) sobre datos por paquetes SNDCP. Activado escribe también sndcp_service = true y advanced_link = true en [cell_info]; desactivado, [wap] y [packet_data] se escriben comentados. Requiere FlowStation miura (port de junio de 2026).",
+      wap_gateway_hint: "Dirección a la que las radios envían las peticiones WAP.",
+      wap_mtu_hint: "Datagrama IPv4 más grande que se envía. 296 no está probado.",
+      wap_bearer_hint: "pdch: canal de datos de 1 slot de la portadora principal (el Motorola MXP600 necesita pdch). mcch: datos por el canal de control. La voz siempre recupera el slot.",
+      wap_timeslots_label: "pdch_timeslots (2, 3 o 4, por orden de preferencia)",
+      wap_idle_label: "pdch_idle_release_secs (1 - 300)",
+      wap_idle_hint: "Un PDCH sin datos durante este tiempo vuelve al pool.",
+      wap_pool_hint: "Direcciones IPv4 de las radios: como máximo 1024 y sin incluir gateway_ipv4.",
+      wap_browse_enable: "Navegación por Internet [wap.browse]",
+      wap_browse_hint: "Las radios de la lista pueden buscar y abrir páginas de texto; el resto solo ve las páginas locales de estado.",
+      wap_allowed_issis_label: "allowed_issis (ISSIs separados por coma)",
+      wap_allowed_issis_hint: "Vacío = nadie navega.",
+      wap_bookmarks_label: "bookmarks (URLs separadas por coma)",
+      wap_codeplug_hint: "Codeplug de la radio: datos por paquetes activados y proxy/pasarela WAP = gateway_ipv4, puerto 9201.",
       wx_periodic_enable: "Activar emisión periódica automática",
       wx_periodic_hint: "Emite automáticamente el METAR de una estación fija cada cierto intervalo.",
       wx_periodic_issi_label: "periodic_issi",
@@ -2791,6 +2960,29 @@
       wx_hint: "Responde com METAR às rádios que enviam um SDS para o ISSI do serviço. Se desativado, todo o bloco [wx_service] é escrito comentado.",
       wx_service_issi_label: "service_issi",
       wx_service_issi_hint: "ISSI para o qual as rádios enviam um SDS para pedir o tempo.",
+      parrot_title: "🦜 Papagaio / Parrot (eco privado) [cell_info]",
+      parrot_enable: "Ativar papagaio",
+      parrot_hint: "Faça uma chamada privada SIMPLEX para o ISSI do papagaio, fale e solte o PTT: ouvirá a gravação e a chamada termina. Só uma chamada de papagaio de cada vez. Requer FlowStation miura (port de junho de 2026); se desativado, as chaves parrot_* são escritas comentadas.",
+      parrot_issi_label: "parrot_issi (1 - 16777214)",
+      parrot_issi_hint: "ISSI para onde se liga para ouvir o eco. Enquanto ativo, um rádio local com esse ISSI não pode ser chamado.",
+      parrot_max_secs_label: "parrot_max_secs (1 - 60)",
+      parrot_max_secs_hint: "Duração máxima da gravação, em segundos.",
+      wap_title: "🌐 WAP e dados por pacotes [wap] [packet_data]",
+      wap_enable: "Ativar WAP e dados por pacotes",
+      wap_hint: "Gateway WAP na estação para rádios com navegador WAP (p. ex. Motorola MXP600) sobre dados por pacotes SNDCP. Ativado escreve também sndcp_service = true e advanced_link = true em [cell_info]; desativado, [wap] e [packet_data] são escritos comentados. Requer FlowStation miura (port de junho de 2026).",
+      wap_gateway_hint: "Endereço para onde os rádios enviam os pedidos WAP.",
+      wap_mtu_hint: "Maior datagrama IPv4 enviado. 296 não está testado.",
+      wap_bearer_hint: "pdch: canal de dados de 1 slot da portadora principal (o Motorola MXP600 precisa de pdch). mcch: dados no canal de controlo. A voz recupera sempre o slot.",
+      wap_timeslots_label: "pdch_timeslots (2, 3 ou 4, por ordem de preferência)",
+      wap_idle_label: "pdch_idle_release_secs (1 - 300)",
+      wap_idle_hint: "Um PDCH sem dados durante este tempo volta ao pool.",
+      wap_pool_hint: "Endereços IPv4 dos rádios: no máximo 1024 e sem incluir gateway_ipv4.",
+      wap_browse_enable: "Navegação na Internet [wap.browse]",
+      wap_browse_hint: "Os rádios da lista podem pesquisar e abrir páginas de texto; os restantes só veem as páginas locais de estado.",
+      wap_allowed_issis_label: "allowed_issis (ISSIs separados por vírgula)",
+      wap_allowed_issis_hint: "Vazio = ninguém navega.",
+      wap_bookmarks_label: "bookmarks (URLs separados por vírgula)",
+      wap_codeplug_hint: "Codeplug do rádio: dados por pacotes ativados e proxy/gateway WAP = gateway_ipv4, porta 9201.",
       wx_periodic_enable: "Ativar emissão periódica automática",
       wx_periodic_hint: "Emite automaticamente o METAR de uma estação fixa a cada intervalo definido.",
       wx_periodic_issi_label: "periodic_issi",
@@ -3071,6 +3263,29 @@
       wx_hint: "Antwortet mit METAR an Funkgeräte, die eine SDS an die Dienst-ISSI senden. Wenn deaktiviert, wird der gesamte [wx_service]-Block auskommentiert geschrieben.",
       wx_service_issi_label: "service_issi",
       wx_service_issi_hint: "ISSI, an die Funkgeräte eine SDS senden, um das Wetter abzufragen.",
+      parrot_title: "🦜 Papagei / Parrot (privates Echo) [cell_info]",
+      parrot_enable: "Papagei aktivieren",
+      parrot_hint: "Einen SIMPLEX-Einzelruf an die Papagei-ISSI machen, sprechen und PTT loslassen: die Aufnahme wird abgespielt und der Ruf beendet. Immer nur ein Papagei-Ruf gleichzeitig. Erfordert FlowStation miura (Portierung Juni 2026); deaktiviert werden die parrot_*-Schlüssel auskommentiert geschrieben.",
+      parrot_issi_label: "parrot_issi (1 - 16777214)",
+      parrot_issi_hint: "ISSI, die man anruft, um das Echo zu hören. Solange aktiv, ist ein lokales Funkgerät mit dieser ISSI nicht erreichbar.",
+      parrot_max_secs_label: "parrot_max_secs (1 - 60)",
+      parrot_max_secs_hint: "Maximale Aufnahmedauer in Sekunden.",
+      wap_title: "🌐 WAP und Paketdaten [wap] [packet_data]",
+      wap_enable: "WAP und Paketdaten aktivieren",
+      wap_hint: "WAP-Gateway in der Station für Funkgeräte mit WAP-Browser (z. B. Motorola MXP600) über SNDCP-Paketdaten. Aktiviert schreibt es auch sndcp_service = true und advanced_link = true in [cell_info]; deaktiviert werden [wap] und [packet_data] auskommentiert geschrieben. Erfordert FlowStation miura (Portierung Juni 2026).",
+      wap_gateway_hint: "Adresse, an die die Funkgeräte WAP-Anfragen senden.",
+      wap_mtu_hint: "Größtes gesendetes IPv4-Datagramm. 296 ist ungetestet.",
+      wap_bearer_hint: "pdch: Paketdatenkanal mit 1 Zeitschlitz auf dem Hauptträger (das Motorola MXP600 braucht pdch). mcch: Daten auf dem Steuerkanal. Sprache holt sich den Zeitschlitz immer zurück.",
+      wap_timeslots_label: "pdch_timeslots (2, 3 oder 4, nach Priorität)",
+      wap_idle_label: "pdch_idle_release_secs (1 - 300)",
+      wap_idle_hint: "Ein PDCH ohne Daten für diese Zeit geht an den Pool zurück.",
+      wap_pool_hint: "IPv4-Adressen der Funkgeräte: höchstens 1024, gateway_ipv4 darf nicht enthalten sein.",
+      wap_browse_enable: "Internet-Browsing [wap.browse]",
+      wap_browse_hint: "Die gelisteten Funkgeräte können suchen und Textseiten öffnen; die anderen sehen nur die lokalen Statusseiten.",
+      wap_allowed_issis_label: "allowed_issis (ISSIs durch Komma getrennt)",
+      wap_allowed_issis_hint: "Leer = niemand surft.",
+      wap_bookmarks_label: "bookmarks (URLs durch Komma getrennt)",
+      wap_codeplug_hint: "Codeplug des Funkgeräts: Paketdaten aktiviert und WAP-Proxy/Gateway = gateway_ipv4, Port 9201.",
       wx_periodic_enable: "Automatische periodische Aussendung aktivieren",
       wx_periodic_hint: "Sendet automatisch das METAR einer festen Station in einem festgelegten Intervall.",
       wx_periodic_issi_label: "periodic_issi",
@@ -3351,6 +3566,29 @@
       wx_hint: "Répond par METAR aux radios qui envoient un SDS à l'ISSI du service. Si désactivé, tout le bloc [wx_service] est écrit en commentaire.",
       wx_service_issi_label: "service_issi",
       wx_service_issi_hint: "ISSI auquel les radios envoient un SDS pour demander la météo.",
+      parrot_title: "🦜 Perroquet / Parrot (écho privé) [cell_info]",
+      parrot_enable: "Activer le perroquet",
+      parrot_hint: "Passez un appel privé SIMPLEX vers l'ISSI du perroquet, parlez et relâchez le PTT : l'enregistrement est rejoué puis l'appel est libéré. Un seul appel perroquet à la fois. Nécessite FlowStation miura (portage de juin 2026) ; désactivé, les clés parrot_* sont écrites en commentaire.",
+      parrot_issi_label: "parrot_issi (1 - 16777214)",
+      parrot_issi_hint: "ISSI à appeler pour entendre l'écho. Tant qu'il est actif, une radio locale avec cet ISSI ne peut pas être appelée.",
+      parrot_max_secs_label: "parrot_max_secs (1 - 60)",
+      parrot_max_secs_hint: "Durée maximale de l'enregistrement, en secondes.",
+      wap_title: "🌐 WAP et données par paquets [wap] [packet_data]",
+      wap_enable: "Activer WAP et données par paquets",
+      wap_hint: "Passerelle WAP dans la station pour les radios avec navigateur WAP (p. ex. Motorola MXP600) via les données par paquets SNDCP. Activé, écrit aussi sndcp_service = true et advanced_link = true dans [cell_info] ; désactivé, [wap] et [packet_data] sont écrits en commentaire. Nécessite FlowStation miura (portage de juin 2026).",
+      wap_gateway_hint: "Adresse à laquelle les radios envoient les requêtes WAP.",
+      wap_mtu_hint: "Plus grand datagramme IPv4 envoyé. 296 n'est pas testé.",
+      wap_bearer_hint: "pdch : canal de données d'1 slot sur la porteuse principale (le Motorola MXP600 a besoin de pdch). mcch : données sur le canal de contrôle. La voix reprend toujours le slot.",
+      wap_timeslots_label: "pdch_timeslots (2, 3 ou 4, par ordre de préférence)",
+      wap_idle_label: "pdch_idle_release_secs (1 - 300)",
+      wap_idle_hint: "Un PDCH sans données pendant ce temps retourne au pool.",
+      wap_pool_hint: "Adresses IPv4 des radios : 1024 au maximum, sans inclure gateway_ipv4.",
+      wap_browse_enable: "Navigation Internet [wap.browse]",
+      wap_browse_hint: "Les radios de la liste peuvent chercher et ouvrir des pages texte ; les autres ne voient que les pages locales d'état.",
+      wap_allowed_issis_label: "allowed_issis (ISSI séparés par des virgules)",
+      wap_allowed_issis_hint: "Vide = personne ne navigue.",
+      wap_bookmarks_label: "bookmarks (URL séparées par des virgules)",
+      wap_codeplug_hint: "Codeplug de la radio : données par paquets activées et proxy/passerelle WAP = gateway_ipv4, port 9201.",
       wx_periodic_enable: "Activer l'émission périodique automatique",
       wx_periodic_hint: "Émet automatiquement le METAR d'une station fixe à intervalle défini.",
       wx_periodic_issi_label: "periodic_issi",
@@ -3631,6 +3869,29 @@
       wx_hint: "Risponde con METAR alle radio che inviano un SDS all'ISSI del servizio. Se disattivato, l'intero blocco [wx_service] viene scritto commentato.",
       wx_service_issi_label: "service_issi",
       wx_service_issi_hint: "ISSI a cui le radio inviano un SDS per richiedere il meteo.",
+      parrot_title: "🦜 Pappagallo / Parrot (eco privato) [cell_info]",
+      parrot_enable: "Attiva pappagallo",
+      parrot_hint: "Fai una chiamata privata SIMPLEX all'ISSI del pappagallo, parla e rilascia il PTT: sentirai la registrazione e la chiamata viene chiusa. Una sola chiamata pappagallo alla volta. Richiede FlowStation miura (port di giugno 2026); se disattivato, le chiavi parrot_* vengono scritte commentate.",
+      parrot_issi_label: "parrot_issi (1 - 16777214)",
+      parrot_issi_hint: "ISSI da chiamare per sentire l'eco. Mentre è attivo, una radio locale con quell'ISSI non può essere chiamata.",
+      parrot_max_secs_label: "parrot_max_secs (1 - 60)",
+      parrot_max_secs_hint: "Durata massima della registrazione, in secondi.",
+      wap_title: "🌐 WAP e dati a pacchetto [wap] [packet_data]",
+      wap_enable: "Attiva WAP e dati a pacchetto",
+      wap_hint: "Gateway WAP nella stazione per radio con browser WAP (es. Motorola MXP600) tramite dati a pacchetto SNDCP. Se attivo scrive anche sndcp_service = true e advanced_link = true in [cell_info]; se disattivato, [wap] e [packet_data] vengono scritti commentati. Richiede FlowStation miura (port di giugno 2026).",
+      wap_gateway_hint: "Indirizzo a cui le radio inviano le richieste WAP.",
+      wap_mtu_hint: "Datagramma IPv4 più grande inviato. 296 non è testato.",
+      wap_bearer_hint: "pdch: canale dati di 1 slot sulla portante principale (il Motorola MXP600 richiede pdch). mcch: dati sul canale di controllo. La voce riprende sempre lo slot.",
+      wap_timeslots_label: "pdch_timeslots (2, 3 o 4, in ordine di preferenza)",
+      wap_idle_label: "pdch_idle_release_secs (1 - 300)",
+      wap_idle_hint: "Un PDCH senza dati per questo tempo torna al pool.",
+      wap_pool_hint: "Indirizzi IPv4 delle radio: al massimo 1024 e senza includere gateway_ipv4.",
+      wap_browse_enable: "Navigazione Internet [wap.browse]",
+      wap_browse_hint: "Le radio in elenco possono cercare e aprire pagine di testo; le altre vedono solo le pagine locali di stato.",
+      wap_allowed_issis_label: "allowed_issis (ISSI separati da virgola)",
+      wap_allowed_issis_hint: "Vuoto = nessuno naviga.",
+      wap_bookmarks_label: "bookmarks (URL separati da virgola)",
+      wap_codeplug_hint: "Codeplug della radio: dati a pacchetto attivi e proxy/gateway WAP = gateway_ipv4, porta 9201.",
       wx_periodic_enable: "Attiva trasmissione periodica automatica",
       wx_periodic_hint: "Trasmette automaticamente il METAR di una stazione fissa a intervalli prestabiliti.",
       wx_periodic_issi_label: "periodic_issi",
@@ -3911,6 +4172,29 @@
       wx_hint: "Svarer med METAR til radioer, der sender en SDS til tjenestens ISSI. Når deaktiveret, skrives hele [wx_service]-blokken udkommenteret.",
       wx_service_issi_label: "service_issi",
       wx_service_issi_hint: "ISSI som radioer sender en SDS til for at anmode om vejret.",
+      parrot_title: "🦜 Papegøje / Parrot (privat ekko) [cell_info]",
+      parrot_enable: "Aktivér papegøje",
+      parrot_hint: "Foretag et SIMPLEX-privatopkald til papegøjens ISSI, tal og slip PTT: optagelsen afspilles, og opkaldet afsluttes. Kun ét papegøjeopkald ad gangen. Kræver FlowStation miura (port fra juni 2026); når deaktiveret, skrives parrot_*-nøglerne udkommenteret.",
+      parrot_issi_label: "parrot_issi (1 - 16777214)",
+      parrot_issi_hint: "ISSI man ringer til for at høre ekkoet. Mens den er aktiv, kan en lokal radio med den ISSI ikke kaldes.",
+      parrot_max_secs_label: "parrot_max_secs (1 - 60)",
+      parrot_max_secs_hint: "Maksimal optagelseslængde i sekunder.",
+      wap_title: "🌐 WAP og pakkedata [wap] [packet_data]",
+      wap_enable: "Aktivér WAP og pakkedata",
+      wap_hint: "WAP-gateway i stationen til radioer med WAP-browser (f.eks. Motorola MXP600) over SNDCP-pakkedata. Når aktiveret skrives også sndcp_service = true og advanced_link = true i [cell_info]; når deaktiveret, skrives [wap] og [packet_data] udkommenteret. Kræver FlowStation miura (port fra juni 2026).",
+      wap_gateway_hint: "Adresse, som radioerne sender WAP-forespørgsler til.",
+      wap_mtu_hint: "Største IPv4-datagram der sendes. 296 er ikke testet.",
+      wap_bearer_hint: "pdch: pakkedatakanal på 1 tidsslot på hovedbærebølgen (Motorola MXP600 kræver pdch). mcch: data på kontrolkanalen. Tale tager altid tidsslottet tilbage.",
+      wap_timeslots_label: "pdch_timeslots (2, 3 eller 4, i prioriteret rækkefølge)",
+      wap_idle_label: "pdch_idle_release_secs (1 - 300)",
+      wap_idle_hint: "En PDCH uden data i så lang tid går tilbage til puljen.",
+      wap_pool_hint: "IPv4-adresser til radioerne: højst 1024, og gateway_ipv4 må ikke være med.",
+      wap_browse_enable: "Internetbrowsing [wap.browse]",
+      wap_browse_hint: "Radioerne på listen kan søge og åbne tekstsider; de øvrige ser kun de lokale statussider.",
+      wap_allowed_issis_label: "allowed_issis (kommaseparerede ISSI'er)",
+      wap_allowed_issis_hint: "Tom = ingen browser.",
+      wap_bookmarks_label: "bookmarks (kommaseparerede URL'er)",
+      wap_codeplug_hint: "Radioens codeplug: pakkedata aktiveret og WAP-proxy/gateway = gateway_ipv4, port 9201.",
       wx_periodic_enable: "Aktivér automatisk periodisk udsendelse",
       wx_periodic_hint: "Udsender automatisk METAR for en fast station med et fast interval.",
       wx_periodic_issi_label: "periodic_issi",
@@ -4191,6 +4475,29 @@
       wx_hint: "Antwoordt met METAR aan radio's die een SDS naar de service-ISSI sturen. Indien uitgeschakeld wordt het hele [wx_service]-blok als commentaar weggeschreven.",
       wx_service_issi_label: "service_issi",
       wx_service_issi_hint: "ISSI waar radio's een SDS naartoe sturen om het weer op te vragen.",
+      parrot_title: "🦜 Papegaai / Parrot (privé-echo) [cell_info]",
+      parrot_enable: "Papegaai inschakelen",
+      parrot_hint: "Doe een SIMPLEX privé-oproep naar de papegaai-ISSI, spreek en laat de PTT los: de opname wordt afgespeeld en de oproep beëindigd. Slechts één papegaai-oproep tegelijk. Vereist FlowStation miura (port van juni 2026); uitgeschakeld worden de parrot_*-sleutels als commentaar geschreven.",
+      parrot_issi_label: "parrot_issi (1 - 16777214)",
+      parrot_issi_hint: "ISSI die je belt om de echo te horen. Zolang dit actief is, kan een lokale radio met die ISSI niet worden gebeld.",
+      parrot_max_secs_label: "parrot_max_secs (1 - 60)",
+      parrot_max_secs_hint: "Maximale opnameduur in seconden.",
+      wap_title: "🌐 WAP en pakketdata [wap] [packet_data]",
+      wap_enable: "WAP en pakketdata inschakelen",
+      wap_hint: "WAP-gateway in het station voor radio's met een WAP-browser (bijv. Motorola MXP600) via SNDCP-pakketdata. Ingeschakeld schrijft het ook sndcp_service = true en advanced_link = true in [cell_info]; uitgeschakeld worden [wap] en [packet_data] als commentaar geschreven. Vereist FlowStation miura (port van juni 2026).",
+      wap_gateway_hint: "Adres waar de radio's WAP-verzoeken naartoe sturen.",
+      wap_mtu_hint: "Grootste verzonden IPv4-datagram. 296 is niet getest.",
+      wap_bearer_hint: "pdch: pakketdatakanaal van 1 tijdslot op de hoofddraaggolf (de Motorola MXP600 heeft pdch nodig). mcch: data op het controlekanaal. Spraak neemt het tijdslot altijd terug.",
+      wap_timeslots_label: "pdch_timeslots (2, 3 of 4, op volgorde van voorkeur)",
+      wap_idle_label: "pdch_idle_release_secs (1 - 300)",
+      wap_idle_hint: "Een PDCH zonder data gedurende deze tijd gaat terug naar de pool.",
+      wap_pool_hint: "IPv4-adressen voor de radio's: maximaal 1024 en zonder gateway_ipv4.",
+      wap_browse_enable: "Internet browsen [wap.browse]",
+      wap_browse_hint: "De radio's in de lijst kunnen zoeken en tekstpagina's openen; de andere zien alleen de lokale statuspagina's.",
+      wap_allowed_issis_label: "allowed_issis (ISSI's gescheiden door komma's)",
+      wap_allowed_issis_hint: "Leeg = niemand browst.",
+      wap_bookmarks_label: "bookmarks (URL's gescheiden door komma's)",
+      wap_codeplug_hint: "Codeplug van de radio: pakketdata ingeschakeld en WAP-proxy/gateway = gateway_ipv4, poort 9201.",
       wx_periodic_enable: "Automatische periodieke uitzending inschakelen",
       wx_periodic_hint: "Zendt automatisch de METAR van een vast station met een ingesteld interval uit.",
       wx_periodic_issi_label: "periodic_issi",
@@ -4471,6 +4778,29 @@
       wx_hint: "Răspunde cu METAR stațiilor radio care trimit un SDS către ISSI-ul serviciului. Dacă este dezactivat, tot blocul [wx_service] este scris comentat.",
       wx_service_issi_label: "service_issi",
       wx_service_issi_hint: "ISSI-ul către care radiourile trimit un SDS pentru a cere vremea.",
+      parrot_title: "🦜 Papagal / Parrot (ecou privat) [cell_info]",
+      parrot_enable: "Activează papagalul",
+      parrot_hint: "Fă un apel privat SIMPLEX către ISSI-ul papagalului, vorbește și eliberează PTT: auzi înregistrarea, apoi apelul se închide. Un singur apel papagal odată. Necesită FlowStation miura (portarea din iunie 2026); dezactivat, cheile parrot_* sunt scrise comentate.",
+      parrot_issi_label: "parrot_issi (1 - 16777214)",
+      parrot_issi_hint: "ISSI-ul apelat pentru a auzi ecoul. Cât timp este activ, o stație locală cu acel ISSI nu poate fi apelată.",
+      parrot_max_secs_label: "parrot_max_secs (1 - 60)",
+      parrot_max_secs_hint: "Durata maximă a înregistrării, în secunde.",
+      wap_title: "🌐 WAP și date în pachete [wap] [packet_data]",
+      wap_enable: "Activează WAP și date în pachete",
+      wap_hint: "Gateway WAP în stație pentru stațiile cu browser WAP (de ex. Motorola MXP600) prin date în pachete SNDCP. Activat, scrie și sndcp_service = true și advanced_link = true în [cell_info]; dezactivat, [wap] și [packet_data] sunt scrise comentate. Necesită FlowStation miura (portarea din iunie 2026).",
+      wap_gateway_hint: "Adresa la care stațiile trimit cererile WAP.",
+      wap_mtu_hint: "Cea mai mare datagramă IPv4 trimisă. 296 nu este testat.",
+      wap_bearer_hint: "pdch: canal de date de 1 slot pe purtătoarea principală (Motorola MXP600 are nevoie de pdch). mcch: date pe canalul de control. Vocea preia întotdeauna slotul înapoi.",
+      wap_timeslots_label: "pdch_timeslots (2, 3 sau 4, în ordinea preferinței)",
+      wap_idle_label: "pdch_idle_release_secs (1 - 300)",
+      wap_idle_hint: "Un PDCH fără date în acest interval revine în pool.",
+      wap_pool_hint: "Adresele IPv4 ale stațiilor: cel mult 1024, fără gateway_ipv4.",
+      wap_browse_enable: "Navigare pe Internet [wap.browse]",
+      wap_browse_hint: "Stațiile din listă pot căuta și deschide pagini text; celelalte văd doar paginile locale de stare.",
+      wap_allowed_issis_label: "allowed_issis (ISSI-uri separate prin virgulă)",
+      wap_allowed_issis_hint: "Gol = nimeni nu navighează.",
+      wap_bookmarks_label: "bookmarks (URL-uri separate prin virgulă)",
+      wap_codeplug_hint: "Codeplug-ul stației: date în pachete activate și proxy/gateway WAP = gateway_ipv4, portul 9201.",
       wx_periodic_enable: "Activează emisia periodică automată",
       wx_periodic_hint: "Emite automat METAR-ul unei stații fixe la un interval prestabilit.",
       wx_periodic_issi_label: "periodic_issi",
@@ -4916,6 +5246,28 @@
     return null;
   }
 
+  // WAP y datos por paquetes (FlowStation miura): valores normalizados como los escribe el servidor.
+  function getWapValues(){
+    const WAP_DEF_SEARCH = "http://lite.duckduckgo.com/lite/?q=";
+    const isHttp = (u) => /^https?:\/\//i.test(u);
+    const clamp = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
+    const ts = (el("wapPdchTimeslots").value || "").split(",").map(x => parseInt(x.trim(), 10)).filter((n, i, a) => [2, 3, 4].includes(n) && a.indexOf(n) === i);
+    const search = el("wapSearchUrl").value.trim();
+    return {
+      gateway_ipv4: el("wapGatewayIpv4").value.trim() || "10.0.0.1",
+      mtu: Number(el("wapMtu").value) || 576,
+      bearer: el("wapBearer").value === "mcch" ? "mcch" : "pdch",
+      pdch_timeslots: ts.length ? ts : [4, 3, 2],
+      pdch_idle_release_secs: clamp(el("wapPdchIdle").value, 1, 300, 10),
+      pool_first: el("wapPoolFirst").value.trim() || "10.0.0.2",
+      pool_last: el("wapPoolLast").value.trim() || "10.0.0.254",
+      browse_enabled: el("wapBrowseEnabled").checked,
+      allowed_issis: (el("wapAllowedIssis").value || "").split(",").map(x => parseInt(x.trim(), 10)).filter(n => Number.isInteger(n) && n >= 0 && n <= 16777215),
+      search_url: isHttp(search) ? search : WAP_DEF_SEARCH,
+      bookmarks: (el("wapBookmarks").value || "").split(",").map(x => x.trim()).filter(isHttp),
+    };
+  }
+
   function buildToml(out){
     // Minimal config snippet (no header / no config_version / no unused comments)
     const lines = [];
@@ -5012,6 +5364,20 @@
         const damVal = Math.max(0, Math.min(5, Number(el("dgnaAttachMode").value) || 0));
         lines.push(damEnabled ? `dgna_attachment_mode = ${damVal}` : `# dgna_attachment_mode = ${damVal}`);
       }
+    }
+    // Loro / Parrot — [cell_info] direct fields (Flowstation miura only)
+    if (document.getElementById("sectionParrot")?.style.display !== "none") {
+      const clamp = (v, lo, hi, def) => { const n = Number(v); if (!Number.isFinite(n)) return def; return Math.max(lo, Math.min(hi, Math.round(n))); };
+      const pOn = el("enableParrot").checked;
+      const p = pOn ? "" : "# ";
+      lines.push(`${p}parrot_enabled = ${pOn ? "true" : "false"}`);
+      lines.push(`${p}parrot_issi = ${clamp(el("parrotIssi").value, 1, 16777214, 99999)}`);
+      lines.push(`${p}parrot_max_secs = ${clamp(el("parrotMaxSecs").value, 1, 60, 20)}`);
+    }
+    // WAP needs the packet-data service and the advanced link advertised (Flowstation miura only)
+    if (document.getElementById("sectionWap")?.style.display !== "none" && el("enableWap").checked) {
+      lines.push(`sndcp_service = true`);
+      lines.push(`advanced_link = true`);
     }
     // Neighbor Cells — emit blocks at end of [cell_info] direct fields, before [net_info]/[brew]/[security]
     {
@@ -5469,6 +5835,32 @@
       lines.push(`${p}auth_user = "${qstr(el("astAuthUser").value.trim())}"`);
       if (astPass) lines.push(`${p}password = "${astPass}"`);
       lines.push(`${p}realm = "${qstr(el("astRealm").value.trim())}"`);
+    }
+    // WAP y datos por paquetes [wap] [wap.browse] [packet_data] (Flowstation miura only).
+    // Disabled: the existing tables are written commented out as they are.
+    if (document.getElementById("sectionWap")?.style.display !== "none") {
+      const w = getWapValues();
+      const p = el("enableWap").checked ? "" : "# ";
+      const q = (v) => `"${String(v).replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+      lines.push("");
+      lines.push(`${p}[wap]`);
+      lines.push(`${p}enabled = true`);
+      lines.push(`${p}gateway_ipv4 = ${q(w.gateway_ipv4)}`);
+      lines.push(`${p}mtu = ${w.mtu}`);
+      lines.push("");
+      lines.push(`${p}[wap.browse]`);
+      lines.push(`${p}enabled = ${w.browse_enabled ? "true" : "false"}`);
+      lines.push(`${p}allowed_issis = [${w.allowed_issis.join(", ")}]`);
+      lines.push(`${p}search_url = ${q(w.search_url)}`);
+      lines.push(`${p}bookmarks = [${w.bookmarks.map(q).join(", ")}]`);
+      lines.push("");
+      lines.push(`${p}[packet_data]`);
+      lines.push(`${p}enabled = true`);
+      lines.push(`${p}bearer = "${w.bearer}"`);
+      lines.push(`${p}pdch_timeslots = [${w.pdch_timeslots.join(", ")}]`);
+      lines.push(`${p}pdch_idle_release_secs = ${w.pdch_idle_release_secs}`);
+      lines.push(`${p}pool_first = ${q(w.pool_first)}`);
+      lines.push(`${p}pool_last = ${q(w.pool_last)}`);
     }
     return lines.join("\n");
   }
@@ -6332,6 +6724,34 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         el("enableAsterisk").dispatchEvent(new Event("change"));
       }
 
+      // ── Loro / Parrot [cell_info] (Flowstation miura)
+      if (data.parrot) {
+        el("enableParrot").checked = !!data.parrot.enabled;
+        setV("parrotIssi", data.parrot.parrot_issi);
+        setV("parrotMaxSecs", data.parrot.parrot_max_secs);
+        el("enableParrot").dispatchEvent(new Event("change"));
+      }
+
+      // ── WAP y datos por paquetes [wap] [wap.browse] [packet_data] (Flowstation miura)
+      if (data.wap) {
+        const w = data.wap;
+        const setList = (id, v) => { if (Array.isArray(v)) el(id).value = v.join(", "); };
+        el("enableWap").checked = !!w.enabled;
+        setV("wapGatewayIpv4", w.gateway_ipv4);
+        if ([296, 576, 1006, 1500, 2002].includes(w.mtu)) el("wapMtu").value = String(w.mtu);
+        if (w.bearer === "pdch" || w.bearer === "mcch") el("wapBearer").value = w.bearer;
+        setList("wapPdchTimeslots", w.pdch_timeslots);
+        setV("wapPdchIdle", w.pdch_idle_release_secs);
+        setV("wapPoolFirst", w.pool_first);
+        setV("wapPoolLast", w.pool_last);
+        el("wapBrowseEnabled").checked = !!w.browse_enabled;
+        setList("wapAllowedIssis", w.allowed_issis);
+        setV("wapSearchUrl", w.search_url);
+        setList("wapBookmarks", w.bookmarks);
+        el("enableWap").dispatchEvent(new Event("change"));
+        el("wapBrowseEnabled").dispatchEvent(new Event("change"));
+      }
+
       // ── Emergency [emergency]
       if (data.emergency) {
         el("emergencyForwardBrew").checked = !!data.emergency.forward_to_brew;
@@ -6780,6 +7200,16 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       realm: el("astRealm").value.trim(),
     } : null;
 
+    // Loro / Parrot and WAP + packet data (Flowstation miura only — null in bluestation)
+    const parrotIsFlow = document.getElementById("sectionParrot")?.style.display !== "none";
+    const parrotConfig = parrotIsFlow ? {
+      enabled: el("enableParrot").checked,
+      parrot_issi: clampInt(el("parrotIssi").value, 1, 16777214, 99999),
+      parrot_max_secs: clampInt(el("parrotMaxSecs").value, 1, 60, 20),
+    } : null;
+    const wapIsFlow = document.getElementById("sectionWap")?.style.display !== "none";
+    const wapConfig = wapIsFlow ? { enabled: el("enableWap").checked, ...getWapValues() } : null;
+
     // Collect neighbor cells (always send so server can write commented when disabled)
     const neighborCellsConfig = {
       enabled: el("enableNeighborCells").checked,
@@ -6821,6 +7251,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           snomNotifyConfig,
           geoalarmConfig,
           asteriskConfig,
+          parrotConfig,
+          wapConfig,
           dualCarrierConfig
         })
       });
@@ -7716,6 +8148,22 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const node = el(id); if (!node) return;
     node.addEventListener("change", updateTomlFromNew);
   });
+  el("enableParrot").addEventListener("change", function(){
+    el("parrotFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  el("enableWap").addEventListener("change", function(){
+    el("wapFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  el("wapBrowseEnabled").addEventListener("change", function(){
+    el("wapBrowseFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["parrotIssi","parrotMaxSecs","wapGatewayIpv4","wapMtu","wapBearer","wapPdchTimeslots","wapPdchIdle","wapPoolFirst","wapPoolLast","wapAllowedIssis","wapSearchUrl","wapBookmarks"].forEach(id => {
+    const node = el(id); if (!node) return;
+    node.addEventListener(node.tagName === "SELECT" ? "change" : "input", updateTomlFromNew);
+  });
   el("enableWxService").addEventListener("change", function(){
     el("wxServiceFields").style.display = this.checked ? "block" : "none";
     updateTomlFromNew();
@@ -7787,7 +8235,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
 
   // Show/hide sections that are Flowstation-only (not needed for Bluestation)
   function applyStationSections(station) {
-    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionDualCarrier", "sectionSecurity", "sectionDashboard", "sectionWxService", "sectionRecovery", "sectionHealth", "sectionEmergency", "sectionTelegramAlerts", "sectionTelemetry", "sectionCommand", "sectionDapnet", "sectionTpg2200", "sectionSnomNotify", "sectionGeoalarm", "sectionAsterisk", "brewRssiSubsection", "brewSdsFwdSubsection"];
+    var flowOnly = ["sectionHomeModeDisplay", "sectionSdsBroadcast", "sectionSdsCommandControl", "sectionCallTiming", "sectionPeriodicReg", "sectionNeighborCells", "sectionDualCarrier", "sectionSecurity", "sectionDashboard", "sectionWxService", "sectionParrot", "sectionWap", "sectionRecovery", "sectionHealth", "sectionEmergency", "sectionTelegramAlerts", "sectionTelemetry", "sectionCommand", "sectionDapnet", "sectionTpg2200", "sectionSnomNotify", "sectionGeoalarm", "sectionAsterisk", "brewRssiSubsection", "brewSdsFwdSubsection"];
     var show = station !== "bluestation";
     flowOnly.forEach(function(id) {
       var el2 = document.getElementById(id);

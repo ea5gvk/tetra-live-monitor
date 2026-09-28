@@ -8,6 +8,7 @@ import { spawn, exec, execSync, type ChildProcess } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
+import { readMiuraFeatures, applyMiuraFeatures } from "./miuraConfig";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -2813,6 +2814,8 @@ exit 0
           password: str('asterisk', 'password'),
           realm: str('asterisk', 'realm'),
         },
+        // parrot_* de [cell_info] y [wap]/[wap.browse]/[packet_data] (FlowStation miura)
+        ...readMiuraFeatures(content),
       });
     } catch (err: any) {
       res.status(500).json({ message: `Error leyendo config: ${err.message}` });
@@ -2820,7 +2823,7 @@ exit 0
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig, telemetryConfig, commandConfig, recoveryConfig, healthConfig, emergencyConfig, telegramAlertsConfig, dapnetConfig, tpg2200Config, snomNotifyConfig, geoalarmConfig, asteriskConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig, telemetryConfig, commandConfig, recoveryConfig, healthConfig, emergencyConfig, telegramAlertsConfig, dapnetConfig, tpg2200Config, snomNotifyConfig, geoalarmConfig, asteriskConfig, parrotConfig, wapConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -4806,6 +4809,10 @@ exit 0
         if (a.length !== b.length || a.some((v, i) => v !== b[i])) return text;
         return result;
       };
+
+      // ── Loro (parrot_* en [cell_info]) y WAP/datos por paquetes (FlowStation miura) ──
+      // Solo cuando el cliente los envía (null en BlueStation).
+      applyMiuraFeatures(lines, parrotConfig, wapConfig);
 
       content = reorderTomlCanonical(lines.join("\n"));
 
