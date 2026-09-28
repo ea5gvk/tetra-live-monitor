@@ -1,4 +1,4 @@
-import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage, type RfCall, type EmergencyEntry, type LastHeardEntry, type TxQuality, type HealthSnapshot, type SdrHealth, type SysHealth, type BrewStatus } from "../hooks/useTetraWebSocket";
+import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage, type RfCall, type RfPdch, type EmergencyEntry, type LastHeardEntry, type TxQuality, type HealthSnapshot, type SdrHealth, type SysHealth, type BrewStatus } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network, Eye, EyeOff, Signal as SignalIcon, RadioTower, Clock as ClockIcon, ShieldCheck, ShieldAlert, Siren, Activity, Gauge } from "lucide-react";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
@@ -402,24 +402,30 @@ const IDLE_WAVE = [3, 3, 3, 3, 3, 3, 3];
 // A slot stays "voice" (red, blinking) this long after the last uplink burst — the flowstation
 // throttles ts_voice to 4/s, so 800 ms bridges the gap between bursts of one talk-spurt.
 const TS_VOICE_DECAY_MS = 800;
+// Same idea for packet data: ts_data pings (<= 4/s per slot) keep a PDCH "sending" this long.
+const TS_DATA_DECAY_MS = 800;
 
 // Mirrors the flowstation dashboard's "RF CHANNEL — TIMESLOTS" panel: one row per carrier
 // ("CARRIER #n | MAIN", "DL x MHz | UL y MHz"), TS1 = MCCH on the main carrier / BCCH on a
 // secondary, and per-slot state: amber "call" while a call is allocated (the audio comes from
 // the network, or silence), blinking red "voice" while a local terminal is keyed up on it —
-// the flowstation only emits ts_voice for uplink bursts received over the air.
-function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpeaker }: {
+// the flowstation only emits ts_voice for uplink bursts received over the air. A slot the base
+// station has made a radio's packet-data channel (PDCH, WAP/IP data) and that carries no call is
+// teal "data": calm while the channel only sits assigned, bars moving while ts_data pings arrive.
+function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpeaker, pdchSlots, tsDataActivity }: {
   rfCalls: RfCall[];
   issiCallsign: (id: string | number) => string;
   tsVoiceActivity: Record<string, number>;
   tsVoiceSpeaker: Record<string, number | null>;
+  pdchSlots: RfPdch[];
+  tsDataActivity: Record<string, number>;
 }) {
   const { t } = useI18n();
   // Re-render every 150 ms (the flowstation's own refresh) so the voice decay and timers move
   // even when no new message arrives.
   const [, setTick] = useState(0);
   // 150 ms while something moves (calls, voice decay, timers); once a second when all is idle.
-  const busy = rfCalls.length > 0 || Object.values(tsVoiceActivity).some(at => Date.now() - at < TS_VOICE_DECAY_MS * 2);
+  const busy = rfCalls.length > 0 || pdchSlots.length > 0 || Object.values(tsVoiceActivity).some(at => Date.now() - at < TS_VOICE_DECAY_MS * 2);
   useEffect(() => {
     const id = setInterval(() => setTick(x => x + 1), busy ? 150 : 1000);
     return () => clearInterval(id);
@@ -498,6 +504,7 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
   // calls belong to the main carrier.
   const carrierSet = new Set<number>(btsCarriers.map(c => c.carrier_num));
   for (const c of rfCalls) if (c.carrier != null) carrierSet.add(Number(c.carrier));
+  for (const p of pdchSlots) if (p.carrier != null) carrierSet.add(Number(p.carrier));
   if (mainCarrier != null) carrierSet.add(mainCarrier);
   const carriers: (number | null)[] = carrierSet.size ? Array.from(carrierSet).sort((a, b) => a - b) : [null];
   const infoOf = (n: number | null): BtsCarrier | undefined => (n == null ? undefined : btsCarriers.find(c => c.carrier_num === n));
@@ -518,8 +525,21 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
     }
     return best && now - best.at < TS_VOICE_DECAY_MS ? best : null;
   };
+  // PDCH on this slot; carrier-less (legacy) entries belong to the main carrier, and the
+  // carrier-less row (no RF info yet) takes any of them.
+  const pdchAt = (carrierNum: number | null, ts: number, isMain: boolean): RfPdch | undefined =>
+    pdchSlots.find(p => p.ts === ts && (carrierNum == null || p.carrier === carrierNum || (p.carrier == null && isMain)));
+  const recentData = (carrierNum: number | null, ts: number, isMain: boolean): number | null => {
+    let at: number | null = null;
+    for (const [k, v] of Object.entries(tsDataActivity)) {
+      const [kc, kt] = k.split(":");
+      if (Number(kt) !== ts) continue;
+      if (carrierNum == null || kc === String(carrierNum) || (kc === "single" && isMain)) at = Math.max(at ?? 0, v);
+    }
+    return at != null && now - at < TS_DATA_DECAY_MS ? at : null;
+  };
 
-  type Mode = "mcch" | "voice" | "call" | "idle";
+  type Mode = "mcch" | "voice" | "call" | "data" | "idle";
   type SlotInfo = {
     ts: number;
     mode: Mode;
@@ -532,6 +552,7 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
     emergency: boolean;
     wave: number[];
     voiceAt?: number;
+    dataAt?: number;
     encrypted?: boolean | null;
   };
   const issiText = (issi: number | null | undefined): { text: string; cs?: string } => {
@@ -581,6 +602,15 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
       const sp = issiText(tsVoiceSpeaker[voice.key]);
       return { ts: tsNum, mode: "voice", bcch: false, label: t("rf_voice_rx"), sub: `${t("rf_tx")} ${sp.text}`.trim(), subCs: sp.cs, durPct: 0, emergency: false, wave: waveHeights(voice.at), voiceAt: voice.at };
     }
+    // Packet-data channel with no call on it (voice always takes the slot back).
+    const pd = pdchAt(carrierNum, tsNum, isMain);
+    if (pd) {
+      const elapsedMs = Math.max(0, now - pd.since);
+      const timer = elapsedMs >= 1000 ? formatDur(Math.floor(elapsedMs / 1000)) : undefined;
+      const dataAt = recentData(carrierNum, tsNum, isMain);
+      const who = issiText(pd.issi);
+      return { ts: tsNum, mode: "data", bcch: false, label: t("rf_wap_data"), sub: `PDCH | ${who.text}`, subCs: who.cs, timer, durPct: Math.min(100, (elapsedMs / 120000) * 100), emergency: false, wave: dataAt != null ? waveHeights(dataAt) : [4, 5, 4, 6, 4, 5, 4], dataAt: dataAt ?? undefined };
+    }
     if (tsNum === 1) {
       return { ts: 1, mode: "idle", bcch: true, label: t("rf_bcch"), sub: t("rf_secondary"), durPct: 0, emergency: false, wave: IDLE_WAVE };
     }
@@ -603,23 +633,25 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
   });
 
   // Palette of the flowstation's dark theme: tile #19212f / border #232e40, text #94abc9 / #4c628a,
-  // MCCH blue #4da6ff, call amber #ffb224, voice red #ff4d6d.
+  // MCCH blue #4da6ff, call amber #ffb224, voice red #ff4d6d, packet data (PDCH) teal #2ee6a8.
   const TILE: Record<Mode, string> = {
     idle: "border-[#232e40] bg-[#19212f]",
     mcch: "border-[rgba(77,166,255,0.35)] bg-[linear-gradient(160deg,rgba(77,166,255,0.07)_0%,#19212f_100%)]",
     call: "border-[rgba(255,180,36,0.5)] bg-[linear-gradient(160deg,rgba(255,180,36,0.06)_0%,#19212f_100%)] shadow-[0_0_14px_rgba(255,180,36,0.1)]",
     voice: "border-[rgba(255,60,80,0.7)] bg-[linear-gradient(160deg,rgba(255,60,80,0.12)_0%,#19212f_100%)] shadow-[0_0_18px_rgba(255,60,80,0.25)]",
+    data: "border-[rgba(46,230,168,0.5)] bg-[linear-gradient(160deg,rgba(46,230,168,0.07)_0%,#19212f_100%)] shadow-[0_0_14px_rgba(46,230,168,0.12)]",
   };
-  const ACCENT: Record<Mode, string> = { idle: "text-[#4c628a]", mcch: "text-[#4da6ff]", call: "text-[#ffb224]", voice: "text-[#ff4d6d]" };
+  const ACCENT: Record<Mode, string> = { idle: "text-[#4c628a]", mcch: "text-[#4da6ff]", call: "text-[#ffb224]", voice: "text-[#ff4d6d]", data: "text-[#2ee6a8]" };
   const LED: Record<Mode, string> = {
     idle: "bg-[#232e40] rf-led-idle",
     mcch: "bg-[#4da6ff] shadow-[0_0_7px_rgba(77,166,255,0.6)] rf-led-ripple",
     call: "bg-[#ffb224] shadow-[0_0_7px_rgba(255,180,36,0.5)] rf-led-ripple",
     voice: "bg-[#ff4d6d] rf-led-voice rf-led-ripple",
+    data: "bg-[#2ee6a8] shadow-[0_0_7px_rgba(46,230,168,0.5)] rf-led-ripple",
   };
-  const RIPPLE: Record<Mode, string> = { idle: "0s", mcch: "2.6s", call: "1.6s", voice: "0.9s" };
-  const BAR: Record<Mode, string> = { idle: "bg-[#4c628a]", mcch: "bg-[#4da6ff]", call: "bg-[#ffb224]", voice: "bg-[#ff4d6d]" };
-  const WAVE_OPACITY: Record<Mode, string> = { idle: "opacity-25", mcch: "opacity-25", call: "opacity-45", voice: "opacity-100" };
+  const RIPPLE: Record<Mode, string> = { idle: "0s", mcch: "2.6s", call: "1.6s", voice: "0.9s", data: "1.6s" };
+  const BAR: Record<Mode, string> = { idle: "bg-[#4c628a]", mcch: "bg-[#4da6ff]", call: "bg-[#ffb224]", voice: "bg-[#ff4d6d]", data: "bg-[#2ee6a8]" };
+  const WAVE_OPACITY: Record<Mode, string> = { idle: "opacity-25", mcch: "opacity-25", call: "opacity-45", voice: "opacity-100", data: "opacity-45" };
 
   const renderSlotCard = (s: SlotInfo, key: string, testid: string) => (
     <div
@@ -627,6 +659,7 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
       className={`relative rounded-lg border ${TILE[s.mode]} ${s.emergency ? "rf-ts-emergency" : ""} px-2.5 pt-3 pb-2 text-center overflow-hidden transition-[border-color,box-shadow,background] duration-150`}
       data-testid={testid}
       data-mode={s.mode}
+      data-sending={s.dataAt != null ? "true" : undefined}
     >
       <div className={`absolute top-[7px] left-[9px] font-mono text-[9px] font-bold tracking-[0.1em] ${s.emergency ? "text-[#ff4d6d]" : ACCENT[s.mode]}`}>TS {s.ts}</div>
       {s.timer && (
@@ -635,10 +668,10 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
         </div>
       )}
       <div
-        className={`w-[10px] h-[10px] rounded-full mx-auto mt-1 mb-[9px] transition-[background,box-shadow] duration-100 ${LED[s.mode]} ${ACCENT[s.mode]}`}
-        style={{ ["--rf-ripple" as any]: RIPPLE[s.mode] }}
+        className={`w-[10px] h-[10px] rounded-full mx-auto mt-1 mb-[9px] transition-[background,box-shadow] duration-100 ${LED[s.mode]} ${s.dataAt != null ? "rf-led-data" : ""} ${ACCENT[s.mode]}`}
+        style={{ ["--rf-ripple" as any]: s.dataAt != null ? "0.9s" : RIPPLE[s.mode] }}
       />
-      <div className={`flex items-end justify-center gap-[2px] h-[22px] mx-auto mb-[5px] w-[60%] transition-opacity duration-150 ${WAVE_OPACITY[s.mode]}`}>
+      <div className={`flex items-end justify-center gap-[2px] h-[22px] mx-auto mb-[5px] w-[60%] transition-opacity duration-150 ${s.dataAt != null ? "opacity-100" : WAVE_OPACITY[s.mode]}`}>
         {s.wave.map((h, i) => (
           <div key={i} className={`w-[3px] rounded-t-[2px] min-h-[3px] transition-[height] duration-100 ${BAR[s.mode]}`} style={{ height: `${h}px` }} />
         ))}
@@ -649,7 +682,7 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
       {s.encrypted != null && (
         <div className="mt-[3px] flex justify-center"><CipherBadge on={s.encrypted} /></div>
       )}
-      <div className={`font-mono text-[9px] mt-[2px] min-h-[11px] truncate tabular-nums ${s.mode === "voice" ? "text-[rgba(255,60,80,0.7)]" : "text-[#4c628a]"}`} title={s.sub}>
+      <div className={`font-mono text-[9px] mt-[2px] min-h-[11px] truncate tabular-nums ${s.mode === "voice" ? "text-[rgba(255,60,80,0.7)]" : s.mode === "data" ? "text-[rgba(46,230,168,0.7)]" : "text-[#4c628a]"}`} title={s.sub}>
         {s.subCs ? (
           <span className="inline-flex items-center gap-1 justify-center max-w-full">
             <span className="truncate">{s.sub}</span>
@@ -658,8 +691,9 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
         ) : s.sub}
       </div>
       {s.mode === "voice" && <div key={s.voiceAt} className="rf-ts-flash absolute inset-0 rounded-lg pointer-events-none bg-[rgba(255,60,80,0.18)]" />}
+      {s.dataAt != null && <div key={`d${s.dataAt}`} className="rf-ts-flash absolute inset-0 rounded-lg pointer-events-none bg-[rgba(46,230,168,0.14)]" />}
       <div
-        className={`absolute bottom-0 left-0 h-[2px] rounded-b-lg transition-[width] duration-500 ease-linear ${s.mode === "voice" ? "bg-[#ff4d6d]" : "bg-[#ffb224]"}`}
+        className={`absolute bottom-0 left-0 h-[2px] rounded-b-lg transition-[width] duration-500 ease-linear ${s.mode === "voice" ? "bg-[#ff4d6d]" : s.mode === "data" ? "bg-[#2ee6a8]" : "bg-[#ffb224]"}`}
         style={{ width: `${s.durPct}%` }}
       />
     </div>
@@ -1641,7 +1675,7 @@ function BtsDetails() {
 export default function Dashboard() {
   const { t } = useI18n();
   const tgName = useTgNames();
-  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, fsDashboardActive, tsVoiceActivity, tsVoiceSpeaker, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, connected } = useTetraWebSocket();
+  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, fsDashboardActive, tsVoiceActivity, tsVoiceSpeaker, pdchSlots, tsDataActivity, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 
   // Build ISSI → callsign lookup so PRIV destinations can show callsign + flag.
@@ -1734,7 +1768,7 @@ export default function Dashboard() {
           fsActive={fsDashboardActive}
         />
 
-        {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} tsVoiceSpeaker={tsVoiceSpeaker} />}
+        {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} tsVoiceSpeaker={tsVoiceSpeaker} pdchSlots={pdchSlots} tsDataActivity={tsDataActivity} />}
 
         {(lastHeard.length > 0 || txQuality) && (
           <div className="flex flex-col md:flex-row gap-2 sm:gap-3">

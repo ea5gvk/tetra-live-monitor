@@ -5139,6 +5139,12 @@ exit 0
   // ts_cipher events); a clear-only flowstation never sends them, so it stays empty there.
   const tsCipher = new Map<string, boolean>();
   const rfCallsSnapshot = () => Array.from(activeCalls.values());
+  // Timeslots the flowstation has turned into a radio's packet-data channel (PDCH, WAP/IP data),
+  // keyed `${carrier}:${ts}`; builds without packet data never send pdch, so it stays empty.
+  interface PdchEntry { carrier: number | null; ts: number; issi: number; since: number; }
+  const pdchSlots = new Map<string, PdchEntry>();
+  const pdchSnapshot = () => Array.from(pdchSlots.values());
+  const broadcastPdch = () => broadcast(JSON.stringify({ type: 'rf_pdch_state', payload: pdchSnapshot() }));
   const modeToStr = (m: number | null | undefined): string | null => {
     if (m === null || m === undefined || m === 0) return null;
     if (typeof m === 'number' && m >= 1 && m <= 7) return `Eg${m}`;
@@ -5456,6 +5462,29 @@ exit 0
           if (m.last_sdr_health !== undefined) { fsSdrHealth = m.last_sdr_health ?? null; broadcast(JSON.stringify({ type: 'fs_sdr_health', payload: fsSdrHealth })); }
           if (m.last_sys_health !== undefined) { fsSysHealth = m.last_sys_health ?? null; broadcast(JSON.stringify({ type: 'fs_sys_health', payload: fsSysHealth })); }
           if (m.health !== undefined) { fsHealth = m.health ?? null; broadcast(JSON.stringify({ type: 'fs_health', payload: fsHealth })); }
+          if (Array.isArray(m.pdch)) {
+            pdchSlots.clear();
+            for (const p of m.pdch as any[]) {
+              if (p && p.ts != null && p.issi != null) {
+                const carrier = pickCarrier(p);
+                pdchSlots.set(`${carrier}:${p.ts}`, { carrier, ts: Number(p.ts), issi: Number(p.issi), since: Date.now() - ((p.since_secs || 0) * 1000) });
+              }
+            }
+            broadcastPdch();
+          }
+        } else if (m.type === 'pdch' && m.ts != null) {
+          const carrier = pickCarrier(m);
+          const key = `${carrier}:${m.ts}`;
+          if (m.active) {
+            pdchSlots.set(key, { carrier, ts: Number(m.ts), issi: Number(m.issi), since: Date.now() });
+            broadcastPdch();
+          } else if (pdchSlots.has(key) && (m.issi == null || pdchSlots.get(key)!.issi === Number(m.issi))) {
+            pdchSlots.delete(key);
+            broadcastPdch();
+          }
+        } else if (m.type === 'ts_data' && m.ts != null) {
+          // Packet-data activity ping (<= 4/s per timeslot) on a PDCH, like ts_voice for speech.
+          broadcast(JSON.stringify({ type: 'rf_ts_data', payload: { ts: m.ts, carrier: pickCarrier(m), issi: num(m.issi), dir: m.dir === 'dl' ? 'dl' : 'ul' } }));
         } else if (m.type === 'call_started' && m.call_id != null) {
           const entry: RfCallEntry = { callId: m.call_id, callType: m.call_type || 'group', gssi: m.gssi || 0, callerIssi: m.caller_issi || 0, calledIssi: m.called_issi || 0, ts: m.ts || 0, carrier: pickCarrier(m), ...peerFields(m), origCallerIssi: num(m.caller_issi) ?? undefined, speakerIssi: num(m.caller_issi), encrypted: tsCipher.get(`${pickCarrier(m)}:${m.ts}`) ?? null, priority: num(m.priority) ?? 0, startedAt: Date.now() };
           activeCalls.set(m.call_id, entry);
@@ -5569,7 +5598,9 @@ exit 0
         fsDashboardActive = false;
         activeCalls.clear();
         tsCipher.clear();
+        pdchSlots.clear();
         broadcast(JSON.stringify({ type: 'rf_calls_state', payload: [] }));
+        broadcastPdch();
         broadcast(JSON.stringify({ type: 'fs_dashboard_status', payload: { active: false } }));
         // v0.6: flowstation gone — clear live telemetry (keep last_heard as history).
         fsEmergencies.clear();
@@ -5631,6 +5662,7 @@ exit 0
         gpsPositions: currentState.gpsPositions,
         gpsHistory: currentState.gpsHistory,
         rfCalls: rfCallsSnapshot(),
+        pdch: pdchSnapshot(),
         fsDashboardActive,
         emergencies: fsEmergencyList(),
         brewStatus: fsBrew,

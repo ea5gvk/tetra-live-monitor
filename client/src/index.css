@@ -237,6 +237,8 @@ html.light [data-testid="log-live-container"] .text-gray-500      { color: hsl(2
 @keyframes rf-ripple { 0% { opacity: .6; transform: translate(-50%, -50%) scale(1); } 100% { opacity: 0; transform: translate(-50%, -50%) scale(3.2); } }
 @keyframes rf-breathe { 0%, 100% { transform: scale(1); opacity: .5; } 50% { transform: scale(1.25); opacity: .9; } }
 .rf-led-voice { animation: rf-led-pulse 0.3s ease-in-out infinite alternate; }
+@keyframes rf-led-data-blink { 0%, 100% { opacity: 1; box-shadow: 0 0 10px rgba(46,230,168,0.9); } 50% { opacity: .35; box-shadow: 0 0 3px rgba(46,230,168,0.3); } }
+.rf-led-data { animation: rf-led-data-blink 0.22s linear infinite; }
 .rf-ts-flash { animation: rf-flash-in 0.08s ease-out forwards; }
 .rf-ts-emergency { border-color: #ff4d6d !important; animation: rf-emergency-pulse 1.1s ease-in-out infinite; }
 @media (prefers-reduced-motion: no-preference) {

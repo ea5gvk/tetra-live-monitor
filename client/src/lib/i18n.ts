@@ -19,6 +19,7 @@ export const LANGUAGE_LABELS: Record<Language, string> = {
 
 const translations: Record<Language, Record<string, string>> = {
   en: {
+    "rf_wap_data": "WAP · DATA",
     "bts_details": "TETRA BTS DETAILS",
     "bts_tx": "TX Freq",
     "bts_rx": "RX Freq",
@@ -361,6 +362,7 @@ const translations: Record<Language, Record<string, string>> = {
     "donate_thanks": "Thank you for keeping the network alive. 73 ✨",
   },
   es: {
+    "rf_wap_data": "WAP · DATOS",
     "bts_details": "DETALLES BTS TETRA",
     "bts_tx": "Frec. TX",
     "bts_rx": "Frec. RX",
@@ -703,6 +705,7 @@ const translations: Record<Language, Record<string, string>> = {
     "donate_thanks": "Gracias por mantener viva la red. 73 ✨",
   },
   zh: {
+    "rf_wap_data": "WAP · 数据",
     "live_monitor": "\u5b9e\u65f6\u76d1\u63a7",
     "rf_channel_timeslots": "射频信道 — 时隙",
     "rf_mcch": "MCCH",
@@ -956,6 +959,7 @@ const translations: Record<Language, Record<string, string>> = {
     "donate_thanks": "感谢您让网络保持活力。73 ✨",
   },
   zh_TW: {
+    "rf_wap_data": "WAP · 數據",
     "rf_carrier": "CARRIER",
     "rf_main": "MAIN",
     "rf_active": "ACTIVE",
@@ -1201,6 +1205,7 @@ const translations: Record<Language, Record<string, string>> = {
     "donate_thanks": "感謝您讓網路保持活躍。73 ✨",
   },
   pt: {
+    "rf_wap_data": "WAP · DADOS",
     "live_monitor": "MONITOR AO VIVO",
     "rf_channel_timeslots": "CANAL RF — TIMESLOTS",
     "rf_mcch": "MCCH",
@@ -1454,6 +1459,7 @@ const translations: Record<Language, Record<string, string>> = {
     "donate_thanks": "Obrigado por manter a rede viva. 73 ✨",
   },
   de: {
+    "rf_wap_data": "WAP · DATEN",
     "live_monitor": "LIVE-MONITOR",
     "rf_channel_timeslots": "RF-KANAL — TIMESLOTS",
     "rf_mcch": "MCCH",
@@ -1707,6 +1713,7 @@ const translations: Record<Language, Record<string, string>> = {
     "donate_thanks": "Danke, dass du das Netzwerk am Leben erhältst. 73 ✨",
   },
   fr: {
+    "rf_wap_data": "WAP · DONNÉES",
     "live_monitor": "MONITEUR EN DIRECT",
     "rf_channel_timeslots": "CANAL RF — TIMESLOTS",
     "rf_mcch": "MCCH",
@@ -1960,6 +1967,7 @@ const translations: Record<Language, Record<string, string>> = {
     "donate_thanks": "Merci de maintenir le réseau en vie. 73 ✨",
   },
   it: {
+    "rf_wap_data": "WAP · DATI",
     "live_monitor": "MONITOR DAL VIVO",
     "rf_channel_timeslots": "CANALE RF — TIMESLOT",
     "rf_mcch": "MCCH",
@@ -2213,6 +2221,7 @@ const translations: Record<Language, Record<string, string>> = {
     "donate_thanks": "Grazie per mantenere viva la rete. 73 ✨",
   },
   da: {
+    "rf_wap_data": "WAP · DATA",
     "live_monitor": "LIVE MONITOR",
     "rf_channel_timeslots": "RF-KANAL — TIMESLOTS",
     "rf_mcch": "MCCH",
@@ -2466,6 +2475,7 @@ const translations: Record<Language, Record<string, string>> = {
     "donate_thanks": "Tak fordi du holder netværket i live. 73 ✨",
   },
   nl: {
+    "rf_wap_data": "WAP · DATA",
     "live_monitor": "LIVE MONITOR",
     "rf_channel_timeslots": "RF-KANAAL — TIMESLOTS",
     "rf_mcch": "MCCH",
@@ -2719,6 +2729,7 @@ const translations: Record<Language, Record<string, string>> = {
     "donate_thanks": "Bedankt voor het levend houden van het netwerk. 73 ✨",
   },
   ro: {
+    "rf_wap_data": "WAP · DATE",
     "live_monitor": "LIVE MONITOR",
     "rf_channel_timeslots": "CANAL RF — TIMESLOT-URI",
     "rf_mcch": "MCCH",
