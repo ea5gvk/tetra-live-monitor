@@ -138,11 +138,12 @@ function blockValues(lines: string[], h: number, end: number, active: boolean): 
   return vals;
 }
 
-const unquote = (v: string | undefined) => (v === undefined ? null : v.replace(/^"(.*)"$/, "$1"));
+// Basic ("...") and literal ('...') TOML strings.
+const unquote = (v: string | undefined) => (v === undefined ? null : v.replace(/^"(.*)"$|^'(.*)'$/, "$1$2"));
 const intArray = (v: string | undefined) =>
   v === undefined ? null : (v.replace(/^\s*\[|\]\s*$/g, "").match(/-?\d+/g) || []).map(Number);
 const strArray = (v: string | undefined) =>
-  v === undefined ? null : Array.from(v.matchAll(/"((?:[^"\\]|\\.)*)"/g), (m) => m[1]);
+  v === undefined ? null : Array.from(v.matchAll(/"((?:[^"\\]|\\.)*)"|'([^']*)'/g), (m) => m[1] ?? m[2]);
 const numVal = (v: string | undefined) => (v === undefined || !/^-?\d+$/.test(v) ? null : Number(v));
 
 // Exact [cell_info] (not its sub-tables): [start, end) plus active key lines.
@@ -173,8 +174,13 @@ function cellInfoKeys(lines: string[], info: LineInfo[], keys: string[]) {
   return { found, commented, start, lastKv };
 }
 
+// Everything the WAP card switches is on: [wap] and [packet_data] enabled, sndcp_service and
+// advanced_link true. The card loads ticked only then; a partial state is left as it is.
+const wapAllOn = (w: { enabled: boolean; packet_data_enabled: boolean; sndcp_service: boolean; advanced_link: boolean }) =>
+  w.enabled && w.packet_data_enabled && w.sndcp_service && w.advanced_link;
+
 export function readMiuraFeatures(content: string) {
-  const lines = content.split("\n");
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
   const info = scanLines(lines);
 
   const cell = cellInfoKeys(lines, info, [...PARROT_KEYS, ...LINK_KEYS]);
@@ -219,7 +225,9 @@ export function readMiuraFeatures(content: string) {
       allowed_issis: intArray(browse.allowed_issis),
       search_url: unquote(browse.search_url),
       bookmarks: strArray(browse.bookmarks),
-      bearer: unquote(pd.bearer),
+      // Only from an active table (Rust default "mcch" when the key is missing): a commented block
+      // can be the documentation one of the example, and then the card keeps its default "pdch".
+      bearer: fam["packet_data"]?.active ? (unquote(pd.bearer) ?? "mcch").trim().toLowerCase() : null,
       pdch_timeslots: intArray(pd.pdch_timeslots),
       pdch_idle_release_secs: numVal(pd.pdch_idle_release_secs),
       pool_first: unquote(pd.pool_first),
@@ -232,9 +240,14 @@ const clampI = (v: any, lo: number, hi: number, def: number) => {
   const n = Number(v);
   return Number.isFinite(n) ? Math.min(hi, Math.max(lo, Math.round(n))) : def;
 };
-const ipv4 = (v: any, def: string) => {
-  const s = typeof v === "string" ? v.trim() : "";
-  return /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/.test(s) && s.split(".").every((o) => Number(o) <= 255) ? s : def;
+// Empty = default; anything Rust's Ipv4Addr would not parse (leading zeros included) is refused.
+const OCTET = "(25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)";
+const IPV4_RE = new RegExp(`^(${OCTET}\\.){3}${OCTET}$`);
+const ipv4 = (v: any, def: string, key: string) => {
+  const s = typeof v === "string" ? v.trim() : v == null ? "" : String(v);
+  if (s === "") return def;
+  if (!IPV4_RE.test(s)) throw new Error(`${key}: "${s}" no es una dirección IPv4 válida`);
+  return s;
 };
 const ipNum = (s: string) => s.split(".").reduce((a, o) => a * 256 + Number(o), 0);
 const tomlStr = (s: string) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
@@ -242,14 +255,14 @@ const tomlStr = (s: string) => `"${s.replace(/\\/g, "\\\\").replace(/"/g, '\\"')
 // Managed keys of each table: [key, value, Rust default]. A key missing from an existing table is
 // only added when its value is not the default, so an unchanged apply leaves the file as it was.
 function managedTables(c: any): Record<string, Array<[string, string, string]>> {
-  const gateway = ipv4(c.gateway_ipv4, "10.0.0.1");
+  const gateway = ipv4(c.gateway_ipv4, "10.0.0.1", "wap: gateway_ipv4");
   const mtu = WAP_MTUS.includes(Number(c.mtu)) ? Number(c.mtu) : 576;
   const bearer = c.bearer === "mcch" ? "mcch" : "pdch";
   const tsIn: number[] = Array.isArray(c.pdch_timeslots) ? c.pdch_timeslots.map(Number) : [];
   const ts = tsIn.filter((t, i) => [2, 3, 4].includes(t) && tsIn.indexOf(t) === i);
   const idle = clampI(c.pdch_idle_release_secs, 1, 300, 10);
-  const first = ipv4(c.pool_first, "10.0.0.2");
-  const last = ipv4(c.pool_last, "10.0.0.254");
+  const first = ipv4(c.pool_first, "10.0.0.2", "packet_data: pool_first");
+  const last = ipv4(c.pool_last, "10.0.0.254", "packet_data: pool_last");
   const a = ipNum(first), b = ipNum(last), g = ipNum(gateway);
   if (a > b) throw new Error("packet_data: pool_first no puede ser mayor que pool_last");
   if (b - a >= 1024) throw new Error("packet_data: el pool admite como máximo 1024 direcciones");
@@ -333,10 +346,24 @@ function setTableKeys(lines: string[], h: number, keys: Array<[string, string, s
   for (const r of remove.sort((x, y) => y - x)) lines.splice(r, 1);
 }
 
-// parrotConfig / wapConfig: null (BlueStation or not sent) = not touched.
+// parrotConfig / wapConfig: null (BlueStation or not sent) = not touched. Works on `lines` in
+// place; a CRLF file is handled without its "\r" and gets it back at the end.
 export function applyMiuraFeatures(lines: string[], parrotConfig: any, wapConfig: any): string[] {
+  const crlf = lines.some((l) => l.endsWith("\r"));
+  if (crlf) lines.forEach((l, i) => (lines[i] = l.replace(/\r$/, "")));
+  try {
+    return applyLf(lines, parrotConfig, wapConfig);
+  } finally {
+    if (crlf) lines.forEach((l, i) => { if (i < lines.length - 1) lines[i] = `${l}\r`; });
+  }
+}
+
+function applyLf(lines: string[], parrotConfig: any, wapConfig: any): string[] {
   const doParrot = !!parrotConfig && typeof parrotConfig === "object";
-  const doWap = !!wapConfig && typeof wapConfig === "object";
+  let doWap = !!wapConfig && typeof wapConfig === "object";
+  // WAP off only undoes a WAP that was fully on (the card loaded ticked); a partial state
+  // (e.g. sndcp_service = true without [wap], or [wap] without [packet_data]) is left alone.
+  if (doWap && wapConfig.enabled !== true && !wapAllOn(readMiuraFeatures(lines.join("\n")).wap)) doWap = false;
   if (!doParrot && !doWap) return lines;
 
   // ── [cell_info]: parrot_* and sndcp_service / advanced_link ──
@@ -418,6 +445,8 @@ export function applyMiuraFeatures(lines: string[], parrotConfig: any, wapConfig
       setTableKeys(lines, fam[name].idx, tables[name]);
       continue;
     }
+    // A missing table that would only hold Rust defaults ([wap.browse] off) is not created.
+    if (tables[name].every(([, v, def]) => v === def)) continue;
     if (name === "wap") {
       const sub = info.findIndex((li) => li.kind === "header" && li.name!.startsWith("wap."));
       if (sub >= 0) {

@@ -6736,7 +6736,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       if (data.wap) {
         const w = data.wap;
         const setList = (id, v) => { if (Array.isArray(v)) el(id).value = v.join(", "); };
-        el("enableWap").checked = !!w.enabled;
+        // Ticked only when everything the card switches is on (same rule as the server's wapAllOn):
+        // a partial state loads unticked and an unchanged apply leaves it as it is.
+        el("enableWap").checked = !!(w.enabled && w.packet_data_enabled && w.sndcp_service && w.advanced_link);
         setV("wapGatewayIpv4", w.gateway_ipv4);
         if ([296, 576, 1006, 1500, 2002].includes(w.mtu)) el("wapMtu").value = String(w.mtu);
         if (w.bearer === "pdch" || w.bearer === "mcch") el("wapBearer").value = w.bearer;
