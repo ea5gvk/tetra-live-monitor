@@ -1012,6 +1012,16 @@
             <input id="wapPdchTimeslots" type="text" value="4, 3, 2" style="max-width:220px" />
           </div>
         </div>
+        <div style="margin-top:10px;">
+          <label for="wapPdchMaxSlots">pdch_max_slots (1 - 4)</label>
+          <select id="wapPdchMaxSlots" style="max-width:120px">
+            <option value="1" selected>1</option>
+            <option value="2">2</option>
+            <option value="3">3</option>
+            <option value="4">4</option>
+          </select>
+          <div class="hint" data-i18n="wap_max_slots_hint">Slots a la vez por radio para datos (la radio muestra más cuadritos azules). 1 = como hasta ahora y la línea no se escribe. En la portadora principal el máximo real es el número de slots de pdch_timeslots (como mucho 3). Requiere FlowStation miura o TEA2 del 29-09-2026 o posterior; la FlowStation de razvan no conoce esta clave y no arranca con ella: con razvan déjalo en 1.</div>
+        </div>
         <div class="row" style="margin-top:10px;">
           <div>
             <label for="wapPdchIdle" data-i18n="wap_idle_label">pdch_idle_release_secs (1 - 300)</label>
@@ -1969,6 +1979,7 @@
       wap_mtu_hint: "Largest IPv4 datagram sent. 296 is untested.",
       wap_bearer_hint: "pdch: 1-slot packet-data channel on the main carrier (the Motorola MXP600 needs pdch). mcch: data on the control channel. Voice always takes the slot back.",
       wap_timeslots_label: "pdch_timeslots (2, 3 or 4, in order of preference)",
+      wap_max_slots_hint: "Slots per radio at once for data (the radio shows more blue squares). 1 = as before and the line is not written. On the main carrier the effective maximum is the number of slots in pdch_timeslots (at most 3). Needs FlowStation miura or TEA2 of 29-09-2026 or later; the razvan FlowStation does not know this key and will not start with it: keep 1 there.",
       wap_idle_label: "pdch_idle_release_secs (1 - 300)",
       wap_idle_hint: "A PDCH without data for this long goes back to the pool.",
       wap_pool_hint: "IPv4 addresses for the radios: at most 1024, and gateway_ipv4 must not be inside.",
@@ -2320,6 +2331,7 @@
       wap_mtu_hint: "送出的最大 IPv4 資料包。296 未經測試。",
       wap_bearer_hint: "pdch：主載波上 1 個時槽的封包數據通道（Motorola MXP600 需要 pdch）。mcch：數據走控制通道。語音永遠可收回該時槽。",
       wap_timeslots_label: "pdch_timeslots（2、3 或 4，依優先順序）",
+      wap_max_slots_hint: "每台無線電同時用於數據的時槽數（無線電會顯示更多藍色方塊）。1 = 與以往相同，且不寫入此行。在主載波上實際最大值為 pdch_timeslots 中的時槽數（最多 3）。需要 2026-09-29 或之後的 FlowStation miura 或 TEA2；razvan 的 FlowStation 不認識此鍵，遇到它將無法啟動：使用 razvan 時請保持 1。",
       wap_idle_label: "pdch_idle_release_secs (1 - 300)",
       wap_idle_hint: "PDCH 無數據超過此時間即歸還。",
       wap_pool_hint: "無線電的 IPv4 位址：最多 1024 個，且不可包含 gateway_ipv4。",
@@ -2623,6 +2635,7 @@
       wap_mtu_hint: "Datagrama IPv4 más grande que se envía. 296 no está probado.",
       wap_bearer_hint: "pdch: canal de datos de 1 slot de la portadora principal (el Motorola MXP600 necesita pdch). mcch: datos por el canal de control. La voz siempre recupera el slot.",
       wap_timeslots_label: "pdch_timeslots (2, 3 o 4, por orden de preferencia)",
+      wap_max_slots_hint: "Slots a la vez por radio para datos (la radio muestra más cuadritos azules). 1 = como hasta ahora y la línea no se escribe. En la portadora principal el máximo real es el número de slots de pdch_timeslots (como mucho 3). Requiere FlowStation miura o TEA2 del 29-09-2026 o posterior; la FlowStation de razvan no conoce esta clave y no arranca con ella: con razvan déjalo en 1.",
       wap_idle_label: "pdch_idle_release_secs (1 - 300)",
       wap_idle_hint: "Un PDCH sin datos durante este tiempo vuelve al pool.",
       wap_pool_hint: "Direcciones IPv4 de las radios: como máximo 1024 y sin incluir gateway_ipv4.",
@@ -2974,6 +2987,7 @@
       wap_mtu_hint: "Maior datagrama IPv4 enviado. 296 não está testado.",
       wap_bearer_hint: "pdch: canal de dados de 1 slot da portadora principal (o Motorola MXP600 precisa de pdch). mcch: dados no canal de controlo. A voz recupera sempre o slot.",
       wap_timeslots_label: "pdch_timeslots (2, 3 ou 4, por ordem de preferência)",
+      wap_max_slots_hint: "Slots de dados ao mesmo tempo por rádio (o rádio mostra mais quadradinhos azuis). 1 = como até agora e a linha não é escrita. Na portadora principal o máximo real é o número de slots de pdch_timeslots (no máximo 3). Requer FlowStation miura ou TEA2 de 29-09-2026 ou posterior; a FlowStation de razvan não conhece esta chave e não arranca com ela: com razvan deixe 1.",
       wap_idle_label: "pdch_idle_release_secs (1 - 300)",
       wap_idle_hint: "Um PDCH sem dados durante este tempo volta ao pool.",
       wap_pool_hint: "Endereços IPv4 dos rádios: no máximo 1024 e sem incluir gateway_ipv4.",
@@ -3277,6 +3291,7 @@
       wap_mtu_hint: "Größtes gesendetes IPv4-Datagramm. 296 ist ungetestet.",
       wap_bearer_hint: "pdch: Paketdatenkanal mit 1 Zeitschlitz auf dem Hauptträger (das Motorola MXP600 braucht pdch). mcch: Daten auf dem Steuerkanal. Sprache holt sich den Zeitschlitz immer zurück.",
       wap_timeslots_label: "pdch_timeslots (2, 3 oder 4, nach Priorität)",
+      wap_max_slots_hint: "Zeitschlitze pro Funkgerät gleichzeitig für Daten (das Funkgerät zeigt mehr blaue Kästchen). 1 = wie bisher, die Zeile wird nicht geschrieben. Auf dem Hauptträger ist das tatsächliche Maximum die Anzahl der Zeitschlitze in pdch_timeslots (höchstens 3). Erfordert FlowStation miura oder TEA2 vom 29.09.2026 oder neuer; die FlowStation von razvan kennt diesen Schlüssel nicht und startet damit nicht: dort 1 lassen.",
       wap_idle_label: "pdch_idle_release_secs (1 - 300)",
       wap_idle_hint: "Ein PDCH ohne Daten für diese Zeit geht an den Pool zurück.",
       wap_pool_hint: "IPv4-Adressen der Funkgeräte: höchstens 1024, gateway_ipv4 darf nicht enthalten sein.",
@@ -3580,6 +3595,7 @@
       wap_mtu_hint: "Plus grand datagramme IPv4 envoyé. 296 n'est pas testé.",
       wap_bearer_hint: "pdch : canal de données d'1 slot sur la porteuse principale (le Motorola MXP600 a besoin de pdch). mcch : données sur le canal de contrôle. La voix reprend toujours le slot.",
       wap_timeslots_label: "pdch_timeslots (2, 3 ou 4, par ordre de préférence)",
+      wap_max_slots_hint: "Slots simultanés par radio pour les données (la radio affiche plus de carrés bleus). 1 = comme avant et la ligne n'est pas écrite. Sur la porteuse principale, le maximum réel est le nombre de slots de pdch_timeslots (3 au plus). Nécessite FlowStation miura ou TEA2 du 29-09-2026 ou ultérieure ; la FlowStation de razvan ne connaît pas cette clé et ne démarre pas avec elle : avec razvan, laissez 1.",
       wap_idle_label: "pdch_idle_release_secs (1 - 300)",
       wap_idle_hint: "Un PDCH sans données pendant ce temps retourne au pool.",
       wap_pool_hint: "Adresses IPv4 des radios : 1024 au maximum, sans inclure gateway_ipv4.",
@@ -3883,6 +3899,7 @@
       wap_mtu_hint: "Datagramma IPv4 più grande inviato. 296 non è testato.",
       wap_bearer_hint: "pdch: canale dati di 1 slot sulla portante principale (il Motorola MXP600 richiede pdch). mcch: dati sul canale di controllo. La voce riprende sempre lo slot.",
       wap_timeslots_label: "pdch_timeslots (2, 3 o 4, in ordine di preferenza)",
+      wap_max_slots_hint: "Slot contemporanei per radio per i dati (la radio mostra più quadratini blu). 1 = come finora e la riga non viene scritta. Sulla portante principale il massimo reale è il numero di slot di pdch_timeslots (al massimo 3). Richiede FlowStation miura o TEA2 del 29-09-2026 o successiva; la FlowStation di razvan non conosce questa chiave e non si avvia con essa: con razvan lascia 1.",
       wap_idle_label: "pdch_idle_release_secs (1 - 300)",
       wap_idle_hint: "Un PDCH senza dati per questo tempo torna al pool.",
       wap_pool_hint: "Indirizzi IPv4 delle radio: al massimo 1024 e senza includere gateway_ipv4.",
@@ -4186,6 +4203,7 @@
       wap_mtu_hint: "Største IPv4-datagram der sendes. 296 er ikke testet.",
       wap_bearer_hint: "pdch: pakkedatakanal på 1 tidsslot på hovedbærebølgen (Motorola MXP600 kræver pdch). mcch: data på kontrolkanalen. Tale tager altid tidsslottet tilbage.",
       wap_timeslots_label: "pdch_timeslots (2, 3 eller 4, i prioriteret rækkefølge)",
+      wap_max_slots_hint: "Tidsslots pr. radio ad gangen til data (radioen viser flere blå firkanter). 1 = som hidtil, og linjen skrives ikke. På hovedbærebølgen er det reelle maksimum antallet af slots i pdch_timeslots (højst 3). Kræver FlowStation miura eller TEA2 fra 29-09-2026 eller nyere; razvans FlowStation kender ikke denne nøgle og starter ikke med den: med razvan behold 1.",
       wap_idle_label: "pdch_idle_release_secs (1 - 300)",
       wap_idle_hint: "En PDCH uden data i så lang tid går tilbage til puljen.",
       wap_pool_hint: "IPv4-adresser til radioerne: højst 1024, og gateway_ipv4 må ikke være med.",
@@ -4489,6 +4507,7 @@
       wap_mtu_hint: "Grootste verzonden IPv4-datagram. 296 is niet getest.",
       wap_bearer_hint: "pdch: pakketdatakanaal van 1 tijdslot op de hoofddraaggolf (de Motorola MXP600 heeft pdch nodig). mcch: data op het controlekanaal. Spraak neemt het tijdslot altijd terug.",
       wap_timeslots_label: "pdch_timeslots (2, 3 of 4, op volgorde van voorkeur)",
+      wap_max_slots_hint: "Tijdslots per radio tegelijk voor data (de radio toont meer blauwe blokjes). 1 = zoals voorheen en de regel wordt niet geschreven. Op de hoofddraaggolf is het werkelijke maximum het aantal slots in pdch_timeslots (hoogstens 3). Vereist FlowStation miura of TEA2 van 29-09-2026 of later; de FlowStation van razvan kent deze sleutel niet en start er niet mee: laat bij razvan 1 staan.",
       wap_idle_label: "pdch_idle_release_secs (1 - 300)",
       wap_idle_hint: "Een PDCH zonder data gedurende deze tijd gaat terug naar de pool.",
       wap_pool_hint: "IPv4-adressen voor de radio's: maximaal 1024 en zonder gateway_ipv4.",
@@ -4792,6 +4811,7 @@
       wap_mtu_hint: "Cea mai mare datagramă IPv4 trimisă. 296 nu este testat.",
       wap_bearer_hint: "pdch: canal de date de 1 slot pe purtătoarea principală (Motorola MXP600 are nevoie de pdch). mcch: date pe canalul de control. Vocea preia întotdeauna slotul înapoi.",
       wap_timeslots_label: "pdch_timeslots (2, 3 sau 4, în ordinea preferinței)",
+      wap_max_slots_hint: "Sloturi simultane per stație radio pentru date (stația afișează mai multe pătrățele albastre). 1 = ca până acum și linia nu se scrie. Pe purtătoarea principală maximul real este numărul de sloturi din pdch_timeslots (cel mult 3). Necesită FlowStation miura sau TEA2 din 29-09-2026 sau mai nouă; FlowStation de la razvan nu cunoaște această cheie și nu pornește cu ea: cu razvan lăsați 1.",
       wap_idle_label: "pdch_idle_release_secs (1 - 300)",
       wap_idle_hint: "Un PDCH fără date în acest interval revine în pool.",
       wap_pool_hint: "Adresele IPv4 ale stațiilor: cel mult 1024, fără gateway_ipv4.",
@@ -5258,6 +5278,7 @@
       mtu: Number(el("wapMtu").value) || 576,
       bearer: el("wapBearer").value === "mcch" ? "mcch" : "pdch",
       pdch_timeslots: ts.length ? ts : [4, 3, 2],
+      pdch_max_slots: clamp(el("wapPdchMaxSlots").value, 1, 4, 1),
       pdch_idle_release_secs: clamp(el("wapPdchIdle").value, 1, 300, 10),
       pool_first: el("wapPoolFirst").value.trim() || "10.0.0.2",
       pool_last: el("wapPoolLast").value.trim() || "10.0.0.254",
@@ -5858,6 +5879,8 @@
       lines.push(`${p}enabled = true`);
       lines.push(`${p}bearer = "${w.bearer}"`);
       lines.push(`${p}pdch_timeslots = [${w.pdch_timeslots.join(", ")}]`);
+      // Only FlowStation miura/TEA2 of 29-09-2026 or later know it (razvan does not start with it): 1 = line not written.
+      if (w.pdch_max_slots > 1) lines.push(`${p}pdch_max_slots = ${w.pdch_max_slots}`);
       lines.push(`${p}pdch_idle_release_secs = ${w.pdch_idle_release_secs}`);
       lines.push(`${p}pool_first = ${q(w.pool_first)}`);
       lines.push(`${p}pool_last = ${q(w.pool_last)}`);
@@ -6743,6 +6766,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         if ([296, 576, 1006, 1500, 2002].includes(w.mtu)) el("wapMtu").value = String(w.mtu);
         if (w.bearer === "pdch" || w.bearer === "mcch") el("wapBearer").value = w.bearer;
         setList("wapPdchTimeslots", w.pdch_timeslots);
+        if ([1, 2, 3, 4].includes(w.pdch_max_slots)) el("wapPdchMaxSlots").value = String(w.pdch_max_slots);
         setV("wapPdchIdle", w.pdch_idle_release_secs);
         setV("wapPoolFirst", w.pool_first);
         setV("wapPoolLast", w.pool_last);
@@ -8162,7 +8186,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     el("wapBrowseFields").style.display = this.checked ? "block" : "none";
     updateTomlFromNew();
   });
-  ["parrotIssi","parrotMaxSecs","wapGatewayIpv4","wapMtu","wapBearer","wapPdchTimeslots","wapPdchIdle","wapPoolFirst","wapPoolLast","wapAllowedIssis","wapSearchUrl","wapBookmarks"].forEach(id => {
+  ["parrotIssi","parrotMaxSecs","wapGatewayIpv4","wapMtu","wapBearer","wapPdchTimeslots","wapPdchMaxSlots","wapPdchIdle","wapPoolFirst","wapPoolLast","wapAllowedIssis","wapSearchUrl","wapBookmarks"].forEach(id => {
     const node = el(id); if (!node) return;
     node.addEventListener(node.tagName === "SELECT" ? "change" : "input", updateTomlFromNew);
   });

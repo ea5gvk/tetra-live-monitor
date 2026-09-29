@@ -11,6 +11,9 @@ const WAP_MTUS = [296, 576, 1006, 1500, 2002];
 const FAMILY = ["wap", "wap.wtp", "wap.browse", "packet_data"];
 const PARROT_KEYS = ["parrot_enabled", "parrot_issi", "parrot_max_secs"];
 const LINK_KEYS = ["sndcp_service", "advanced_link"];
+// Keys only FlowStation miura/TEA2 of 29-09-2026 or later know: razvan (and older builds) refuse to
+// start with them, so at the default value the line is not written and an existing one is removed.
+const OMIT_AT_DEFAULT = ["pdch_max_slots"];
 
 const DEFAULT_SEARCH_URL = "http://lite.duckduckgo.com/lite/?q=";
 const DEFAULT_BOOKMARKS = ["http://68k.news/", "http://wiby.me/", "http://text.npr.org/"];
@@ -229,6 +232,7 @@ export function readMiuraFeatures(content: string) {
       // can be the documentation one of the example, and then the card keeps its default "pdch".
       bearer: fam["packet_data"]?.active ? (unquote(pd.bearer) ?? "mcch").trim().toLowerCase() : null,
       pdch_timeslots: intArray(pd.pdch_timeslots),
+      pdch_max_slots: numVal(pd.pdch_max_slots) ?? 1, // missing = 1 slot per radio
       pdch_idle_release_secs: numVal(pd.pdch_idle_release_secs),
       pool_first: unquote(pd.pool_first),
       pool_last: unquote(pd.pool_last),
@@ -260,6 +264,7 @@ function managedTables(c: any): Record<string, Array<[string, string, string]>> 
   const bearer = c.bearer === "mcch" ? "mcch" : "pdch";
   const tsIn: number[] = Array.isArray(c.pdch_timeslots) ? c.pdch_timeslots.map(Number) : [];
   const ts = tsIn.filter((t, i) => [2, 3, 4].includes(t) && tsIn.indexOf(t) === i);
+  const maxSlots = clampI(c.pdch_max_slots, 1, 4, 1);
   const idle = clampI(c.pdch_idle_release_secs, 1, 300, 10);
   const first = ipv4(c.pool_first, "10.0.0.2", "packet_data: pool_first");
   const last = ipv4(c.pool_last, "10.0.0.254", "packet_data: pool_last");
@@ -289,6 +294,7 @@ function managedTables(c: any): Record<string, Array<[string, string, string]>> 
       ["enabled", "true", "false"],
       ["bearer", tomlStr(bearer), '"mcch"'],
       ["pdch_timeslots", `[${(ts.length ? ts : [4, 3, 2]).join(", ")}]`, "[4, 3, 2]"],
+      ["pdch_max_slots", String(maxSlots), "1"],
       ["pdch_idle_release_secs", String(idle), "10"],
       ["pool_first", tomlStr(first), '"10.0.0.2"'],
       ["pool_last", tomlStr(last), '"10.0.0.254"'],
@@ -332,6 +338,7 @@ function setTableKeys(lines: string[], h: number, keys: Array<[string, string, s
     while (j < end && info[j].kind === "cont") j++;
     if (done.has(k[0])) { for (let r = i; r < j; r++) remove.push(r); continue; }
     done.add(k[0]);
+    if (OMIT_AT_DEFAULT.includes(k[0]) && k[1] === k[2]) { for (let r = i; r < j; r++) remove.push(r); continue; }
     const m = lines[i].match(KV_RE)!;
     const sv = scanValue(m[4]);
     const tail = j === i + 1 && sv.hash >= 0 ? m[4].slice(m[4].slice(0, sv.hash).trimEnd().length) : "";
@@ -437,7 +444,10 @@ function applyLf(lines: string[], parrotConfig: any, wapConfig: any): string[] {
   }
   // 2) Missing tables are created: [wap] before its sub-tables (or at the end of the file),
   //    [wap.browse] and [packet_data] after the [wap] family.
-  const block = (name: string) => [`[${name}]`, ...tables[name].map(([k, v]) => `${k} = ${v}`)];
+  const block = (name: string) => [
+    `[${name}]`,
+    ...tables[name].filter(([k, v, def]) => !(OMIT_AT_DEFAULT.includes(k) && v === def)).map(([k, v]) => `${k} = ${v}`),
+  ];
   for (const name of ["wap", "wap.browse", "packet_data"]) {
     const info = scanLines(lines);
     const fam = findFamily(info);
