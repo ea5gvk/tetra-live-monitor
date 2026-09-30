@@ -11,9 +11,10 @@ const WAP_MTUS = [296, 576, 1006, 1500, 2002];
 const FAMILY = ["wap", "wap.wtp", "wap.browse", "packet_data"];
 const PARROT_KEYS = ["parrot_enabled", "parrot_issi", "parrot_max_secs"];
 const LINK_KEYS = ["sndcp_service", "advanced_link"];
-// Keys only FlowStation miura/TEA2 of 29-09-2026 or later know: razvan (and older builds) refuse to
-// start with them, so at the default value the line is not written and an existing one is removed.
-const OMIT_AT_DEFAULT = ["pdch_max_slots"];
+// Keys only FlowStation miura/TEA2 of 29/30-09-2026 or later know: razvan (and older builds) refuse
+// to start with them, so at the default value the line is not written and an existing one is removed.
+// For pdch_carrier and pdch_carrier_timeslots the "default" is "" (carrier option off: never written).
+const OMIT_AT_DEFAULT = ["pdch_max_slots", "pdch_carrier", "pdch_carrier_timeslots", "pdch_carrier_exclusive"];
 
 const DEFAULT_SEARCH_URL = "http://lite.duckduckgo.com/lite/?q=";
 const DEFAULT_BOOKMARKS = ["http://68k.news/", "http://wiby.me/", "http://text.npr.org/"];
@@ -233,6 +234,9 @@ export function readMiuraFeatures(content: string) {
       bearer: fam["packet_data"]?.active ? (unquote(pd.bearer) ?? "mcch").trim().toLowerCase() : null,
       pdch_timeslots: intArray(pd.pdch_timeslots),
       pdch_max_slots: numVal(pd.pdch_max_slots) ?? 1, // missing = 1 slot per radio
+      pdch_carrier: numVal(pd.pdch_carrier), // missing = option off
+      pdch_carrier_timeslots: intArray(pd.pdch_carrier_timeslots),
+      pdch_carrier_exclusive: pd.pdch_carrier_exclusive === "true",
       pdch_idle_release_secs: numVal(pd.pdch_idle_release_secs),
       pool_first: unquote(pd.pool_first),
       pool_last: unquote(pd.pool_last),
@@ -265,6 +269,12 @@ function managedTables(c: any): Record<string, Array<[string, string, string]>> 
   const tsIn: number[] = Array.isArray(c.pdch_timeslots) ? c.pdch_timeslots.map(Number) : [];
   const ts = tsIn.filter((t, i) => [2, 3, 4].includes(t) && tsIn.indexOf(t) === i);
   const maxSlots = clampI(c.pdch_max_slots, 1, 4, 1);
+  // Packet-data carrier: null/empty = option off. Its slots need 2, 3 or 4 (station rule).
+  const pcIn = c.pdch_carrier == null || c.pdch_carrier === "" ? NaN : Number(c.pdch_carrier);
+  const carrier = Number.isFinite(pcIn) ? clampI(pcIn, 0, 4095, 0) : null;
+  const ctsIn: number[] = Array.isArray(c.pdch_carrier_timeslots) ? c.pdch_carrier_timeslots.map(Number) : [];
+  const cts0 = ctsIn.filter((t, i) => [1, 2, 3, 4].includes(t) && ctsIn.indexOf(t) === i);
+  const cts = cts0.some((t) => t >= 2) ? cts0 : [4, 3, 2, 1];
   const idle = clampI(c.pdch_idle_release_secs, 1, 300, 10);
   const first = ipv4(c.pool_first, "10.0.0.2", "packet_data: pool_first");
   const last = ipv4(c.pool_last, "10.0.0.254", "packet_data: pool_last");
@@ -295,6 +305,9 @@ function managedTables(c: any): Record<string, Array<[string, string, string]>> 
       ["bearer", tomlStr(bearer), '"mcch"'],
       ["pdch_timeslots", `[${(ts.length ? ts : [4, 3, 2]).join(", ")}]`, "[4, 3, 2]"],
       ["pdch_max_slots", String(maxSlots), "1"],
+      ["pdch_carrier", carrier === null ? "" : String(carrier), ""],
+      ["pdch_carrier_timeslots", carrier === null ? "" : `[${cts.join(", ")}]`, ""],
+      ["pdch_carrier_exclusive", carrier !== null && c.pdch_carrier_exclusive === true ? "true" : "false", "false"],
       ["pdch_idle_release_secs", String(idle), "10"],
       ["pool_first", tomlStr(first), '"10.0.0.2"'],
       ["pool_last", tomlStr(last), '"10.0.0.254"'],
