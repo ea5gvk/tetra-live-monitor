@@ -234,7 +234,10 @@ export function readMiuraFeatures(content: string) {
       bearer: fam["packet_data"]?.active ? (unquote(pd.bearer) ?? "mcch").trim().toLowerCase() : null,
       pdch_timeslots: intArray(pd.pdch_timeslots),
       pdch_max_slots: numVal(pd.pdch_max_slots) ?? 1, // missing = 1 slot per radio
-      pdch_carrier: numVal(pd.pdch_carrier), // missing = option off
+      // Missing = option off. From an active table, or from one commented out while enabled (the WAP
+      // switch off): the documentation block of the FlowStation miura/TEA2 example ("# enabled = false")
+      // has "# pdch_carrier = 1598" and must not tick the option.
+      pdch_carrier: (fam["packet_data"]?.active || pd.enabled === "true") ? numVal(pd.pdch_carrier) : null,
       pdch_carrier_timeslots: intArray(pd.pdch_carrier_timeslots),
       pdch_carrier_exclusive: pd.pdch_carrier_exclusive === "true",
       pdch_idle_release_secs: numVal(pd.pdch_idle_release_secs),
