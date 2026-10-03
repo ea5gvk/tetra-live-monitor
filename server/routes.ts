@@ -8,7 +8,7 @@ import { spawn, exec, execSync, type ChildProcess } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
-import { readMiuraFeatures, applyMiuraFeatures } from "./miuraConfig";
+import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled } from "./miuraConfig";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -1826,7 +1826,9 @@ exit 0
       const dceM = content.match(/^[ \t]*dual_carrier_enabled\s*=\s*(true|false)/m); // solo descomentado
       const dualEnabled = dceM ? dceM[1] === "true" : true;
       const enabled = secUncommented && dualEnabled;
-      res.json({ ok: true, configured, enabled, secondary_carrier: secM ? Number(secM[3]) : null, path: p, service });
+      // extra_carriers (FlowStation miura of 03-10-2026 or later) only when there are any: otherwise the body is unchanged.
+      const extra = readExtraCarriers(content);
+      res.json({ ok: true, configured, enabled, secondary_carrier: secM ? Number(secM[3]) : null, ...(extra.length ? { extra_carriers: extra } : {}), path: p, service });
     } catch (e: any) {
       res.json({ ok: false, message: e?.message || String(e), configured: false, enabled: false });
     }
@@ -1842,9 +1844,15 @@ exit 0
     if (!fs.existsSync(filePath)) return res.status(400).json({ ok: false, message: `No existe: ${filePath}` });
     const wantEnabled = enabled !== false;
     let content = fs.readFileSync(filePath, "utf-8");
-    for (const key of DC_KEYS) {
-      content = content.replace(dcLineRe(key), (_m, indent, _hash, rest) =>
-        wantEnabled ? `${indent}${rest}` : `${indent}# ${rest}`);
+    if (readExtraCarriers(content).length) {
+      // With extra_carriers only dual_carrier_enabled changes, as the station's own toggle does: commenting
+      // secondary_carrier out would leave extra_carriers without it and the station would not start.
+      content = setDualCarrierEnabled(content, wantEnabled);
+    } else {
+      for (const key of DC_KEYS) {
+        content = content.replace(dcLineRe(key), (_m, indent, _hash, rest) =>
+          wantEnabled ? `${indent}${rest}` : `${indent}# ${rest}`);
+      }
     }
     try {
       fs.writeFileSync(filePath, content, "utf-8");
@@ -2578,6 +2586,7 @@ exit 0
           timezone_broadcast: bool('cell_info', 'timezone_broadcast'),
           timezone: str('cell_info', 'timezone'),
           secondary_carrier: num('cell_info', 'secondary_carrier'),
+          extra_carriers: readExtraCarriers(content), // FlowStation miura of 03-10-2026 or later; [] when absent
           local_ssi_ranges: ssiRanges,
           ssi_ranges_enabled: ssiRangesEnabled,
           neighbor_cells: neighborCells,
@@ -4809,6 +4818,13 @@ exit 0
         if (a.length !== b.length || a.some((v, i) => v !== b[i])) return text;
         return result;
       };
+
+      // ── extra_carriers en [cell_info] (FlowStation miura del 03-10-2026 o posterior) ──
+      // Solo si el cliente la envía (sin ella la línea no se toca). Se escribe debajo de secondary_carrier,
+      // solo con la secundaria habilitada y la lista no vacía; si no, se borra (razvan no arranca con ella).
+      applyExtraCarriers(lines, dcPresent && Array.isArray(dualCarrierConfig.extraCarriers)
+        ? (dcSecondaryEnabled ? normalizeExtraCarriers(dualCarrierConfig.extraCarriers, Number(values.main_carrier), dcSecondaryVal) : [])
+        : null);
 
       // ── Loro (parrot_* en [cell_info]) y WAP/datos por paquetes (FlowStation miura) ──
       // Solo cuando el cliente los envía (null en BlueStation).

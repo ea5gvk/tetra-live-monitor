@@ -318,6 +318,107 @@ function managedTables(c: any): Record<string, Array<[string, string, string]>> 
   };
 }
 
+// ── extra_carriers ([cell_info], FlowStation miura of 03-10-2026 or later) ──
+// A third and fourth carrier after secondary_carrier (at most 4 carriers in the cell). razvan and older
+// binaries refuse the key and do not start, so it is written only when the list is not empty and
+// removed otherwise: never "extra_carriers = []".
+
+// End (exclusive) of the key line at i plus the continuation lines of a multi-line value.
+const kvEnd = (info: LineInfo[], i: number) => {
+  let j = i + 1;
+  while (j < info.length && info[j].kind === "cont") j++;
+  return j;
+};
+
+// Active extra_carriers of the exact [cell_info] table (one line or several), [] when absent.
+export function readExtraCarriers(content: string): number[] {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const info = scanLines(lines);
+  const at = cellInfoKeys(lines, info, ["extra_carriers"]).found["extra_carriers"]?.[0];
+  if (at === undefined) return [];
+  const raw = lines.slice(at, kvEnd(info, at)).map((l, n) => {
+    const v = n === 0 ? l.match(KV_RE)![4] : l;
+    const sv = scanValue(v);
+    return sv.hash >= 0 ? v.slice(0, sv.hash) : v;
+  }).join(" ");
+  return intArray(raw.trim()) || [];
+}
+
+// The station's rules for the list: carrier numbers 0..4095, distinct, none equal to main or secondary,
+// at most two (4 carriers in all). Anything else is dropped (the calculator shows what and why).
+export function normalizeExtraCarriers(v: any, main: number | null, secondary: number | null): number[] {
+  const out: number[] = [];
+  for (const x of Array.isArray(v) ? v : []) {
+    const n = typeof x === "string" && x.trim() === "" ? NaN : Number(x);
+    if (!Number.isInteger(n) || n < 0 || n > 4095 || n === main || n === secondary || out.includes(n)) continue;
+    if (out.length < 2) out.push(n);
+  }
+  return out;
+}
+
+// extras: null = not touched. Empty = every active extra_carriers line of [cell_info] removed. Otherwise
+// the first one is rewritten in place (its trailing comment kept) or, missing, added right below the
+// active secondary_carrier. A CRLF file is handled without its "\r" and gets it back at the end.
+export function applyExtraCarriers(lines: string[], extras: number[] | null): string[] {
+  if (!extras) return lines;
+  const crlf = lines.some((l) => l.endsWith("\r"));
+  if (crlf) lines.forEach((l, i) => (lines[i] = l.replace(/\r$/, "")));
+  try {
+    const info = scanLines(lines);
+    const cell = cellInfoKeys(lines, info, ["extra_carriers", "secondary_carrier"]);
+    if (cell.start < 0) return lines;
+    const value = `[${extras.join(", ")}]`;
+    const occ = cell.found["extra_carriers"] || [];
+    if (!occ.length) {
+      if (!extras.length) return lines;
+      const sc = cell.found["secondary_carrier"]?.[0];
+      const at = sc !== undefined ? kvEnd(info, sc) : cell.lastKv + 1;
+      lines.splice(at, 0, `${sc !== undefined ? lines[sc].match(/^\s*/)![0] : ""}extra_carriers = ${value}`);
+      return lines;
+    }
+    const remove: number[] = [];
+    occ.forEach((i, n) => {
+      const j = kvEnd(info, i);
+      if (n === 0 && extras.length) {
+        const m = lines[i].match(KV_RE)!;
+        const sv = scanValue(m[4]);
+        const tail = j === i + 1 && sv.hash >= 0 ? m[4].slice(m[4].slice(0, sv.hash).trimEnd().length) : "";
+        lines[i] = `${m[1]}extra_carriers${m[3]}${value}${tail}`;
+        for (let r = i + 1; r < j; r++) remove.push(r);
+      } else for (let r = i; r < j; r++) remove.push(r);
+    });
+    for (const r of remove.sort((x, y) => y - x)) lines.splice(r, 1);
+    return lines;
+  } finally {
+    if (crlf) lines.forEach((l, i) => { if (i < lines.length - 1) lines[i] = `${l}\r`; });
+  }
+}
+
+// The dual-carrier switch of a config with extra carriers, as the station's own toggle does it: only
+// dual_carrier_enabled changes (false switches off the secondary and every extra carrier and keeps their
+// lines, true brings them back). Commenting secondary_carrier out instead would leave extra_carriers
+// without it and the station would not start.
+export function setDualCarrierEnabled(content: string, on: boolean): string {
+  const lines = content.split("\n");
+  const crlf = lines.some((l) => l.endsWith("\r"));
+  if (crlf) lines.forEach((l, i) => (lines[i] = l.replace(/\r$/, "")));
+  const info = scanLines(lines);
+  const cell = cellInfoKeys(lines, info, ["dual_carrier_enabled", "extra_carriers", "secondary_carrier"]);
+  const a = cell.found["dual_carrier_enabled"]?.[0];
+  if (a !== undefined) {
+    const m = lines[a].match(KV_RE)!;
+    const sv = scanValue(m[4]);
+    const tail = sv.hash >= 0 ? m[4].slice(m[4].slice(0, sv.hash).trimEnd().length) : "";
+    lines[a] = `${m[1]}dual_carrier_enabled${m[3]}${on ? "true" : "false"}${tail}`;
+  } else if (!on && cell.start >= 0) {
+    // Absent = on: add the line after the extra carriers (or the secondary).
+    const after = cell.found["extra_carriers"]?.[0] ?? cell.found["secondary_carrier"]?.[0];
+    lines.splice(after !== undefined ? kvEnd(info, after) : cell.lastKv + 1, 0, "dual_carrier_enabled = false");
+  }
+  if (crlf) lines.forEach((l, i) => { if (i < lines.length - 1) lines[i] = `${l}\r`; });
+  return lines.join("\n");
+}
+
 // Last line with content (not blank, not comment) in [from, to), or from - 1.
 function lastContent(lines: string[], from: number, to: number): number {
   for (let i = to - 1; i >= from; i--) {
