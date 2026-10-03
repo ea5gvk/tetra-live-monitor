@@ -1373,13 +1373,16 @@ exit 0
       if (dualCarrierActive) {
         // Same band, offset and duplex spacing as the main carrier: 25 kHz per carrier number
         // (the stack's own formula, tetra-core freqs.rs) — used when the base station's
-        // dashboard is not reachable.
-        const delta = mainCarrier != null && secondaryCarrier != null ? (secondaryCarrier - mainCarrier) * 25000 : null;
-        carriers.push({
-          carrier_num: secondaryCarrier,
-          tx_freq_hz: tx != null && delta != null ? tx + delta : null,
-          rx_freq_hz: rx != null && delta != null ? rx + delta : null,
-        });
+        // dashboard is not reachable. extra_carriers (FlowStation miura of 03-10-2026 or later)
+        // follow the secondary and go off with it.
+        for (const n of [secondaryCarrier!, ...readExtraCarriers(content)]) {
+          const delta = mainCarrier != null ? (n - mainCarrier) * 25000 : null;
+          carriers.push({
+            carrier_num: n,
+            tx_freq_hz: tx != null && delta != null ? tx + delta : null,
+            rx_freq_hz: rx != null && delta != null ? rx + delta : null,
+          });
+        }
       }
       // Prefer the base station's live per-carrier frequencies and main carrier when its
       // dashboard is up; the config-derived list above is the fallback.
