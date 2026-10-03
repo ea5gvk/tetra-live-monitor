@@ -7952,7 +7952,10 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   el("txCenterFreqVal").addEventListener("input", updateSecondaryFromCenter);
   el("txVal").addEventListener("input", updateSecondaryFromCenter);
   el("txUnit").addEventListener("change", updateSecondaryFromCenter);
-  el("extraCarriersVal").addEventListener("input", function(){ updateSecondaryFromCenter(); updateTomlFromNew(); });
+  // Typing extra carriers makes the secondary editable. Clearing them does not recompute it from tx_center_freq
+  // (with three carriers the centre is not the midpoint of main and secondary): it stays as typed until the
+  // centre, TX or a toggle changes.
+  el("extraCarriersVal").addEventListener("input", function(){ if (/\d/.test(this.value)) updateSecondaryFromCenter(); updateTomlFromNew(); });
   ["extraCarriersVal", "secondaryCarrierVal", "txCenterFreqVal", "rxCenterFreqVal", "wapPdchCarrier"].forEach(id => el(id).addEventListener("input", updateExtraCarriersInfo));
   ["enableSecondaryCarrier", "dualCarrierActive", "enableCenterFreq", "wapPdchCarrierEnabled"].forEach(id => el(id).addEventListener("change", updateExtraCarriersInfo));
 
