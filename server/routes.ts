@@ -1850,6 +1850,10 @@ exit 0
     if (readExtraCarriers(content).length) {
       // With extra_carriers only dual_carrier_enabled changes, as the station's own toggle does: commenting
       // secondary_carrier out would leave extra_carriers without it and the station would not start.
+      // ON still uncomments the keys an older switch commented out (no active secondary_carrier).
+      if (wantEnabled && !/^[ \t]*secondary_carrier\s*=\s*\d+/m.test(content)) {
+        for (const key of DC_KEYS) content = content.replace(dcLineRe(key), (_m, indent, _hash, rest) => `${indent}${rest}`);
+      }
       content = setDualCarrierEnabled(content, wantEnabled);
     } else {
       for (const key of DC_KEYS) {
@@ -4823,11 +4827,15 @@ exit 0
       };
 
       // ── extra_carriers en [cell_info] (FlowStation miura del 03-10-2026 o posterior) ──
-      // Solo si el cliente la envía (sin ella la línea no se toca). Se escribe debajo de secondary_carrier,
-      // solo con la secundaria habilitada y la lista no vacía; si no, se borra (razvan no arranca con ella).
-      applyExtraCarriers(lines, dcPresent && Array.isArray(dualCarrierConfig.extraCarriers)
-        ? (dcSecondaryEnabled ? normalizeExtraCarriers(dualCarrierConfig.extraCarriers, Number(values.main_carrier), dcSecondaryVal) : [])
-        : null);
+      // Se escribe debajo de secondary_carrier, solo con la secundaria habilitada y la lista no vacía; si no, se
+      // borra (razvan no arranca con ella). Con la secundaria desmarcada se borra aunque el cliente no mande la
+      // lista (calculadora anterior): sin secundaria la estación no arranca con extra_carriers. Con la secundaria
+      // marcada y sin la lista, la línea no se toca.
+      applyExtraCarriers(lines, !dcPresent ? null
+        : !dcSecondaryEnabled ? []
+        : Array.isArray(dualCarrierConfig.extraCarriers)
+          ? normalizeExtraCarriers(dualCarrierConfig.extraCarriers, Number(values.main_carrier), dcSecondaryVal)
+          : null);
 
       // ── Loro (parrot_* en [cell_info]) y WAP/datos por paquetes (FlowStation miura) ──
       // Solo cuando el cliente los envía (null en BlueStation).
