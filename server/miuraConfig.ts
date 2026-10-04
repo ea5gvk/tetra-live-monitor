@@ -419,6 +419,85 @@ export function setDualCarrierEnabled(content: string, on: boolean): string {
   return lines.join("\n");
 }
 
+// ── secondary_carrier_on_demand ([cell_info], FlowStation miura or TEA2 of 05-10-2026 or later) ──
+// Carriers other than the main one (the secondary and extra_carriers) go on the air only when needed, with
+// a warm-up (frames) before a radio is sent there and a grace (seconds) before they go off. razvan and older
+// binaries refuse the three keys and do not start, so they are written only with the option on and removed
+// otherwise. Every match is on the exact key: "secondary_carrier" is a prefix of all three.
+const ON_DEMAND_KEYS = ["secondary_carrier_on_demand", "secondary_carrier_warmup_frames", "secondary_carrier_inactivity_secs"];
+
+// Active keys of the exact [cell_info]: enabled only with "= true"; the numbers null when absent.
+export function readCarrierOnDemand(content: string): { enabled: boolean; warmup_frames: number | null; inactivity_secs: number | null } {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const cell = cellInfoKeys(lines, scanLines(lines), ON_DEMAND_KEYS);
+  const val = (k: string): string | undefined => {
+    const a = cell.found[k]?.[0];
+    if (a === undefined) return undefined;
+    const m = lines[a].match(KV_RE)!;
+    const sv = scanValue(m[4]);
+    return (sv.hash >= 0 ? m[4].slice(0, sv.hash) : m[4]).trim();
+  };
+  return {
+    enabled: val("secondary_carrier_on_demand") === "true",
+    warmup_frames: numVal(val("secondary_carrier_warmup_frames")),
+    inactivity_secs: numVal(val("secondary_carrier_inactivity_secs")),
+  };
+}
+
+// The station's ranges (it adjusts out-of-range values the same way instead of refusing them); missing = default.
+export function normalizeCarrierOnDemand(v: any): { warmup_frames: number; inactivity_secs: number } {
+  const n = (x: any, lo: number, hi: number, def: number) => (x == null || x === "" ? def : clampI(x, lo, hi, def));
+  return { warmup_frames: n(v?.warmup_frames, 0, 18, 4), inactivity_secs: n(v?.inactivity_secs, 1, 3600, 180) };
+}
+
+// od: null = not touched; false = every active line of the three keys removed; otherwise the three are written:
+// the first line of each rewritten in place (its trailing comment kept), repeats dropped, the missing ones added
+// after the last one present or, with none, right below extra_carriers / secondary_carrier. A CRLF file is
+// handled without its "\r" and gets it back at the end.
+export function applyCarrierOnDemand(lines: string[], od: { warmup_frames: number; inactivity_secs: number } | false | null): string[] {
+  if (od === null) return lines;
+  const crlf = lines.some((l) => l.endsWith("\r"));
+  if (crlf) lines.forEach((l, i) => (lines[i] = l.replace(/\r$/, "")));
+  try {
+    const info = scanLines(lines);
+    const cell = cellInfoKeys(lines, info, [...ON_DEMAND_KEYS, "extra_carriers", "secondary_carrier"]);
+    if (cell.start < 0) return lines;
+    const vals: Record<string, string> = od ? {
+      secondary_carrier_on_demand: "true",
+      secondary_carrier_warmup_frames: String(od.warmup_frames),
+      secondary_carrier_inactivity_secs: String(od.inactivity_secs),
+    } : {};
+    const remove: number[] = [];
+    const missing: string[] = [];
+    for (const k of ON_DEMAND_KEYS) {
+      const occ = cell.found[k] || [];
+      occ.forEach((i, n) => {
+        const j = kvEnd(info, i);
+        if (n === 0 && od) {
+          const m = lines[i].match(KV_RE)!;
+          const sv = scanValue(m[4]);
+          const tail = j === i + 1 && sv.hash >= 0 ? m[4].slice(m[4].slice(0, sv.hash).trimEnd().length) : "";
+          lines[i] = `${m[1]}${k}${m[3]}${vals[k]}${tail}`;
+          for (let r = i + 1; r < j; r++) remove.push(r);
+        } else for (let r = i; r < j; r++) remove.push(r);
+      });
+      if (od && !occ.length) missing.push(k);
+    }
+    let at = lines.length;
+    if (missing.length) {
+      const present = ON_DEMAND_KEYS.map((k) => cell.found[k]?.[0]).filter((x): x is number => x !== undefined);
+      const anchor = present.length ? Math.max(...present) : cell.found["extra_carriers"]?.[0] ?? cell.found["secondary_carrier"]?.[0];
+      at = anchor !== undefined ? kvEnd(info, anchor) : cell.lastKv + 1;
+      const indent = anchor !== undefined ? lines[anchor].match(/^\s*/)![0] : "";
+      lines.splice(at, 0, ...missing.map((k) => `${indent}${k} = ${vals[k]}`));
+    }
+    for (const r of remove.sort((x, y) => y - x)) lines.splice(r >= at ? r + missing.length : r, 1);
+    return lines;
+  } finally {
+    if (crlf) lines.forEach((l, i) => { if (i < lines.length - 1) lines[i] = `${l}\r`; });
+  }
+}
+
 // Last line with content (not blank, not comment) in [from, to), or from - 1.
 function lastContent(lines: string[], from: number, to: number): number {
   for (let i = to - 1; i >= from; i--) {

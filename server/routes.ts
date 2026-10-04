@@ -8,7 +8,7 @@ import { spawn, exec, execSync, type ChildProcess } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
-import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled } from "./miuraConfig";
+import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand } from "./miuraConfig";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -2594,6 +2594,8 @@ exit 0
           timezone: str('cell_info', 'timezone'),
           secondary_carrier: num('cell_info', 'secondary_carrier'),
           extra_carriers: readExtraCarriers(content), // FlowStation miura of 04-10-2026 or later; [] when absent
+          // secondary_carrier_on_demand + warm-up + grace (FlowStation miura or TEA2 of 05-10-2026 or later).
+          carrier_on_demand: readCarrierOnDemand(content),
           local_ssi_ranges: ssiRanges,
           ssi_ranges_enabled: ssiRangesEnabled,
           neighbor_cells: neighborCells,
@@ -4836,6 +4838,14 @@ exit 0
         : Array.isArray(dualCarrierConfig.extraCarriers)
           ? normalizeExtraCarriers(dualCarrierConfig.extraCarriers, Number(values.main_carrier), dcSecondaryVal)
           : null);
+
+      // ── secondary_carrier_on_demand + warmup_frames + inactivity_secs en [cell_info] (FlowStation miura o TEA2 del
+      // 05-10-2026 o posterior) ── Solo cuando el cliente manda onDemand: las tres se escriben con la casilla marcada y la
+      // secundaria habilitada, y se borran si no (razvan no arranca con ellas). Sin onDemand (calculadora anterior) no se tocan.
+      const dcOnDemand = dcPresent && dualCarrierConfig.onDemand && typeof dualCarrierConfig.onDemand === "object" ? dualCarrierConfig.onDemand : null;
+      applyCarrierOnDemand(lines, !dcOnDemand ? null
+        : dcSecondaryEnabled && dcOnDemand.enabled === true ? normalizeCarrierOnDemand(dcOnDemand)
+        : false);
 
       // ── Loro (parrot_* en [cell_info]) y WAP/datos por paquetes (FlowStation miura) ──
       // Solo cuando el cliente los envía (null en BlueStation).
