@@ -318,7 +318,7 @@ function managedTables(c: any): Record<string, Array<[string, string, string]>> 
   };
 }
 
-// ── extra_carriers ([cell_info], FlowStation miura of 03-10-2026 or later) ──
+// ── extra_carriers ([cell_info], FlowStation miura of 04-10-2026 or later) ──
 // A third and fourth carrier after secondary_carrier (at most 4 carriers in the cell). razvan and older
 // binaries refuse the key and do not start, so it is written only when the list is not empty and
 // removed otherwise: never "extra_carriers = []".

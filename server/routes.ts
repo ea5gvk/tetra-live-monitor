@@ -1373,7 +1373,7 @@ exit 0
       if (dualCarrierActive) {
         // Same band, offset and duplex spacing as the main carrier: 25 kHz per carrier number
         // (the stack's own formula, tetra-core freqs.rs) — used when the base station's
-        // dashboard is not reachable. extra_carriers (FlowStation miura of 03-10-2026 or later)
+        // dashboard is not reachable. extra_carriers (FlowStation miura of 04-10-2026 or later)
         // follow the secondary and go off with it.
         for (const n of [secondaryCarrier!, ...readExtraCarriers(content)]) {
           const delta = mainCarrier != null ? (n - mainCarrier) * 25000 : null;
@@ -1829,7 +1829,7 @@ exit 0
       const dceM = content.match(/^[ \t]*dual_carrier_enabled\s*=\s*(true|false)/m); // solo descomentado
       const dualEnabled = dceM ? dceM[1] === "true" : true;
       const enabled = secUncommented && dualEnabled;
-      // extra_carriers (FlowStation miura of 03-10-2026 or later) only when there are any: otherwise the body is unchanged.
+      // extra_carriers (FlowStation miura of 04-10-2026 or later) only when there are any: otherwise the body is unchanged.
       const extra = readExtraCarriers(content);
       res.json({ ok: true, configured, enabled, secondary_carrier: secM ? Number(secM[3]) : null, ...(extra.length ? { extra_carriers: extra } : {}), path: p, service });
     } catch (e: any) {
@@ -2593,7 +2593,7 @@ exit 0
           timezone_broadcast: bool('cell_info', 'timezone_broadcast'),
           timezone: str('cell_info', 'timezone'),
           secondary_carrier: num('cell_info', 'secondary_carrier'),
-          extra_carriers: readExtraCarriers(content), // FlowStation miura of 03-10-2026 or later; [] when absent
+          extra_carriers: readExtraCarriers(content), // FlowStation miura of 04-10-2026 or later; [] when absent
           local_ssi_ranges: ssiRanges,
           ssi_ranges_enabled: ssiRangesEnabled,
           neighbor_cells: neighborCells,
@@ -4826,7 +4826,7 @@ exit 0
         return result;
       };
 
-      // ── extra_carriers en [cell_info] (FlowStation miura del 03-10-2026 o posterior) ──
+      // ── extra_carriers en [cell_info] (FlowStation miura del 04-10-2026 o posterior) ──
       // Se escribe debajo de secondary_carrier, solo con la secundaria habilitada y la lista no vacía; si no, se
       // borra (razvan no arranca con ella). Con la secundaria desmarcada se borra aunque el cliente no mande la
       // lista (calculadora anterior): sin secundaria la estación no arranca con extra_carriers. Con la secundaria
