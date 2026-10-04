@@ -650,6 +650,25 @@
             </div>
             <div class="hint" data-i18n="dual_active_hint">Checked = omit line (default: dual carrier active). Unchecked = writes 'dual_carrier_enabled = false' to run single-carrier while keeping the carrier number.</div>
           </div>
+          <div style="margin-top:12px;">
+            <div class="checkbox-row">
+              <input type="checkbox" id="enableCarrierOnDemand" data-testid="checkbox-carrier-on-demand" />
+              <label for="enableCarrierOnDemand" data-i18n="dual_ondemand_enable">Portadoras bajo demanda (secondary_carrier_on_demand)</label>
+            </div>
+            <div class="hint" data-i18n="dual_ondemand_hint">Las portadoras que no son la principal (la secundaria y las extra_carriers) solo salen al aire cuando hacen falta: una se enciende en cuanto la siguiente llamada iría a ella (las anteriores están llenas) y sigue encendida mientras lleva llamadas o datos; tras los segundos de gracia sin hacer falta se apaga. Antes de mandar allí a una radio emite el calentamiento (tramas de unos 57 ms). Al encenderse o apagarse una portadora cambian el PAPR y el rms de TX. Desmarcada, las tres líneas no se escriben (y se borran al aplicar). Requiere FlowStation miura o TEA2 del 05-10-2026 o posterior; la FlowStation de razvan no conoce estas claves y no arranca con ellas: con razvan déjala desmarcada.</div>
+            <div id="carrierOnDemandFields" style="display:none; margin-top:10px;">
+              <div class="row">
+                <div>
+                  <label for="carrierWarmupFrames" data-i18n="dual_ondemand_warmup">Calentamiento: secondary_carrier_warmup_frames (0–18 tramas)</label>
+                  <input id="carrierWarmupFrames" type="number" min="0" max="18" value="4" style="max-width:120px;" data-testid="input-carrier-warmup-frames" />
+                </div>
+                <div>
+                  <label for="carrierInactivitySecs" data-i18n="dual_ondemand_grace">Gracia: secondary_carrier_inactivity_secs (1–3600 s)</label>
+                  <input id="carrierInactivitySecs" type="number" min="1" max="3600" value="180" style="max-width:120px;" data-testid="input-carrier-inactivity-secs" />
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
       <div class="subsection">
@@ -2162,6 +2181,10 @@
       dual_extra_adjacent: "Carriers #{a} and #{b} are 25 kHz apart: the receive filter only takes about 7 dB off the neighbour, expect copies.",
       dual_extra_im3: "The intermodulation product {p} falls on carrier #{c}: avoid equal spacings.",
       dual_extra_lo: "The RX LO (rx_center_freq − 20 kHz) falls inside the uplink channel of carrier #{c}: move rx_center_freq.",
+      dual_ondemand_enable: "Carriers on demand (secondary_carrier_on_demand)",
+      dual_ondemand_hint: "Carriers other than the main one (the secondary and extra_carriers) go on the air only when needed: one switches on as soon as the next call would go to it (the previous ones are full) and stays on while it carries calls or data; after the grace seconds without being needed it switches off. Before a radio is sent there it transmits the warm-up (frames of about 57 ms). The TX PAPR and rms change when a carrier switches on or off. Unticked, the three lines are not written (and are removed on apply). Needs FlowStation miura or TEA2 of 05-10-2026 or later; the razvan FlowStation does not know these keys and will not start with them: leave it unticked there.",
+      dual_ondemand_warmup: "Warm-up: secondary_carrier_warmup_frames (0–18 frames)",
+      dual_ondemand_grace: "Grace: secondary_carrier_inactivity_secs (1–3600 s)",
       wap_carrier_not_cell: "pdch_carrier is neither the secondary_carrier nor one of the extra carriers: the station ignores it.",
       dual_center_enable: "Enable tx_center_freq / rx_center_freq",
       dual_center_hint: "SDR center frequencies for dual-carrier. When disabled, written as comments (# tx_center_freq = ...).",
@@ -2486,6 +2509,10 @@
       dual_extra_adjacent: "載波 #{a} 與 #{b} 相距 25 kHz：接收濾波器只能抑制鄰道約 7 dB，會出現複本。",
       dual_extra_im3: "互調產物 {p} 落在載波 #{c} 上：請避免相等的間距。",
       dual_extra_lo: "接收本振（rx_center_freq − 20 kHz）落在載波 #{c} 的上行通道內：請調整 rx_center_freq。",
+      dual_ondemand_enable: "按需載波（secondary_carrier_on_demand）",
+      dual_ondemand_hint: "主載波以外的載波（第二載波及 extra_carriers）僅在需要時才發射：當下一通呼叫將落在該載波上（前面的載波已滿）時立即開啟，承載呼叫或數據期間保持開啟；超過寬限秒數不再需要時即關閉。在將無線電派往該載波之前，會先發射預熱（每幀約 57 ms）。載波開啟或關閉時，TX 的 PAPR 與 rms 會改變。未勾選時不寫入這三行（套用時會刪除）。需要 2026-10-05 或之後的 FlowStation miura 或 TEA2；razvan 的 FlowStation 不認識這些鍵，遇到它們將無法啟動：使用 razvan 時請勿勾選。",
+      dual_ondemand_warmup: "預熱：secondary_carrier_warmup_frames（0–18 幀）",
+      dual_ondemand_grace: "寬限：secondary_carrier_inactivity_secs（1–3600 秒）",
       wap_carrier_not_cell: "pdch_carrier 既不是 secondary_carrier，也不是額外載波之一：基地台會忽略它。",
       dual_center_enable: "启用 tx_center_freq / rx_center_freq",
       dual_center_hint: "双载波的 SDR 中心频率。禁用时写为注释行（# tx_center_freq = ...）。",
@@ -2848,6 +2875,10 @@
       dual_extra_adjacent: "Las portadoras #{a} y #{b} están a 25 kHz: el filtro de recepción solo quita unos 7 dB a la vecina y habrá copias.",
       dual_extra_im3: "El producto de intermodulación {p} cae sobre la portadora #{c}: evita separaciones iguales.",
       dual_extra_lo: "El LO de recepción (rx_center_freq − 20 kHz) cae dentro del canal de subida de la portadora #{c}: mueve rx_center_freq.",
+      dual_ondemand_enable: "Portadoras bajo demanda (secondary_carrier_on_demand)",
+      dual_ondemand_hint: "Las portadoras que no son la principal (la secundaria y las extra_carriers) solo salen al aire cuando hacen falta: una se enciende en cuanto la siguiente llamada iría a ella (las anteriores están llenas) y sigue encendida mientras lleva llamadas o datos; tras los segundos de gracia sin hacer falta se apaga. Antes de mandar allí a una radio emite el calentamiento (tramas de unos 57 ms). Al encenderse o apagarse una portadora cambian el PAPR y el rms de TX. Desmarcada, las tres líneas no se escriben (y se borran al aplicar). Requiere FlowStation miura o TEA2 del 05-10-2026 o posterior; la FlowStation de razvan no conoce estas claves y no arranca con ellas: con razvan déjala desmarcada.",
+      dual_ondemand_warmup: "Calentamiento: secondary_carrier_warmup_frames (0–18 tramas)",
+      dual_ondemand_grace: "Gracia: secondary_carrier_inactivity_secs (1–3600 s)",
       wap_carrier_not_cell: "pdch_carrier no es la secondary_carrier ni una de las portadoras extra: la estación lo ignora.",
       dual_center_enable: "Habilitar tx_center_freq / rx_center_freq",
       dual_center_hint: "Frecuencias centrales SDR para doble portadora. Desactivadas se escriben como comentarios (# tx_center_freq = ...).",
@@ -3172,6 +3203,10 @@
       dual_extra_adjacent: "As portadoras #{a} e #{b} estão a 25 kHz: o filtro de receção só tira uns 7 dB à vizinha e haverá cópias.",
       dual_extra_im3: "O produto de intermodulação {p} cai sobre a portadora #{c}: evite espaçamentos iguais.",
       dual_extra_lo: "O LO de receção (rx_center_freq − 20 kHz) cai dentro do canal de subida da portadora #{c}: mude rx_center_freq.",
+      dual_ondemand_enable: "Portadoras a pedido (secondary_carrier_on_demand)",
+      dual_ondemand_hint: "As portadoras que não são a principal (a secundária e as extra_carriers) só vão para o ar quando são precisas: uma liga-se assim que a chamada seguinte iria para ela (as anteriores estão cheias) e fica ligada enquanto leva chamadas ou dados; após os segundos de tolerância sem ser precisa desliga-se. Antes de enviar para lá um rádio emite o aquecimento (tramas de cerca de 57 ms). Ao ligar ou desligar uma portadora mudam o PAPR e o rms de TX. Desmarcada, as três linhas não são escritas (e são apagadas ao aplicar). Requer FlowStation miura ou TEA2 de 05-10-2026 ou posterior; a FlowStation de razvan não conhece estas chaves e não arranca com elas: com razvan deixe desmarcada.",
+      dual_ondemand_warmup: "Aquecimento: secondary_carrier_warmup_frames (0–18 tramas)",
+      dual_ondemand_grace: "Tolerância: secondary_carrier_inactivity_secs (1–3600 s)",
       wap_carrier_not_cell: "pdch_carrier não é a secondary_carrier nem uma das portadoras extra: a estação ignora-a.",
       dual_center_enable: "Ativar tx_center_freq / rx_center_freq",
       dual_center_hint: "Frequências centrais SDR para portadora dupla. Desativadas são escritas como comentários (# tx_center_freq = ...).",
@@ -3491,6 +3526,10 @@
       dual_extra_adjacent: "Die Träger #{a} und #{b} liegen 25 kHz auseinander: das Empfangsfilter dämpft den Nachbarn nur um etwa 7 dB, es wird Kopien geben.",
       dual_extra_im3: "Das Intermodulationsprodukt {p} fällt auf Träger #{c}: gleiche Abstände vermeiden.",
       dual_extra_lo: "Der Empfangs-LO (rx_center_freq − 20 kHz) liegt im Uplink-Kanal von Träger #{c}: rx_center_freq verschieben.",
+      dual_ondemand_enable: "Träger bei Bedarf (secondary_carrier_on_demand)",
+      dual_ondemand_hint: "Die Träger außer dem Hauptträger (der Zweitträger und die extra_carriers) senden nur, wenn sie gebraucht werden: ein Träger schaltet sich ein, sobald der nächste Ruf auf ihn ginge (die vorherigen sind voll), und bleibt an, solange er Rufe oder Daten trägt; nach den Nachlaufsekunden ohne Bedarf schaltet er sich ab. Bevor ein Funkgerät dorthin geschickt wird, sendet er die Aufwärmzeit (Rahmen von etwa 57 ms). Beim Ein- oder Ausschalten eines Trägers ändern sich PAPR und rms des TX. Nicht angehakt werden die drei Zeilen nicht geschrieben (und beim Anwenden entfernt). Erfordert FlowStation miura oder TEA2 vom 05.10.2026 oder neuer; die FlowStation von razvan kennt diese Schlüssel nicht und startet damit nicht: dort nicht anhaken.",
+      dual_ondemand_warmup: "Aufwärmen: secondary_carrier_warmup_frames (0–18 Rahmen)",
+      dual_ondemand_grace: "Nachlauf: secondary_carrier_inactivity_secs (1–3600 s)",
       wap_carrier_not_cell: "pdch_carrier ist weder der secondary_carrier noch einer der zusätzlichen Träger: die Station ignoriert ihn.",
       dual_center_enable: "tx_center_freq / rx_center_freq aktivieren",
       dual_center_hint: "SDR-Mittenfrequenzen für Doppelträger. Deaktiviert werden sie als Kommentare geschrieben (# tx_center_freq = ...).",
@@ -3810,6 +3849,10 @@
       dual_extra_adjacent: "Les porteuses #{a} et #{b} sont à 25 kHz : le filtre de réception n'atténue la voisine que d'environ 7 dB, il y aura des copies.",
       dual_extra_im3: "Le produit d'intermodulation {p} tombe sur la porteuse #{c} : évitez les espacements égaux.",
       dual_extra_lo: "L'OL de réception (rx_center_freq − 20 kHz) tombe dans le canal montant de la porteuse #{c} : déplacez rx_center_freq.",
+      dual_ondemand_enable: "Porteuses à la demande (secondary_carrier_on_demand)",
+      dual_ondemand_hint: "Les porteuses autres que la principale (la secondaire et les extra_carriers) n'émettent que lorsqu'elles sont nécessaires : une porteuse s'allume dès que l'appel suivant irait sur elle (les précédentes sont pleines) et reste allumée tant qu'elle porte des appels ou des données ; après les secondes de grâce sans être nécessaire, elle s'éteint. Avant d'y envoyer une radio, elle émet le préchauffage (trames d'environ 57 ms). Quand une porteuse s'allume ou s'éteint, le PAPR et le rms TX changent. Décochée, les trois lignes ne sont pas écrites (et sont supprimées à l'application). Nécessite FlowStation miura ou TEA2 du 05-10-2026 ou ultérieure ; la FlowStation de razvan ne connaît pas ces clés et ne démarre pas avec elles : avec razvan, laissez décoché.",
+      dual_ondemand_warmup: "Préchauffage : secondary_carrier_warmup_frames (0–18 trames)",
+      dual_ondemand_grace: "Délai de grâce : secondary_carrier_inactivity_secs (1–3600 s)",
       wap_carrier_not_cell: "pdch_carrier n'est ni la secondary_carrier ni une des porteuses supplémentaires : la station l'ignore.",
       dual_center_enable: "Activer tx_center_freq / rx_center_freq",
       dual_center_hint: "Fréquences centrales SDR pour double porteuse. Désactivées, elles sont écrites en commentaires (# tx_center_freq = ...).",
@@ -4129,6 +4172,10 @@
       dual_extra_adjacent: "Le portanti #{a} e #{b} sono a 25 kHz: il filtro di ricezione toglie solo circa 7 dB alla vicina e ci saranno copie.",
       dual_extra_im3: "Il prodotto di intermodulazione {p} cade sulla portante #{c}: evita spaziature uguali.",
       dual_extra_lo: "L'LO di ricezione (rx_center_freq − 20 kHz) cade nel canale in salita della portante #{c}: sposta rx_center_freq.",
+      dual_ondemand_enable: "Portanti su richiesta (secondary_carrier_on_demand)",
+      dual_ondemand_hint: "Le portanti diverse dalla principale (la secondaria e le extra_carriers) vanno in onda solo quando servono: una si accende appena la chiamata successiva andrebbe su di essa (le precedenti sono piene) e resta accesa finché porta chiamate o dati; dopo i secondi di tolleranza senza servire si spegne. Prima di mandarci una radio trasmette il riscaldamento (trame di circa 57 ms). Quando una portante si accende o si spegne cambiano il PAPR e l'rms TX. Deselezionata, le tre righe non vengono scritte (e vengono rimosse all'applicazione). Richiede FlowStation miura o TEA2 del 05-10-2026 o successiva; la FlowStation di razvan non conosce queste chiavi e non si avvia con esse: con razvan lasciala deselezionata.",
+      dual_ondemand_warmup: "Riscaldamento: secondary_carrier_warmup_frames (0–18 trame)",
+      dual_ondemand_grace: "Tolleranza: secondary_carrier_inactivity_secs (1–3600 s)",
       wap_carrier_not_cell: "pdch_carrier non è la secondary_carrier né una delle portanti extra: la stazione la ignora.",
       dual_center_enable: "Abilita tx_center_freq / rx_center_freq",
       dual_center_hint: "Frequenze centrali SDR per doppia portante. Disabilitate, sono scritte come commenti (# tx_center_freq = ...).",
@@ -4448,6 +4495,10 @@
       dual_extra_adjacent: "Bærebølgerne #{a} og #{b} ligger 25 kHz fra hinanden: modtagefilteret dæmper kun naboen med ca. 7 dB, og der kommer kopier.",
       dual_extra_im3: "Intermodulationsproduktet {p} falder på bærebølge #{c}: undgå ens afstande.",
       dual_extra_lo: "Modtager-LO'en (rx_center_freq − 20 kHz) ligger i uplink-kanalen for bærebølge #{c}: flyt rx_center_freq.",
+      dual_ondemand_enable: "Bærebølger efter behov (secondary_carrier_on_demand)",
+      dual_ondemand_hint: "Andre bærebølger end hovedbærebølgen (den sekundære og extra_carriers) sender kun, når der er brug for dem: en bærebølge tændes, så snart det næste opkald ville gå til den (de foregående er fulde), og forbliver tændt, mens den bærer opkald eller data; efter henstandssekunderne uden behov slukkes den. Før en radio sendes derhen, sender den opvarmningen (rammer på ca. 57 ms). Når en bærebølge tændes eller slukkes, ændres TX-PAPR og rms. Uden flueben skrives de tre linjer ikke (og fjernes ved anvendelse). Kræver FlowStation miura eller TEA2 fra 05-10-2026 eller nyere; razvans FlowStation kender ikke disse nøgler og starter ikke med dem: med razvan lad den være uden flueben.",
+      dual_ondemand_warmup: "Opvarmning: secondary_carrier_warmup_frames (0–18 rammer)",
+      dual_ondemand_grace: "Henstand: secondary_carrier_inactivity_secs (1–3600 s)",
       wap_carrier_not_cell: "pdch_carrier er hverken secondary_carrier eller en af de ekstra bærebølger: stationen ignorerer den.",
       dual_center_enable: "Aktiver tx_center_freq / rx_center_freq",
       dual_center_hint: "SDR-centerfrekvenser til dobbelt bærebølge. Deaktiveret skrives de som kommentarer (# tx_center_freq = ...).",
@@ -4767,6 +4818,10 @@
       dual_extra_adjacent: "De draaggolven #{a} en #{b} liggen 25 kHz uit elkaar: het ontvangstfilter verzwakt de buur maar ongeveer 7 dB, er komen kopieën.",
       dual_extra_im3: "Het intermodulatieproduct {p} valt op draaggolf #{c}: vermijd gelijke afstanden.",
       dual_extra_lo: "De ontvangst-LO (rx_center_freq − 20 kHz) valt in het uplinkkanaal van draaggolf #{c}: verplaats rx_center_freq.",
+      dual_ondemand_enable: "Draaggolven op aanvraag (secondary_carrier_on_demand)",
+      dual_ondemand_hint: "Andere draaggolven dan de hoofddraaggolf (de secundaire en extra_carriers) zenden alleen uit wanneer ze nodig zijn: een draaggolf gaat aan zodra de volgende oproep naar hem zou gaan (de vorige zijn vol) en blijft aan zolang hij oproepen of data draagt; na de nalooptijd zonder nodig te zijn gaat hij uit. Voordat er een radio heen wordt gestuurd, zendt hij de opwarmtijd uit (frames van ongeveer 57 ms). Bij het in- of uitschakelen van een draaggolf veranderen de TX-PAPR en rms. Uitgevinkt worden de drie regels niet geschreven (en bij toepassen verwijderd). Vereist FlowStation miura of TEA2 van 05-10-2026 of later; de FlowStation van razvan kent deze sleutels niet en start er niet mee: laat het bij razvan uitgevinkt.",
+      dual_ondemand_warmup: "Opwarmen: secondary_carrier_warmup_frames (0–18 frames)",
+      dual_ondemand_grace: "Nalooptijd: secondary_carrier_inactivity_secs (1–3600 s)",
       wap_carrier_not_cell: "pdch_carrier is niet de secondary_carrier en ook geen van de extra draaggolven: het station negeert hem.",
       dual_center_enable: "Schakel tx_center_freq / rx_center_freq in",
       dual_center_hint: "SDR-middenfrequenties voor dubbele draaggolf. Uitgeschakeld worden ze als commentaar geschreven (# tx_center_freq = ...).",
@@ -5086,6 +5141,10 @@
       dual_extra_adjacent: "Purtătoarele #{a} și #{b} sunt la 25 kHz: filtrul de recepție atenuează vecina doar cu circa 7 dB și vor apărea copii.",
       dual_extra_im3: "Produsul de intermodulație {p} cade pe purtătoarea #{c}: evitați distanțele egale.",
       dual_extra_lo: "LO-ul de recepție (rx_center_freq − 20 kHz) cade în canalul de urcare al purtătoarei #{c}: mutați rx_center_freq.",
+      dual_ondemand_enable: "Purtătoare la cerere (secondary_carrier_on_demand)",
+      dual_ondemand_hint: "Purtătoarele care nu sunt cea principală (cea secundară și extra_carriers) emit doar când este nevoie de ele: o purtătoare pornește de îndată ce următorul apel ar merge pe ea (cele dinainte sunt pline) și rămâne pornită cât timp poartă apeluri sau date; după secundele de grație fără să fie necesară se oprește. Înainte de a trimite acolo o stație radio emite încălzirea (cadre de circa 57 ms). La pornirea sau oprirea unei purtătoare se schimbă PAPR și rms TX. Nebifată, cele trei linii nu se scriu (și se șterg la aplicare). Necesită FlowStation miura sau TEA2 din 05-10-2026 sau mai nouă; FlowStation de la razvan nu cunoaște aceste chei și nu pornește cu ele: cu razvan lăsați-o nebifată.",
+      dual_ondemand_warmup: "Încălzire: secondary_carrier_warmup_frames (0–18 cadre)",
+      dual_ondemand_grace: "Grație: secondary_carrier_inactivity_secs (1–3600 s)",
       wap_carrier_not_cell: "pdch_carrier nu este secondary_carrier și nici una dintre purtătoarele suplimentare: stația o ignoră.",
       dual_center_enable: "Activați tx_center_freq / rx_center_freq",
       dual_center_hint: "Frecvențe centrale SDR pentru purtătoare dublă. Dezactivate, sunt scrise ca comentarii (# tx_center_freq = ...).",
@@ -5568,6 +5627,14 @@
       // written only with the secondary carrier on and the list not empty, never empty.
       const extraCarriers = getExtraCarriers(out.mainCarrier).list;
       if (scEnabled && extraCarriers.length) lines.push(`extra_carriers = [${extraCarriers.join(", ")}]`);
+      // Carriers on demand: only FlowStation miura or TEA2 of 05-10-2026 or later knows the three keys (razvan does
+      // not start with them): written only with the secondary carrier on and the box ticked.
+      const onDemand = getCarrierOnDemand();
+      if (scEnabled && onDemand.enabled) {
+        lines.push(`secondary_carrier_on_demand = true`);
+        lines.push(`secondary_carrier_warmup_frames = ${onDemand.warmup_frames}`);
+        lines.push(`secondary_carrier_inactivity_secs = ${onDemand.inactivity_secs}`);
+      }
       if (!el("dualCarrierActive").checked) {
         lines.push(`dual_carrier_enabled = false`);
       }
@@ -6595,6 +6662,13 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           }
         }
         el("extraCarriersVal").value = (Array.isArray(data.cell_info?.extra_carriers) ? data.cell_info.extra_carriers : []).join(", ");
+        // Carriers on demand: ticked only with an active "secondary_carrier_on_demand = true" in [cell_info]; the numbers
+        // that are missing keep the station's defaults.
+        var od = data.cell_info?.carrier_on_demand || {};
+        el("enableCarrierOnDemand").checked = od.enabled === true;
+        el("enableCarrierOnDemand").dispatchEvent(new Event("change"));
+        el("carrierWarmupFrames").value = String(od.warmup_frames != null ? Math.max(0, Math.min(18, od.warmup_frames)) : 4);
+        el("carrierInactivitySecs").value = String(od.inactivity_secs != null ? Math.max(1, Math.min(3600, od.inactivity_secs)) : 180);
         el("enableSecondaryCarrier").checked = scEnabled;
         el("enableSecondaryCarrier").dispatchEvent(new Event("change"));
         if (scVal !== null) el("secondaryCarrierVal").value = String(scVal);
@@ -7213,6 +7287,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         active: el("dualCarrierActive").checked,
       },
       extraCarriers: getExtraCarriers(lastComputedResult.main_carrier).list,
+      onDemand: getCarrierOnDemand(),
       centerFreq: {
         enabled: el("enableCenterFreq").checked,
         tx: Number(el("txCenterFreqVal").value) || 0,
@@ -7879,6 +7954,13 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     }
   }
 
+  // secondary_carrier_on_demand (FlowStation miura or TEA2 of 05-10-2026 or later): the box and its two numbers
+  // clamped as the station does (warm-up 0-18 frames, grace 1-3600 s); empty = default.
+  function getCarrierOnDemand(){
+    const num = (id, lo, hi, def) => { const v = String(el(id).value).trim(); const n = Number(v); return v === "" || !Number.isFinite(n) ? def : Math.max(lo, Math.min(hi, Math.round(n))); };
+    return { enabled: el("enableCarrierOnDemand").checked, warmup_frames: num("carrierWarmupFrames", 0, 18, 4), inactivity_secs: num("carrierInactivitySecs", 1, 3600, 180) };
+  }
+
   // extra_carriers (FlowStation miura of 04-10-2026 or later): the typed numbers normalised as the server
   // writes them (0-4095, distinct, not the main or the secondary carrier, at most two: 4 carriers in all),
   // and what was dropped.
@@ -7949,6 +8031,11 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   el("enableDgnaAttachMode").addEventListener("change", function(){
     el("dgnaAttachModeField").style.display = this.checked ? "block" : "none";
   });
+  el("enableCarrierOnDemand").addEventListener("change", function(){
+    el("carrierOnDemandFields").style.display = this.checked ? "block" : "none";
+    updateTomlFromNew();
+  });
+  ["carrierWarmupFrames", "carrierInactivitySecs"].forEach(id => el(id).addEventListener("input", updateTomlFromNew));
   el("txCenterFreqVal").addEventListener("input", updateSecondaryFromCenter);
   el("txVal").addEventListener("input", updateSecondaryFromCenter);
   el("txUnit").addEventListener("change", updateSecondaryFromCenter);
