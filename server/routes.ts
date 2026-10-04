@@ -5182,6 +5182,17 @@ exit 0
   const pdchSlots = new Map<string, PdchEntry>();
   const pdchSnapshot = () => Array.from(pdchSlots.values());
   const broadcastPdch = () => broadcast(JSON.stringify({ type: 'rf_pdch_state', payload: pdchSnapshot() }));
+  // Carriers on demand (FlowStation miura/TEA2 with secondary_carrier_on_demand): whether each carrier other
+  // than the main one is on the air, warming up or off. The station sends carrier_air only with the feature
+  // on, so without it this stays empty and the panel shows no mark.
+  type CarrierAir = 'off' | 'warming' | 'on';
+  const carrierAir = new Map<number, CarrierAir>();
+  const airState = (v: any): CarrierAir | null => {
+    const s = typeof v === 'string' ? v.trim().toLowerCase() : v;
+    return s === 'on' || s === 2 || s === '2' ? 'on' : s === 'warming' || s === 1 || s === '1' ? 'warming' : s === 'off' || s === 0 || s === '0' ? 'off' : null;
+  };
+  const carrierAirSnapshot = () => Array.from(carrierAir, ([carrier, state]) => ({ carrier, state }));
+  const broadcastCarrierAir = () => broadcast(JSON.stringify({ type: 'rf_carrier_air_state', payload: carrierAirSnapshot() }));
   const modeToStr = (m: number | null | undefined): string | null => {
     if (m === null || m === undefined || m === 0) return null;
     if (typeof m === 'number' && m >= 1 && m <= 7) return `Eg${m}`;
@@ -5509,6 +5520,27 @@ exit 0
             }
             broadcastPdch();
           }
+          // carrier_air: [{carrier_num, state}] (or {"1530": state}); a snapshot without it = feature off.
+          if (m.carrier_air != null || carrierAir.size) {
+            carrierAir.clear();
+            const list: any[] = Array.isArray(m.carrier_air) ? m.carrier_air
+              : m.carrier_air && typeof m.carrier_air === 'object'
+                ? Object.entries(m.carrier_air).map(([k, v]: [string, any]) => (v && typeof v === 'object' ? { carrier_num: k, ...v } : { carrier_num: k, state: v }))
+                : [];
+            for (const a of list) {
+              const carrier = pickCarrier(a);
+              const state = airState(a?.state);
+              if (carrier != null && Number.isFinite(carrier) && state) carrierAir.set(carrier, state);
+            }
+            broadcastCarrierAir();
+          }
+        } else if (m.type === 'carrier_air') {
+          const carrier = pickCarrier(m);
+          const state = airState(m.state);
+          if (carrier != null && Number.isFinite(carrier) && state && carrierAir.get(carrier) !== state) {
+            carrierAir.set(carrier, state);
+            broadcastCarrierAir();
+          }
         } else if (m.type === 'pdch' && m.ts != null) {
           const carrier = pickCarrier(m);
           const key = `${carrier}:${m.ts}`;
@@ -5636,8 +5668,10 @@ exit 0
         activeCalls.clear();
         tsCipher.clear();
         pdchSlots.clear();
+        carrierAir.clear();
         broadcast(JSON.stringify({ type: 'rf_calls_state', payload: [] }));
         broadcastPdch();
+        broadcastCarrierAir();
         broadcast(JSON.stringify({ type: 'fs_dashboard_status', payload: { active: false } }));
         // v0.6: flowstation gone — clear live telemetry (keep last_heard as history).
         fsEmergencies.clear();
@@ -5700,6 +5734,7 @@ exit 0
         gpsHistory: currentState.gpsHistory,
         rfCalls: rfCallsSnapshot(),
         pdch: pdchSnapshot(),
+        carrierAir: carrierAirSnapshot(),
         fsDashboardActive,
         emergencies: fsEmergencyList(),
         brewStatus: fsBrew,
