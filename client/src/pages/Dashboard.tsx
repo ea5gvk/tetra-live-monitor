@@ -1,4 +1,4 @@
-import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage, type RfCall, type RfPdch, type EmergencyEntry, type LastHeardEntry, type TxQuality, type HealthSnapshot, type SdrHealth, type SysHealth, type BrewStatus } from "../hooks/useTetraWebSocket";
+import { useTetraWebSocket, type Terminal, type CallLogEntry, type SdsMessage, type RfCall, type RfPdch, type CarrierAirState, type EmergencyEntry, type LastHeardEntry, type TxQuality, type HealthSnapshot, type SdrHealth, type SysHealth, type BrewStatus } from "../hooks/useTetraWebSocket";
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Radio, Wifi, WifiOff, ArrowUpFromLine, ArrowDownToLine, Power, RotateCcw, Cpu, Thermometer, MemoryStick, Lock, RefreshCw, MessageSquare, ArrowUp, ArrowDown, MapPin, Navigation, Globe, Zap, Network, Eye, EyeOff, Signal as SignalIcon, RadioTower, Clock as ClockIcon, ShieldCheck, ShieldAlert, Siren, Activity, Gauge } from "lucide-react";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
@@ -412,13 +412,16 @@ const TS_DATA_DECAY_MS = 800;
 // the flowstation only emits ts_voice for uplink bursts received over the air. A slot the base
 // station has made a radio's packet-data channel (PDCH, WAP/IP data) and that carries no call is
 // teal "data": calm while the channel only sits assigned, bars moving while ts_data pings arrive.
-function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpeaker, pdchSlots, tsDataActivity }: {
+// With carriers on demand (secondary_carrier_on_demand) a carrier other than the main one carries an
+// ON AIR / WARMING UP / OFF mark, and its slots are dimmed while it is off; without the feature, no mark.
+function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpeaker, pdchSlots, tsDataActivity, carrierAir }: {
   rfCalls: RfCall[];
   issiCallsign: (id: string | number) => string;
   tsVoiceActivity: Record<string, number>;
   tsVoiceSpeaker: Record<string, number | null>;
   pdchSlots: RfPdch[];
   tsDataActivity: Record<string, number>;
+  carrierAir: Record<string, CarrierAirState>;
 }) {
   const { t } = useI18n();
   // Re-render every 150 ms (the flowstation's own refresh) so the voice decay and timers move
@@ -699,6 +702,14 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
     </div>
   );
 
+  // Carrier-on-demand mark: on the air green, warming up amber, off grey.
+  const AIR_BADGE: Record<CarrierAirState, string> = {
+    on: "border-[rgba(61,220,132,0.45)] text-[#3ddc84] bg-[rgba(61,220,132,0.08)]",
+    warming: "border-[rgba(255,180,36,0.5)] text-[#ffb224] bg-[rgba(255,180,36,0.08)]",
+    off: "border-[#232e40] text-[#4c628a] bg-[#19212f]",
+  };
+  const AIR_LABEL: Record<CarrierAirState, string> = { on: "rf_air_on", warming: "rf_air_warming", off: "rf_air_off" };
+
   const single = rows.length === 1;
   return (
     <div className="glass-panel rounded-md overflow-hidden" data-testid="panel-rf-channel">
@@ -713,15 +724,27 @@ function RfChannelTimeslots({ rfCalls, issiCallsign, tsVoiceActivity, tsVoiceSpe
           const dl = fmtMhz(row.info?.tx_freq_hz);
           const ul = fmtMhz(row.info?.rx_freq_hz);
           const meta = [dl ? `${t("rf_dl")} ${dl}` : null, ul ? `${t("rf_ul")} ${ul}` : null].filter(Boolean).join(" | ") || t("rf_waiting_rf");
+          const air = row.carrier != null ? carrierAir[String(row.carrier)] : undefined;
           return (
-            <div key={row.key} className="space-y-2" data-testid={`rf-carrier-${row.carrier ?? "single"}`}>
+            <div key={row.key} className="space-y-2" data-testid={`rf-carrier-${row.carrier ?? "single"}`} data-air={air}>
               <div className="flex items-baseline justify-between gap-2.5 px-0.5 max-sm:flex-col max-sm:items-start max-sm:gap-1">
-                <div className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-[#94abc9]" data-testid={`rf-carrier-title-${row.carrier ?? "single"}`}>
-                  {t("rf_carrier")}{row.carrier != null ? ` #${row.carrier}` : ""}{row.main && row.carrier != null ? ` | ${t("rf_main")}` : ""}
+                <div className="flex items-center gap-2 min-w-0">
+                  <div className="font-mono text-[10px] font-bold tracking-[0.1em] uppercase text-[#94abc9]" data-testid={`rf-carrier-title-${row.carrier ?? "single"}`}>
+                    {t("rf_carrier")}{row.carrier != null ? ` #${row.carrier}` : ""}{row.main && row.carrier != null ? ` | ${t("rf_main")}` : ""}
+                  </div>
+                  {air && (
+                    <span
+                      className={`font-mono text-[9px] font-bold tracking-[0.1em] uppercase leading-none px-1.5 py-[3px] rounded border whitespace-nowrap ${AIR_BADGE[air]}`}
+                      title={t("rf_air_hint")}
+                      data-testid={`rf-carrier-air-${row.carrier}`}
+                    >
+                      {t(AIR_LABEL[air])}
+                    </span>
+                  )}
                 </div>
                 <div className="font-mono text-[10px] text-[#4c628a] whitespace-nowrap overflow-hidden text-ellipsis" title={meta}>{meta}</div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5">
+              <div className={`grid grid-cols-2 sm:grid-cols-4 gap-2.5 transition-opacity duration-300 ${air === "off" ? "opacity-40" : ""}`}>
                 {row.slots.map(s => renderSlotCard(
                   s,
                   single ? String(s.ts) : `${row.carrier}-${s.ts}`,
@@ -1675,7 +1698,7 @@ function BtsDetails() {
 export default function Dashboard() {
   const { t } = useI18n();
   const tgName = useTgNames();
-  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, fsDashboardActive, tsVoiceActivity, tsVoiceSpeaker, pdchSlots, tsDataActivity, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, connected } = useTetraWebSocket();
+  const { terminals, localHistory, externalHistory, sdsMessages, rfCalls, fsDashboardActive, tsVoiceActivity, tsVoiceSpeaker, pdchSlots, tsDataActivity, carrierAir, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, connected } = useTetraWebSocket();
   const terminalList = Object.values(terminals);
 
   // Build ISSI → callsign lookup so PRIV destinations can show callsign + flag.
@@ -1768,7 +1791,7 @@ export default function Dashboard() {
           fsActive={fsDashboardActive}
         />
 
-        {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} tsVoiceSpeaker={tsVoiceSpeaker} pdchSlots={pdchSlots} tsDataActivity={tsDataActivity} />}
+        {fsDashboardActive && <RfChannelTimeslots rfCalls={rfCalls} issiCallsign={issiCallsign} tsVoiceActivity={tsVoiceActivity} tsVoiceSpeaker={tsVoiceSpeaker} pdchSlots={pdchSlots} tsDataActivity={tsDataActivity} carrierAir={carrierAir} />}
 
         {(lastHeard.length > 0 || txQuality) && (
           <div className="flex flex-col md:flex-row gap-2 sm:gap-3">

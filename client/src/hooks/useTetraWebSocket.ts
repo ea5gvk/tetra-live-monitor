@@ -95,6 +95,15 @@ export interface RfPdch {
   since: number; // epoch ms of the assignment
 }
 
+// Carriers on demand (FlowStation with secondary_carrier_on_demand): each carrier other than the main one
+// on the air, warming up or off, keyed by carrier number. Empty when the station does not use the feature.
+export type CarrierAirState = "off" | "warming" | "on";
+const toCarrierAir = (p: any): Record<string, CarrierAirState> => {
+  const out: Record<string, CarrierAirState> = {};
+  if (Array.isArray(p)) for (const a of p) if (a?.carrier != null && (a.state === "off" || a.state === "warming" || a.state === "on")) out[String(a.carrier)] = a.state;
+  return out;
+};
+
 export interface RfCall {
   callId: number;
   callType: string;
@@ -193,6 +202,7 @@ export interface TetraState {
   // Packet-data channels (PDCH) in use, and the last data ping per `${carrier}:${ts}`.
   pdchSlots: RfPdch[];
   tsDataActivity: Record<string, number>;
+  carrierAir: Record<string, CarrierAirState>;
   emergencies: EmergencyEntry[];
   brewStatus: BrewStatus | null;
   lastHeard: LastHeardEntry[];
@@ -218,6 +228,7 @@ export function useTetraWebSocket(): TetraState {
   const [tsVoiceSpeaker, setTsVoiceSpeaker] = useState<Record<string, number | null>>({});
   const [pdchSlots, setPdchSlots] = useState<RfPdch[]>([]);
   const [tsDataActivity, setTsDataActivity] = useState<Record<string, number>>({});
+  const [carrierAir, setCarrierAir] = useState<Record<string, CarrierAirState>>({});
   const [emergencies, setEmergencies] = useState<EmergencyEntry[]>([]);
   const [brewStatus, setBrewStatus] = useState<BrewStatus | null>(null);
   const [lastHeard, setLastHeard] = useState<LastHeardEntry[]>([]);
@@ -256,6 +267,7 @@ export function useTetraWebSocket(): TetraState {
             setGpsHistory(msg.payload.gpsHistory || {});
             if (msg.payload.rfCalls) setRfCalls(msg.payload.rfCalls);
             if (Array.isArray(msg.payload.pdch)) setPdchSlots(msg.payload.pdch);
+            setCarrierAir(toCarrierAir(msg.payload.carrierAir));
             if (msg.payload.fsDashboardActive !== undefined) setFsDashboardActive(!!msg.payload.fsDashboardActive);
             setEmergencies(msg.payload.emergencies || []);
             setBrewStatus(msg.payload.brewStatus ?? null);
@@ -338,6 +350,10 @@ export function useTetraWebSocket(): TetraState {
 
           case "rf_pdch_state":
             setPdchSlots(Array.isArray(msg.payload) ? msg.payload : []);
+            break;
+
+          case "rf_carrier_air_state":
+            setCarrierAir(toCarrierAir(msg.payload));
             break;
 
           case "rf_ts_data":
@@ -438,5 +454,5 @@ export function useTetraWebSocket(): TetraState {
     };
   }, [connect]);
 
-  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, rfCalls, fsDashboardActive, tsVoiceActivity, tsVoiceSpeaker, pdchSlots, tsDataActivity, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, dgnaLog, connected, mode };
+  return { terminals, localHistory, externalHistory, sdsMessages, gpsPositions, gpsHistory, rfCalls, fsDashboardActive, tsVoiceActivity, tsVoiceSpeaker, pdchSlots, tsDataActivity, carrierAir, emergencies, brewStatus, lastHeard, txQuality, health, sdrHealth, sysHealth, dgnaLog, connected, mode };
 }
