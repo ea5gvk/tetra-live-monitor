@@ -9,6 +9,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand } from "./miuraConfig";
+import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE } from "./configMerge";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -564,112 +565,55 @@ export async function registerRoutes(
     });
   }
 
-  // Migra los valores HABILITADOS (descomentados) del config viejo a la plantilla nueva,
-  // por sección. Las tablas repetidas [[cell_info.neighbor_cells_ca]] se copian en bloque.
-  function migrateFlowstationConfig(oldCfg: string, template: string): {
-    merged: string; applied: string[]; unmigrated: string[]; neighbors: number;
-  } {
-    const headerMatch = (line: string): { name: string; array: boolean } | null => {
-      const m = line.match(/^(\s*)(#\s*)?(\[\[?)\s*([^\]]+?)\s*(\]\]?)\s*$/);
-      return m ? { name: m[4], array: m[3] === "[[" } : null;
-    };
-    const stripInline = (v: string): string => {
-      const idx = v.search(/\s#/);
-      return (idx >= 0 ? v.slice(0, idx) : v).trim();
-    };
-    const NEIGHBOR = "cell_info.neighbor_cells_ca";
+  // example_config/config.toml of the commit checked out in `dir`, read BEFORE git reset / pull: the base of the
+  // config merge (the template the user's config.toml was written against). null when there is none.
+  function installedTemplate(dir: string): { text: string; rev: string } | null {
+    try {
+      const opts = { timeout: 10000, stdio: ["ignore", "pipe", "ignore"] as any, maxBuffer: 8 * 1024 * 1024 };
+      const text = execSync(`git -C "${dir}" show HEAD:example_config/config.toml`, opts).toString();
+      const rev = execSync(`git -C "${dir}" rev-parse --short HEAD`, opts).toString().trim();
+      return text.length >= 500 ? { text, rev } : null;
+    } catch { return null; }
+  }
 
-    // 1) Valores viejos (descomentados) por sección de tabla simple.
-    const oldVals: Record<string, Record<string, string>> = {};
-    {
-      let cur = "";
-      let inArray = false;
-      for (const raw of oldCfg.split("\n")) {
-        const h = headerMatch(raw);
-        if (h) { cur = h.name; inArray = h.array; continue; }
-        if (inArray) continue;
-        if (/^\s*#/.test(raw)) continue;
-        const m = raw.match(/^(\s*)([A-Za-z0-9_]+)\s*=\s*(.*)$/);
-        if (m) { const val = stripInline(m[3]); if (val !== "") { if (!oldVals[cur]) oldVals[cur] = {}; oldVals[cur][m[2]] = val; } }
-      }
+  // config.toml after an update: append-only merge (server/configMerge.ts). Never stops the update.
+  function mergeStationConfig(cfgPath: string, newTpl: string | null, base: { text: string; rev: string } | null, write: (s: string) => void) {
+    write(`\n=== config.toml: se conserva y solo se añade lo nuevo de la plantilla ===\n`);
+    if (!newTpl || newTpl.length < 500) { write("Plantilla nueva no disponible o inválida: config.toml intacto.\n"); return; }
+    if (base) write(`Plantilla base: example_config/config.toml del commit instalado (${base.rev})\n`);
+    try {
+      mergeConfigFile(cfgPath, newTpl, base ? base.text : null, write);
+    } catch (e: any) {
+      write(`[config.toml: error — ${e?.message || e}. config.toml intacto.]\n`);
     }
+  }
 
-    // 2) Reconstruir desde la plantilla aplicando los valores viejos.
-    const applied: string[] = [];
-    const used = new Set<string>();
-    const out: string[] = [];
-    {
-      let cur = "";
-      let inArray = false;
-      let headerIdx = -1;
-      for (const raw of template.split("\n")) {
-        const h = headerMatch(raw);
-        if (h) { cur = h.name; inArray = h.array; out.push(raw); headerIdx = out.length - 1; continue; }
-        if (inArray) { out.push(raw); continue; }
-        const m = raw.match(/^(\s*)(#\s*)?([A-Za-z0-9_]+)\s*=\s*(.*)$/);
-        if (m) {
-          const ov = oldVals[cur]?.[m[3]];
-          if (ov !== undefined) {
-            out.push(`${m[1]}${m[3]} = ${ov}`);
-            applied.push(`[${cur}] ${m[3]} = ${ov}`);
-            used.add(`${cur} ${m[3]}`);
-            if (headerIdx >= 0) out[headerIdx] = out[headerIdx].replace(/^(\s*)#\s*(\[)/, "$1$2");
-            continue;
-          }
+  // After (re)starting a station: wait, then look in its journal for a config it refused or a crash at start.
+  // Only a warning in the updater output: config.toml is never edited on its own.
+  function checkStationStart(service: string, sinceSec: number, write: (s: string) => void): Promise<void> {
+    return new Promise((resolve) => setTimeout(async () => {
+      try {
+        write(`\n=== Comprobando el arranque de ${service} ===\n`);
+        const state = (await execOut(`systemctl is-active ${service} || true`, 5000)).trim() || "desconocido";
+        let bad: string[] = [];
+        try {
+          const j = await execOut(`journalctl -u ${service} --since @${sinceSec} --no-pager -o cat`, 10000);
+          bad = j.split("\n").filter((l) => STATION_START_FAIL_RE.test(l)).slice(0, 8).map((l) => l.slice(0, 300));
+        } catch { /* no journal */ }
+        if (bad.length) {
+          write(`AVISO: ${service} no ha arrancado bien con el config.toml actual. El journal dice:\n`);
+          for (const l of bad) write(`  ! ${l}\n`);
+          write("Revisa config.toml a mano (la copia de seguridad está junto a él). No se ha cambiado nada automáticamente.\n");
+        } else if (state === "active" || state === "activating") {
+          write(`${service}: ${state}, sin errores de configuración en el journal.\n`);
+        } else {
+          write(`AVISO: ${service} está "${state}" tras el arranque. Mira: journalctl -u ${service}\n`);
         }
-        out.push(raw);
+      } catch (e: any) {
+        write(`[comprobación del arranque: ${e?.message || e}]\n`);
       }
-    }
-    let merged = out.join("\n");
-
-    // 3) Campos viejos que ya no existen en la plantilla nueva.
-    const unmigrated: string[] = [];
-    for (const [sec, kv] of Object.entries(oldVals)) {
-      if (sec === NEIGHBOR) continue;
-      for (const key of Object.keys(kv)) if (!used.has(`${sec} ${key}`)) unmigrated.push(`[${sec}] ${key} = ${kv[key]}`);
-    }
-
-    // 4) Celdas vecinas: copiar los bloques viejos (descomentados) verbatim.
-    const neighborRe = /^(\s*)(#\s*)?\[\[\s*cell_info\.neighbor_cells_ca\s*\]\]/;
-    const nextHeaderRe = /^\s*(#\s*)?\[/;
-    const extractBlocks = (cfg: string, onlyUncommented: boolean): string[] => {
-      const lines = cfg.split("\n");
-      const blocks: string[] = [];
-      for (let i = 0; i < lines.length; i++) {
-        const nm = lines[i].match(neighborRe);
-        if (nm && (!onlyUncommented || !nm[2])) {
-          const buf = [lines[i]];
-          let j = i + 1;
-          for (; j < lines.length; j++) { if (nextHeaderRe.test(lines[j])) break; buf.push(lines[j]); }
-          while (buf.length && buf[buf.length - 1].trim() === "") buf.pop();
-          blocks.push(buf.join("\n"));
-          i = j - 1;
-        }
-      }
-      return blocks;
-    };
-    const oldNeighbors = extractBlocks(oldCfg, true);
-    if (oldNeighbors.length) {
-      const mLines = merged.split("\n");
-      const outN: string[] = [];
-      let insertAt = -1;
-      for (let i = 0; i < mLines.length; i++) {
-        if (neighborRe.test(mLines[i])) {
-          if (insertAt === -1) insertAt = outN.length;
-          let j = i + 1;
-          for (; j < mLines.length; j++) { if (nextHeaderRe.test(mLines[j])) break; }
-          i = j - 1;
-          continue;
-        }
-        outN.push(mLines[i]);
-      }
-      const blockText = oldNeighbors.join("\n\n");
-      if (insertAt >= 0) outN.splice(insertAt, 0, blockText, "");
-      else outN.push("", blockText, "");
-      merged = outN.join("\n");
-    }
-
-    return { merged, applied, unmigrated, neighbors: oldNeighbors.length };
+      resolve();
+    }, 10000));
   }
 
   app.post("/api/update/apply", (req, res) => {
@@ -842,11 +786,11 @@ pm2 restart tetra-monitor
     res.setHeader("Cache-Control", "no-cache");
     res.flushHeaders();
 
-    const restartLine = cleanService
-      ? `echo "=== Restarting ${cleanService}... ===" && sudo systemctl restart ${cleanService}`
-      : `echo "No service configured to restart."`;
+    // Template of the installed commit, read before the pull: base of the config.toml merge.
+    const baseTpl = installedTemplate(cleanDir);
 
-    // Script: try git pull; if conflict, auto-checkout the affected files and retry
+    // Script: try git pull; if conflict, auto-checkout the affected files and retry. The config merge and
+    // the restart are done in Node when it ends (merge BEFORE restarting).
     const script = `
 set -e
 cd "${cleanDir}"
@@ -875,15 +819,30 @@ fi
 echo ""
 echo "=== cargo build --release ==="
 cargo build --release
-echo ""
-${restartLine}
 `;
     const child = spawn("bash", ["-c", script], { cwd: cleanDir });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
     child.on("close", (code: number) => {
-      res.write(`\n[Exit: ${code}]\n`);
-      res.end();
+      if (code !== 0) { res.write(`\n[Exit: ${code}]\n`); res.end(); return; }
+      const cfgPath = `${cleanDir}/config.toml`;
+      const tplPath = `${cleanDir}/example_config/config.toml`;
+      if (fs.existsSync(cfgPath)) {
+        mergeStationConfig(cfgPath, fs.existsSync(tplPath) ? fs.readFileSync(tplPath, "utf-8") : null, baseTpl, (t) => res.write(t));
+      }
+      if (!cleanService) {
+        res.write(`\nNo service configured to restart.\n\n[Exit: ${code}]\n`);
+        res.end();
+        return;
+      }
+      res.write(`\n=== Restarting ${cleanService}... ===\n`);
+      const since = Math.floor(Date.now() / 1000);
+      exec(`sudo systemctl restart ${cleanService}`, async (err) => {
+        if (err) res.write(`[restart err: ${err.message}]\n`);
+        else await checkStationStart(cleanService, since, (t) => res.write(t));
+        res.write(`\n[Exit: ${err ? 1 : code}]\n`);
+        res.end();
+      });
     });
     child.on("error", (err: Error) => {
       res.write(`\n[Error: ${err.message}]\n`);
@@ -1074,15 +1033,18 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
       return res.status(400).json({ message: "flowstation_dir_not_found" });
     }
     // Fuente elegida (repo+rama del mapa constante, nunca del usuario → sin inyección).
-    const source: FlowSource = isFlowSource(rawSource) ? rawSource : (detectFlowSource(cleanDir) ?? readFlowSource());
+    const installed = detectFlowSource(cleanDir);
+    const source: FlowSource = isFlowSource(rawSource) ? rawSource : (installed ?? readFlowSource());
     const src = FLOW_SOURCES[source];
+    // Template of the installed commit, read before the git reset: base of the config.toml merge.
+    const baseTpl = installed === source ? installedTemplate(cleanDir) : null;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Transfer-Encoding", "chunked");
     res.setHeader("Cache-Control", "no-cache");
     res.flushHeaders();
 
-    // Solo git pull + build aquí. La migración del config y el reinicio se hacen
-    // en Node al terminar (para migrar ANTES de reiniciar y aplicar el config nuevo).
+    // Solo git pull + build aquí. El config.toml y el reinicio se tratan
+    // en Node al terminar (para añadir lo nuevo ANTES de reiniciar).
     const watchdogConfEscaped = FLOW_WATCHDOG_CONF.replace(/'/g, "'\\''");
     const script = `
 set -e
@@ -1137,48 +1099,21 @@ exit 0
     child.on("close", async (code: number) => {
       if (code !== 0) { res.write(`\n[Exit: ${code}]\n`); res.end(); return; }
       writeFlowSource(source); // recordar la fuente instalada para el próximo check/apply
-      // Migrar config.toml a la nueva estructura (plantilla ya actualizada por el git reset),
-      // preservando los valores habilitados. Siempre con copia de seguridad.
-      try {
-        const cfgPath = `${cleanDir}/config.toml`;
-        if (fs.existsSync(cfgPath)) {
-          res.write(`\n=== Migración config.toml ===\n`);
-          let template: string | null = null;
+      // config.toml: se conserva y solo se añade lo que es nuevo en la plantilla (ya actualizada por el
+      // git reset) respecto a la del commit que estaba instalado. Con cambio de fuente no se toca.
+      const cfgPath = `${cleanDir}/config.toml`;
+      if (fs.existsSync(cfgPath)) {
+        if (installed !== source) {
+          res.write(`\n=== config.toml ===\n`);
+          res.write(`Cambio de fuente (${installed ? FLOW_SOURCES[installed].label : "fuente instalada no reconocida"} → ${src.label}): config.toml se conserva tal cual, sin añadir nada.\n`);
+          res.write("AVISO: las claves que solo conoce la otra fuente pueden impedir que la estación arranque; si pasa, coméntalas a mano.\n");
+        } else {
           const localTpl = `${cleanDir}/example_config/config.toml`;
-          if (fs.existsSync(localTpl)) {
-            template = fs.readFileSync(localTpl, "utf-8");
-            res.write("Plantilla: example_config/config.toml (local, recién actualizada por git)\n");
-          } else {
-            template = await downloadText(`https://raw.githubusercontent.com/${src.repo}/${src.branch}/example_config/config.toml`);
-            if (template) res.write(`Plantilla: GitHub (${src.repo} ${src.branch})\n`);
-          }
-          if (!template || template.length < 500) {
-            res.write("Plantilla no disponible o inválida — se omite la migración (config intacta).\n");
-          } else {
-            const oldCfg = fs.readFileSync(cfgPath, "utf-8");
-            const { merged, applied, unmigrated, neighbors } = migrateFlowstationConfig(oldCfg, template);
-            if (!merged || merged.length < template.length * 0.5) {
-              res.write("Resultado de migración sospechoso — se omite (config intacta).\n");
-            } else if (merged === oldCfg) {
-              res.write("config.toml ya está al día — sin cambios.\n");
-            } else {
-              const stamp = new Date().toISOString().replace(/[:.]/g, "-");
-              const bak = `${cfgPath}.bak-${stamp}`;
-              fs.copyFileSync(cfgPath, bak);
-              fs.writeFileSync(cfgPath, merged, "utf-8");
-              res.write(`Copia de seguridad: ${bak}\n`);
-              res.write(`Campos migrados (${applied.length}):\n`);
-              for (const a of applied) res.write(`  + ${a}\n`);
-              if (neighbors) res.write(`Celdas vecinas copiadas: ${neighbors}\n`);
-              if (unmigrated.length) {
-                res.write(`\nRevisar a mano (ya no existen en la plantilla nueva):\n`);
-                for (const u of unmigrated) res.write(`  ! ${u}\n`);
-              }
-            }
-          }
+          const template = fs.existsSync(localTpl)
+            ? fs.readFileSync(localTpl, "utf-8")
+            : await downloadText(`https://raw.githubusercontent.com/${src.repo}/${src.branch}/example_config/config.toml`);
+          mergeStationConfig(cfgPath, template, baseTpl, (t) => res.write(t));
         }
-      } catch (e: any) {
-        res.write(`\n[Migración config.toml: error — ${e?.message || e}. Config intacta.]\n`);
       }
       // Reiniciar flowstation para aplicar binario + config nuevos, y reconectar rápido.
       if (cleanService) {
@@ -1186,11 +1121,14 @@ exit 0
         const wasActive = fs.existsSync(wasActiveMark);
         try { fs.unlinkSync(wasActiveMark); } catch { /* already gone */ }
         res.write(`\n=== ${wasActive ? "Arrancando" : "Reiniciando"} ${cleanService}... ===\n`);
+        const since = Math.floor(Date.now() / 1000);
         exec(wasActive
           ? `sudo systemctl start ${cleanService}`
-          : `if systemctl is-active --quiet ${cleanService}; then sudo systemctl restart ${cleanService}; else echo "(${cleanService} no activo — no se arranca)"; fi`, (err) => {
+          : `if systemctl is-active --quiet ${cleanService}; then sudo systemctl restart ${cleanService}; else echo "(${cleanService} no activo — no se arranca)"; fi`, async (err, stdout) => {
           if (err) res.write(`[restart err: ${err.message}]\n`);
+          if (stdout) res.write(String(stdout));
           setTimeout(kickFlowstationRestart, 1500);
+          if (!err && wasActive) await checkStationStart(cleanService, since, (t) => res.write(t));
           res.write(`\n[Exit: ${code}]\n`);
           res.end();
         });
