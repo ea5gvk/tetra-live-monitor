@@ -174,6 +174,17 @@ test("without a base template everything new goes in commented", () => {
   assert.match(r.merged, /^# hangtime_secs = 5$/m);                       // no base: cannot know it was deleted
 });
 
+test("a key commented with several spaces or a tab after # counts as there (no second commented copy)", () => {
+  for (const pre of ["#  ", "#\t", "##   "]) {
+    const u = USER.replace("rx_freq = 431100000\n", `${pre}rx_freq = 431100000\n`).replace("main_carrier = 1600\n", `${pre}main_carrier = 1600\n`);
+    for (const base of [BASE, null]) {
+      const r = props(u, NEW, base);
+      assert.equal(count(r.merged, /^\s*#+\s*rx_freq\s*=/), 1);
+      assert.equal(count(r.merged, /^\s*#+\s*main_carrier\s*=/), 1);
+    }
+  }
+});
+
 test("config_version change: nothing merged", () => {
   const r = mergeAppendOnly(USER, NEW.replace('config_version = "0.6"', 'config_version = "0.7"'), BASE);
   assert.deepEqual(r.versionChange, { from: "0.6", to: "0.7" });

@@ -26,7 +26,7 @@ interface SL {
 const HEADER_RE = /^\s*(#+\s*)?(\[\[?)\s*([A-Za-z0-9_-]+(?:\s*\.\s*[A-Za-z0-9_-]+)*)\s*(\]\]?)\s*(#.*)?$/;
 const KEY_RE = /^\s*([A-Za-z0-9_-]+)\s*=\s*(.*)$/;
 // Commented key "# key = <TOML value>": the value must look like TOML so that prose ("# Absent = on.") is not a key.
-const CKEY_RE = /^\s*#+ ?([a-z0-9_]+)\s*=\s*((?:"|'|\[|\{|true\b|false\b|[-+]?\d|inf\b|nan\b).*)$/;
+const CKEY_RE = /^\s*#+\s*([a-z0-9_]+)\s*=\s*((?:"|'|\[|\{|true\b|false\b|[-+]?\d|inf\b|nan\b).*)$/;
 // Continuation of the trailing comment of the key above: "#        # ..." or a deeply indented "#".
 const CONT_COMMENT_RE = /^\s*#\s{2,}#|^\s{6,}#/;
 
