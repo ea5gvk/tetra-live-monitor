@@ -3752,7 +3752,7 @@ exit 0
         const rawAuth: any[] = Array.isArray(sdsCommandControlConfig.authorized_issis)
           ? sdsCommandControlConfig.authorized_issis : [];
         const authList = rawAuth.map(x => String(x).trim()).filter(s => /^\d+$/.test(s));
-        const finalAuth = authList.length > 0 ? authList : ["2260570", "2260571"];
+        const finalAuth = authList; // empty = nobody (never the example ISSIs)
         const cmdsIn: any[] = Array.isArray(sdsCommandControlConfig.commands)
           ? sdsCommandControlConfig.commands : [];
 
@@ -3775,10 +3775,12 @@ exit 0
           let j = i + 1;
           while (j < lines.length) {
             const tj = lines[j].trim();
-            if (tj === "") {
+            // A bare `#` is the separator the commented block writes before each command:
+            // treat it like a blank or it is left behind on every apply.
+            if (tj === "" || tj === "#") {
               // Look ahead: if next non-empty is another cc header, keep going (include blank).
               let k = j + 1;
-              while (k < lines.length && lines[k].trim() === "") k++;
+              while (k < lines.length && (lines[k].trim() === "" || lines[k].trim() === "#")) k++;
               if (k < lines.length && isAnyCcHdr(lines[k].trim())) { j = k; continue; }
               break;
             }
@@ -3805,7 +3807,8 @@ exit 0
         cmdsIn.forEach((c: any) => {
           const sc = Number(c?.status_code);
           const ac = String(c?.action ?? "").replace(/"/g, '\\"');
-          if (!Number.isFinite(sc)) return;
+          // status_code is a u16 in the station: outside 0-65535 it would not start.
+          if (!Number.isFinite(sc) || Math.round(sc) < 0 || Math.round(sc) > 65535) return;
           newBlock.push(`${px.trim()}`);  // blank-ish separator (just `#` when commented, empty when active)
           newBlock.push(`${px}[[cell_info.sds_command_control.commands]]`);
           newBlock.push(`${px}status_code = ${Math.round(sc)}`);
