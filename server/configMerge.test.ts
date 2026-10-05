@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { parse } from "smol-toml";
-import { mergeAppendOnly, verifyMerge, mergeConfigFile, backupWithRotation, reorderNewSections, spliceTableBlock } from "./configMerge";
+import { mergeAppendOnly, verifyMerge, mergeConfigFile, backupWithRotation, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken } from "./configMerge";
 
 const BASE = `# Station config
 config_version = "0.6"
@@ -228,6 +228,30 @@ test("mergeConfigFile: backup 600, atomic write, idempotent, rotation", () => {
     assert.equal(mergeConfigFile(cfg, NEW, BASE, () => {}), "refused");    // invalid config: left as it is
     assert.equal(fs.readFileSync(cfg, "utf-8"), "a = [\n");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("calculator whitelist: multi-line, commented, the active line first, unreadable", () => {
+  const L = (s: string) => s.split("\n");
+  const ml = "[cell_info]\nx = 1\n\n[security]\nissi_whitelist = [\n  2145007,  # Juan\n  1030036,\n]\nk = 1\n\n[brew]\n";
+  assert.deepEqual(findWhitelist(L(ml)), { start: 4, end: 7, active: true, list: ["2145007", "1030036"] });
+  assert.deepEqual(findWhitelist(L(ml.replace(/\n/g, "\r\n"))), { start: 4, end: 7, active: true, list: ["2145007", "1030036"] });
+  const cm = "[security]\n# issi_whitelist = [\n#   2145007,\n# ]\n";
+  assert.deepEqual(findWhitelist(L(cm)), { start: 1, end: 3, active: false, list: ["2145007"] });
+  // a commented example before the active line, and a commented [security] example before the active table
+  const two = "# [security]\n# issi_whitelist = [9]\n\n[security]\n# issi_whitelist = [1, 2]\nissi_whitelist = [3]  # on\n";
+  assert.deepEqual(findWhitelist(L(two)), { start: 5, end: 5, active: true, list: ["3"] });
+  assert.deepEqual(findWhitelist(L("[security]\nissi_whitelist = []\n")), { start: 1, end: 1, active: true, list: [] });
+  assert.equal(findWhitelist(L("[security]\nk = 1\n\n# [recovery]\n# issi_whitelist = [1]\n")), null);   // not in [security]
+  assert.equal(findWhitelist(L("[cell_info]\nx = 1\n")), null);
+  assert.deepEqual(findWhitelist(L("[security]\nissi_whitelist = [\n  1,\n\n[brew]\n")), { start: 1, end: 1, active: true, list: null });
+});
+
+test("calculator Apply: a result that breaks a valid TOML is not written", () => {
+  assert.equal(tomlBroken(USER, USER.replace("mcc = 214\n", "mcc = 215\n")), null);
+  assert.match(tomlBroken(USER, USER.replace("issi_whitelist = [2145007]\n", "issi_whitelist = [1]\n  2145007,\n]\n"))!, /no sería TOML válido/);
+  const dup = tomlBroken(USER, USER.replace('k = "0123456789ABCDEF"\n', 'k = "0123456789ABCDEF"\nk = "0123456789ABCDEF"\n'));
+  assert.ok(dup && !dup.includes("0123456789ABCDEF"));                       // duplicated key: no values in the message
+  assert.equal(tomlBroken("a = [\n", "a = [\nb\n"), null);                     // already invalid: not this check's call
 });
 
 test("calculator reorder: only a table the file did not have moves, the rest stays byte for byte", () => {

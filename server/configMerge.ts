@@ -370,6 +370,42 @@ export function mergeConfigFile(cfgPath: string, newTpl: string, baseTpl: string
   return "written";
 }
 
+// Calculator Apply: the reason not to write `result` when `original` is valid TOML and `result` is not
+// (message and position only, never values); null = it can be written.
+export function tomlBroken(original: string, result: string): string | null {
+  try { parseToml(stripBom(original)); } catch { return null; }
+  try { parseToml(stripBom(result)); return null; } catch (e) { return `el resultado no sería TOML válido (${tomlErr(e)})`; }
+}
+
+// Calculator: issi_whitelist of the [security] table (the active header first, else a commented one; it ends at
+// the next header, active or commented). The active line first, else a commented one; its [...] may span lines
+// (the continuations of a commented one are commented too). Lines start..end hold it; list = its ISSIs, or null
+// when the [...] does not close inside the table (unreadable: to be left as it is). null = no line.
+export function findWhitelist(lines: string[]): { start: number; end: number; active: boolean; list: string[] | null } | null {
+  const noCr = (l: string) => l.replace(/\r$/, "");
+  let h = lines.findIndex((l) => /^\s*\[security\]\s*(#.*)?$/.test(noCr(l)));
+  if (h < 0) h = lines.findIndex((l) => /^\s*#\s*\[security\]\s*(#.*)?$/.test(noCr(l)));
+  if (h < 0) return null;
+  let e = h + 1;
+  while (e < lines.length && !/^\s*#?\s*\[\[?[A-Za-z_][\w.]*\]\]?\s*(#.*)?$/.test(noCr(lines[e]))) e++;
+  const at: { i: number; active: boolean }[] = [];
+  for (let i = h + 1; i < e; i++) {
+    const m = noCr(lines[i]).match(/^\s*(#\s*)?issi_whitelist\s*=/);
+    if (m) at.push({ i, active: !m[1] });
+  }
+  const w = at.find((x) => x.active) ?? at[0];
+  if (!w) return null;
+  let v = "";
+  for (let j = w.i; j < e; j++) {
+    const t = noCr(lines[j]);
+    v += (j === w.i ? t.replace(/^[^=]*=/, "") : w.active ? t : t.replace(/^\s*#/, "")).replace(/#.*$/, "") + "\n";
+    const m = v.match(/^\s*\[([^\]]*)\]/);
+    if (m) return { start: w.i, end: j, active: w.active, list: m[1].split(",").map((s) => s.trim()).filter((s) => /^\d+$/.test(s)) };
+    if (!/^\s*\[/.test(v)) break;
+  }
+  return { start: w.i, end: w.i, active: w.active, list: null };
+}
+
 // What a station that refused its config (or crashed at start) writes to the journal.
 export const STATION_START_FAIL_RE = /Failed to load (primary config|configuration)|Unrecognized|Cannot start|FALLBACK CONFIG ACTIVE|panicked/;
 

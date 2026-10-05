@@ -7316,9 +7316,11 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const secParsed = secRaw
       ? secRaw.split(",").map(s => s.trim()).filter(s => /^\d+$/.test(s))
       : [];
+    // Empty list = the server keeps the ISSIs already in config.toml (only the on/off state
+    // changes); the built-in default is applied server-side only when the file has no line at all.
     const securityConfig = {
       enabled: el("enableSecurity").checked,
-      issi_whitelist: secParsed.length > 0 ? secParsed : ["1030299","1030036","2145007"]
+      issi_whitelist: secParsed
     };
 
     // Collect service_name options (Flowstation only — null in bluestation, root-level key)

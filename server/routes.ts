@@ -9,7 +9,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
-import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock } from "./configMerge";
+import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken } from "./configMerge";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -2087,6 +2087,7 @@ exit 0
       let sdsFwdActive = false; // true if feature_sds_enabled appears as active under [brew]
       let sdsFwdCommented = false; // true if a commented # feature_sds_enabled is present under active [brew]
       let securityActive = false; // true if [security] header is active
+      let securityWlActive = false; // true if issi_whitelist appears as active (uncommented) under [security]
       let dashboardActive = false; // true if [dashboard] header is active
       let ctActive = false;      // true if any CT key appears as active (not commented) under [cell_info]
       let prActive = false;      // true if periodic_registration_secs appears as active under [cell_info]
@@ -2258,6 +2259,7 @@ exit 0
         if (kvMatch && currentSection) {
           const kk = kvMatch[1].trim();
           sections[currentSection][kk] = kvMatch[2].trim();
+          if (currentSection === 'security' && kk === 'issi_whitelist') securityWlActive = true;
           // Known cell_info-level keys are also mirrored into cell_info even if they
           // appear under a [cell_info.X] subsection — this matches upstream flowstation
           // example_config layout and how the calculator presents these fields.
@@ -2574,13 +2576,8 @@ exit 0
         pbxGatewayIssis = nums;
       }
 
-      // Parse security issi_whitelist: [id, id, ...]
-      let securityIssiWhitelist: number[] = [];
-      const rawSec = get('security', 'issi_whitelist');
-      if (rawSec) {
-        const nums = rawSec.replace(/[\[\]]/g, '').split(',').map((s: string) => parseInt(s.trim())).filter((n: number) => !isNaN(n));
-        securityIssiWhitelist = nums;
-      }
+      // issi_whitelist of the [security] table, also when written over several lines (the active line first)
+      const securityIssiWhitelist: number[] = (findWhitelist(lines)?.list ?? []).map(Number);
 
       res.json({
         _raw: content,
@@ -2652,7 +2649,10 @@ exit 0
           feature_sds_enabled_present: sdsFwdActive || sdsFwdCommented,
         },
         security: {
-          enabled: securityActive,
+          // "whitelist on" = an ACTIVE issi_whitelist line under [security] (an active header alone is not:
+          // Apply untouched must not switch a commented whitelist on)
+          enabled: securityWlActive,
+          header_active: securityActive,
           issi_whitelist: securityIssiWhitelist,
         },
         dashboard: {
@@ -4054,8 +4054,9 @@ exit 0
         const rawList: string[] = Array.isArray(securityConfig?.issi_whitelist)
           ? securityConfig.issi_whitelist.map((x: any) => String(x).trim()).filter(Boolean)
           : [];
-        const ssiList = rawList.length > 0 ? rawList : ["1030299", "1030036", "2145007"];
-        const issiLine = `issi_whitelist = [${ssiList.join(", ")}]`;
+        // Empty list from the client = keep the ISSIs already in the file; the default only for a new line.
+        const DEFAULT_WL = ["1030299", "1030036", "2145007"];
+        const mkValueLine = (list: string[]) => `${secEnabled ? "" : "# "}issi_whitelist = [${list.join(", ")}]`;
 
         // Locate active [security] or commented #[security] header
         let secHeaderIdx = -1;
@@ -4066,19 +4067,14 @@ exit 0
         for (let i = 0; secHeaderIdx === -1 && i < lines.length; i++) {
           if (lines[i].match(/^\s*#\s*\[security\]/)) { secHeaderIdx = i; secIsActive = false; break; }
         }
-        // Section ends at the next section header — active OR commented (`#[xxx]` / `# [xxx]`)
-        const getSecEnd = (start: number): number => {
-          for (let j = start + 1; j < lines.length; j++) {
-            if (lines[j].match(/^\s*\[[^\]]+\]/)) return j;
-            if (lines[j].match(/^\s*#\s*\[[^\]]+\]/)) return j;
-          }
-          return lines.length;
-        };
 
         const headerLine = secEnabled ? "[security]" : "# [security]";
-        const valueLine = secEnabled ? issiLine : `# ${issiLine}`;
+        const valueLine = mkValueLine(rawList.length > 0 ? rawList : DEFAULT_WL);
+        const hdrCr = secHeaderIdx >= 0 && lines[secHeaderIdx].endsWith("\r") ? "\r" : "";
 
-        if (secHeaderIdx === -1) {
+        if (secHeaderIdx === -1 && !secEnabled) {
+          // No [security] and the whitelist off: nothing to write.
+        } else if (secHeaderIdx === -1) {
           // No security section at all — insert just before [brew] (active or commented).
           // Falls back to end-of-file if no [brew] header is present.
           let brewIdx = -1;
@@ -4099,18 +4095,22 @@ exit 0
             lines.splice(brewIdx, 0, ...block);
           }
         } else {
-          lines[secHeaderIdx] = headerLine;
-          // Replace any existing issi_whitelist line (active or commented) within the section
-          const secEnd = getSecEnd(secHeaderIdx);
-          let foundWl = false;
-          for (let i = secHeaderIdx + 1; i < secEnd; i++) {
-            if (lines[i].match(/^\s*#?\s*issi_whitelist\s*=/)) {
-              lines[i] = valueLine;
-              foundWl = true;
-              break;
+          // The issi_whitelist of the table (the active line first; it may span several lines) is replaced
+          // whole, and only when its state or its ISSIs change: applying untouched leaves it byte for byte.
+          // The header follows the whitelist only when the whitelist changes state.
+          const wl = findWhitelist(lines);
+          if (wl && wl.list === null) {
+            // its [...] does not close inside [security]: unreadable, left as it is
+          } else if (wl) {
+            const list = rawList.length > 0 ? rawList : wl.list!;
+            if (wl.active !== secEnabled || wl.list!.map(Number).join() !== list.map(Number).join()) {
+              lines.splice(wl.start, wl.end - wl.start + 1, mkValueLine(list) + hdrCr);
+              if (wl.active !== secEnabled && secIsActive !== secEnabled) lines[secHeaderIdx] = headerLine + hdrCr;
             }
+          } else if (secEnabled) {
+            if (!secIsActive) lines[secHeaderIdx] = headerLine + hdrCr;
+            lines.splice(secHeaderIdx + 1, 0, valueLine + hdrCr);
           }
-          if (!foundWl) lines.splice(secHeaderIdx + 1, 0, valueLine);
         }
       }
 
@@ -4873,6 +4873,10 @@ exit 0
 
       // A table the file did not have goes to its place in example_config's order; the rest stays where it is.
       content = reorderNewSections(lines.join("\n"), original);
+
+      // A valid config.toml is never replaced by an invalid one (the station would not start): nothing is written.
+      const broken = tomlBroken(original, content);
+      if (broken) return res.status(500).json({ message: `config.toml no se ha tocado: ${broken}` });
 
       // Copia antes de escribir (solo si cambia): <config>.bak-calc-<fecha>, modo 600, se guardan las 10 últimas.
       const backup = content !== original ? backupWithRotation(configPath, "bak-calc") : null;
