@@ -569,12 +569,14 @@ export function applySoapyTxGains(lines: string[], cfg: any): string[] {
     for (const [stage, { step, max }] of Object.entries(TX_GAIN_STAGES)) {
       const c = cfg[`tx_gain_${stage}`];
       if (!c || typeof c !== "object" || c.value === null || c.value === "" || !Number.isFinite(Number(c.value))) continue;
-      const v = String(Math.min(max, Math.max(0, Math.round(Number(c.value) / step) * step)));
+      const norm = (x: any) => Math.min(max, Math.max(0, Math.round(Number(x) / step) * step));
+      const v = String(norm(c.value));
       const on = c.enabled === true;
       const g = soapyGainLines(lines, scanLines(lines), stage);
       if (g.start < 0) continue;
-      // the value as written ("9.0" stays "9.0") when it is the same number
-      const same = (value: string) => (value !== "" && Number(value) === Number(v) ? value : v);
+      // the value as written ("9.0" stays "9.0", an off-step 29 stays 29) when the driver ends up on the same step:
+      // the card shows it rounded, so applying it untouched must not rewrite it
+      const same = (value: string) => (value !== "" && norm(value) === Number(v) ? value : v);
       if (g.active.length) {
         const i = g.active[0];
         const m = lines[i].match(KV_RE)!;
