@@ -3896,6 +3896,8 @@ exit 0
       let brewIsActive = false;
       for (let i = 0; i < lines.length; i++) {
         if (lines[i].match(/^\s*\[brew\]/)) { brewHeaderIdx = i; brewIsActive = true; break; }
+      }
+      for (let i = 0; brewHeaderIdx === -1 && i < lines.length; i++) {
         if (lines[i].match(/^\s*#\s*\[brew\]/)) { brewHeaderIdx = i; brewIsActive = false; break; }
       }
       // Find end of brew section (next section header — active OR commented)
@@ -4044,6 +4046,8 @@ exit 0
         let secIsActive = false;
         for (let i = 0; i < lines.length; i++) {
           if (lines[i].match(/^\s*\[security\]/)) { secHeaderIdx = i; secIsActive = true; break; }
+        }
+        for (let i = 0; secHeaderIdx === -1 && i < lines.length; i++) {
           if (lines[i].match(/^\s*#\s*\[security\]/)) { secHeaderIdx = i; secIsActive = false; break; }
         }
         // Section ends at the next section header — active OR commented (`#[xxx]` / `# [xxx]`)
@@ -4202,6 +4206,8 @@ exit 0
         let dashHeaderIdx = -1;
         for (let i = 0; i < lines.length; i++) {
           if (lines[i].match(/^\s*\[dashboard\]/)) { dashHeaderIdx = i; break; }
+        }
+        for (let i = 0; dashHeaderIdx === -1 && i < lines.length; i++) {
           if (lines[i].match(/^\s*#\s*\[dashboard\]/)) { dashHeaderIdx = i; break; }
         }
         const getDashEnd = (start: number): number => {
@@ -4314,7 +4320,10 @@ exit 0
         // Find existing [wx_service] (active or commented) header
         let wxStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[wx_service\]/) || lines[i].match(/^\s*#\s*\[wx_service\]/)) { wxStart = i; break; }
+          if (lines[i].match(/^\s*\[wx_service\]/)) { wxStart = i; break; }
+        }
+        for (let i = 0; wxStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[wx_service\]/)) { wxStart = i; break; }
         }
         if (wxStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
@@ -4355,7 +4364,10 @@ exit 0
         ];
         let recStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[recovery\]/) || lines[i].match(/^\s*#\s*\[recovery\]/)) { recStart = i; break; }
+          if (lines[i].match(/^\s*\[recovery\]/)) { recStart = i; break; }
+        }
+        for (let i = 0; recStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[recovery\]/)) { recStart = i; break; }
         }
         if (recStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
@@ -4400,7 +4412,10 @@ exit 0
         ];
         let hStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[health\]/) || lines[i].match(/^\s*#\s*\[health\]/)) { hStart = i; break; }
+          if (lines[i].match(/^\s*\[health\]/)) { hStart = i; break; }
+        }
+        for (let i = 0; hStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[health\]/)) { hStart = i; break; }
         }
         if (hStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
@@ -4459,7 +4474,10 @@ exit 0
         ];
         let dStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[dapnet\]/) || lines[i].match(/^\s*#\s*\[dapnet\]/)) { dStart = i; break; }
+          if (lines[i].match(/^\s*\[dapnet\]/)) { dStart = i; break; }
+        }
+        for (let i = 0; dStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[dapnet\]/)) { dStart = i; break; }
         }
         if (dStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
@@ -4492,7 +4510,10 @@ exit 0
         ];
         let tStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[tpg2200_action\]/) || lines[i].match(/^\s*#\s*\[tpg2200_action\]/)) { tStart = i; break; }
+          if (lines[i].match(/^\s*\[tpg2200_action\]/)) { tStart = i; break; }
+        }
+        for (let i = 0; tStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[tpg2200_action\]/)) { tStart = i; break; }
         }
         if (tStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
@@ -4538,7 +4559,10 @@ exit 0
         ];
         let sStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[snom_notify\]/) || lines[i].match(/^\s*#\s*\[snom_notify\]/)) { sStart = i; break; }
+          if (lines[i].match(/^\s*\[snom_notify\]/)) { sStart = i; break; }
+        }
+        for (let i = 0; sStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[snom_notify\]/)) { sStart = i; break; }
         }
         if (sStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
@@ -4591,7 +4615,10 @@ exit 0
         ];
         let gStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[geoalarm\]/) || lines[i].match(/^\s*#\s*\[geoalarm\]/)) { gStart = i; break; }
+          if (lines[i].match(/^\s*\[geoalarm\]/)) { gStart = i; break; }
+        }
+        for (let i = 0; gStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[geoalarm\]/)) { gStart = i; break; }
         }
         if (gStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
@@ -4637,7 +4664,10 @@ exit 0
         ];
         let aStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[asterisk\]/) || lines[i].match(/^\s*#\s*\[asterisk\]/)) { aStart = i; break; }
+          if (lines[i].match(/^\s*\[asterisk\]/)) { aStart = i; break; }
+        }
+        for (let i = 0; aStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[asterisk\]/)) { aStart = i; break; }
         }
         if (aStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
@@ -4665,7 +4695,10 @@ exit 0
         ];
         let eStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[emergency\]/) || lines[i].match(/^\s*#\s*\[emergency\]/)) { eStart = i; break; }
+          if (lines[i].match(/^\s*\[emergency\]/)) { eStart = i; break; }
+        }
+        for (let i = 0; eStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[emergency\]/)) { eStart = i; break; }
         }
         if (eStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
@@ -4702,7 +4735,10 @@ exit 0
         ];
         let tgStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[telegram_alerts\]/) || lines[i].match(/^\s*#\s*\[telegram_alerts\]/)) { tgStart = i; break; }
+          if (lines[i].match(/^\s*\[telegram_alerts\]/)) { tgStart = i; break; }
+        }
+        for (let i = 0; tgStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[telegram_alerts\]/)) { tgStart = i; break; }
         }
         if (tgStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
@@ -4737,7 +4773,10 @@ exit 0
         if (telPass) block.push(`${p}password = "${telPass}"`);
         let telStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[telemetry\]/) || lines[i].match(/^\s*#\s*\[telemetry\]/)) { telStart = i; break; }
+          if (lines[i].match(/^\s*\[telemetry\]/)) { telStart = i; break; }
+        }
+        for (let i = 0; telStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[telemetry\]/)) { telStart = i; break; }
         }
         if (telStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
@@ -4772,7 +4811,10 @@ exit 0
         if (cmdPass) block.push(`${p}password = "${cmdPass}"`);
         let cmdStart = -1;
         for (let i = 0; i < lines.length; i++) {
-          if (lines[i].match(/^\s*\[command\]/) || lines[i].match(/^\s*#\s*\[command\]/)) { cmdStart = i; break; }
+          if (lines[i].match(/^\s*\[command\]/)) { cmdStart = i; break; }
+        }
+        for (let i = 0; cmdStart === -1 && i < lines.length; i++) {
+          if (lines[i].match(/^\s*#\s*\[command\]/)) { cmdStart = i; break; }
         }
         if (cmdStart === -1) {
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
