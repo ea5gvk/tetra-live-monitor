@@ -565,24 +565,41 @@ export async function registerRoutes(
     });
   }
 
-  // example_config/config.toml of the commit checked out in `dir`, read BEFORE git reset / pull: the base of the
-  // config merge (the template the user's config.toml was written against). null when there is none.
-  function installedTemplate(dir: string): { text: string; rev: string } | null {
+  // The base of the config merge = the template config.toml was last merged against (or put back by Instalar),
+  // kept inside .git (git ignores it). HEAD alone is not enough: after a failed build (or a dashboard restart
+  // mid-build) HEAD is already the new commit, and the next update would take everything new as deleted by the
+  // user and never add it. So the base is pinned BEFORE git reset / pull and only moves after a merge.
+  const configBasePath = (dir: string) => `${dir}/.git/tlm-config-base.toml`;
+  function saveConfigBase(dir: string, tpl: string, write: (s: string) => void) {
+    try { fs.writeFileSync(configBasePath(dir), tpl, "utf-8"); }
+    catch (e: any) { write(`(no se ha podido guardar la plantilla base en .git: ${e?.message || e})\n`); }
+  }
+
+  // The saved base, else example_config/config.toml of the commit checked out in `dir` (saved now: pinned).
+  // null when there is none.
+  function installedTemplate(dir: string, write: (s: string) => void): { text: string; rev: string } | null {
+    try {
+      const saved = fs.readFileSync(configBasePath(dir), "utf-8");
+      if (saved.length >= 500) return { text: saved, rev: "la guardada en el último Actualizar/Instalar" };
+    } catch { /* none saved yet: HEAD */ }
     try {
       const opts = { timeout: 10000, stdio: ["ignore", "pipe", "ignore"] as any, maxBuffer: 8 * 1024 * 1024 };
       const text = execSync(`git -C "${dir}" show HEAD:example_config/config.toml`, opts).toString();
       const rev = execSync(`git -C "${dir}" rev-parse --short HEAD`, opts).toString().trim();
-      return text.length >= 500 ? { text, rev } : null;
+      if (text.length < 500) return null;
+      saveConfigBase(dir, text, write);
+      return { text, rev: `example_config/config.toml del commit instalado, ${rev}` };
     } catch { return null; }
   }
 
-  // config.toml after an update: append-only merge (server/configMerge.ts). Never stops the update.
+  // config.toml after an update: append-only merge (server/configMerge.ts). Never stops the update. The new
+  // template becomes the base of the next one unless the merge was refused (then the next update tries again).
   function mergeStationConfig(cfgPath: string, newTpl: string | null, base: { text: string; rev: string } | null, write: (s: string) => void) {
     write(`\n=== config.toml: se conserva y solo se añade lo nuevo de la plantilla ===\n`);
     if (!newTpl || newTpl.length < 500) { write("Plantilla nueva no disponible o inválida: config.toml intacto.\n"); return; }
-    if (base) write(`Plantilla base: example_config/config.toml del commit instalado (${base.rev})\n`);
+    if (base) write(`Plantilla base: ${base.rev}\n`);
     try {
-      mergeConfigFile(cfgPath, newTpl, base ? base.text : null, write);
+      if (mergeConfigFile(cfgPath, newTpl, base ? base.text : null, write) !== "refused") saveConfigBase(path.dirname(cfgPath), newTpl, write);
     } catch (e: any) {
       write(`[config.toml: error — ${e?.message || e}. config.toml intacto.]\n`);
     }
@@ -787,7 +804,7 @@ pm2 restart tetra-monitor
     res.flushHeaders();
 
     // Template of the installed commit, read before the pull: base of the config.toml merge.
-    const baseTpl = installedTemplate(cleanDir);
+    const baseTpl = installedTemplate(cleanDir, (t) => res.write(t));
 
     // Script: try git pull; if conflict, auto-checkout the affected files and retry. The config merge and
     // the restart are done in Node when it ends (merge BEFORE restarting).
@@ -839,7 +856,8 @@ cargo build --release
       const since = Math.floor(Date.now() / 1000);
       exec(`sudo systemctl restart ${cleanService}`, async (err) => {
         if (err) res.write(`[restart err: ${err.message}]\n`);
-        else await checkStationStart(cleanService, since, (t) => res.write(t));
+        // also when the restart failed: the journal says which key the station refused
+        await checkStationStart(cleanService, since, (t) => res.write(t));
         res.write(`\n[Exit: ${err ? 1 : code}]\n`);
         res.end();
       });
@@ -987,24 +1005,40 @@ LimitCORE=0
     const source: FlowSource = isFlowSource(rawSource) ? rawSource : readFlowSource();
     const src = FLOW_SOURCES[source];
     const serviceFileEscaped = FLOW_SERVICE_FILE.replace(/'/g, "'\\''");
-    // An existing config.toml is saved OUTSIDE the tree before the clean clone and put back right after it
-    // (before the build, so a failed build does not leave the station without it) instead of the example.
+    // Same source reinstalled: the template the kept config.toml was merged against goes with it, so the next
+    // Actualizar adds what is new since then (another source: config.toml kept as it is, as when switching).
+    const sameSource = fs.existsSync(FLOW_DIR_DEFAULT) && detectFlowSource(FLOW_DIR_DEFAULT) === source;
+    // The clone goes to a temporary directory first: if it fails the installed tree stays as it is. Then an
+    // existing config.toml is saved OUTSIDE the tree and put back right after the swap (before the build, so a
+    // failed build does not leave the station without it) instead of the example.
     const script = `
 set -e
 cd /root
+NEW=/root/flowstation.new
+sudo rm -rf "$NEW"
+echo "=== Fuente: ${src.label} ==="
+echo "=== git clone -b ${src.branch} https://github.com/${src.repo}.git ==="
+if ! sudo git clone -b ${src.branch} https://github.com/${src.repo}.git "$NEW"; then
+  sudo rm -rf "$NEW"
+  echo "=== CLONE FALLIDO: /root/flowstation no se ha tocado ==="
+  exit 1
+fi
 BAK=""
 if [ -d /root/flowstation ]; then
   if [ -f /root/flowstation/config.toml ]; then
     BAK="/root/flowstation.config.toml.bak-$(date +%Y%m%d-%H%M%S)"
     sudo cp -p /root/flowstation/config.toml "$BAK"
-    echo "=== config.toml existente guardado en $BAK ==="
+    echo "=== config.toml existente guardado en $BAK ==="${sameSource ? `
+    if [ -f /root/flowstation/.git/tlm-config-base.toml ]; then
+      sudo cp /root/flowstation/.git/tlm-config-base.toml "$NEW/.git/tlm-config-base.toml"
+    else
+      sudo sh -c 'git -C /root/flowstation show HEAD:example_config/config.toml > "$1" 2>/dev/null' _ "$NEW/.git/tlm-config-base.toml" || sudo rm -f "$NEW/.git/tlm-config-base.toml"
+    fi` : ""}
   fi
   echo "=== Existing /root/flowstation found — removing for clean install ==="
   sudo rm -rf /root/flowstation
 fi
-echo "=== Fuente: ${src.label} ==="
-echo "=== git clone -b ${src.branch} https://github.com/${src.repo}.git ==="
-sudo git clone -b ${src.branch} https://github.com/${src.repo}.git /root/flowstation
+sudo mv "$NEW" /root/flowstation
 sudo chown -R root:root /root/flowstation
 cd /root/flowstation
 if [ -n "$BAK" ]; then
@@ -1055,12 +1089,14 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
     const installed = detectFlowSource(cleanDir);
     const source: FlowSource = isFlowSource(rawSource) ? rawSource : (installed ?? readFlowSource());
     const src = FLOW_SOURCES[source];
-    // Template of the installed commit, read before the git reset: base of the config.toml merge.
-    const baseTpl = installed === source ? installedTemplate(cleanDir) : null;
     res.setHeader("Content-Type", "text/plain; charset=utf-8");
     res.setHeader("Transfer-Encoding", "chunked");
     res.setHeader("Cache-Control", "no-cache");
     res.flushHeaders();
+    // Base of the config.toml merge, pinned before the git reset. A switch of source keeps config.toml as it is
+    // and drops the base of the other source (a retry after a failed build must not merge across sources).
+    const baseTpl = installed === source ? installedTemplate(cleanDir, (t) => res.write(t)) : null;
+    if (installed !== source) try { fs.rmSync(configBasePath(cleanDir), { force: true }); } catch { /* HEAD then */ }
 
     // Solo git pull + build aquí. El config.toml y el reinicio se tratan
     // en Node al terminar (para añadir lo nuevo ANTES de reiniciar).
@@ -1126,6 +1162,9 @@ exit 0
           res.write(`\n=== config.toml ===\n`);
           res.write(`Cambio de fuente (${installed ? FLOW_SOURCES[installed].label : "fuente instalada no reconocida"} → ${src.label}): config.toml se conserva tal cual, sin añadir nada.\n`);
           res.write("AVISO: las claves que solo conoce la otra fuente pueden impedir que la estación arranque; si pasa, coméntalas a mano.\n");
+          // from now on the merge starts from this source's template
+          const localTpl = `${cleanDir}/example_config/config.toml`;
+          if (fs.existsSync(localTpl)) saveConfigBase(cleanDir, fs.readFileSync(localTpl, "utf-8"), (t) => res.write(t));
         } else {
           const localTpl = `${cleanDir}/example_config/config.toml`;
           const template = fs.existsSync(localTpl)
@@ -1147,8 +1186,9 @@ exit 0
           if (err) res.write(`[restart err: ${err.message}]\n`);
           if (stdout) res.write(String(stdout));
           setTimeout(kickFlowstationRestart, 1500);
-          if (!err && wasActive) await checkStationStart(cleanService, since, (t) => res.write(t));
-          res.write(`\n[Exit: ${code}]\n`);
+          // an error means a start/restart was tried: the journal says which key the station refused
+          if (wasActive || err) await checkStationStart(cleanService, since, (t) => res.write(t));
+          res.write(`\n[Exit: ${err ? 1 : code}]\n`);
           res.end();
         });
       } else {

@@ -193,22 +193,28 @@ test("mergeConfigFile: backup 600, atomic write, idempotent, rotation", () => {
   try {
     const cfg = path.join(dir, "config.toml");
     fs.writeFileSync(cfg, USER);
+    // 11 copies left by the old updater (config.toml.bak-<ISO>): the new updater's rotation never counts them
+    const old = Array.from({ length: 11 }, (_, i) => `config.toml.bak-2026-08-${String(i + 1).padStart(2, "0")}T10-00-00-000Z`);
+    for (const n of old) fs.writeFileSync(path.join(dir, n), "old\n");
     const log: string[] = [];
-    assert.equal(mergeConfigFile(cfg, NEW, BASE, (s) => log.push(s)), true);
+    assert.equal(mergeConfigFile(cfg, NEW, BASE, (s) => log.push(s)), "written");
     assert.equal(verifyMerge(USER, fs.readFileSync(cfg, "utf-8")), null);
-    const baks = fs.readdirSync(dir).filter((n) => n.startsWith("config.toml.bak-"));
+    const baks = fs.readdirSync(dir).filter((n) => n.startsWith("config.toml.bak-upd-"));
     assert.equal(baks.length, 1);
     assert.equal(fs.readFileSync(path.join(dir, baks[0]), "utf-8"), USER);
     if (process.platform !== "win32") assert.equal(fs.statSync(path.join(dir, baks[0])).mode & 0o777, 0o600);
     assert.ok(!log.join("").includes("0123456789ABCDEF"));                 // never a value of [security]
-    assert.equal(mergeConfigFile(cfg, NEW, BASE, () => {}), false);        // already up to date
-    assert.equal(fs.readdirSync(dir).filter((n) => n.startsWith("config.toml.bak-")).length, 1);
+    assert.equal(mergeConfigFile(cfg, NEW, BASE, () => {}), "current");    // already up to date
+    assert.equal(fs.readdirSync(dir).filter((n) => n.startsWith("config.toml.bak-upd-")).length, 1);
     assert.equal(fs.readdirSync(dir).filter((n) => n.includes(".tmp-")).length, 0);
+    for (let i = 0; i < 12; i++) backupWithRotation(cfg, "bak-upd");
     for (let i = 0; i < 12; i++) backupWithRotation(cfg, "bak-calc");
+    assert.equal(fs.readdirSync(dir).filter((n) => n.startsWith("config.toml.bak-upd-")).length, 10);
     assert.equal(fs.readdirSync(dir).filter((n) => n.startsWith("config.toml.bak-calc-")).length, 10);
-    assert.equal(fs.readdirSync(dir).filter((n) => /^config\.toml\.bak-\d/.test(n)).length, 1); // other tag untouched
+    assert.deepEqual(fs.readdirSync(dir).filter((n) => /^config\.toml\.bak-\d/.test(n)).sort(), old); // other tags untouched
+    assert.equal(mergeConfigFile(cfg, NEW.replace('config_version = "0.6"', 'config_version = "0.7"'), BASE, () => {}), "version");
     fs.writeFileSync(cfg, "a = [\n");
-    assert.equal(mergeConfigFile(cfg, NEW, BASE, () => {}), false);        // invalid config: left as it is
+    assert.equal(mergeConfigFile(cfg, NEW, BASE, () => {}), "refused");    // invalid config: left as it is
     assert.equal(fs.readFileSync(cfg, "utf-8"), "a = [\n");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
 });

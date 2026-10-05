@@ -338,15 +338,17 @@ export function atomicWriteFile(file: string, content: string): void {
 }
 
 // The whole step of an update: merge, check, back up, write. Logs in Spanish for the updater output.
-// Returns true when config.toml was rewritten.
-export function mergeConfigFile(cfgPath: string, newTpl: string, baseTpl: string | null, log: (s: string) => void): boolean {
+// "written" = config.toml rewritten, "current" = nothing to add, "version" = format change (left as it is on
+// purpose), "refused" = the result failed the checks (config.toml intact; the next update tries again).
+export type MergeOutcome = "written" | "current" | "version" | "refused";
+export function mergeConfigFile(cfgPath: string, newTpl: string, baseTpl: string | null, log: (s: string) => void): MergeOutcome {
   const user = fs.readFileSync(cfgPath, "utf-8");
   const r = mergeAppendOnly(user, newTpl, baseTpl);
   if (r.versionChange) {
     log(`AVISO: la plantilla nueva cambia config_version de "${r.versionChange.from}" a "${r.versionChange.to}" (cambio de formato).\n`);
     log("config.toml NO se ha tocado: revísalo a mano comparándolo con example_config/config.toml;\n");
     log("hasta entonces la estación puede negarse a arrancar.\n");
-    return false;
+    return "version";
   }
   if (!baseTpl) log("Sin plantilla del commit anterior: todo lo nuevo se añade COMENTADO.\n");
   for (const s of r.security) log(`  S ${s}: nueva en la plantilla; [security] no se toca, revísala a mano\n`);
@@ -356,15 +358,16 @@ export function mergeConfigFile(cfgPath: string, newTpl: string, baseTpl: string
     for (const s of r.unknownKept) log(`  = ${s}\n`);
   }
   if (r.skippedDeleted.length) log(`${r.skippedDeleted.length} claves/tablas de la plantilla anterior no están en tu config.toml: se respeta (no se añaden).\n`);
-  if (!r.changed) { log("config.toml ya está al día: nada nuevo que añadir (no se ha tocado).\n"); return false; }
+  if (!r.changed) { log("config.toml ya está al día: nada nuevo que añadir (no se ha tocado).\n"); return "current"; }
   const bad = verifyMerge(user, r.merged);
-  if (bad) { log(`No se escribe (config.toml intacto): ${bad}.\n`); return false; }
-  const bak = backupWithRotation(cfgPath);
+  if (bad) { log(`No se escribe (config.toml intacto): ${bad}.\n`); return "refused"; }
+  // own tag: the rotation must not count (and delete) the config.toml.bak-<date> copies of the old updater
+  const bak = backupWithRotation(cfgPath, "bak-upd");
   atomicWriteFile(cfgPath, r.merged);
   log(`Copia de seguridad: ${bak}\n`);
   log(`Añadido a config.toml (${r.added.length}; ninguna línea existente se ha modificado):\n`);
   for (const a of r.added) log(`  + ${a}\n`);
-  return true;
+  return "written";
 }
 
 // What a station that refused its config (or crashed at start) writes to the journal.
