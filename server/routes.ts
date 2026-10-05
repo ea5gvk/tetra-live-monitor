@@ -9,7 +9,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
-import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE } from "./configMerge";
+import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock } from "./configMerge";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -4310,7 +4310,7 @@ exit 0
           for (let j = wxStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { wxEnd = j; break; }
           }
-          lines.splice(wxStart, wxEnd - wxStart, ...block);
+          spliceTableBlock(lines, wxStart, wxEnd, block);
         }
       }
 
@@ -4353,7 +4353,7 @@ exit 0
           for (let j = recStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { recEnd = j; break; }
           }
-          lines.splice(recStart, recEnd - recStart, ...block);
+          spliceTableBlock(lines, recStart, recEnd, block);
         }
       }
 
@@ -4401,7 +4401,7 @@ exit 0
           for (let j = hStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { hEnd = j; break; }
           }
-          lines.splice(hStart, hEnd - hStart, ...block);
+          spliceTableBlock(lines, hStart, hEnd, block);
         }
       }
 
@@ -4463,7 +4463,7 @@ exit 0
           for (let j = dStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { dEnd = j; break; }
           }
-          lines.splice(dStart, dEnd - dStart, ...block);
+          spliceTableBlock(lines, dStart, dEnd, block);
         }
       }
 
@@ -4499,7 +4499,7 @@ exit 0
           for (let j = tStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { tEnd = j; break; }
           }
-          lines.splice(tStart, tEnd - tStart, ...block);
+          spliceTableBlock(lines, tStart, tEnd, block);
         }
       }
 
@@ -4548,7 +4548,7 @@ exit 0
           for (let j = sStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { sEnd = j; break; }
           }
-          lines.splice(sStart, sEnd - sStart, ...block);
+          spliceTableBlock(lines, sStart, sEnd, block);
         }
       }
 
@@ -4604,7 +4604,7 @@ exit 0
           for (let j = gStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { gEnd = j; break; }
           }
-          lines.splice(gStart, gEnd - gStart, ...block);
+          spliceTableBlock(lines, gStart, gEnd, block);
         }
       }
 
@@ -4653,7 +4653,7 @@ exit 0
           for (let j = aStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { aEnd = j; break; }
           }
-          lines.splice(aStart, aEnd - aStart, ...block);
+          spliceTableBlock(lines, aStart, aEnd, block);
         }
       }
 
@@ -4684,7 +4684,7 @@ exit 0
           for (let j = eStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { eEnd = j; break; }
           }
-          lines.splice(eStart, eEnd - eStart, ...block);
+          spliceTableBlock(lines, eStart, eEnd, block);
         }
       }
 
@@ -4724,7 +4724,7 @@ exit 0
           for (let j = tgStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { tgEnd = j; break; }
           }
-          lines.splice(tgStart, tgEnd - tgStart, ...block);
+          spliceTableBlock(lines, tgStart, tgEnd, block);
         }
       }
 
@@ -4762,7 +4762,7 @@ exit 0
           for (let j = telStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { telEnd = j; break; }
           }
-          lines.splice(telStart, telEnd - telStart, ...block);
+          spliceTableBlock(lines, telStart, telEnd, block);
         }
       }
 
@@ -4800,51 +4800,9 @@ exit 0
           for (let j = cmdStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { cmdEnd = j; break; }
           }
-          lines.splice(cmdStart, cmdEnd - cmdStart, ...block);
+          spliceTableBlock(lines, cmdStart, cmdEnd, block);
         }
       }
-
-      // Reorder top-level sections to match flowstation's example_config canonical order.
-      // Subsections (with dots, e.g. [phy_io.soapysdr], [[cell_info.*]]) stay inside
-      // their parent block. Unknown sections keep their position relative to the
-      // preceding known section. Bails out (returns input) if the line multiset
-      // would change, so it can only ever reorder — never add/drop content.
-      const reorderTomlCanonical = (text: string): string => {
-        const CANON = ['phy_io','net_info','cell_info','security','recovery','health','wx_service','telegram_alerts','emergency','dashboard','telemetry','command','brew','dapnet','tpg2200_action','snom_notify','geoalarm','asterisk'];
-        const rank = new Map<string, number>();
-        CANON.forEach((n, i) => rank.set(n, i));
-        const topName = (line: string): string | null => {
-          // Match bracket-only top-level headers: [x], # [x], [[x]], # [[x]], with an
-          // optional trailing inline comment. Enforces matched bracket pairs and
-          // rejects dotted subsection names (those stay inside their parent block).
-          const m = line.match(/^\s*#?\s*(?:\[([A-Za-z_][A-Za-z0-9_]*)\]|\[\[([A-Za-z_][A-Za-z0-9_]*)\]\])\s*(?:#.*)?$/);
-          return m ? (m[1] || m[2]) : null;
-        };
-        const preamble: string[] = [];
-        const blocks: { name: string | null; lines: string[] }[] = [];
-        let cur: { name: string | null; lines: string[] } | null = null;
-        for (const line of text.split("\n")) {
-          const name = topName(line);
-          if (name !== null) { cur = { name, lines: [line] }; blocks.push(cur); }
-          else if (cur) { cur.lines.push(line); }
-          else { preamble.push(line); }
-        }
-        let lastRank = -1;
-        const keyed = blocks.map((b, idx) => {
-          let key: number;
-          if (b.name && rank.has(b.name)) { key = rank.get(b.name)!; lastRank = key; }
-          else { key = lastRank + 0.5; }
-          return { b, key, idx };
-        });
-        keyed.sort((a, z) => (a.key - z.key) || (a.idx - z.idx));
-        const out = [...preamble];
-        for (const k of keyed) out.push(...k.b.lines);
-        const result = out.join("\n");
-        const norm = (s: string) => s.split("\n").map((l) => l.trim()).filter((l) => l.length > 0).sort();
-        const a = norm(text), b = norm(result);
-        if (a.length !== b.length || a.some((v, i) => v !== b[i])) return text;
-        return result;
-      };
 
       // ── extra_carriers en [cell_info] (FlowStation miura del 04-10-2026 o posterior) ──
       // Se escribe debajo de secondary_carrier, solo con la secundaria habilitada y la lista no vacía; si no, se
@@ -4873,7 +4831,8 @@ exit 0
       // Solo cuando el cliente manda sdrGainConfig (null = calculadora anterior o tarjeta sin cargar ni tocar).
       applySoapyTxGains(lines, sdrGainConfig ?? null);
 
-      content = reorderTomlCanonical(lines.join("\n"));
+      // A table the file did not have goes to its place in example_config's order; the rest stays where it is.
+      content = reorderNewSections(lines.join("\n"), original);
 
       // Copia antes de escribir (solo si cambia): <config>.bak-calc-<fecha>, modo 600, se guardan las 10 últimas.
       const backup = content !== original ? backupWithRotation(configPath, "bak-calc") : null;

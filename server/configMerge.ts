@@ -369,3 +369,82 @@ export function mergeConfigFile(cfgPath: string, newTpl: string, baseTpl: string
 
 // What a station that refused its config (or crashed at start) writes to the journal.
 export const STATION_START_FAIL_RE = /Failed to load (primary config|configuration)|Unrecognized|Cannot start|FALLBACK CONFIG ACTIVE|panicked/;
+
+// Calculator Apply: top-level tables in the order of example_config. Only a table the file did not have
+// (by name, active or commented: a handler appended it) moves, to its place in this order; every table already
+// in the file stays where it is, so applying without changes leaves the file byte for byte as it is. Dotted
+// sub-tables stay inside their parent block. Returns the text as it is if the lines would change.
+const CANONICAL_SECTIONS = ["phy_io", "net_info", "cell_info", "security", "recovery", "health", "wx_service", "telegram_alerts", "emergency", "dashboard", "telemetry", "command", "brew", "dapnet", "tpg2200_action", "snom_notify", "geoalarm", "asterisk"];
+
+export function reorderNewSections(text: string, original: string): string {
+  const rank = new Map(CANONICAL_SECTIONS.map((n, i) => [n, i] as [string, number]));
+  // [x], # [x], [[x]], # [[x]] with an optional trailing comment.
+  const topName = (line: string): string | null => {
+    const m = line.replace(/\r$/, "").match(/^\s*#?\s*(?:\[([A-Za-z_][A-Za-z0-9_]*)\]|\[\[([A-Za-z_][A-Za-z0-9_]*)\]\])\s*(?:#.*)?$/);
+    return m ? (m[1] || m[2]) : null;
+  };
+  const had = new Map<string, number>();
+  for (const l of original.split("\n")) {
+    const n = topName(l);
+    if (n) had.set(n, (had.get(n) || 0) + 1);
+  }
+  const preamble: string[] = [];
+  const blocks: { name: string; lines: string[]; added: boolean }[] = [];
+  for (const line of text.split("\n")) {
+    const name = topName(line);
+    if (name !== null) {
+      const n = had.get(name) || 0;
+      if (n) had.set(name, n - 1);
+      blocks.push({ name, lines: [line], added: !n && rank.has(name) });
+    } else if (blocks.length) blocks[blocks.length - 1].lines.push(line);
+    else preamble.push(line);
+  }
+  if (!blocks.some((b) => b.added)) return text;
+  const out = blocks.filter((b) => !b.added);
+  for (const b of blocks.filter((b) => b.added)) {
+    // after the last table whose place is not later (an unknown table counts as the known one before it)
+    const r = rank.get(b.name)!;
+    let at = 0, last = -1;
+    out.forEach((o, i) => { last = rank.get(o.name) ?? last; if (last <= r) at = i + 1; });
+    out.splice(at, 0, b);
+  }
+  // a moved last line gets its end of line: CRLF files stay CRLF
+  const crlf = text.includes("\r\n");
+  const result = [...preamble, ...out.flatMap((b) => b.lines)].map((l) => (crlf ? l.replace(/\r$/, "") : l)).join(crlf ? "\r\n" : "\n");
+  const norm = (s: string) => s.split("\n").map((l) => l.trim()).filter((l) => l.length > 0).sort();
+  const a = norm(text), z = norm(result);
+  return a.length === z.length && a.every((v, i) => v === z[i]) ? result : text;
+}
+
+// Calculator Apply: a single-table block (# [telemetry], [health], ...) lines[start, end) replaced by the lines
+// the handler generated. The blank lines and comments after its last key stay (they introduce the next table).
+// Nothing is written when the block already says the same: header in the same state and every generated key
+// there, in the same state and with the same value (spacing, trailing comments, doc lines and keys the card
+// does not know aside). In a commented block `enabled` only says that the card is off.
+export function spliceTableBlock(lines: string[], start: number, end: number, block: string[]): void {
+  let last = end - 1;
+  while (last > start && !/^\s*#?\s*[A-Za-z0-9_]+\s*=/.test(lines[last])) last--;
+  const old = lines.slice(start, last + 1).map((l) => l.replace(/\r$/, ""));
+  const value = (v: string) => {
+    let q = "";
+    for (let i = 0; i < v.length; i++) {
+      const ch = v[i];
+      if (q) { if (ch === "\\" && q === '"') i++; else if (ch === q) q = ""; }
+      else if (ch === '"' || ch === "'") q = ch;
+      else if (ch === "#") return v.slice(0, i).trim();
+    }
+    return v.trim();
+  };
+  const kv = (l: string) => {
+    const m = l.match(/^\s*(#\s*)?([A-Za-z0-9_]+)\s*=\s*(.*)$/);
+    return m ? { c: !!m[1], k: m[2], v: value(m[3]) } : null;
+  };
+  const commented = (l: string) => /^\s*#/.test(l);
+  const same = commented(old[0]) === commented(block[0]) && block.slice(1).every((l) => {
+    const g = kv(l);
+    if (!g) return false;
+    if (g.c && g.k === "enabled" && commented(block[0])) return true;
+    return old.slice(1).some((o) => { const x = kv(o); return !!x && x.k === g.k && x.c === g.c && x.v === g.v; });
+  });
+  if (!same) lines.splice(start, last + 1 - start, ...block);
+}

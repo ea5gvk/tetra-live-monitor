@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { parse } from "smol-toml";
-import { mergeAppendOnly, verifyMerge, mergeConfigFile, backupWithRotation } from "./configMerge";
+import { mergeAppendOnly, verifyMerge, mergeConfigFile, backupWithRotation, reorderNewSections, spliceTableBlock } from "./configMerge";
 
 const BASE = `# Station config
 config_version = "0.6"
@@ -211,4 +211,59 @@ test("mergeConfigFile: backup 600, atomic write, idempotent, rotation", () => {
     assert.equal(mergeConfigFile(cfg, NEW, BASE, () => {}), false);        // invalid config: left as it is
     assert.equal(fs.readFileSync(cfg, "utf-8"), "a = [\n");
   } finally { fs.rmSync(dir, { recursive: true, force: true }); }
+});
+
+test("calculator reorder: only a table the file did not have moves, the rest stays byte for byte", () => {
+  // out of example_config's order: [telemetry] after [brew], a commented example before it
+  const cfg = '[phy_io]\na = 1\n\n# [telemetry]\n# host = ""\n\n[brew]\nb = 2\n\n[telemetry]\nhost = "x"\n\n# [dapnet]\n';
+  for (const c of [cfg, cfg.replace(/\n/g, "\r\n")]) {
+    const e = c.includes("\r") ? "\r\n" : "\n";
+    assert.equal(reorderNewSections(c, c), c);
+    // the example activated in place (same name): nothing moves
+    const act = c.replace("# [telemetry]", "[telemetry]");
+    assert.equal(reorderNewSections(act, c), act);
+    // [command] appended by a handler: after the last table whose place is not later ([telemetry]), nothing else moves
+    const out = reorderNewSections(`${c}${e}[command]${e}host = "y"`, c);
+    assert.equal(out, c.replace(`host = "x"${e}${e}`, `host = "x"${e}${e}[command]${e}host = "y"${e}`));
+  }
+  // a file in order: the new table lands in its place
+  const ord = "[cell_info]\nx = 1\n\n[brew]\ny = 2\n";
+  assert.equal(reorderNewSections(`${ord}\n[security]\nissi_whitelist = []`, ord), "[cell_info]\nx = 1\n\n[security]\nissi_whitelist = []\n[brew]\ny = 2\n");
+});
+
+test("calculator block handlers: the block as generated = untouched; the comments after it always stay", () => {
+  const doc = ["", "#####", "", "# OPTIONAL: DAPNET (doc of the next table)", "#"];
+  const lines = ["[telemetry]\r", 'host = "h"\r', "port = 1\r", ...doc.map((l) => `${l}\r`), "# [dapnet]\r", ""];
+  const before = lines.join("\n");
+  spliceTableBlock(lines, 0, 8, ["[telemetry]", 'host = "h"', "port = 1"]);
+  assert.equal(lines.join("\n"), before);
+  spliceTableBlock(lines, 0, 8, ["[telemetry]", 'host = "x"', "port = 1"]);
+  assert.deepEqual(lines.slice(0, 3), ["[telemetry]", 'host = "x"', "port = 1"]);
+  assert.deepEqual(lines.slice(3, 8), doc.map((l) => `${l}\r`));
+  // a header with no key: only the header is replaced
+  const h = ["# [health]", "", "# doc", "[wx_service]"];
+  spliceTableBlock(h, 0, 3, ["# [health]", "# snapshot_interval_secs = 5"]);
+  assert.deepEqual(h, ["# [health]", "# snapshot_interval_secs = 5", "", "# doc", "[wx_service]"]);
+});
+
+test("calculator block handlers: the same values with doc comments = untouched; a change rewrites the block", () => {
+  // example_config shape: commented table, trailing comments, a key the card does not know, doc lines
+  const ex = ["# [recovery]", "# enabled = true            # on/off (default false)", '# cache_path = ""          # explicit path',
+    "# max_replay_attempts = 150 # per-ISSI re-sends", "#                            (1..=500)", '# name = "a # b"   # quoted #', ""];
+  const gen = ["# [recovery]", "# enabled = false", "# max_replay_attempts = 150", '# name = "a # b"'];
+  const l1 = [...ex];
+  spliceTableBlock(l1, 0, ex.length, gen);
+  assert.deepEqual(l1, ex);
+  const l2 = [...ex];
+  spliceTableBlock(l2, 0, ex.length, ["# [recovery]", "# enabled = false", "# max_replay_attempts = 200", '# name = "a # b"']);
+  assert.deepEqual(l2, ["# [recovery]", "# enabled = false", "# max_replay_attempts = 200", '# name = "a # b"', ""]);
+  // enabling the card rewrites it, active
+  const l3 = [...ex];
+  spliceTableBlock(l3, 0, ex.length, ["[recovery]", "enabled = true", "max_replay_attempts = 150", 'name = "a # b"']);
+  assert.equal(l3[0], "[recovery]");
+  // an active table: same values in another spacing and with comments = untouched
+  const act = ["[telemetry]\r", 'host  =  "h"   # where\r', "port = 1\r", "extra_key = 5\r", "\r"];
+  const l4 = [...act];
+  spliceTableBlock(l4, 0, act.length, ["[telemetry]", 'host = "h"', "port = 1"]);
+  assert.deepEqual(l4, act);
 });
