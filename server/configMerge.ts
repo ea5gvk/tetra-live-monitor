@@ -355,7 +355,7 @@ export function mergeConfigFile(cfgPath: string, newTpl: string, baseTpl: string
     log(`Claves tuyas que la plantilla nueva no documenta (se conservan):\n`);
     for (const s of r.unknownKept) log(`  = ${s}\n`);
   }
-  if (r.skippedDeleted.length) log(`${r.skippedDeleted.length} claves/tablas que no tienes (las quitaste) no se vuelven a añadir.\n`);
+  if (r.skippedDeleted.length) log(`${r.skippedDeleted.length} claves/tablas de la plantilla anterior no están en tu config.toml: se respeta (no se añaden).\n`);
   if (!r.changed) { log("config.toml ya está al día: nada nuevo que añadir (no se ha tocado).\n"); return false; }
   const bad = verifyMerge(user, r.merged);
   if (bad) { log(`No se escribe (config.toml intacto): ${bad}.\n`); return false; }
