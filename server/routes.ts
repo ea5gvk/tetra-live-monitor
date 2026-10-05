@@ -2836,6 +2836,7 @@ exit 0
       }
 
       let content = fs.readFileSync(configPath, "utf-8");
+      const original = content;
 
       const sectionUpdates: Record<string, Record<string, string>> = {
         "phy_io.soapysdr": {
@@ -4874,6 +4875,8 @@ exit 0
 
       content = reorderTomlCanonical(lines.join("\n"));
 
+      // Copia antes de escribir (solo si cambia): <config>.bak-calc-<fecha>, modo 600, se guardan las 10 últimas.
+      const backup = content !== original ? backupWithRotation(configPath, "bak-calc") : null;
       fs.writeFileSync(configPath, content, "utf-8");
 
       const safeServiceName = serviceName.replace(/[^a-zA-Z0-9._-]/g, '');
@@ -4881,7 +4884,7 @@ exit 0
         if (err) console.error(`Error al reiniciar ${safeServiceName}:`, err.message);
       });
 
-      res.json({ message: "Config aplicada. Reiniciando TMO..." });
+      res.json({ message: "Config aplicada. Reiniciando TMO...", backup });
     } catch (err: any) {
       console.error("Error al aplicar config:", err);
       res.status(500).json({ message: `Error: ${err.message}` });
