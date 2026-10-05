@@ -853,7 +853,6 @@ cargo build --release
   // ─── Flowstation install / update / check ───────────────────────────────────
   const FLOW_DIR_DEFAULT = "/root/flowstation";
   const FLOW_SERVICE = "flowstation.service";
-  const FLOW_REPO = "razvanzeces/flowstation";
   const FLOW_SERVICE_FILE = `[Unit]
 Description=Tetra Flowstation
 After=network.target
@@ -975,7 +974,7 @@ LimitCORE=0
   });
 
   app.post("/api/flowstation/install", (req, res) => {
-    const { password } = req.body || {};
+    const { password, source: rawSource } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -984,26 +983,43 @@ LimitCORE=0
     res.setHeader("Cache-Control", "no-cache");
     res.flushHeaders();
 
+    // Source chosen in the dialog (repo+branch of the constant map, never from the user → no injection).
+    const source: FlowSource = isFlowSource(rawSource) ? rawSource : readFlowSource();
+    const src = FLOW_SOURCES[source];
     const serviceFileEscaped = FLOW_SERVICE_FILE.replace(/'/g, "'\\''");
+    // An existing config.toml is saved OUTSIDE the tree before the clean clone and put back right after it
+    // (before the build, so a failed build does not leave the station without it) instead of the example.
     const script = `
 set -e
 cd /root
+BAK=""
 if [ -d /root/flowstation ]; then
+  if [ -f /root/flowstation/config.toml ]; then
+    BAK="/root/flowstation.config.toml.bak-$(date +%Y%m%d-%H%M%S)"
+    sudo cp -p /root/flowstation/config.toml "$BAK"
+    echo "=== config.toml existente guardado en $BAK ==="
+  fi
   echo "=== Existing /root/flowstation found — removing for clean install ==="
   sudo rm -rf /root/flowstation
 fi
-echo "=== git clone https://github.com/${FLOW_REPO} ==="
-sudo git clone https://github.com/${FLOW_REPO}
+echo "=== Fuente: ${src.label} ==="
+echo "=== git clone -b ${src.branch} https://github.com/${src.repo}.git ==="
+sudo git clone -b ${src.branch} https://github.com/${src.repo}.git /root/flowstation
 sudo chown -R root:root /root/flowstation
 cd /root/flowstation
+if [ -n "$BAK" ]; then
+  echo "=== Restaurando config.toml desde $BAK (no se usa example_config) ==="
+  sudo cp -p "$BAK" config.toml
+  sudo chmod 600 "$BAK"
+else
+  echo "=== Copiando example_config/config.toml -> config.toml ==="
+  sudo cp example_config/config.toml config.toml
+fi
 [ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env" || true
 [ -f /root/.cargo/env ] && . /root/.cargo/env || true
 echo ""
 echo "=== cargo build --release (esto tarda varios minutos) ==="
 sudo bash -lc 'cd /root/flowstation && [ -f /root/.cargo/env ] && . /root/.cargo/env; cargo build --release'
-echo ""
-echo "=== Copiando example_config/config.toml -> config.toml ==="
-sudo cp example_config/config.toml config.toml
 echo ""
 echo "=== Creando /etc/systemd/system/${FLOW_SERVICE} ==="
 sudo bash -c 'cat > /etc/systemd/system/${FLOW_SERVICE} <<'\\''EOF'\\''
@@ -1017,7 +1033,10 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
     const child = spawn("bash", ["-c", script]);
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
-    child.on("close", (code: number) => { res.write(`\n[Exit: ${code}]\n`); res.end(); });
+    child.on("close", (code: number) => {
+      if (code === 0) writeFlowSource(source);
+      res.write(`\n[Exit: ${code}]\n`); res.end();
+    });
     child.on("error", (err: Error) => { res.write(`\n[Error: ${err.message}]\n`); res.end(); });
   });
 

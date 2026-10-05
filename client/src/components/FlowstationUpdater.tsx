@@ -172,33 +172,31 @@ export function FlowstationUpdater() {
                 <div><span className="font-medium">Service:</span> <code className="text-amber-400 font-mono">{SERVICE}</code></div>
               </div>
 
-              {mode === "update" && (
-                <div className="space-y-1.5">
-                  <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Versión / repositorio</div>
-                  <div className="grid grid-cols-2 gap-2">
-                    {(["razvan", "miura"] as FlowSource[]).map(s => {
-                      const m = info?.sources?.[s] ?? SOURCE_META[s];
-                      const isSel = sel === s;
-                      const isActive = info?.active === s;
-                      return (
-                        <button
-                          key={s}
-                          onClick={() => pickSource(s)}
-                          disabled={busy}
-                          className={`text-left p-2 rounded border text-[11px] transition-colors disabled:opacity-50 ${isSel ? "border-emerald-500/60 bg-emerald-500/10 text-foreground" : "border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10"}`}
-                          data-testid={`button-flowstation-source-${s}`}
-                        >
-                          <div className="font-bold flex items-center gap-1">
-                            {m.label}
-                            {isActive && <span className="text-[9px] px-1 rounded bg-emerald-500/20 text-emerald-400">activa</span>}
-                          </div>
-                          <div className="font-mono text-[9px] text-muted-foreground truncate">{m.repo} · {m.branch}</div>
-                        </button>
-                      );
-                    })}
-                  </div>
+              <div className="space-y-1.5">
+                <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Versión / repositorio</div>
+                <div className="grid grid-cols-2 gap-2">
+                  {(["razvan", "miura"] as FlowSource[]).map(s => {
+                    const m = info?.sources?.[s] ?? SOURCE_META[s];
+                    const isSel = sel === s;
+                    const isActive = info?.active === s;
+                    return (
+                      <button
+                        key={s}
+                        onClick={() => pickSource(s)}
+                        disabled={busy}
+                        className={`text-left p-2 rounded border text-[11px] transition-colors disabled:opacity-50 ${isSel ? "border-emerald-500/60 bg-emerald-500/10 text-foreground" : "border-white/10 bg-white/5 text-muted-foreground hover:bg-white/10"}`}
+                        data-testid={`button-flowstation-source-${s}`}
+                      >
+                        <div className="font-bold flex items-center gap-1">
+                          {m.label}
+                          {isActive && <span className="text-[9px] px-1 rounded bg-emerald-500/20 text-emerald-400">activa</span>}
+                        </div>
+                        <div className="font-mono text-[9px] text-muted-foreground truncate">{m.repo} · {m.branch}</div>
+                      </button>
+                    );
+                  })}
                 </div>
-              )}
+              </div>
 
               {info === null ? (
                 <p className="text-xs text-muted-foreground">{t("update_checking")}</p>
@@ -247,9 +245,9 @@ export function FlowstationUpdater() {
                   {mode === "install" ? (
                     <>
                       <div className="text-green-400">$ cd /root</div>
-                      <div className="text-green-400">$ sudo git clone https://github.com/{`razvanzeces/flowstation`}</div>
+                      <div className="text-green-400">$ sudo git clone -b {meta.branch} https://github.com/{meta.repo}.git</div>
+                      <div className="text-green-400">$ config.toml existente → se conserva (si no hay: example_config/config.toml)</div>
                       <div className="text-green-400">$ cargo build --release</div>
-                      <div className="text-green-400">$ cp example_config/config.toml config.toml</div>
                       <div className="text-amber-400">$ create /etc/systemd/system/flowstation.service</div>
                     </>
                   ) : (
