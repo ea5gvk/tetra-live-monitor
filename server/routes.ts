@@ -8,7 +8,7 @@ import { spawn, exec, execSync, type ChildProcess } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
-import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand } from "./miuraConfig";
+import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
 import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE } from "./configMerge";
 
 let pythonProcess: ChildProcess | null = null;
@@ -2536,6 +2536,8 @@ exit 0
           rx_freq: num('phy_io.soapysdr', 'rx_freq'),
           tx_center_freq: num('phy_io.soapysdr', 'tx_center_freq'),
           rx_center_freq: num('phy_io.soapysdr', 'rx_center_freq'),
+          // tx_gain_dac / tx_gain_mixer (SXceiver / µCell): enabled = active line; value also from a commented one.
+          tx_gains: readSoapyTxGains(content),
         },
         cell_info: {
           freq_band: num('cell_info', 'freq_band'),
@@ -2798,7 +2800,7 @@ exit 0
   });
 
   app.post(api.system.applyConfig.path, (req, res) => {
-    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig, telemetryConfig, commandConfig, recoveryConfig, healthConfig, emergencyConfig, telegramAlertsConfig, dapnetConfig, tpg2200Config, snomNotifyConfig, geoalarmConfig, asteriskConfig, parrotConfig, wapConfig } = req.body || {};
+    const { password, configPath, serviceName, values, netInfoConfig, cellInfoExtra, ssiRangesConfig, timezoneConfig, callTimingConfig, periodicRegConfig, brewConfig, securityConfig, neighborCellsConfig, homeModeDisplayConfig, sdsBroadcastConfig, sdsCommandControlConfig, dashboardConfig, wxServiceConfig, serviceNameConfig, telemetryConfig, commandConfig, recoveryConfig, healthConfig, emergencyConfig, telegramAlertsConfig, dapnetConfig, tpg2200Config, snomNotifyConfig, geoalarmConfig, asteriskConfig, parrotConfig, wapConfig, sdrGainConfig } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
@@ -4849,6 +4851,10 @@ exit 0
       // ── Loro (parrot_* en [cell_info]) y WAP/datos por paquetes (FlowStation miura) ──
       // Solo cuando el cliente los envía (null en BlueStation).
       applyMiuraFeatures(lines, parrotConfig, wapConfig);
+
+      // ── tx_gain_dac / tx_gain_mixer en [phy_io.soapysdr] (todas las estaciones, SDR SXceiver / µCell) ──
+      // Solo cuando el cliente manda sdrGainConfig (null = calculadora anterior o tarjeta sin cargar ni tocar).
+      applySoapyTxGains(lines, sdrGainConfig ?? null);
 
       content = reorderTomlCanonical(lines.join("\n"));
 

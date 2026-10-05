@@ -380,6 +380,40 @@
     </section>
   </div>
 
+  <div id="sectionSdrGain" style="max-width:1200px; margin:14px auto 0 auto;">
+    <section class="card">
+      <h2 data-i18n="sdr_gain_title">🎚️ SDR TX gain [phy_io.soapysdr]</h2>
+      <div class="hint" data-i18n="sdr_gain_hint">Only for SXceiver / µCell SDRs (the one in the Pis). Ticked = the line is written active. Unticked = the line stays commented (# tx_gain_dac = 9, the value is kept) and the SDR default is used: DAC 9 / MIXER 30 = maximum power. Each step is 1 dB. Another SDR (LimeSDR, Pluto, USRP) has no such stages and the station does not start with them: leave both unticked. Applied when the service restarts (Apply restarts it).</div>
+      <div class="row" style="margin-top:12px;">
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableTxGainDac" data-testid="checkbox-tx-gain-dac" />
+            <label for="enableTxGainDac" data-i18n="tx_gain_dac_enable">Set tx_gain_dac</label>
+          </div>
+          <div id="txGainDacRow" style="opacity:0.55;">
+            <label for="txGainDacVal" data-i18n="tx_gain_dac_label">tx_gain_dac (0, 3, 6 or 9; 9 = maximum)</label>
+            <select id="txGainDacVal" data-testid="select-tx-gain-dac">
+              <option value="0">0</option>
+              <option value="3">3</option>
+              <option value="6">6</option>
+              <option value="9" selected>9</option>
+            </select>
+          </div>
+        </div>
+        <div>
+          <div class="checkbox-row">
+            <input type="checkbox" id="enableTxGainMixer" data-testid="checkbox-tx-gain-mixer" />
+            <label for="enableTxGainMixer" data-i18n="tx_gain_mixer_enable">Set tx_gain_mixer</label>
+          </div>
+          <div id="txGainMixerRow" style="opacity:0.55;">
+            <label for="txGainMixerVal" data-i18n="tx_gain_mixer_label">tx_gain_mixer (0 to 30 in steps of 2; 30 = maximum)</label>
+            <input id="txGainMixerVal" type="number" min="0" max="30" step="2" value="30" data-testid="input-tx-gain-mixer" />
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
 
   <div style="max-width:1200px; margin:14px auto 0 auto;">
     <section class="card">
@@ -1943,6 +1977,12 @@
       duplex_hint_ok: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) → {mhz} MHz",
       duplex_hint_reserved: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is reserved (ETSI NOTE 1). Enter RX or use duplex_spacing=7 with custom spacing.",
       duplex_hint_custom: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is undefined (ETSI NOTE 3 / 1112). Enter custom_duplex_spacing to derive RX.",
+      sdr_gain_title: "🎚️ SDR TX gain [phy_io.soapysdr]",
+      sdr_gain_hint: "Only for SXceiver / µCell SDRs (the one in the Pis). Ticked = the line is written active. Unticked = the line stays commented (# tx_gain_dac = 9, the value is kept) and the SDR default is used: DAC 9 / MIXER 30 = maximum power. Each step is 1 dB. Another SDR (LimeSDR, Pluto, USRP) has no such stages and the station does not start with them: leave both unticked. Applied when the service restarts (Apply restarts it).",
+      tx_gain_dac_enable: "Set tx_gain_dac",
+      tx_gain_dac_label: "tx_gain_dac (0, 3, 6 or 9; 9 = maximum)",
+      tx_gain_mixer_enable: "Set tx_gain_mixer",
+      tx_gain_mixer_label: "tx_gain_mixer (0 to 30 in steps of 2; 30 = maximum)",
       net_info_title: "🌐 Network Info [net_info]",
       mcc_label: "MCC (Mobile Country Code)",
       mcc_hint: "Country code, e.g. 466=Taiwan, 204=Netherlands",
@@ -2314,6 +2354,12 @@
       duplex_hint_ok: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）→ {mhz} MHz",
       duplex_hint_reserved: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）為 reserved（ETSI NOTE 1）。請直接填 RX 或改用 duplex_spacing=7 並填 custom spacing。",
       duplex_hint_custom: "band {band} / base {baseHz}：duplex_spacing={idx}（IE {code}）為未定義（ETSI NOTE 3 / 1112）。請填 custom_duplex_spacing 才能推算 RX。",
+      sdr_gain_title: "🎚️ SDR 發射增益 [phy_io.soapysdr]",
+      sdr_gain_hint: "僅適用於 SXceiver / µCell SDR(Pi 上使用的 SDR)。勾選 = 該行以啟用狀態寫入。未勾選 = 該行保持註解(# tx_gain_dac = 9,保留數值),並使用 SDR 預設值:DAC 9 / MIXER 30 = 最大功率。每一級為 1 dB。其他 SDR(LimeSDR、Pluto、USRP)沒有這些增益級,設定後基地台無法啟動:請保持未勾選。服務重新啟動後生效(套用會重新啟動服務)。",
+      tx_gain_dac_enable: "設定 tx_gain_dac",
+      tx_gain_dac_label: "tx_gain_dac(0、3、6 或 9;9 = 最大)",
+      tx_gain_mixer_enable: "設定 tx_gain_mixer",
+      tx_gain_mixer_label: "tx_gain_mixer(0 至 30,每級 2;30 = 最大)",
       net_info_title: "🌐 網絡信息 [net_info]",
       mcc_label: "MCC（移動國家代碼）",
       mcc_hint: "國家代碼，例如 466=台灣，204=荷蘭",
@@ -2637,6 +2683,12 @@
       duplex_hint_ok: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) → {mhz} MHz",
       duplex_hint_reserved: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) está reservado (ETSI NOTE 1). Introduce RX o usa duplex_spacing=7 con custom spacing.",
       duplex_hint_custom: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) no está definido (ETSI NOTE 3 / 1112). Introduce custom_duplex_spacing para calcular RX.",
+      sdr_gain_title: "🎚️ Ganancia TX del SDR [phy_io.soapysdr]",
+      sdr_gain_hint: "Solo para SDR SXceiver / µCell (el de las Pis). Marcada = la línea se escribe activa. Desmarcada = la línea queda comentada (# tx_gain_dac = 9, se guarda el valor) y se usa el valor por defecto del SDR: DAC 9 / MIXER 30 = potencia máxima. Cada paso es 1 dB. Otro SDR (LimeSDR, Pluto, USRP) no tiene estas etapas y la estación no arranca con ellas: déjalas desmarcadas. Se aplica al reiniciar el servicio (Aplicar lo reinicia).",
+      tx_gain_dac_enable: "Fijar tx_gain_dac",
+      tx_gain_dac_label: "tx_gain_dac (0, 3, 6 o 9; 9 = máximo)",
+      tx_gain_mixer_enable: "Fijar tx_gain_mixer",
+      tx_gain_mixer_label: "tx_gain_mixer (0 a 30 en pasos de 2; 30 = máximo)",
       net_info_title: "🌐 Información de Red [net_info]",
       mcc_label: "MCC (Código de País Móvil)",
       mcc_hint: "Código de país, ej. 214=España, 204=Países Bajos",
@@ -3008,6 +3060,12 @@
       duplex_hint_ok: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
       duplex_hint_reserved: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) est\u00e1 reservado (ETSI NOTE 1). Insira RX ou use duplex_spacing=7 com custom spacing.",
       duplex_hint_custom: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) n\u00e3o est\u00e1 definido (ETSI NOTE 3 / 1112). Insira custom_duplex_spacing para calcular RX.",
+      sdr_gain_title: "🎚️ Ganho TX do SDR [phy_io.soapysdr]",
+      sdr_gain_hint: "Apenas para SDR SXceiver / µCell (o dos Pis). Marcado = a linha é escrita ativa. Desmarcado = a linha fica comentada (# tx_gain_dac = 9, o valor é guardado) e usa-se o valor por omissão do SDR: DAC 9 / MIXER 30 = potência máxima. Cada passo é 1 dB. Outro SDR (LimeSDR, Pluto, USRP) não tem estes andares e a estação não arranca com eles: deixe-os desmarcados. Aplica-se ao reiniciar o serviço (Aplicar reinicia-o).",
+      tx_gain_dac_enable: "Definir tx_gain_dac",
+      tx_gain_dac_label: "tx_gain_dac (0, 3, 6 ou 9; 9 = máximo)",
+      tx_gain_mixer_enable: "Definir tx_gain_mixer",
+      tx_gain_mixer_label: "tx_gain_mixer (0 a 30 em passos de 2; 30 = máximo)",
       net_info_title: "🌐 Informação de Rede [net_info]",
       mcc_label: "MCC (Código de País Móvel)",
       mcc_hint: "Código de país, ex. 268=Portugal, 204=Países Baixos",
@@ -3331,6 +3389,12 @@
       duplex_hint_ok: "Band {band} / Basis {baseHz}: duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
       duplex_hint_reserved: "Band {band} / Basis {baseHz}: duplex_spacing={idx} (IE {code}) ist reserviert (ETSI NOTE 1). Geben Sie RX ein oder verwenden Sie duplex_spacing=7 mit custom spacing.",
       duplex_hint_custom: "Band {band} / Basis {baseHz}: duplex_spacing={idx} (IE {code}) ist undefiniert (ETSI NOTE 3 / 1112). Geben Sie custom_duplex_spacing ein, um RX zu berechnen.",
+      sdr_gain_title: "🎚️ SDR-Sendeverstärkung [phy_io.soapysdr]",
+      sdr_gain_hint: "Nur für SXceiver- / µCell-SDRs (das SDR der Pis). Angehakt = die Zeile wird aktiv geschrieben. Nicht angehakt = die Zeile bleibt auskommentiert (# tx_gain_dac = 9, der Wert bleibt erhalten) und es gilt der SDR-Standard: DAC 9 / MIXER 30 = maximale Leistung. Jeder Schritt ist 1 dB. Andere SDRs (LimeSDR, Pluto, USRP) haben diese Stufen nicht und die Station startet damit nicht: nicht anhaken. Wirkt nach dem Neustart des Dienstes (Anwenden startet ihn neu).",
+      tx_gain_dac_enable: "tx_gain_dac setzen",
+      tx_gain_dac_label: "tx_gain_dac (0, 3, 6 oder 9; 9 = Maximum)",
+      tx_gain_mixer_enable: "tx_gain_mixer setzen",
+      tx_gain_mixer_label: "tx_gain_mixer (0 bis 30 in 2er-Schritten; 30 = Maximum)",
       net_info_title: "🌐 Netzwerkinformation [net_info]",
       mcc_label: "MCC (Mobilfunk-Länderkennzahl)",
       mcc_hint: "Länderkennzahl, z.B. 262=Deutschland, 204=Niederlande",
@@ -3654,6 +3718,12 @@
       duplex_hint_ok: "bande {band} / base {baseHz} : duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
       duplex_hint_reserved: "bande {band} / base {baseHz} : duplex_spacing={idx} (IE {code}) est r\u00e9serv\u00e9 (ETSI NOTE 1). Saisissez RX ou utilisez duplex_spacing=7 avec custom spacing.",
       duplex_hint_custom: "bande {band} / base {baseHz} : duplex_spacing={idx} (IE {code}) n\u2019est pas d\u00e9fini (ETSI NOTE 3 / 1112). Saisissez custom_duplex_spacing pour calculer RX.",
+      sdr_gain_title: "🎚️ Gain TX du SDR [phy_io.soapysdr]",
+      sdr_gain_hint: "Uniquement pour les SDR SXceiver / µCell (celui des Pi). Coché = la ligne est écrite active. Décoché = la ligne reste en commentaire (# tx_gain_dac = 9, la valeur est conservée) et la valeur par défaut du SDR s'applique : DAC 9 / MIXER 30 = puissance maximale. Chaque pas vaut 1 dB. Un autre SDR (LimeSDR, Pluto, USRP) n'a pas ces étages et la station ne démarre pas avec eux : laissez-les décochés. Appliqué au redémarrage du service (Appliquer le redémarre).",
+      tx_gain_dac_enable: "Définir tx_gain_dac",
+      tx_gain_dac_label: "tx_gain_dac (0, 3, 6 ou 9 ; 9 = maximum)",
+      tx_gain_mixer_enable: "Définir tx_gain_mixer",
+      tx_gain_mixer_label: "tx_gain_mixer (0 à 30 par pas de 2 ; 30 = maximum)",
       net_info_title: "🌐 Informations Réseau [net_info]",
       mcc_label: "MCC (Code Pays Mobile)",
       mcc_hint: "Code pays, ex. 208=France, 204=Pays-Bas",
@@ -3977,6 +4047,12 @@
       duplex_hint_ok: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
       duplex_hint_reserved: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) \u00e8 riservato (ETSI NOTE 1). Inserisci RX o usa duplex_spacing=7 con custom spacing.",
       duplex_hint_custom: "banda {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) non \u00e8 definito (ETSI NOTE 3 / 1112). Inserisci custom_duplex_spacing per calcolare RX.",
+      sdr_gain_title: "🎚️ Guadagno TX dell'SDR [phy_io.soapysdr]",
+      sdr_gain_hint: "Solo per SDR SXceiver / µCell (quello dei Pi). Spuntato = la riga viene scritta attiva. Non spuntato = la riga resta commentata (# tx_gain_dac = 9, il valore viene conservato) e si usa il valore predefinito dell'SDR: DAC 9 / MIXER 30 = potenza massima. Ogni passo vale 1 dB. Un altro SDR (LimeSDR, Pluto, USRP) non ha questi stadi e la stazione non si avvia con essi: lasciali non spuntati. Si applica al riavvio del servizio (Applica lo riavvia).",
+      tx_gain_dac_enable: "Imposta tx_gain_dac",
+      tx_gain_dac_label: "tx_gain_dac (0, 3, 6 o 9; 9 = massimo)",
+      tx_gain_mixer_enable: "Imposta tx_gain_mixer",
+      tx_gain_mixer_label: "tx_gain_mixer (da 0 a 30 a passi di 2; 30 = massimo)",
       net_info_title: "🌐 Informazioni di Rete [net_info]",
       mcc_label: "MCC (Codice Paese Mobile)",
       mcc_hint: "Codice paese, es. 222=Italia, 204=Paesi Bassi",
@@ -4300,6 +4376,12 @@
       duplex_hint_ok: "b\u00e5nd {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
       duplex_hint_reserved: "b\u00e5nd {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) er reserveret (ETSI NOTE 1). Angiv RX eller brug duplex_spacing=7 med custom spacing.",
       duplex_hint_custom: "b\u00e5nd {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) er ikke defineret (ETSI NOTE 3 / 1112). Angiv custom_duplex_spacing for at beregne RX.",
+      sdr_gain_title: "🎚️ SDR TX-forstærkning [phy_io.soapysdr]",
+      sdr_gain_hint: "Kun til SXceiver / µCell SDR'er (den i Pi'erne). Markeret = linjen skrives aktiv. Ikke markeret = linjen forbliver udkommenteret (# tx_gain_dac = 9, værdien bevares), og SDR'ens standard bruges: DAC 9 / MIXER 30 = maksimal effekt. Hvert trin er 1 dB. En anden SDR (LimeSDR, Pluto, USRP) har ikke disse trin, og stationen starter ikke med dem: lad dem være umarkerede. Træder i kraft, når tjenesten genstartes (Anvend genstarter den).",
+      tx_gain_dac_enable: "Sæt tx_gain_dac",
+      tx_gain_dac_label: "tx_gain_dac (0, 3, 6 eller 9; 9 = maksimum)",
+      tx_gain_mixer_enable: "Sæt tx_gain_mixer",
+      tx_gain_mixer_label: "tx_gain_mixer (0 til 30 i trin på 2; 30 = maksimum)",
       net_info_title: "\ud83c\udf10 Netv\u00e6rksoplysninger [net_info]",
       mcc_label: "MCC (Mobilt Landekode)",
       mcc_hint: "Landekode, f.eks. 238=Danmark, 214=Spanien",
@@ -4623,6 +4705,12 @@
       duplex_hint_ok: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) \u2192 {mhz} MHz",
       duplex_hint_reserved: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is gereserveerd (ETSI NOTE 1). Voer RX in of gebruik duplex_spacing=7 met custom spacing.",
       duplex_hint_custom: "band {band} / base {baseHz}: duplex_spacing={idx} (IE {code}) is niet gedefinieerd (ETSI NOTE 3 / 1112). Voer custom_duplex_spacing in om RX te berekenen.",
+      sdr_gain_title: "🎚️ SDR TX-versterking [phy_io.soapysdr]",
+      sdr_gain_hint: "Alleen voor SXceiver / µCell SDR's (die van de Pi's). Aangevinkt = de regel wordt actief geschreven. Niet aangevinkt = de regel blijft uitgecommentarieerd (# tx_gain_dac = 9, de waarde blijft bewaard) en de standaard van de SDR geldt: DAC 9 / MIXER 30 = maximaal vermogen. Elke stap is 1 dB. Een andere SDR (LimeSDR, Pluto, USRP) heeft deze trappen niet en het station start er niet mee: laat ze uitgevinkt. Wordt toegepast bij het herstarten van de dienst (Toepassen herstart hem).",
+      tx_gain_dac_enable: "tx_gain_dac instellen",
+      tx_gain_dac_label: "tx_gain_dac (0, 3, 6 of 9; 9 = maximum)",
+      tx_gain_mixer_enable: "tx_gain_mixer instellen",
+      tx_gain_mixer_label: "tx_gain_mixer (0 tot 30 in stappen van 2; 30 = maximum)",
       net_info_title: "\ud83c\udf10 Netwerkinformatie [net_info]",
       mcc_label: "MCC (Mobiele Landcode)",
       mcc_hint: "Landcode, bijv. 204=Nederland, 214=Spanje",
@@ -4946,6 +5034,12 @@
       duplex_hint_ok: "bandă {band} / bază {baseHz}: duplex_spacing={idx} (IE {code}) → {mhz} MHz",
       duplex_hint_reserved: "bandă {band} / bază {baseHz}: duplex_spacing={idx} (IE {code}) este rezervat (ETSI NOTE 1). Introduceți RX sau folosiți duplex_spacing=7 cu custom spacing.",
       duplex_hint_custom: "bandă {band} / bază {baseHz}: duplex_spacing={idx} (IE {code}) este nedefinit (ETSI NOTE 3 / 1112). Introduceți custom_duplex_spacing pentru a calcula RX.",
+      sdr_gain_title: "🎚️ Câștig TX al SDR [phy_io.soapysdr]",
+      sdr_gain_hint: "Doar pentru SDR SXceiver / µCell (cel din Pi-uri). Bifat = linia se scrie activă. Nebifat = linia rămâne comentată (# tx_gain_dac = 9, valoarea se păstrează) și se folosește valoarea implicită a SDR-ului: DAC 9 / MIXER 30 = putere maximă. Fiecare pas este 1 dB. Alt SDR (LimeSDR, Pluto, USRP) nu are aceste etaje și stația nu pornește cu ele: lăsați-le nebifate. Se aplică la repornirea serviciului (Aplică îl repornește).",
+      tx_gain_dac_enable: "Setează tx_gain_dac",
+      tx_gain_dac_label: "tx_gain_dac (0, 3, 6 sau 9; 9 = maxim)",
+      tx_gain_mixer_enable: "Setează tx_gain_mixer",
+      tx_gain_mixer_label: "tx_gain_mixer (0 până la 30 în pași de 2; 30 = maxim)",
       net_info_title: "🌐 Informații de rețea [net_info]",
       mcc_label: "MCC (Cod de Țară Mobil)",
       mcc_hint: "Cod de țară, ex. 226=România, 214=Spania",
@@ -5570,6 +5664,9 @@
       lines.push(cfEnabled ? `tx_center_freq = ${txCf}` : `# tx_center_freq = ${txCf}`);
       lines.push(cfEnabled ? `rx_center_freq = ${rxCf}` : `# rx_center_freq = ${rxCf}`);
     }
+    // tx_gain_dac / tx_gain_mixer (SXceiver / µCell): commented when unticked
+    lines.push(`${el("enableTxGainDac").checked ? "" : "# "}tx_gain_dac = ${txGainValue("dac")}`);
+    lines.push(`${el("enableTxGainMixer").checked ? "" : "# "}tx_gain_mixer = ${txGainValue("mixer")}`);
     lines.push("");
     lines.push("[cell_info]");
     lines.push(`freq_band = ${out.band}`);
@@ -6501,6 +6598,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         el("rxVal").value = String(data.phy_io_soapysdr.rx_freq);
         el("rxUnit").value = "Hz";
       }
+
+      // ── tx_gain_dac / tx_gain_mixer (an older server does not send tx_gains: the card stays untouched)
+      setTxGainCard(data.phy_io_soapysdr.tx_gains);
 
       // ── Trigger main calculation to derive main_carrier, duplex_spacing, etc.
       calc();
@@ -7520,6 +7620,13 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const wapIsFlow = document.getElementById("sectionWap")?.style.display !== "none";
     const wapConfig = wapIsFlow ? { enabled: el("enableWap").checked, ...getWapValues() } : null;
 
+    // tx_gain_dac / tx_gain_mixer (every station): only once loaded from the config or touched, else null =
+    // the server leaves the lines as they are (an unticked card must not comment out gains it never read).
+    const sdrGainConfig = sdrGainTouched ? {
+      tx_gain_dac: { enabled: el("enableTxGainDac").checked, value: txGainValue("dac") },
+      tx_gain_mixer: { enabled: el("enableTxGainMixer").checked, value: txGainValue("mixer") },
+    } : null;
+
     // Collect neighbor cells (always send so server can write commented when disabled)
     const neighborCellsConfig = {
       enabled: el("enableNeighborCells").checked,
@@ -7563,7 +7670,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           asteriskConfig,
           parrotConfig,
           wapConfig,
-          dualCarrierConfig
+          dualCarrierConfig,
+          sdrGainConfig
         })
       });
       const data = await res.json();
@@ -8100,6 +8208,43 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       freqOffset: lastComputedResult.freq_offset, duplexCodeIdx: lastComputedResult.duplex_spacing,
       customDuplexHz: lastComputedResult.custom_duplex_spacing, reverse: lastComputedResult.reverse_operation
     });
+  });
+
+  // ===== SDR TX gain (tx_gain_dac / tx_gain_mixer in [phy_io.soapysdr]) =====
+  // Sent only once the card was loaded from the config or touched (see sdrGainConfig).
+  let sdrGainTouched = false;
+  // Steps of the SXceiver driver (it rounds silently): DAC 0-9 in 3s, MIXER 0-30 in 2s. Missing = SDR default 9 / 30.
+  function normTxGain(stage, v){
+    const [step, max, def] = stage === "dac" ? [3, 9, 9] : [2, 30, 30];
+    const n = v === null || v === undefined || v === "" ? NaN : Number(v);
+    return Number.isFinite(n) ? Math.min(max, Math.max(0, Math.round(n / step) * step)) : def;
+  }
+  function txGainValue(stage){
+    return normTxGain(stage, el(stage === "dac" ? "txGainDacVal" : "txGainMixerVal").value);
+  }
+  function updateTxGainRows(){
+    el("txGainDacRow").style.opacity = el("enableTxGainDac").checked ? "1" : "0.55";
+    el("txGainMixerRow").style.opacity = el("enableTxGainMixer").checked ? "1" : "0.55";
+  }
+  function setTxGainCard(g){
+    if (!g) return;
+    sdrGainTouched = true;
+    el("enableTxGainDac").checked = !!(g.dac && g.dac.enabled);
+    el("enableTxGainMixer").checked = !!(g.mixer && g.mixer.enabled);
+    el("txGainDacVal").value = String(normTxGain("dac", g.dac && g.dac.value));
+    el("txGainMixerVal").value = String(normTxGain("mixer", g.mixer && g.mixer.value));
+    updateTxGainRows();
+  }
+  ["enableTxGainDac", "enableTxGainMixer", "txGainDacVal", "txGainMixerVal"].forEach(id => {
+    el(id).addEventListener(id === "txGainMixerVal" ? "input" : "change", () => {
+      sdrGainTouched = true;
+      updateTxGainRows();
+      updateTomlFromNew();
+    });
+  });
+  el("txGainMixerVal").addEventListener("change", () => {
+    el("txGainMixerVal").value = String(txGainValue("mixer"));
+    updateTomlFromNew();
   });
 
   // ===== SDS Command Control helpers =====

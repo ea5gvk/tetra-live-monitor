@@ -498,6 +498,105 @@ export function applyCarrierOnDemand(lines: string[], od: { warmup_frames: numbe
   }
 }
 
+// ── tx_gain_dac / tx_gain_mixer ([phy_io.soapysdr], SXceiver / µCell SDR) ──
+// Every station (bluestation, razvan, miura, TEA2) accepts any tx_gain_<stage> in [phy_io.soapysdr] and lower-cases the
+// stage: tx_gain_DAC and tx_gain_dac are the same one. The SXceiver driver rounds silently to its steps (DAC 0-9 in 3s,
+// MIXER 0-30 in 2s), so the value written is the one it applies; a quoted value would make the station panic.
+const TX_GAIN_STAGES: Record<string, { step: number; max: number }> = { dac: { step: 3, max: 9 }, mixer: { step: 2, max: 30 } };
+const CGAIN_RE = /^(\s*#\s*)(tx_gain_[A-Za-z0-9]+)(\s*=\s*)(.*)$/;
+const ANY_GAIN_RE = /^\s*#?\s*(tx|rx)_gain_\w+\s*=/;
+
+// Lines of the exact [phy_io.soapysdr] table: active keys up to the next active header, commented ones also up to
+// the next commented header. start < 0 = no such table.
+function soapyGainLines(lines: string[], info: LineInfo[], stage: string) {
+  let start = -1, end = lines.length, docEnd = lines.length;
+  for (let i = 0; i < lines.length; i++) {
+    const li = info[i];
+    if (start < 0) { if (li.kind === "header" && li.name === "phy_io.soapysdr") start = i; continue; }
+    if (li.kind === "cheader" && docEnd === lines.length) docEnd = i;
+    if (li.kind === "header" || li.kind === "aheader") { end = i; break; }
+  }
+  docEnd = Math.min(docEnd, end);
+  const active: number[] = [], commented: number[] = [];
+  let lastKv = start, lastGain = -1;
+  if (start >= 0) for (let i = start + 1; i < end; i++) {
+    const li = info[i];
+    if (li.kind === "kv" || li.kind === "cont") lastKv = i;
+    if (li.kind === "kv" && li.name!.startsWith("tx_gain_") && li.name!.slice(8).toLowerCase() === stage) active.push(i);
+    if (li.kind === "other" && i < docEnd) {
+      const m = lines[i].match(CGAIN_RE);
+      if (m && m[2].slice(8).toLowerCase() === stage) commented.push(i);
+    }
+    if ((li.kind === "kv" || (li.kind === "other" && i < docEnd)) && ANY_GAIN_RE.test(lines[i])) lastGain = i;
+  }
+  return { start, active, commented, lastKv, lastGain };
+}
+
+// Value of a key line without its trailing comment, and that comment with the spaces before it.
+function valueAndTail(rest: string): { value: string; tail: string } {
+  const sv = scanValue(rest);
+  const value = (sv.hash >= 0 ? rest.slice(0, sv.hash) : rest).trimEnd();
+  return { value: value.trim(), tail: rest.slice(value.length) };
+}
+
+// { enabled: an active line, value: of the first active line, else of the first commented one, else null }.
+export function readSoapyTxGains(content: string): Record<"dac" | "mixer", { enabled: boolean; value: number | null }> {
+  const lines = content.replace(/\r\n/g, "\n").split("\n");
+  const info = scanLines(lines);
+  const out: any = {};
+  for (const stage of Object.keys(TX_GAIN_STAGES)) {
+    const g = soapyGainLines(lines, info, stage);
+    let raw: string | null = null;
+    if (g.active.length) raw = valueAndTail(lines[g.active[0]].match(KV_RE)![4]).value;
+    else if (g.commented.length) raw = valueAndTail(lines[g.commented[0]].match(CGAIN_RE)![4]).value;
+    const n = raw === null || raw === "" ? NaN : Number(raw);
+    out[stage] = { enabled: g.active.length > 0, value: Number.isFinite(n) ? n : null };
+  }
+  return out;
+}
+
+// cfg: null (older calculator, or the card left untouched) = not touched. Per stage { enabled, value }:
+// - an active line: ticked = rewritten in place (key spelling, separator and trailing comment kept); unticked =
+//   commented out with "# " (ticking it again gives back the same bytes). Repeated active lines are removed.
+// - only commented: ticked = the first one uncommented; unticked = its value updated, only when it changes.
+// - none: ticked = "tx_gain_<stage> = V" added after the last gain line of the table (or its last key);
+//   unticked = nothing written. A value that is not a number leaves that stage untouched.
+export function applySoapyTxGains(lines: string[], cfg: any): string[] {
+  if (!cfg || typeof cfg !== "object") return lines;
+  const crlf = lines.some((l) => l.endsWith("\r"));
+  if (crlf) lines.forEach((l, i) => (lines[i] = l.replace(/\r$/, "")));
+  try {
+    for (const [stage, { step, max }] of Object.entries(TX_GAIN_STAGES)) {
+      const c = cfg[`tx_gain_${stage}`];
+      if (!c || typeof c !== "object" || c.value === null || c.value === "" || !Number.isFinite(Number(c.value))) continue;
+      const v = String(Math.min(max, Math.max(0, Math.round(Number(c.value) / step) * step)));
+      const on = c.enabled === true;
+      const g = soapyGainLines(lines, scanLines(lines), stage);
+      if (g.start < 0) continue;
+      // the value as written ("9.0" stays "9.0") when it is the same number
+      const same = (value: string) => (value !== "" && Number(value) === Number(v) ? value : v);
+      if (g.active.length) {
+        const i = g.active[0];
+        const m = lines[i].match(KV_RE)!;
+        const { value, tail } = valueAndTail(m[4]);
+        lines[i] = `${m[1]}${on ? "" : "# "}${m[2]}${m[3]}${same(value)}${tail}`;
+        for (const r of g.active.slice(1).sort((x, y) => y - x)) lines.splice(r, 1);
+      } else if (g.commented.length) {
+        const i = g.commented[0];
+        const m = lines[i].match(CGAIN_RE)!;
+        const { value, tail } = valueAndTail(m[4]);
+        lines[i] = `${on ? m[1].match(/^\s*/)![0] : m[1]}${m[2]}${m[3]}${same(value)}${tail}`;
+      } else if (on) {
+        const after = g.lastGain >= 0 ? g.lastGain : g.lastKv;
+        lines.splice(after + 1, 0, `tx_gain_${stage} = ${v}`);
+      }
+    }
+    return lines;
+  } finally {
+    if (crlf) lines.forEach((l, i) => { if (i < lines.length - 1) lines[i] = `${l}\r`; });
+  }
+}
+
 // Last line with content (not blank, not comment) in [from, to), or from - 1.
 function lastContent(lines: string[], from: number, to: number): number {
   for (let i = to - 1; i >= from; i--) {
