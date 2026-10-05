@@ -2051,6 +2051,17 @@ exit 0
       let ctActive = false;      // true if any CT key appears as active (not commented) under [cell_info]
       let prActive = false;      // true if periodic_registration_secs appears as active under [cell_info]
       const sections: Record<string, Record<string, string>> = {};
+      // A value without its trailing "# comment" (a "#" inside a quoted string is kept).
+      const noTrailingComment = (v: string) => {
+        let q = "";
+        for (let i = 0; i < v.length; i++) {
+          const c = v[i];
+          if (q) { if (c === "\\" && q === '"') i++; else if (c === q) q = ""; }
+          else if (c === '"' || c === "'") q = c;
+          else if (c === "#") return v.slice(0, i).trim();
+        }
+        return v.trim();
+      };
 
       for (const raw of lines) {
         const line = raw.trim();
@@ -2131,13 +2142,15 @@ exit 0
             const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
             if (ckv) sections['security'][ckv[1].trim()] = ckv[2].trim();
           }
+          // Commented [wx_service] / [dashboard] lines carry the example's trailing comment
+          // (# periodic_icao = "LROP"   # station whose METAR ...): it is not part of the value.
           if (inCommentedWx) {
             const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
-            if (ckv) sections['wx_service'][ckv[1].trim()] = ckv[2].trim();
+            if (ckv) sections['wx_service'][ckv[1].trim()] = noTrailingComment(ckv[2]);
           }
           if (inCommentedDashboard) {
             const ckv = line.match(/^#\s*([\w]+)\s*=\s*(.+)/);
-            if (ckv) sections['dashboard'][ckv[1].trim()] = ckv[2].trim();
+            if (ckv) sections['dashboard'][ckv[1].trim()] = noTrailingComment(ckv[2]);
           }
           // Parse commented timezone in [cell_info] so it loads even when disabled
           if (inCellInfoCtx && !sections['cell_info']?.['timezone']) {
