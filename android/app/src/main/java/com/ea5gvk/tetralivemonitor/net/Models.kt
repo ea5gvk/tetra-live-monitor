@@ -226,6 +226,8 @@ data class UpdateCheck(
     val remoteAuthor: String = "",
     val apiError: String? = null,
     val active: String? = null,
+    /** /api/flowstation/check?source=miura: the miura FlowStation still has to move to MiuraStation. */
+    val needsMigration: Boolean = false,
 )
 
 /** A talkgroup saved in the DGNA library for quick re-assignment. */

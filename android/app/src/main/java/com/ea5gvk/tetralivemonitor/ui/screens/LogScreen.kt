@@ -16,6 +16,7 @@ import androidx.compose.foundation.clickable
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ea5gvk.tetralivemonitor.net.LogLine
+import com.ea5gvk.tetralivemonitor.net.TetraApi
 import com.ea5gvk.tetralivemonitor.ui.StatusDot
 import com.ea5gvk.tetralivemonitor.ui.theme.Border
 import com.ea5gvk.tetralivemonitor.ui.theme.Cyan
@@ -46,7 +48,6 @@ import okhttp3.sse.EventSourceListener
 import okhttp3.sse.EventSources
 import java.util.concurrent.TimeUnit
 
-private const val LOG_SERVICE = "flowstation.service"
 private const val MAX_LINES = 2000
 private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
@@ -61,14 +62,18 @@ fun LogScreen(base: String?) {
 
     var lines by remember { mutableStateOf<List<String>>(emptyList()) }
     var connected by remember { mutableStateOf(false) }
+    // journal of the flow-family station: miurastation.service when MiuraStation is installed, else flowstation.service
+    var logService by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(base) { logService = TetraApi.flowService(base) }
 
-    DisposableEffect(base) {
+    DisposableEffect(base, logService) {
+        val svc = logService ?: return@DisposableEffect onDispose {}
         val client = OkHttpClient.Builder()
             .connectTimeout(10, TimeUnit.SECONDS)
             .readTimeout(0, TimeUnit.SECONDS)
             .build()
         val request = Request.Builder()
-            .url("$base/api/log-stream?service=$LOG_SERVICE")
+            .url("$base/api/log-stream?service=$svc")
             .build()
         val listener = object : EventSourceListener() {
             override fun onOpen(eventSource: EventSource, response: Response) {
@@ -102,7 +107,7 @@ fun LogScreen(base: String?) {
             StatusDot(if (connected) Ok else Danger, 9)
             Text(if (connected) "EN VIVO" else "SIN CONEXIÓN", color = if (connected) Ok else Danger,
                 fontSize = 10.sp, fontWeight = FontWeight.Black)
-            Text(LOG_SERVICE, color = Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Text(logService ?: "…", color = Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
             Text("${lines.size} líneas", color = Muted, fontSize = 10.sp)
             Text(
                 "LIMPIAR", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold,
@@ -114,7 +119,7 @@ fun LogScreen(base: String?) {
 
         if (lines.isEmpty()) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(if (connected) "Esperando líneas de $LOG_SERVICE…" else "Conectando…",
+                Text(if (connected) "Esperando líneas de ${logService ?: ""}…" else "Conectando…",
                     color = Muted, fontSize = 12.sp)
             }
         } else {

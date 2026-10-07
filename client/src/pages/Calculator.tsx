@@ -2,18 +2,19 @@ import { useRef, useEffect, useState } from "react";
 import { Radio, Waves } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
-type StationName = "bluestation" | "flowstation";
+type StationName = "bluestation" | "flowstation" | "miurastation";
 
 const STATION_KEY = "tetra_calc_station";
 const STATION_DEFAULTS: Record<StationName, { configPath: string; serviceName: string }> = {
   bluestation: { configPath: "/root/tetra-bluestation/config.toml", serviceName: "tmo.service" },
   flowstation: { configPath: "/root/flowstation/config.toml", serviceName: "flowstation.service" },
+  miurastation: { configPath: "/root/miurastation/config.toml", serviceName: "miurastation.service" },
 };
 
 function getStoredStation(): StationName {
   try {
     const v = localStorage.getItem(STATION_KEY);
-    if (v === "flowstation" || v === "bluestation") return v;
+    if (v === "flowstation" || v === "bluestation" || v === "miurastation") return v;
   } catch {}
   return "bluestation";
 }
@@ -73,6 +74,18 @@ export default function Calculator() {
           >
             <Waves className="w-3 h-3" />
             FLOWSTATION
+          </button>
+          <button
+            onClick={() => setStation("miurastation")}
+            className={`inline-flex items-center gap-1 px-3 py-1 text-[11px] font-bold transition-colors ${
+              station === "miurastation"
+                ? "bg-amber-500/20 text-amber-300"
+                : "text-muted-foreground hover:text-foreground hover:bg-white/5"
+            }`}
+            data-testid="button-calc-station-miurastation"
+          >
+            <Waves className="w-3 h-3" />
+            MIURASTATION
           </button>
         </div>
         <span className="text-[10px] text-muted-foreground ml-2 truncate">

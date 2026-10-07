@@ -17,7 +17,7 @@ Aplicación nativa para Android que se conecta a tu dashboard:
 - **LOG** en vivo de la flowstation.
 - **Control** del sistema: lista blanca de ISSI (activar/desactivar/editar), activar/desactivar dual carrier, reiniciar servicio y reiniciar/apagar la Pi.
 - **Perfiles**: guarda varias flowstations (dirección + contraseña) y cambia entre ellas con un toque.
-- **Actualizaciones** (pestaña Control): la misma botonera que la web — comprobar y actualizar Bluestation, Flowstation (original de razvan o EA5GVK miura, con cambio de versión) y el Dashboard, viendo la salida en vivo.
+- **Actualizaciones** (pestaña Control): la misma botonera que la web — comprobar, instalar y actualizar Bluestation, la FlowStation de razvan, MiuraStation (con la migración desde la FlowStation miura) y el Dashboard, viendo la salida en vivo.
 - **RSSI** de cada terminal local (dBFS, con los mismos colores que el dashboard).
 
 **➡️ [Descargar tetra-live-monitor.apk](https://github.com/ea5gvk/tetra-live-monitor/releases/latest/download/tetra-live-monitor.apk)**
@@ -27,6 +27,30 @@ Aplicación nativa para Android que se conecta a tu dashboard:
 3. Si tienes más de una flowstation, guárdala como **perfil** con un nombre y cambia entre ellas tocando el perfil.
 
 Requiere **Android 8+**. Código fuente en [`android/`](android/) (Kotlin + Jetpack Compose).
+
+---
+
+## 📡 Estaciones: BLUE · FLOW · MIURA
+
+El selector de la barra de navegación elige la estación TETRA activa de la Pi:
+
+| Botón | Estación | Directorio | Servicio | Repositorio |
+|---|---|---|---|---|
+| BLUE | BlueStation (MidnightBlueLabs) | `/root/tetra-bluestation` | `tmo.service` | `MidnightBlueLabs/tetra-bluestation` |
+| FLOW | FlowStation de razvan (YO6RZV) | `/root/flowstation` | `flowstation.service` | `razvanzeces/flowstation` · `main` |
+| MIURA | MiuraStation (EA5GVK) | `/root/miurastation` | `miurastation.service` | `ea5gvk/MiuraStation` · `main` |
+
+El botón de actualizar de FLOW/MIURA instala o actualiza cada una en su sitio; la configuración (`config.toml`) se conserva siempre y solo se le añade lo nuevo de la plantilla.
+
+**Migración desde la FlowStation miura.** Una Pi que tenga en `/root/flowstation` la FlowStation miura (`ea5gvk/flowstation`, rama `miura`) ve en MiuraStation el botón **MIGRAR A MIURASTATION** (en la app Android, **MIGRAR**). La migración:
+
+1. para `flowstation.service` y guarda en `/root/.tlm-miurastation-migration/` una copia de `config.toml`, de la unidad, de sus drop-ins y el commit en que estaba;
+2. mueve `/root/flowstation` a `/root/miurastation` con su `config.toml`, logs y cachés, y deja el enlace `/root/flowstation → /root/miurastation`;
+3. cambia el código a `ea5gvk/MiuraStation` · `main` y lo recompila entero (varios minutos);
+4. crea `miurastation.service` (con el watchdog y la reserva de núcleos que tenía la otra), deshabilita y retira `flowstation.service`, y pasa el selector de FLOW a MIURA;
+5. añade al `config.toml` lo nuevo de la plantilla de MiuraStation y arranca la estación si estaba en marcha.
+
+Si algo falla (por ejemplo la compilación) se deshace solo y la Pi sigue con la FlowStation miura como estaba. Para volver atrás a mano después: `sudo bash /root/.tlm-miurastation-migration/rollback.sh`. Repetir la migración es seguro.
 
 ---
 

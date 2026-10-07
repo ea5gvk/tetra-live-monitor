@@ -119,6 +119,17 @@ const arrayTables = (lines: SL[]) => lines.filter((l) => l.kind === "header" && 
 const STRICT = ["", "phy_io", "phy_io.soapysdr", "net_info", "cell_info", "cell_info.sds_command_control", "brew", "asterisk", "dapnet",
   "geoalarm", "tpg2200_action", "snom_notify", "telemetry", "telegram_alerts", "recovery", "health", "emergency", "wap", "wap.wtp", "wap.browse", "packet_data"];
 
+// Keys renamed between stations that read both: MiuraStation's station_lat/station_lon are flowstation_lat/
+// flowstation_lon of FlowStation (MiuraStation accepts the old name as an alias). One of a pair in the user's file
+// counts as the other: adding the new name next to the old one would give the station a duplicate field.
+const KEY_ALIASES: Record<string, Record<string, string[]>> = {
+  geoalarm: {
+    station_lat: ["flowstation_lat"], station_lon: ["flowstation_lon"],
+    flowstation_lat: ["station_lat"], flowstation_lon: ["station_lon"],
+  },
+};
+const aliasesOf = (table: string, key: string) => KEY_ALIASES[table]?.[key] ?? [];
+
 const configVersion = (L: SL[]) => {
   const l = L.find((x) => x.kind === "key" && x.active && x.tomlTable === "" && x.key === "config_version");
   return l ? l.text.replace(/^[^=]*=/, "").replace(/\s+#.*$/, "").trim().replace(/^"(.*)"$|^'(.*)'$/, "$1$2") : null;
@@ -206,7 +217,8 @@ export function mergeAppendOnly(user: string, newTpl: string, baseTpl: string | 
   const lastAnchor: Record<string, { idx: number; activeRegion: boolean }> = {};
   for (const e of NE) {
     const t = e.table, id = `${t}\u0000${e.key}`;
-    const present = occ(t, e.key);
+    let present = occ(t, e.key);
+    if (!present.length) present = aliasesOf(t, e.key).flatMap((a) => occ(t, a));
     if (present.length) {
       // only an occurrence documented under this very table can anchor (else a commented insert lands elsewhere)
       const good = present.filter((o) => U[o.keyLine].docTable === t);
@@ -244,7 +256,8 @@ export function mergeAppendOnly(user: string, newTpl: string, baseTpl: string | 
 
   // 3) Active user keys the new template does not mention at all: kept, and listed.
   const tplIds = new Set(NE.map((e) => `${e.table}\u0000${e.key}`));
-  for (const e of UE) if (e.active && !tplIds.has(`${e.table}\u0000${e.key}`) && !inArray(e.table) && !isSecurity(e.table)) {
+  const known = (e: Entry) => [e.key, ...aliasesOf(e.table, e.key)].some((k) => tplIds.has(`${e.table}\u0000${k}`));
+  for (const e of UE) if (e.active && !known(e) && !inArray(e.table) && !isSecurity(e.table)) {
     const gain = e.table === "phy_io.soapysdr" && /^(tx|rx)_gain_/.test(e.key);
     res.unknownKept.push(`[${e.table}] ${e.key}${gain ? " (ganancia del SDR: la aceptan todas las versiones)" : STRICT.includes(e.table) ? " (sección estricta: si la estación no la conoce, NO arranca)" : " (sección tolerante: se ignora si no la conoce)"}`);
   }

@@ -6,6 +6,9 @@ type Status = {
   enabled: boolean;
   port: number;
   flowstationActive: boolean;
+  product?: string;     // "FlowStation" | "MiuraStation"
+  configPath?: string;
+  service?: string;
 };
 
 export default function FlowstationDash() {
@@ -26,6 +29,12 @@ export default function FlowstationDash() {
   useEffect(() => { refresh(); }, []);
 
   const ready = status?.enabled && status?.flowstationActive;
+  // The texts name razvan's FlowStation and its paths: with MiuraStation, its own name, config.toml and unit.
+  const product = status?.product || "FlowStation";
+  const forStation = (s: string) => s
+    .replace(/Flow[Ss]tation/g, product)
+    .replace("/root/flowstation/config.toml", status?.configPath || "/root/flowstation/config.toml")
+    .replace("flowstation.service", status?.service || "flowstation.service");
 
   return (
     <div className="p-2 sm:p-4 flex flex-col gap-3 h-[calc(100vh-3.5rem)]">
@@ -33,7 +42,7 @@ export default function FlowstationDash() {
         <div className="flex items-center gap-2">
           <Gauge className="w-5 h-5 text-emerald-400" />
           <h1 className="text-lg sm:text-xl font-bold tracking-wide" data-testid="text-flow-dash-title">
-            {t("flow_dash_title")}
+            {forStation(t("flow_dash_title"))}
           </h1>
           {status && (
             <span
@@ -78,7 +87,7 @@ export default function FlowstationDash() {
         <div className="flex-1 flex flex-col items-center justify-center gap-3 p-6 text-center">
           <AlertTriangle className="w-10 h-10 text-amber-400" />
           <p className="text-sm sm:text-base text-foreground max-w-xl" data-testid="text-flow-dash-disabled">
-            {t("flow_dash_disabled")}
+            {forStation(t("flow_dash_disabled"))}
           </p>
           <pre className="text-xs sm:text-sm bg-card border border-border rounded p-3 text-amber-300 font-mono">
 {`[dashboard]
@@ -96,7 +105,7 @@ port = 8080`}
         <iframe
           key={iframeKey}
           src="/flow-iframe/"
-          title="Flowstation Native Dashboard"
+          title={`${product} Native Dashboard`}
           className="flex-1 w-full bg-card border border-border rounded"
           data-testid="iframe-flow-dash"
         />

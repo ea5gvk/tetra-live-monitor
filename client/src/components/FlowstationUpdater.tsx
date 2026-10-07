@@ -17,18 +17,30 @@ interface UpdateInfo {
   apiError?: string;
   source?: FlowSource;
   active?: FlowSource;
-  sources?: Record<FlowSource, { repo: string; branch: string; label: string }>;
+  sources?: Record<FlowSource, { repo: string; branch: string; label: string; dir?: string; service?: string }>;
+  // the miura FlowStation in /root/flowstation still has to move to MiuraStation (source miura)
+  needsMigration?: boolean;
+  dir?: string;
+  service?: string;
 }
 
-const DIR = "/root/flowstation";
-const SERVICE = "flowstation.service";
 // Each check runs git/curl on the Pi next to the station; every 5 min (per open tab) lined up
 // with the radios dropping the cell. Once an hour, plus on page load and when the modal opens.
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
-const SOURCE_META: Record<FlowSource, { repo: string; branch: string; label: string }> = {
-  razvan: { repo: "razvanzeces/flowstation", branch: "main", label: "Original (razvan · main)" },
-  miura: { repo: "ea5gvk/flowstation", branch: "miura", label: "EA5GVK (miura)" },
+// Two products: razvan's FlowStation and MiuraStation (EA5GVK), each in its own directory and unit.
+const SOURCE_META: Record<FlowSource, { repo: string; branch: string; label: string; dir: string; service: string }> = {
+  razvan: { repo: "razvanzeces/flowstation", branch: "main", label: "FlowStation (razvan · main)", dir: "/root/flowstation", service: "flowstation.service" },
+  miura: { repo: "ea5gvk/MiuraStation", branch: "main", label: "MiuraStation (EA5GVK · main)", dir: "/root/miurastation", service: "miurastation.service" },
 };
+
+// The i18n texts name razvan's FlowStation and its paths: for MiuraStation, its own name, directory and unit.
+function forSource(text: string, src: FlowSource): string {
+  if (src !== "miura") return text;
+  const m = SOURCE_META.miura;
+  return text
+    .replace(/FLOWSTATION/g, "MIURASTATION").replace(/Flow[Ss]tation/g, "MiuraStation").replace(/\bFLOW\b/g, "MIURA")
+    .replace(/\/root\/flowstation/g, m.dir).replace(/flowstation\.service/g, m.service);
+}
 
 export function FlowstationUpdater() {
   const { t } = useI18n();
@@ -39,7 +51,6 @@ export function FlowstationUpdater() {
   const [output, setOutput] = useState("");
   const [done, setDone] = useState(false);
   const [errMsg, setErrMsg] = useState("");
-  const [mode, setMode] = useState<"update" | "install">("update");
   const [source, setSource] = useState<FlowSource | null>(null);
   const outputRef = useRef<HTMLPreElement>(null);
 
@@ -68,11 +79,16 @@ export function FlowstationUpdater() {
   const hasUpdate = info && !info.demo && !info.dirNotFound && info.upToDate === false && !info.switching;
   const notInstalled = info?.dirNotFound === true;
   const sel: FlowSource = source ?? "razvan";
-  const meta = info?.sources?.[sel] ?? SOURCE_META[sel];
+  const meta = { ...SOURCE_META[sel], ...(info?.sources?.[sel] ?? {}) };
+  const DIR = meta.dir || SOURCE_META[sel].dir;
+  const SERVICE = meta.service || SOURCE_META[sel].service;
+  // install = the selected product is not there; migrate = MiuraStation over the miura FlowStation
+  const mode: "update" | "install" | "migrate" = notInstalled ? "install" : info?.needsMigration ? "migrate" : "update";
+  // navbar button: the product in use
+  const navSrc: FlowSource = info?.active ?? sel;
 
   function openModal() {
     setPassword(""); setOutput(""); setDone(false); setErrMsg(""); setBusy(false);
-    setMode(notInstalled ? "install" : "update");
     const a: FlowSource = info?.active ?? source ?? "razvan";
     setSource(a); check(a);
     setModalOpen(true);
@@ -134,11 +150,11 @@ export function FlowstationUpdater() {
       <button
         onClick={openModal}
         className="relative inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-white/5 text-muted-foreground border border-white/10 hover:bg-white/10 hover:text-foreground transition-colors"
-        title={notInstalled ? t("flowstation_install") : (hasUpdate ? `${t("update_available")} — Flowstation` : t("flowstation_check_title"))}
+        title={forSource(notInstalled ? t("flowstation_install") : (hasUpdate ? `${t("update_available")} — Flowstation` : t("flowstation_check_title")), navSrc)}
         data-testid="button-flowstation-updater"
       >
         <Waves className="w-3 h-3" />
-        {notInstalled ? t("flowstation_install_short") : t("flowstation_update")}
+        {forSource(notInstalled ? t("flowstation_install_short") : t("flowstation_update"), navSrc)}
         {hasUpdate && (
           <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-400 rounded-full animate-pulse border border-background" />
         )}
@@ -153,7 +169,7 @@ export function FlowstationUpdater() {
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <span className="text-sm font-bold text-foreground flex items-center gap-2">
                 <Waves className="w-4 h-4 text-emerald-400" />
-                {mode === "install" ? t("flowstation_install_title") : t("flowstation_check_title")}
+                {forSource(mode === "install" ? t("flowstation_install_title") : t("flowstation_check_title"), sel)}
                 <span className="text-[10px] font-normal text-muted-foreground font-mono">{meta.repo} · {meta.branch}</span>
               </span>
               <button
@@ -176,7 +192,7 @@ export function FlowstationUpdater() {
                 <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Versión / repositorio</div>
                 <div className="grid grid-cols-2 gap-2">
                   {(["razvan", "miura"] as FlowSource[]).map(s => {
-                    const m = info?.sources?.[s] ?? SOURCE_META[s];
+                    const m = { ...SOURCE_META[s], ...(info?.sources?.[s] ?? {}), label: SOURCE_META[s].label };
                     const isSel = sel === s;
                     const isActive = info?.active === s;
                     return (
@@ -204,14 +220,30 @@ export function FlowstationUpdater() {
                 <div className="flex items-center gap-2 p-3 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs">
                   <Download className="w-4 h-4 shrink-0" />
                   <div className="flex-1">
-                    <div className="font-bold">{t("flowstation_not_installed")}</div>
-                    <div className="text-orange-300 text-[10px] mt-0.5">{t("flowstation_install_hint")}</div>
+                    <div className="font-bold">{forSource(t("flowstation_not_installed"), sel)}</div>
+                    <div className="text-orange-300 text-[10px] mt-0.5">{forSource(t("flowstation_install_hint"), sel)}</div>
                   </div>
                 </div>
               ) : info.demo ? (
                 <div className="flex items-center gap-2 p-3 rounded bg-amber-500/10 border border-amber-500/30 text-amber-400 text-xs">
                   <AlertTriangle className="w-4 h-4 shrink-0" />
-                  {t("flowstation_demo_mode")}
+                  {forSource(t("flowstation_demo_mode"), sel)}
+                </div>
+              ) : info.needsMigration ? (
+                <div className="flex items-start gap-2 p-3 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs" data-testid="text-flowstation-migration">
+                  <ArrowUpCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <div className="flex-1 min-w-0 space-y-1">
+                    <div className="font-bold">Migrar la FlowStation miura a MiuraStation</div>
+                    <div className="text-[10px] text-amber-200/90">
+                      /root/flowstation pasa a {DIR} con su config.toml, logs y cachés (queda un enlace /root/flowstation → {DIR}),
+                      se crea {SERVICE} con los drop-ins de flowstation.service, que se deshabilita, y se recompila entero
+                      (varios minutos). Si algo falla se deshace solo y la FlowStation miura sigue como estaba.
+                    </div>
+                    <div className="flex gap-3 text-[10px] font-mono text-muted-foreground">
+                      <span>local: {info.localHash}</span>
+                      <span className="text-amber-300">MiuraStation: {info.remoteHash}</span>
+                    </div>
+                  </div>
                 </div>
               ) : info.upToDate ? (
                 <div className="flex items-center gap-2 p-3 rounded bg-green-500/10 border border-green-500/30 text-green-400 text-xs">
@@ -248,7 +280,16 @@ export function FlowstationUpdater() {
                       <div className="text-green-400">$ sudo git clone -b {meta.branch} https://github.com/{meta.repo}.git</div>
                       <div className="text-green-400">$ config.toml existente → se conserva (si no hay: example_config/config.toml)</div>
                       <div className="text-green-400">$ cargo build --release</div>
-                      <div className="text-amber-400">$ create /etc/systemd/system/flowstation.service</div>
+                      <div className="text-amber-400">$ create /etc/systemd/system/{SERVICE}</div>
+                    </>
+                  ) : mode === "migrate" ? (
+                    <>
+                      <div className="text-red-400">$ sudo systemctl stop flowstation.service</div>
+                      <div className="text-green-400">$ mv /root/flowstation {DIR} &amp;&amp; ln -s {DIR} /root/flowstation</div>
+                      <div className="text-green-400">$ git remote set-url origin https://github.com/{meta.repo}.git &amp;&amp; git checkout -B {meta.branch} origin/{meta.branch}</div>
+                      <div className="text-green-400">$ cargo build --release (completa)</div>
+                      <div className="text-amber-400">$ create /etc/systemd/system/{SERVICE} · disable flowstation.service</div>
+                      <div className="text-amber-400">$ sudo systemctl start {SERVICE} (si estaba en marcha)</div>
                     </>
                   ) : (
                     <>
@@ -286,12 +327,12 @@ export function FlowstationUpdater() {
                       onClick={() => runStream(mode === "install" ? "/api/flowstation/install" : "/api/flowstation/apply")}
                       disabled={busy || !password || (mode === "update" && info?.dirNotFound)}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded text-white disabled:opacity-50 disabled:cursor-not-allowed transition-colors ${
-                        mode === "install" ? "bg-orange-600 hover:bg-orange-500" : "bg-emerald-600 hover:bg-emerald-500"
+                        mode === "install" ? "bg-orange-600 hover:bg-orange-500" : mode === "migrate" ? "bg-amber-600 hover:bg-amber-500" : "bg-emerald-600 hover:bg-emerald-500"
                       }`}
                       data-testid="button-flowstation-apply"
                     >
                       {mode === "install" ? <Download className={`w-3 h-3 ${busy ? "animate-pulse" : ""}`} /> : <Waves className={`w-3 h-3 ${busy ? "animate-pulse" : ""}`} />}
-                      {busy ? t("update_applying") : (mode === "install" ? t("flowstation_install") : (info?.switching ? "CAMBIAR VERSIÓN" : t("update_apply")))}
+                      {busy ? t("update_applying") : (mode === "install" ? forSource(t("flowstation_install"), sel) : mode === "migrate" ? "MIGRAR A MIURASTATION" : (info?.switching ? "CAMBIAR VERSIÓN" : t("update_apply")))}
                     </button>
                   </div>
                   {errMsg && <p className="text-xs text-red-400">{errMsg}</p>}

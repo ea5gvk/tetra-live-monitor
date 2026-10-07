@@ -155,6 +155,24 @@ object TetraApi {
     suspend fun reboot(base: String, password: String): ApiResult =
         post(base, "/api/system/reboot", buildJsonObject { put("password", password) })
 
+    /**
+     * Unit of the flow-family station: miurastation.service when MiuraStation is installed on the Pi,
+     * else flowstation.service (razvan's FlowStation, or a miura FlowStation not migrated yet).
+     */
+    suspend fun flowService(base: String): String = withContext(Dispatchers.IO) {
+        runCatching {
+            val req = Request.Builder().url("$base/api/station/active").get().build()
+            client.newCall(req).execute().use { resp ->
+                val body = resp.body?.string() ?: return@use null
+                if (!resp.isSuccessful) return@use null
+                val services = json.decodeFromString<JsonObject>(body)["services"] as? JsonObject
+                val miura = services?.get("miurastation") as? JsonObject
+                val present = listOf("exists", "installed").any { (miura?.get(it) as? JsonPrimitive)?.content == "true" }
+                if (present) "miurastation.service" else "flowstation.service"
+            }
+        }.getOrNull() ?: "flowstation.service"
+    }
+
     suspend fun restartService(base: String, password: String, serviceName: String): ApiResult =
         post(base, "/api/system/restart-service", buildJsonObject {
             put("password", password); put("serviceName", serviceName)

@@ -10,6 +10,7 @@ import * as fs from "fs";
 import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
 import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken } from "./configMerge";
+import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, installScript, updateScript, migrationScript, type Product, type ProductId } from "./stationScripts";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -207,7 +208,7 @@ export async function registerRoutes(
         if (err) console.error(`Error al reiniciar ${safeServiceName}:`, err.message);
       });
     }, 500);
-    if (safeServiceName === "flowstation.service") setTimeout(kickFlowstationRestart, 1500);
+    if (isFlowService(safeServiceName)) setTimeout(kickFlowstationRestart, 1500);
   });
 
   // ─── VPN / WireGuard ────────────────────────────────────────────────────
@@ -868,57 +869,19 @@ cargo build --release
     });
   });
 
-  // ─── Flowstation install / update / check ───────────────────────────────────
-  const FLOW_DIR_DEFAULT = "/root/flowstation";
-  const FLOW_SERVICE = "flowstation.service";
-  const FLOW_SERVICE_FILE = `[Unit]
-Description=Tetra Flowstation
-After=network.target
-
-[Service]
-Type=simple
-CPUSchedulingPolicy=fifo
-CPUSchedulingPriority=73
-WorkingDirectory=/root/flowstation
-ExecStart=/root/flowstation/target/release/bluestation-bs /root/flowstation/config.toml
-
-StandardOutput=journal
-StandardError=journal
-
-Restart=always
-RestartSec=2
-KillSignal=SIGINT
-
-[Install]
-WantedBy=multi-user.target
-`;
-
-  // Watchdog de systemd: se activa solo al actualizar si el binario recién compilado habla sd_notify
-  // (lleva este marcador, que miura mete en su READY) y se quita si no (razvan, un miura antiguo):
-  // con Type=notify un binario que no avisa nunca llega a READY y systemd lo mataría en bucle.
-  // Se busca en el binario en vez de ejecutarlo: no arranca nada y vale con el servicio parado.
-  // Solo se sincroniza aquí, con el servicio parado (un daemon-reload con él en marcha armaría el watchdog
-  // sobre un proceso sin NOTIFY_SOCKET): tras una OTA del dashboard de miura o una compilación a mano,
-  // el drop-in llega en el siguiente Actualizar. Se aplica aunque config.toml diga restart_on_core_stall=false.
-  const FLOW_WATCHDOG_DROPIN = `/etc/systemd/system/${FLOW_SERVICE}.d/10-watchdog.conf`;
-  const FLOW_SD_NOTIFY_MARKER = "flowstation-sd-notify-v1";
-  const FLOW_WATCHDOG_CONF = `# Gestionado por tetra-live-monitor: se crea o se borra al actualizar Flowstation, segun el binario.
-[Service]
-Type=notify
-NotifyAccess=main
-WatchdogSec=30s
-TimeoutStartSec=120s
-# El SIGABRT del watchdog no debe dejar un volcado de cientos de MB en la SD.
-LimitCORE=0
-`;
-
-  // Fuentes de Flowstation: el original de razvan (main) o el fork EA5GVK (rama miura).
-  // Se puede consultar/actualizar cada uno y cambiar de una versión a otra.
-  type FlowSource = "razvan" | "miura";
-  const FLOW_SOURCES: Record<FlowSource, { repo: string; branch: string; label: string }> = {
-    razvan: { repo: "razvanzeces/flowstation", branch: "main", label: "razvanzeces/flowstation · main (original)" },
-    miura: { repo: "ea5gvk/flowstation", branch: "miura", label: "ea5gvk/flowstation · miura (EA5GVK)" },
-  };
+  // ─── FlowStation / MiuraStation install / update / check / migrate ──────────
+  // Two flow-family products (server/stationScripts.ts): razvan's FlowStation in /root/flowstation
+  // (flowstation.service) and MiuraStation in /root/miurastation (miurastation.service). A Pi still on the miura
+  // FlowStation (ea5gvk/flowstation · miura in /root/flowstation) is migrated to MiuraStation by Instalar/Actualizar
+  // with source=miura. The API keeps its names (/api/flowstation/*, source razvan|miura): the Android app uses them.
+  const L = PI_LAYOUT;
+  type FlowSource = ProductId;
+  const FLOW_DIR_DEFAULT = productDir(PRODUCTS.razvan, L);
+  const MIURA_DIR = productDir(PRODUCTS.miura, L);
+  const RESERVE_CORES = UPDATE_DIR ? path.join(UPDATE_DIR, "script", "reserve-station-cores.sh") : null;
+  type SourceInfo = { repo: string; branch: string; label: string; name: string; dir: string; service: string };
+  const sourceInfo = (p: Product): SourceInfo => ({ repo: p.repo, branch: p.branch, label: p.label, name: p.name, dir: productDir(p, L), service: p.service });
+  const FLOW_SOURCES: Record<FlowSource, SourceInfo> = { razvan: sourceInfo(PRODUCTS.razvan), miura: sourceInfo(PRODUCTS.miura) };
   const FLOW_SOURCE_PATH = path.join(process.cwd(), "flowstation-source.json");
   const isFlowSource = (v: any): v is FlowSource => v === "razvan" || v === "miura";
   function readFlowSource(): FlowSource {
@@ -926,32 +889,36 @@ LimitCORE=0
     return "razvan";
   }
   function writeFlowSource(s: FlowSource) { try { fs.writeFileSync(FLOW_SOURCE_PATH, JSON.stringify({ source: s })); } catch {} }
-  // Fuente realmente instalada (origin + rama actual del repo), o null si no encaja con ninguna.
+  // Source checked out in `dir` ("miura" also for a miura FlowStation still to migrate), or null if it fits none.
   function detectFlowSource(dir: string): FlowSource | null {
-    try {
-      const url = execSync(`git -C "${dir}" remote get-url origin 2>/dev/null`, { timeout: 5000 }).toString().trim().toLowerCase();
-      const branch = execSync(`git -C "${dir}" rev-parse --abbrev-ref HEAD 2>/dev/null`, { timeout: 5000 }).toString().trim();
-      for (const k of Object.keys(FLOW_SOURCES) as FlowSource[]) {
-        if (url.includes(FLOW_SOURCES[k].repo.toLowerCase()) && branch === FLOW_SOURCES[k].branch) return k;
-      }
-    } catch {}
-    return null;
+    const d = detectInstall(dir);
+    return d === "legacy" ? "miura" : d;
+  }
+  // The product of the flow-family station in use (selector), for the updater's preselection.
+  function activeFlowSource(): FlowSource {
+    if (flowFamily() === "miurastation") return "miura";
+    if (flowDirInstalled(L)) return detectFlowSource(FLOW_DIR_DEFAULT) ?? readFlowSource();
+    return fs.existsSync(MIURA_DIR) ? "miura" : readFlowSource();
   }
 
   app.get("/api/flowstation/check", async (req, res) => {
-    // Hard-coded path — ignore any user-supplied input to avoid command injection
-    const dir = FLOW_DIR_DEFAULT;
-    const installed = fs.existsSync(dir);
-    const active: FlowSource = (installed ? detectFlowSource(dir) : null) ?? readFlowSource();
+    // Paths come from the constant map — never from user input (command injection)
+    const active = activeFlowSource();
     const source: FlowSource = isFlowSource(req.query.source) ? req.query.source : active;
     const src = FLOW_SOURCES[source];
-    if (!installed) return res.json({ demo: false, dirNotFound: true, source, active, sources: FLOW_SOURCES });
-    try { execSync("which git", { timeout: 2000 }); } catch { return res.json({ demo: true, source, active, sources: FLOW_SOURCES }); }
+    const mig = source === "miura" ? migrationState(L) : "none";
+    const needsMigration = mig !== "none";
+    const base = { source, active, sources: FLOW_SOURCES, dir: src.dir, service: src.service, product: src.name, needsMigration };
+    // The directory whose HEAD is compared: the product's own, or the miura FlowStation still to migrate.
+    const dir = mig === "needed" ? FLOW_DIR_DEFAULT : src.dir;
+    const installed = needsMigration || (source === "razvan" ? flowDirInstalled(L) : fs.existsSync(MIURA_DIR));
+    if (!installed) return res.json({ demo: false, dirNotFound: true, ...base });
+    try { execSync("which git", { timeout: 2000 }); } catch { return res.json({ demo: true, ...base }); }
 
     let localHash = "";
     try {
       localHash = execSync(`git -C "${dir}" rev-parse HEAD 2>/dev/null`, { timeout: 5000 }).toString().trim();
-    } catch { return res.json({ demo: true, source, active, sources: FLOW_SOURCES }); }
+    } catch { return res.json({ demo: true, ...base }); }
 
     let remoteHash = "";
     try {
@@ -959,7 +926,7 @@ LimitCORE=0
       remoteHash = lsOut.split(/\s+/)[0].trim();
     } catch (err) {
       return res.json({
-        demo: false, dirNotFound: false, upToDate: false, source, active, sources: FLOW_SOURCES,
+        demo: false, dirNotFound: false, upToDate: false, ...base,
         localHash: localHash.substring(0, 8), remoteHash: "??????",
         remoteMessage: "No se pudo contactar GitHub", remoteDate: "", remoteAuthor: "",
         apiError: String(err).substring(0, 160),
@@ -979,92 +946,100 @@ LimitCORE=0
       remoteAuthor = data.commit?.author?.name || "";
     } catch { remoteMessage = "(detalles no disponibles)"; }
 
+    // Up to date only when that directory holds this source at its latest commit; another source = switch.
+    const installedSrc = needsMigration ? null : detectFlowSource(dir);
     res.json({
-      // Al día solo si estás EN esa fuente y con su último commit; si pides otra fuente = hay que cambiar.
-      upToDate: active === source && localHash === remoteHash,
-      switching: active !== source,
+      upToDate: !needsMigration && installedSrc === source && localHash === remoteHash,
+      switching: !needsMigration && installedSrc !== source,
       localHash: localHash.substring(0, 8),
       remoteHash: remoteHash.substring(0, 8),
       remoteMessage, remoteDate, remoteAuthor,
       demo: false, dirNotFound: false,
-      source, active, sources: FLOW_SOURCES,
+      ...base,
     });
   });
+
+  const streamHeaders = (res: any) => {
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    res.setHeader("Transfer-Encoding", "chunked");
+    res.setHeader("Cache-Control", "no-cache");
+    res.flushHeaders();
+  };
+
+  // After an update or a migration: start the station if the script stopped it (marker), else restart it only
+  // if it is running; then look at its start in the journal.
+  function finishStationRun(res: any, service: string, code: number) {
+    const wasActiveMark = `${L.tmp}/${service}.was-active`;
+    const wasActive = fs.existsSync(wasActiveMark);
+    try { fs.unlinkSync(wasActiveMark); } catch { /* already gone */ }
+    res.write(`\n=== ${wasActive ? "Arrancando" : "Reiniciando"} ${service}... ===\n`);
+    const since = Math.floor(Date.now() / 1000);
+    exec(wasActive
+      ? `sudo systemctl start ${service}`
+      : `if systemctl is-active --quiet ${service}; then sudo systemctl restart ${service}; else echo "(${service} no activo — no se arranca)"; fi`, async (err, stdout) => {
+      if (err) res.write(`[restart err: ${err.message}]\n`);
+      if (stdout) res.write(String(stdout));
+      setTimeout(kickFlowstationRestart, 1500);
+      // an error means a start/restart was tried: the journal says which key the station refused
+      if (wasActive || err) await checkStationStart(service, since, (t) => res.write(t));
+      res.write(`\n[Exit: ${err ? 1 : code}]\n`);
+      res.end();
+    });
+  }
+
+  // Migración de la FlowStation miura a MiuraStation (stationScripts.migrationScript). Bash moves the directory,
+  // switches the code, rebuilds and swaps the units (undoing everything if something fails); here, when it ends
+  // well: config.toml merge, station selector and start.
+  function runMiuraMigration(res: any) {
+    streamHeaders(res);
+    const from = migrationState(L) === "needed" ? FLOW_DIR_DEFAULT : MIURA_DIR;
+    // Base of the config.toml merge: the template of the miura FlowStation, pinned before the code changes.
+    const baseTpl = installedTemplate(from, (t) => res.write(t));
+    let selectorBefore = "";
+    try { selectorBefore = JSON.parse(fs.readFileSync(ACTIVE_STATION_PATH, "utf-8")).station || ""; } catch { /* none */ }
+    const child = spawn("bash", ["-c", migrationScript(L, { reserveCores: RESERVE_CORES })], { cwd: L.root });
+    child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
+    child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
+    child.on("close", async (code: number) => {
+      if (code !== 0) { res.write(`\n[Exit: ${code}]\n`); res.end(); return; }
+      writeFlowSource("miura");
+      if (selectorBefore === "flowstation") {
+        try {
+          fs.writeFileSync(ACTIVE_STATION_PATH, JSON.stringify({ station: "miurastation" }, null, 2));
+          res.write(`\nSelector de estación: FLOW -> MIURA (active-station.json).\n`);
+        } catch (e: any) { res.write(`\n(no se ha podido actualizar active-station.json: ${e?.message || e})\n`); }
+      }
+      const cfgPath = `${MIURA_DIR}/config.toml`;
+      if (fs.existsSync(cfgPath)) {
+        const localTpl = `${MIURA_DIR}/example_config/config.toml`;
+        const template = fs.existsSync(localTpl) ? fs.readFileSync(localTpl, "utf-8") : null;
+        mergeStationConfig(cfgPath, template, baseTpl, (t) => res.write(t));
+      } else {
+        res.write(`\nAVISO: no hay ${cfgPath}: copia example_config/config.toml y configúralo antes de arrancar.\n`);
+      }
+      finishStationRun(res, PRODUCTS.miura.service, code);
+    });
+    child.on("error", (err: Error) => { res.write(`\n[Error: ${err.message}]\n`); res.end(); });
+  }
 
   app.post("/api/flowstation/install", (req, res) => {
     const { password, source: rawSource } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Transfer-Encoding", "chunked");
-    res.setHeader("Cache-Control", "no-cache");
-    res.flushHeaders();
-
     // Source chosen in the dialog (repo+branch of the constant map, never from the user → no injection).
     const source: FlowSource = isFlowSource(rawSource) ? rawSource : readFlowSource();
-    const src = FLOW_SOURCES[source];
-    const serviceFileEscaped = FLOW_SERVICE_FILE.replace(/'/g, "'\\''");
+    // A miura FlowStation in /root/flowstation is not cloned again: it moves to MiuraStation (config, logs, caches).
+    if (source === "miura" && migrationState(L) !== "none") return runMiuraMigration(res);
+    streamHeaders(res);
+    const p = PRODUCTS[source];
+    const dir = productDir(p, L);
     // Same source reinstalled: the template the kept config.toml was merged against goes with it, so the next
     // Actualizar adds what is new since then (another source: config.toml kept as it is, as when switching).
-    const sameSource = fs.existsSync(FLOW_DIR_DEFAULT) && detectFlowSource(FLOW_DIR_DEFAULT) === source;
-    // The clone goes to a temporary directory first: if it fails the installed tree stays as it is. Then an
-    // existing config.toml is saved OUTSIDE the tree and put back right after the swap (before the build, so a
-    // failed build does not leave the station without it) instead of the example.
-    const script = `
-set -e
-cd /root
-NEW=/root/flowstation.new
-sudo rm -rf "$NEW"
-echo "=== Fuente: ${src.label} ==="
-echo "=== git clone -b ${src.branch} https://github.com/${src.repo}.git ==="
-if ! sudo git clone -b ${src.branch} https://github.com/${src.repo}.git "$NEW"; then
-  sudo rm -rf "$NEW"
-  echo "=== CLONE FALLIDO: /root/flowstation no se ha tocado ==="
-  exit 1
-fi
-BAK=""
-if [ -d /root/flowstation ]; then
-  if [ -f /root/flowstation/config.toml ]; then
-    BAK="/root/flowstation.config.toml.bak-$(date +%Y%m%d-%H%M%S)"
-    sudo cp -p /root/flowstation/config.toml "$BAK"
-    echo "=== config.toml existente guardado en $BAK ==="${sameSource ? `
-    if [ -f /root/flowstation/.git/tlm-config-base.toml ]; then
-      sudo cp /root/flowstation/.git/tlm-config-base.toml "$NEW/.git/tlm-config-base.toml"
-    else
-      sudo sh -c 'git -C /root/flowstation show HEAD:example_config/config.toml > "$1" 2>/dev/null' _ "$NEW/.git/tlm-config-base.toml" || sudo rm -f "$NEW/.git/tlm-config-base.toml"
-    fi` : ""}
-  fi
-  echo "=== Existing /root/flowstation found — removing for clean install ==="
-  sudo rm -rf /root/flowstation
-fi
-sudo mv "$NEW" /root/flowstation
-sudo chown -R root:root /root/flowstation
-cd /root/flowstation
-if [ -n "$BAK" ]; then
-  echo "=== Restaurando config.toml desde $BAK (no se usa example_config) ==="
-  sudo cp -p "$BAK" config.toml
-  sudo chmod 600 "$BAK"
-else
-  echo "=== Copiando example_config/config.toml -> config.toml ==="
-  sudo cp example_config/config.toml config.toml
-fi
-[ -f "$HOME/.cargo/env" ] && . "$HOME/.cargo/env" || true
-[ -f /root/.cargo/env ] && . /root/.cargo/env || true
-echo ""
-echo "=== cargo build --release (esto tarda varios minutos) ==="
-sudo bash -lc 'cd /root/flowstation && [ -f /root/.cargo/env ] && . /root/.cargo/env; cargo build --release'
-echo ""
-echo "=== Creando /etc/systemd/system/${FLOW_SERVICE} ==="
-sudo bash -c 'cat > /etc/systemd/system/${FLOW_SERVICE} <<'\\''EOF'\\''
-${serviceFileEscaped}EOF'
-sudo rm -f "${FLOW_WATCHDOG_DROPIN}"
-sudo systemctl daemon-reload
-echo ""
-echo "=== Instalación completada ==="
-echo "Para activar Flowstation usa el selector de estación en la barra de navegación."
-`;
-    const child = spawn("bash", ["-c", script]);
+    const sameSource = fs.existsSync(dir) && detectFlowSource(dir) === source;
+    // A first MiuraStation next to razvan's FlowStation starts from its config.toml (as switching used to).
+    const carryFrom = source === "miura" && flowDirInstalled(L) ? FLOW_DIR_DEFAULT : null;
+    const child = spawn("bash", ["-c", installScript(p, L, { sameSource, carryFrom, reserveCores: RESERVE_CORES })]);
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
     child.on("close", (code: number) => {
@@ -1079,20 +1054,20 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
-    // Hard-coded path/service — ignore any user-supplied input to avoid command injection
-    const cleanDir = FLOW_DIR_DEFAULT;
-    const cleanService = FLOW_SERVICE;
-    if (!fs.existsSync(cleanDir)) {
-      return res.status(400).json({ message: "flowstation_dir_not_found" });
-    }
     // Fuente elegida (repo+rama del mapa constante, nunca del usuario → sin inyección).
+    const source: FlowSource = isFlowSource(rawSource) ? rawSource : activeFlowSource();
+    // Actualizar MiuraStation on a Pi still on the miura FlowStation = the migration.
+    if (source === "miura" && migrationState(L) !== "none") return runMiuraMigration(res);
+    const p = PRODUCTS[source];
+    // Hard-coded path/service — ignore any user-supplied input to avoid command injection
+    const cleanDir = productDir(p, L);
+    const cleanService = p.service;
+    if (!(source === "razvan" ? flowDirInstalled(L) : fs.existsSync(cleanDir))) {
+      return res.status(400).json({ message: source === "razvan" ? "flowstation_dir_not_found" : "miurastation_dir_not_found" });
+    }
     const installed = detectFlowSource(cleanDir);
-    const source: FlowSource = isFlowSource(rawSource) ? rawSource : (installed ?? readFlowSource());
     const src = FLOW_SOURCES[source];
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    res.setHeader("Transfer-Encoding", "chunked");
-    res.setHeader("Cache-Control", "no-cache");
-    res.flushHeaders();
+    streamHeaders(res);
     // Base of the config.toml merge, pinned before the git reset. A switch of source keeps config.toml as it is
     // and drops the base of the other source (a retry after a failed build must not merge across sources).
     const baseTpl = installed === source ? installedTemplate(cleanDir, (t) => res.write(t)) : null;
@@ -1100,55 +1075,7 @@ echo "Para activar Flowstation usa el selector de estación en la barra de naveg
 
     // Solo git pull + build aquí. El config.toml y el reinicio se tratan
     // en Node al terminar (para añadir lo nuevo ANTES de reiniciar).
-    const watchdogConfEscaped = FLOW_WATCHDOG_CONF.replace(/'/g, "'\\''");
-    const script = `
-set -e
-cd "${cleanDir}"
-echo "=== Fuente: ${src.label} ==="
-echo "=== git remote set-url origin https://github.com/${src.repo}.git ==="
-sudo git remote set-url origin https://github.com/${src.repo}.git
-echo "=== git fetch ==="
-sudo git fetch --all --prune
-echo "=== Cambiando a origin/${src.branch} (reset --hard, soporta force-push y cambio de versión) ==="
-sudo git reset --hard
-sudo git checkout -B ${src.branch} "origin/${src.branch}"
-sudo git reset --hard "origin/${src.branch}"
-echo ""
-MARK="/tmp/${cleanService}.was-active"
-sudo rm -f "$MARK"
-# "activating" (esperando READY o reintentando) también cuenta: el drop-in del watchdog se toca con el servicio parado.
-if systemctl is-active --quiet ${cleanService} || [ "$(systemctl is-active ${cleanService})" = activating ]; then
-  sudo touch "$MARK"
-  echo "=== Parando ${cleanService} mientras se compila (compilar con la estación en marcha estrangula el TDMA) ==="
-  sudo systemctl stop ${cleanService}
-fi
-echo "=== cargo build --release ==="
-if ! sudo bash -lc 'cd "${cleanDir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env; cargo build --release'; then
-  echo "=== BUILD FALLIDO: se conserva el binario anterior ==="
-  if [ -f "$MARK" ]; then
-    echo "=== Arrancando ${cleanService} de nuevo ==="
-    sudo systemctl start ${cleanService}
-    sudo rm -f "$MARK"
-  fi
-  exit 1
-fi
-set +e # un fallo aquí no debe dejar la estación parada: el close la arranca igual
-DROPIN="${FLOW_WATCHDOG_DROPIN}"
-if sudo grep -aqF "${FLOW_SD_NOTIFY_MARKER}" target/release/bluestation-bs; then
-  echo "=== Watchdog de systemd: el binario lo soporta, activado (WatchdogSec=30s) ==="
-  if [ "$(cat "$DROPIN" 2>/dev/null)" != "$(printf '%s' '${watchdogConfEscaped}')" ]; then
-    sudo mkdir -p "$(dirname "$DROPIN")"
-    printf '%s' '${watchdogConfEscaped}' | sudo tee "$DROPIN" > /dev/null
-    sudo systemctl daemon-reload
-  fi
-elif [ -f "$DROPIN" ]; then
-  echo "=== Watchdog de systemd: el binario no lo soporta, desactivado ==="
-  sudo rm -f "$DROPIN"
-  sudo systemctl daemon-reload
-fi
-exit 0
-`;
-    const child = spawn("bash", ["-c", script], { cwd: cleanDir });
+    const child = spawn("bash", ["-c", updateScript(p, L)], { cwd: cleanDir });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
     child.on("close", async (code: number) => {
@@ -1173,55 +1100,64 @@ exit 0
           mergeStationConfig(cfgPath, template, baseTpl, (t) => res.write(t));
         }
       }
-      // Reiniciar flowstation para aplicar binario + config nuevos, y reconectar rápido.
-      if (cleanService) {
-        const wasActiveMark = `/tmp/${cleanService}.was-active`;
-        const wasActive = fs.existsSync(wasActiveMark);
-        try { fs.unlinkSync(wasActiveMark); } catch { /* already gone */ }
-        res.write(`\n=== ${wasActive ? "Arrancando" : "Reiniciando"} ${cleanService}... ===\n`);
-        const since = Math.floor(Date.now() / 1000);
-        exec(wasActive
-          ? `sudo systemctl start ${cleanService}`
-          : `if systemctl is-active --quiet ${cleanService}; then sudo systemctl restart ${cleanService}; else echo "(${cleanService} no activo — no se arranca)"; fi`, async (err, stdout) => {
-          if (err) res.write(`[restart err: ${err.message}]\n`);
-          if (stdout) res.write(String(stdout));
-          setTimeout(kickFlowstationRestart, 1500);
-          // an error means a start/restart was tried: the journal says which key the station refused
-          if (wasActive || err) await checkStationStart(cleanService, since, (t) => res.write(t));
-          res.write(`\n[Exit: ${err ? 1 : code}]\n`);
-          res.end();
-        });
-      } else {
-        res.write(`\n[Exit: ${code}]\n`);
-        res.end();
-      }
+      // Reiniciar la estación para aplicar binario + config nuevos, y reconectar rápido.
+      finishStationRun(res, cleanService, code);
     });
     child.on("error", (err: Error) => { res.write(`\n[Error: ${err.message}]\n`); res.end(); });
   });
 
-  // ─── Active station selector (Bluestation / Flowstation) ────────────────────
+  // ─── Active station selector (BlueStation / FlowStation / MiuraStation) ─────
   const ACTIVE_STATION_PATH = path.join(process.cwd(), "active-station.json");
-  type StationName = "bluestation" | "flowstation";
+  type StationName = "bluestation" | "flowstation" | "miurastation";
+  const STATION_NAMES: StationName[] = ["bluestation", "flowstation", "miurastation"];
+  const isStationName = (v: any): v is StationName => STATION_NAMES.includes(v);
   const STATION_SERVICE: Record<StationName, string> = {
     bluestation: "tmo.service",
-    flowstation: "flowstation.service",
+    flowstation: PRODUCTS.razvan.service,
+    miurastation: PRODUCTS.miura.service,
   };
   const STATION_DIR: Record<StationName, string> = {
     bluestation: "/root/tetra-bluestation",
-    flowstation: "/root/flowstation",
+    flowstation: productDir(PRODUCTS.razvan, L),
+    miurastation: productDir(PRODUCTS.miura, L),
   };
   const STATION_CONFIG_PATH: Record<StationName, string> = {
     bluestation: "/root/tetra-bluestation/config.toml",
-    flowstation: "/root/flowstation/config.toml",
+    flowstation: `${STATION_DIR.flowstation}/config.toml`,
+    miurastation: `${STATION_DIR.miurastation}/config.toml`,
   };
+  const STATION_PRODUCT: Record<StationName, string> = { bluestation: "BlueStation", flowstation: "FlowStation", miurastation: "MiuraStation" };
 
   function readActiveStation(): StationName {
+    let s: StationName = "bluestation";
     try {
       const data = JSON.parse(fs.readFileSync(ACTIVE_STATION_PATH, "utf-8"));
-      if (data.station === "bluestation" || data.station === "flowstation") return data.station;
+      if (isStationName(data.station)) s = data.station;
     } catch {}
-    return "bluestation";
+    // A migration (or its undo) moves the flow-family station: follow what is on disk.
+    if (s === "flowstation" && isMigrationLink(L)) return "miurastation";
+    if (s === "miurastation" && !fs.existsSync(STATION_DIR.miurastation) && fs.existsSync(STATION_DIR.flowstation)) return "flowstation";
+    return s;
   }
+
+  // The flow-family station (FlowStation or MiuraStation) that the features of its :8080 dashboard talk to:
+  // SDS, kick, DGNA, native dashboard, whitelist, dual carrier. The selected one; with BLUE selected, MiuraStation
+  // if installed, else FlowStation.
+  type FlowStationName = "flowstation" | "miurastation";
+  function flowFamily(): FlowStationName {
+    const s = readActiveStation();
+    if (s !== "bluestation") return s;
+    return fs.existsSync(STATION_CONFIG_PATH.miurastation) ? "miurastation" : "flowstation";
+  }
+  // The flow-family station that is running (the selected one first), or null.
+  function activeFlowStation(): FlowStationName | null {
+    const first = flowFamily();
+    const other: FlowStationName = first === "miurastation" ? "flowstation" : "miurastation";
+    for (const s of [first, other]) if (serviceState(STATION_SERVICE[s]).active) return s;
+    return null;
+  }
+  const isFlowService = (svc: string) => svc === STATION_SERVICE.flowstation || svc === STATION_SERVICE.miurastation;
+  const stationInstalled = (n: StationName) => n === "flowstation" ? flowDirInstalled(L) : fs.existsSync(STATION_DIR[n]);
 
   function serviceState(name: string): { exists: boolean; active: boolean; enabled: boolean } {
     let exists = false, active = false, enabled = false;
@@ -1247,23 +1183,17 @@ exit 0
   }
 
   app.get("/api/station/active", (_req, res) => {
-    const blue = serviceState(STATION_SERVICE.bluestation);
-    const flow = serviceState(STATION_SERVICE.flowstation);
-    const flowInstalled = fs.existsSync(STATION_DIR.flowstation);
-    const blueInstalled = fs.existsSync(STATION_DIR.bluestation);
+    const states = {} as Record<StationName, ReturnType<typeof serviceState>>;
+    for (const n of STATION_NAMES) states[n] = serviceState(STATION_SERVICE[n]);
     const persisted = readActiveStation();
     // The "real" active station is the one whose service is active (overrides persisted)
-    let detected: StationName = persisted;
-    if (blue.active && !flow.active) detected = "bluestation";
-    else if (flow.active && !blue.active) detected = "flowstation";
-    res.json({
-      station: detected,
-      persisted,
-      services: {
-        bluestation: { ...blue, installed: blueInstalled, dir: STATION_DIR.bluestation, configPath: STATION_CONFIG_PATH.bluestation, service: STATION_SERVICE.bluestation },
-        flowstation: { ...flow, installed: flowInstalled, dir: STATION_DIR.flowstation, configPath: STATION_CONFIG_PATH.flowstation, service: STATION_SERVICE.flowstation },
-      },
-    });
+    const running = STATION_NAMES.filter((n) => states[n].active);
+    const detected: StationName = running.length === 1 ? running[0] : persisted;
+    const services = {} as Record<StationName, any>;
+    for (const n of STATION_NAMES) {
+      services[n] = { ...states[n], installed: stationInstalled(n), dir: STATION_DIR[n], configPath: STATION_CONFIG_PATH[n], service: STATION_SERVICE[n], product: STATION_PRODUCT[n] };
+    }
+    res.json({ station: detected, persisted, services });
   });
 
   // ─── TETRA BTS Details ──────────────────────────────────────────────────────
@@ -1324,8 +1254,8 @@ exit 0
       const station = readActiveStation();
       let cfgPath = STATION_CONFIG_PATH[station];
       if (!fs.existsSync(cfgPath)) {
-        const other: StationName = station === "bluestation" ? "flowstation" : "bluestation";
-        if (fs.existsSync(STATION_CONFIG_PATH[other])) cfgPath = STATION_CONFIG_PATH[other];
+        const other = STATION_NAMES.find((n) => n !== station && fs.existsSync(STATION_CONFIG_PATH[n]));
+        if (other) cfgPath = STATION_CONFIG_PATH[other];
       }
       if (!fs.existsSync(cfgPath)) return res.json({});
       const content = fs.readFileSync(cfgPath, "utf-8");
@@ -1469,12 +1399,12 @@ exit 0
     }
   });
 
-  // ─── Flowstation native dashboard proxy ─────────────────────────────────────
-  // Reads /root/flowstation/config.toml looking for an UNCOMMENTED [dashboard] section
+  // ─── FlowStation / MiuraStation native dashboard proxy ──────────────────────
+  // Reads the config.toml of the flow-family station (flowFamily) looking for an UNCOMMENTED [dashboard] section
   // with port = N. Returns enabled=true only when both are present.
   function getFlowstationDashboardConfig(): { enabled: boolean; port: number; authHeader?: string } {
     try {
-      const cfg = fs.readFileSync(STATION_CONFIG_PATH.flowstation, "utf-8");
+      const cfg = fs.readFileSync(STATION_CONFIG_PATH[flowFamily()], "utf-8");
       const lines = cfg.split("\n");
       let inDash = false;
       let port = 0;
@@ -1500,8 +1430,12 @@ exit 0
 
   app.get("/api/flowstation/dashboard-status", (_req, res) => {
     const cfg = getFlowstationDashboardConfig();
-    const flowSvc = serviceState(STATION_SERVICE.flowstation);
-    res.json({ enabled: cfg.enabled, port: cfg.port, flowstationActive: flowSvc.active });
+    const running = activeFlowStation();
+    const st = running ?? flowFamily();
+    res.json({
+      enabled: cfg.enabled, port: cfg.port, flowstationActive: running !== null,
+      product: STATION_PRODUCT[st], configPath: STATION_CONFIG_PATH[st], service: STATION_SERVICE[st],
+    });
   });
 
   // HTTP proxy: /flow-iframe/* → http://127.0.0.1:<port>/*
@@ -1510,7 +1444,7 @@ exit 0
   app.use("/flow-iframe", (req, res) => {
     const cfg = getFlowstationDashboardConfig();
     if (!cfg.enabled) {
-      return res.status(503).json({ message: "Flowstation [dashboard] no configurado en config.toml" });
+      return res.status(503).json({ message: `${STATION_PRODUCT[flowFamily()]}: [dashboard] no configurado en config.toml` });
     }
     const targetPath = req.url || "/";
     const headers: Record<string, string | string[] | undefined> = { ...req.headers };
@@ -1672,11 +1606,10 @@ exit 0
     if (text.length > 160) {
       return res.status(400).json({ ok: false, message: "Mensaje demasiado largo (máx 160 caracteres)" });
     }
-    const flow = serviceState(STATION_SERVICE.flowstation);
-    if (!flow.active) {
+    if (!activeFlowStation()) {
       return res.status(409).json({
         ok: false,
-        message: "Flowstation no está activa. Cambia a FLOW para enviar SDS.",
+        message: "Ni FlowStation ni MiuraStation están activas. Cambia a FLOW o MIURA para enviar SDS.",
       });
     }
     const payload = { type: "sds", dest_issi: dest, message: text };
@@ -1694,11 +1627,10 @@ exit 0
     if (!target || isNaN(target) || target <= 0 || target > 16777215) {
       return res.status(400).json({ ok: false, message: "ISSI inválido" });
     }
-    const flow = serviceState(STATION_SERVICE.flowstation);
-    if (!flow.active) {
+    if (!activeFlowStation()) {
       return res.status(409).json({
         ok: false,
-        message: "Flowstation no está activa. Cambia a FLOW para expulsar terminales.",
+        message: "Ni FlowStation ni MiuraStation están activas. Cambia a FLOW o MIURA para expulsar terminales.",
       });
     }
     const payload = { type: "kick", issi: target };
@@ -1726,11 +1658,10 @@ exit 0
     // Optional TG mnemonic (EN 300 392-9 Table 17 text string, ≤15 chars) and attachment mode (0..5).
     const tgName = typeof mnemonic === "string" ? mnemonic.trim().slice(0, 15) : "";
     const attachMode = Math.max(0, Math.min(5, parseInt(String(attachment_mode), 10) || 0));
-    const flow = serviceState(STATION_SERVICE.flowstation);
-    if (!flow.active) {
+    if (!activeFlowStation()) {
       return res.status(409).json({
         ok: false,
-        message: "Flowstation no está activa. Cambia a FLOW para usar DGNA.",
+        message: "Ni FlowStation ni MiuraStation están activas. Cambia a FLOW o MIURA para usar DGNA.",
       });
     }
     const payload = { type: "dgna", issi: target, gssi: group, mnemonic: tgName, attachment_mode: attachMode, attach: doAttach };
@@ -1752,8 +1683,8 @@ exit 0
   app.get("/api/system/whitelist", (req, res) => {
     try {
       const p = typeof req.query.path === "string" && req.query.path.trim()
-        ? req.query.path.trim() : STATION_CONFIG_PATH.flowstation;
-      const service = STATION_SERVICE.flowstation;
+        ? req.query.path.trim() : STATION_CONFIG_PATH[flowFamily()];
+      const service = STATION_SERVICE[flowFamily()];
       if (!fs.existsSync(p)) return res.json({ ok: false, message: "config.toml no encontrado", path: p, service, enabled: false, issis: [] });
       const content = fs.readFileSync(p, "utf-8");
       const m = content.match(WL_RE);
@@ -1770,7 +1701,7 @@ exit 0
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
     }
-    const filePath = typeof rawPath === "string" && rawPath.trim() ? rawPath.trim() : STATION_CONFIG_PATH.flowstation;
+    const filePath = typeof rawPath === "string" && rawPath.trim() ? rawPath.trim() : STATION_CONFIG_PATH[flowFamily()];
     if (!filePath.endsWith(".toml")) return res.status(400).json({ ok: false, message: "La ruta debe terminar en .toml" });
     if (!fs.existsSync(filePath)) return res.status(400).json({ ok: false, message: `No existe: ${filePath}` });
     const list = Array.isArray(issis)
@@ -1795,13 +1726,13 @@ exit 0
     } catch (e: any) {
       return res.status(500).json({ ok: false, message: `No se pudo escribir: ${e?.message || e}` });
     }
-    const svc = (typeof serviceName === "string" && serviceName.trim() ? serviceName : STATION_SERVICE.flowstation)
+    const svc = (typeof serviceName === "string" && serviceName.trim() ? serviceName : STATION_SERVICE[flowFamily()])
       .replace(/[^a-zA-Z0-9._@-]/g, "");
     const stateMsg = on ? (list.length ? `activa, ${list.length} ISSI` : "activa (vacía = abierta)") : "desactivada";
     if (restart && svc) {
       res.json({ ok: true, message: `Whitelist ${stateMsg}. Reiniciando ${svc}...`, enabled: on, issis: list });
       setTimeout(() => { exec(`sudo systemctl restart ${svc}`, (err) => { if (err) console.error("restart err:", err.message); }); }, 500);
-      if (svc === STATION_SERVICE.flowstation) setTimeout(kickFlowstationRestart, 1500);
+      if (isFlowService(svc)) setTimeout(kickFlowstationRestart, 1500);
     } else {
       res.json({ ok: true, message: `Whitelist ${stateMsg}.`, enabled: on, issis: list });
     }
@@ -1816,8 +1747,8 @@ exit 0
   app.get("/api/system/dualcarrier", (req, res) => {
     try {
       const p = typeof req.query.path === "string" && req.query.path.trim()
-        ? req.query.path.trim() : STATION_CONFIG_PATH.flowstation;
-      const service = STATION_SERVICE.flowstation;
+        ? req.query.path.trim() : STATION_CONFIG_PATH[flowFamily()];
+      const service = STATION_SERVICE[flowFamily()];
       if (!fs.existsSync(p)) return res.json({ ok: false, message: "config.toml no encontrado", path: p, service, configured: false, enabled: false });
       const content = fs.readFileSync(p, "utf-8");
       const secM = content.match(/^([ \t]*)(#\s*)?secondary_carrier\s*=\s*(\d+)/m);
@@ -1839,7 +1770,7 @@ exit 0
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ ok: false, message: "Contraseña incorrecta" });
     }
-    const filePath = typeof rawPath === "string" && rawPath.trim() ? rawPath.trim() : STATION_CONFIG_PATH.flowstation;
+    const filePath = typeof rawPath === "string" && rawPath.trim() ? rawPath.trim() : STATION_CONFIG_PATH[flowFamily()];
     if (!filePath.endsWith(".toml")) return res.status(400).json({ ok: false, message: "La ruta debe terminar en .toml" });
     if (!fs.existsSync(filePath)) return res.status(400).json({ ok: false, message: `No existe: ${filePath}` });
     const wantEnabled = enabled !== false;
@@ -1863,13 +1794,13 @@ exit 0
     } catch (e: any) {
       return res.status(500).json({ ok: false, message: `No se pudo escribir: ${e?.message || e}` });
     }
-    const svc = (typeof serviceName === "string" && serviceName.trim() ? serviceName : STATION_SERVICE.flowstation)
+    const svc = (typeof serviceName === "string" && serviceName.trim() ? serviceName : STATION_SERVICE[flowFamily()])
       .replace(/[^a-zA-Z0-9._@-]/g, "");
     const stateMsg = wantEnabled ? "Dual carrier activado" : "Dual carrier desactivado";
     if (restart && svc) {
       res.json({ ok: true, message: `${stateMsg}. Reiniciando ${svc}...`, enabled: wantEnabled });
       setTimeout(() => { exec(`sudo systemctl restart ${svc}`, (err) => { if (err) console.error("restart err:", err.message); }); }, 500);
-      if (svc === STATION_SERVICE.flowstation) setTimeout(kickFlowstationRestart, 1500);
+      if (isFlowService(svc)) setTimeout(kickFlowstationRestart, 1500);
     } else {
       res.json({ ok: true, message: `${stateMsg}.`, enabled: wantEnabled });
     }
@@ -1880,13 +1811,11 @@ exit 0
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
     }
-    if (station !== "bluestation" && station !== "flowstation") {
+    if (!isStationName(station)) {
       return res.status(400).json({ message: "Estación no válida" });
     }
-    const target = station as StationName;
-    const other: StationName = target === "bluestation" ? "flowstation" : "bluestation";
+    const target: StationName = station;
     const targetService = STATION_SERVICE[target];
-    const otherService = STATION_SERVICE[other];
 
     // Validate target service exists BEFORE touching the other one — prevents downtime
     // if target is missing/broken.
@@ -1894,8 +1823,8 @@ exit 0
     if (!tgState.exists) {
       return res.status(400).json({
         ok: false,
-        message: target === "flowstation"
-          ? "Flowstation aún no está instalado. Pulsa 'Instalar Flowstation' primero."
+        message: target !== "bluestation"
+          ? `${STATION_PRODUCT[target]} aún no está instalada. Pulsa 'Instalar' en el actualizador primero.`
           : `Servicio ${targetService} no encontrado.`,
       });
     }
@@ -1917,7 +1846,7 @@ exit 0
     const enabled = run(`sudo systemctl enable ${targetService}`);
     // --no-block solo con el watchdog (Type=notify): el start esperaría a READY, que no llega mientras
     // la otra estación retiene la SDR. Sin él (tmo siempre) el start bloqueante sigue detectando un arranque fallido.
-    const noBlock = targetService === FLOW_SERVICE && fs.existsSync(FLOW_WATCHDOG_DROPIN) ? " --no-block" : "";
+    const noBlock = fs.existsSync(`${L.systemd}/${targetService}.d/10-watchdog.conf`) ? " --no-block" : "";
     const started = run(`sudo systemctl start${noBlock} ${targetService}`);
 
     if (!started) {
@@ -1928,9 +1857,12 @@ exit 0
       });
     }
 
-    // Target is up — now stop+disable the other (ignore failures: service may not exist)
-    run(`sudo systemctl disable ${otherService}`);
-    run(`sudo systemctl stop ${otherService}`);
+    // Target is up — now stop+disable the others that are installed (ignore failures)
+    for (const other of STATION_NAMES) {
+      if (other === target || !serviceState(STATION_SERVICE[other]).exists) continue;
+      run(`sudo systemctl disable ${STATION_SERVICE[other]}`);
+      run(`sudo systemctl stop ${STATION_SERVICE[other]}`);
+    }
 
     try {
       fs.writeFileSync(ACTIVE_STATION_PATH, JSON.stringify({ station: target }, null, 2));
@@ -2798,8 +2730,9 @@ exit 0
         },
         geoalarm: {
           enabled: geoalarmActive,
-          flowstation_lat: num('geoalarm', 'flowstation_lat'),
-          flowstation_lon: num('geoalarm', 'flowstation_lon'),
+          // MiuraStation: station_lat/station_lon; FlowStation: flowstation_lat/flowstation_lon (same field here)
+          flowstation_lat: num('geoalarm', 'station_lat') ?? num('geoalarm', 'flowstation_lat'),
+          flowstation_lon: num('geoalarm', 'station_lon') ?? num('geoalarm', 'flowstation_lon'),
           radius_m: num('geoalarm', 'radius_m'),
           cooldown_secs: num('geoalarm', 'cooldown_secs'),
           trigger_tetra: bool('geoalarm', 'trigger_tetra'),
@@ -4208,7 +4141,11 @@ exit 0
         const passLine   = dashPass ? `password = "${dashPass}"` : `# password = "changeme"`;
         const pubOvLine  = dashPublicOverview ? `public_overview = true` : `# public_overview = false`;
         const pickerLine = dashShowPicker ? `show_dgna_attachment_mode_picker = true` : `# show_dgna_attachment_mode_picker = false`;
-        const srcDirLine = dashSourceDir ? `source_dir = "${dashSourceDir}"` : `# source_dir = "/path/to/flowstation"`;
+        // placeholder of a commented source_dir: the one already in the file (unchanged file when nothing changed),
+        // else the station's own directory for MiuraStation
+        const srcDirPh = original.match(/^[ \t]*#[ \t]*source_dir[ \t]*=[ \t]*"([^"]*)"/m)?.[1]
+          ?? (serviceName.trim() === STATION_SERVICE.miurastation ? STATION_DIR.miurastation : "/path/to/flowstation");
+        const srcDirLine = dashSourceDir ? `source_dir = "${dashSourceDir}"` : `# source_dir = "${srcDirPh}"`;
 
         const mkLine = (l: string) => dashEnabled ? l : `# ${l.startsWith("# ") ? l.slice(2) : l}`;
         const finalPort   = mkLine(portLine);
@@ -4601,11 +4538,17 @@ exit 0
         const fnum = (v: any, def: number) => { const n = Number(v); return Number.isFinite(n) ? n : def; };
         const en = geoalarmConfig.enabled === true;
         const p = en ? "" : "# ";
+        // MiuraStation names the station position station_lat/station_lon (it still reads flowstation_* as an
+        // alias); razvan's FlowStation and the miura FlowStation only know flowstation_lat/flowstation_lon.
+        let underMiura = false;
+        try { underMiura = fs.realpathSync(configPath).startsWith(`${fs.realpathSync(STATION_DIR.miurastation)}/`); } catch { /* not there */ }
+        const posKey = serviceName.trim() === STATION_SERVICE.miurastation || underMiura || /^[ \t]*#?[ \t]*station_lat[ \t]*=/m.test(original)
+          ? "station" : "flowstation";
         const block: string[] = [
           `${p}[geoalarm]`,
           `${p}enabled = ${en ? "true" : "false"}`,
-          `${p}flowstation_lat = ${fnum(geoalarmConfig.flowstation_lat, 0.0)}`,
-          `${p}flowstation_lon = ${fnum(geoalarmConfig.flowstation_lon, 0.0)}`,
+          `${p}${posKey}_lat = ${fnum(geoalarmConfig.flowstation_lat, 0.0)}`,
+          `${p}${posKey}_lon = ${fnum(geoalarmConfig.flowstation_lon, 0.0)}`,
           `${p}radius_m = ${fnum(geoalarmConfig.radius_m, 500.0)}`,
           `${p}cooldown_secs = ${clampI(geoalarmConfig.cooldown_secs, 1, 86400, 300)}`,
           `${p}trigger_tetra = ${geoalarmConfig.trigger_tetra === true ? "true" : "false"}`,

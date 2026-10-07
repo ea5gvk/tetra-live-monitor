@@ -5342,7 +5342,29 @@
         s = s.replaceAll("{"+k+"}", String(vars[k]));
       }
     }
-    return s;
+    return forMiura(s);
+  }
+
+  // Station picked in the bar above the calculator (bluestation | flowstation | miurastation).
+  var calcStation = "bluestation";
+  // With MiuraStation selected, the texts about our station name it: "FlowStation miura ... of dd-mm-2026 or later"
+  // becomes "MiuraStation v1.0 or later" (any MiuraStation has it) and the other FlowStation mentions MiuraStation.
+  // What is said of razvan's FlowStation keeps its name (it is his product).
+  function forMiura(s){
+    if (calcStation !== "miurastation" || typeof s !== "string" || !/flowstation/i.test(s)) return s;
+    var masks = [];
+    s = s.replace(/razvan\S*\s+(?:\S+\s+)?FlowStation|FlowStation\s+(?:\S+\s+)?razvan\S*/gi, function(m){
+      masks.push(m); return "\u0000" + (masks.length - 1) + "\u0000";
+    });
+    s = s
+      .replace(/(?:la |the )?FlowStation miura(?: o TEA2| or TEA2)? del \d{2}-\d{2}-\d{4} o posterior/g, "MiuraStation v1.0 o posterior")
+      .replace(/(?:la |the )?FlowStation miura(?: o TEA2| or TEA2)? of \d{2}-\d{2}-\d{4} or later/g, "MiuraStation v1.0 or later")
+      .replace(/FlowStation miura \(port de junio de 2026\)/g, "MiuraStation v1.0 o posterior")
+      .replace(/FlowStation miura \(June 2026 port\)/g, "MiuraStation v1.0 or later")
+      .replace(/FlowStation miura/g, "MiuraStation")
+      .replace(/Flow[Ss]tation/g, "MiuraStation")
+      .replace(/\bflowstation\b/g, "miurastation");
+    return s.replace(/\u0000(\d+)\u0000/g, function(_, i){ return masks[+i]; });
   }
 
   function applyI18n(){
@@ -5923,7 +5945,7 @@
         lines.push(`${dashPubOv ? "" : "# "}public_overview = ${dashPubOv ? "true" : "false"}`);
         lines.push(`${dashShowPicker ? "" : "# "}show_dgna_attachment_mode_picker = ${dashShowPicker ? "true" : "false"}`);
         if (dashSrcDir) lines.push(`source_dir = "${dashSrcDir}"`);
-        else lines.push(`# source_dir = "/path/to/flowstation"`);
+        else lines.push(`# source_dir = "${calcStation === "miurastation" ? "/root/miurastation" : "/path/to/flowstation"}"`);
       } else {
         lines.push("# [dashboard]");
         lines.push(`# port = ${dashPort}`);
@@ -5932,7 +5954,7 @@
         lines.push(`# password = "${dashPass || 'changeme'}"`);
         lines.push(`# public_overview = false`);
         lines.push(`# show_dgna_attachment_mode_picker = false`);
-        lines.push(`# source_dir = "/path/to/flowstation"`);
+        lines.push(`# source_dir = "${calcStation === "miurastation" ? "/root/miurastation" : "/path/to/flowstation"}"`);
       }
     }
     // Weather Service [wx_service] (Flowstation only)
@@ -6173,8 +6195,9 @@
       lines.push("");
       lines.push(`${p}[geoalarm]`);
       lines.push(`${p}enabled = ${en ? "true" : "false"}`);
-      lines.push(`${p}flowstation_lat = ${fnum(el("geoLat").value, 0.0)}`);
-      lines.push(`${p}flowstation_lon = ${fnum(el("geoLon").value, 0.0)}`);
+      const posKey = calcStation === "miurastation" ? "station" : "flowstation";
+      lines.push(`${p}${posKey}_lat = ${fnum(el("geoLat").value, 0.0)}`);
+      lines.push(`${p}${posKey}_lon = ${fnum(el("geoLon").value, 0.0)}`);
       lines.push(`${p}radius_m = ${fnum(el("geoRadiusM").value, 500.0)}`);
       lines.push(`${p}cooldown_secs = ${clampI(el("geoCooldownSecs").value, 1, 86400, 300)}`);
       lines.push(`${p}trigger_tetra = ${el("geoTriggerTetra").checked ? "true" : "false"}`);
@@ -8774,7 +8797,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       localStorage.setItem(STORAGE_KEYS.lang, state.lang);
       applyI18n();
     }
-    if (e.data && e.data.type === "setStation" && (e.data.station === "bluestation" || e.data.station === "flowstation")) {
+    if (e.data && e.data.type === "setStation" && (e.data.station === "bluestation" || e.data.station === "flowstation" || e.data.station === "miurastation")) {
       var newCfg = (e.data.configPath || "").trim();
       var newSvc = (e.data.serviceName || "").trim();
       if (newCfg) {
@@ -8802,6 +8825,22 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       var el2 = document.getElementById(id);
       if (el2) el2.style.display = show ? "" : "none";
     });
+    var miura = station === "miurastation";
+    calcStation = station;
+    // [geoalarm] position keys: MiuraStation station_lat/station_lon, FlowStation flowstation_lat/flowstation_lon
+    var gl = document.querySelector('label[for="geoLat"]'), gn = document.querySelector('label[for="geoLon"]');
+    if (gl) gl.textContent = miura ? "station_lat" : "flowstation_lat";
+    if (gn) gn.textContent = miura ? "station_lon" : "flowstation_lon";
+    // Defaults the station itself uses (its own name); a value the user typed is left alone.
+    var defs = [["dapnetRwthCoreDevice", "FlowStation", "MiuraStation"], ["snomTitlePrefix", "FlowStation", "MiuraStation"],
+      ["snomAmiUsername", "flowstation", "miurastation"], ["astLocalUser", "flowstation", "miurastation"], ["astAuthUser", "flowstation", "miurastation"]];
+    defs.forEach(function(d){
+      var f = document.getElementById(d[0]);
+      if (f && f.value === (miura ? d[1] : d[2])) f.value = miura ? d[2] : d[1];
+    });
+    var dbg = document.getElementById("fsDebugLogVal"); if (dbg) dbg.placeholder = miura ? "/var/log/miurastation_debug.log" : "/var/log/flowstation_debug.log";
+    var sdir = document.getElementById("dashSourceDir"); if (sdir) sdir.placeholder = miura ? "/root/miurastation" : "/path/to/flowstation";
+    applyI18n();
   }
 
   // init

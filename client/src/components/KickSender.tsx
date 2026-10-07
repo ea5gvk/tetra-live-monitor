@@ -3,8 +3,8 @@ import { UserX, X, Lock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 interface ActiveResp {
-  station: "bluestation" | "flowstation";
-  services: { flowstation: { active: boolean; installed: boolean } };
+  station: "bluestation" | "flowstation" | "miurastation";
+  services: Partial<Record<"flowstation" | "miurastation", { active: boolean; installed: boolean }>>;
 }
 
 const POLL_MS = 30 * 1000;
@@ -23,7 +23,8 @@ export function KickSender() {
     try {
       const r = await fetch("/api/station/active");
       const j: ActiveResp = await r.json();
-      setFlowActive(!!j?.services?.flowstation?.active);
+      // FlowStation or MiuraStation: both take SDS/kick through their :8080 dashboard
+      setFlowActive(!!(j?.services?.flowstation?.active || j?.services?.miurastation?.active));
     } catch {
       setFlowActive(false);
     }

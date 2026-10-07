@@ -60,6 +60,10 @@ fun ControlScreen(state: TetraState, base: String?, password: String, hasPasswor
         scope.launch { busy = true; val r = block(); result = r.message; resultOk = r.ok; busy = false }
     }
 
+    // miurastation.service when MiuraStation is installed, else flowstation.service
+    var flowSvc by remember { mutableStateOf("flowstation.service") }
+    LaunchedEffect(base) { base?.let { flowSvc = TetraApi.flowService(it) } }
+
     var sdsIssi by remember { mutableStateOf("") }
     var sdsMsg by remember { mutableStateOf("") }
     var kickIssi by remember { mutableStateOf("") }
@@ -121,10 +125,13 @@ fun ControlScreen(state: TetraState, base: String?, password: String, hasPasswor
             Text("SISTEMA / RASPBERRY PI", color = Cyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
-                    onClick = { dispatch { TetraApi.restartService(base!!, password, "flowstation.service") } },
+                    onClick = { dispatch { val b = base!!; TetraApi.restartService(b, password, TetraApi.flowService(b)) } },
                     enabled = !busy, modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = SurfaceHi, contentColor = OnBg),
-                ) { Text("REINICIAR FLOW", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+                ) {
+                    Text(if (flowSvc == "miurastation.service") "REINICIAR MIURA" else "REINICIAR FLOW",
+                        fontWeight = FontWeight.Bold, fontSize = 11.sp)
+                }
                 Button(
                     onClick = { dispatch { TetraApi.restartService(base!!, password, "tmo.service") } },
                     enabled = !busy, modifier = Modifier.weight(1f),

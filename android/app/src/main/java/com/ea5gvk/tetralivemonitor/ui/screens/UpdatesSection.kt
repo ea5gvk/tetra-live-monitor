@@ -48,7 +48,7 @@ import kotlinx.coroutines.launch
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
-/** Selectable source of an updater (only the public Flowstation: razvan main / ea5gvk miura). */
+/** Selectable source of an updater (razvan's FlowStation / MiuraStation, each in its own directory and unit). */
 private data class UpdSource(val id: String, val label: String, val repo: String)
 
 /** One button of the web dashboard's update bar, mirrored in the app (same endpoints). */
@@ -66,11 +66,11 @@ private data class Updater(
 private val UPDATERS = listOf(
     Updater("bluestation", "BLUESTATION", "MidnightBlueLabs/tetra-bluestation · main",
         "/api/bluestation/check", "/api/bluestation/apply"),
-    Updater("flowstation", "FLOWSTATION", "",
+    Updater("flowstation", "FLOWSTATION / MIURASTATION", "",
         "/api/flowstation/check", "/api/flowstation/apply", "/api/flowstation/install",
         sources = listOf(
-            UpdSource("razvan", "Original", "razvanzeces/flowstation · main"),
-            UpdSource("miura", "EA5GVK", "ea5gvk/flowstation · miura"),
+            UpdSource("razvan", "FlowStation", "razvanzeces/flowstation · main"),
+            UpdSource("miura", "MiuraStation", "ea5gvk/MiuraStation · main"),
         )),
     Updater("dashboard", "DASHBOARD", "ea5gvk/tetra-live-monitor · main",
         "/api/update/check", "/api/update/apply", restartsDashboard = true),
@@ -166,6 +166,7 @@ private fun UpdaterCard(
         i == null -> (if (checking) "Comprobando…" else "No se pudo comprobar") to (if (checking) Muted else Danger)
         i.demo -> "Modo demo (sin git en el servidor)" to Warn
         i.dirNotFound -> (if (u.installPath != null) "No instalado — puedes instalarlo" else "No instalado en la Pi") to Warn
+        i.needsMigration -> "Migrar la FlowStation miura a MiuraStation · ${i.remoteHash}" to Warn
         i.switching -> "Cambiar a esta versión · ${i.remoteHash}" to Cyan
         i.upToDate == true -> "Al día · ${i.localHash}" to Ok
         else -> "Nueva versión disponible" to Cyan
@@ -220,7 +221,7 @@ private fun UpdaterCard(
                 ),
             ) {
                 Text(
-                    when { busy -> "EN CURSO…"; install -> "INSTALAR"; i?.switching == true -> "CAMBIAR VERSIÓN"; else -> "ACTUALIZAR" },
+                    when { busy -> "EN CURSO…"; install -> "INSTALAR"; i?.needsMigration == true -> "MIGRAR"; i?.switching == true -> "CAMBIAR VERSIÓN"; else -> "ACTUALIZAR" },
                     fontWeight = FontWeight.Black, fontSize = 10.sp,
                 )
             }
@@ -239,7 +240,7 @@ private fun UpdaterCard(
     }
 
     if (confirm) {
-        val verb = when { install -> "Instalar"; i?.switching == true -> "Cambiar de versión"; else -> "Actualizar" }
+        val verb = when { install -> "Instalar"; i?.needsMigration == true -> "Migrar a MiuraStation"; i?.switching == true -> "Cambiar de versión"; else -> "Actualizar" }
         AlertDialog(
             onDismissRequest = { confirm = false },
             containerColor = Surface,
@@ -247,6 +248,7 @@ private fun UpdaterCard(
             text = {
                 Text(
                     if (u.restartsDashboard) "Se descarga el código, se recompila y se reinicia el dashboard. La app perderá la conexión unos segundos."
+                    else if (i?.needsMigration == true) "La FlowStation miura de /root/flowstation pasa a MiuraStation en /root/miurastation con su config.toml, logs y cachés; se crea miurastation.service y se recompila entero (varios minutos). Si algo falla se deshace solo."
                     else "Se descarga el código ($repo), se recompila y se reinicia el servicio si estaba activo. Puede tardar varios minutos.",
                     color = Muted,
                 )

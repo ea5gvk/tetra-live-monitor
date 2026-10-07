@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { Radio, Waves, X, Lock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
-type StationName = "bluestation" | "flowstation";
+type StationName = "bluestation" | "flowstation" | "miurastation";
 
 interface StationInfo {
   exists: boolean;
@@ -12,13 +12,21 @@ interface StationInfo {
   dir: string;
   configPath: string;
   service: string;
+  product?: string;
 }
 
 interface ActiveResp {
   station: StationName;
   persisted: StationName;
-  services: { bluestation: StationInfo; flowstation: StationInfo };
+  services: Record<StationName, StationInfo | undefined>;
 }
+
+// MIURA = MiuraStation (EA5GVK), FLOW = razvan's FlowStation, BLUE = BlueStation (tmo).
+const STATIONS: { name: StationName; label: string; long: string; Icon: typeof Radio; on: string; text: string; btn: string; switchKey: string }[] = [
+  { name: "bluestation", label: "BLUE", long: "BLUESTATION", Icon: Radio, on: "bg-violet-500/20 text-violet-300", text: "text-violet-300", btn: "bg-violet-600 hover:bg-violet-500", switchKey: "station_switch_to_blue" },
+  { name: "flowstation", label: "FLOW", long: "FLOWSTATION", Icon: Waves, on: "bg-emerald-500/20 text-emerald-300", text: "text-emerald-300", btn: "bg-emerald-600 hover:bg-emerald-500", switchKey: "station_switch_to_flow" },
+  { name: "miurastation", label: "MIURA", long: "MIURASTATION", Icon: Waves, on: "bg-amber-500/20 text-amber-300", text: "text-amber-300", btn: "bg-amber-600 hover:bg-amber-500", switchKey: "station_switch_to_flow" },
+];
 
 const POLL_MS = 30 * 1000;
 
@@ -40,8 +48,8 @@ export function StationSwitcher() {
       setData(j);
       // Auto-update restart-service & log-service localStorage to match the running station
       try {
-        if (j?.services?.[j.station]?.service) {
-          const svc = j.services[j.station].service;
+        const svc = j?.services?.[j.station]?.service;
+        if (svc) {
           if (localStorage.getItem("tetra_restart_service") !== svc) {
             localStorage.setItem("tetra_restart_service", svc);
           }
@@ -104,9 +112,11 @@ export function StationSwitcher() {
   }
 
   if (!data) return null;
-  const blueOK = data.services.bluestation.installed;
-  const flowOK = data.services.flowstation.installed;
   const active = data.station;
+  const meta = STATIONS.find(s => s.name === target) ?? STATIONS[0];
+  // the dialog lists the units the switch will stop (the installed ones other than the target)
+  const others = STATIONS.filter(s => s.name !== target && data.services[s.name]?.exists).map(s => data.services[s.name]!.service);
+  const targetService = data.services[target]?.service ?? "";
 
   return (
     <>
@@ -115,41 +125,33 @@ export function StationSwitcher() {
         title={t("station_active")}
         data-testid="station-switcher"
       >
-        <button
-          onClick={() => active === "flowstation" ? openSwitch("bluestation") : null}
-          disabled={!blueOK || active === "bluestation"}
-          className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold transition-colors ${
-            active === "bluestation"
-              ? "bg-violet-500/20 text-violet-300"
-              : blueOK
-                ? "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                : "text-muted-foreground/40 cursor-not-allowed"
-          }`}
-          title={!blueOK ? t("station_not_installed") : t("station_switch_to_blue")}
-          data-testid="button-station-bluestation"
-        >
-          <Radio className="w-3 h-3" />
-          BLUE
-          {data.services.bluestation.active && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
-        </button>
-        <div className="w-px h-4 bg-white/10" />
-        <button
-          onClick={() => flowOK ? (active === "bluestation" ? openSwitch("flowstation") : null) : null}
-          disabled={!flowOK || active === "flowstation"}
-          className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold transition-colors ${
-            active === "flowstation"
-              ? "bg-emerald-500/20 text-emerald-300"
-              : flowOK
-                ? "text-muted-foreground hover:text-foreground hover:bg-white/5"
-                : "text-muted-foreground/40 cursor-not-allowed"
-          }`}
-          title={!flowOK ? t("flowstation_not_installed") : t("station_switch_to_flow")}
-          data-testid="button-station-flowstation"
-        >
-          <Waves className="w-3 h-3" />
-          FLOW
-          {data.services.flowstation.active && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
-        </button>
+        {STATIONS.map((st, i) => {
+          const info = data.services[st.name];
+          const ok = !!info?.installed;
+          const isActive = active === st.name;
+          return (
+            <span key={st.name} className="inline-flex items-center">
+              {i > 0 && <div className="w-px h-4 bg-white/10" />}
+              <button
+                onClick={() => ok && !isActive ? openSwitch(st.name) : null}
+                disabled={!ok || isActive}
+                className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold transition-colors ${
+                  isActive
+                    ? st.on
+                    : ok
+                      ? "text-muted-foreground hover:text-foreground hover:bg-white/5"
+                      : "text-muted-foreground/40 cursor-not-allowed"
+                }`}
+                title={!ok ? (st.name === "bluestation" ? t("station_not_installed") : `${t("station_not_installed")}: ${info?.product ?? st.long}`) : (st.name === "miurastation" ? t(st.switchKey).replace(/Flow[Ss]tation|FLOWSTATION/, "MiuraStation") : t(st.switchKey))}
+                data-testid={`button-station-${st.name}`}
+              >
+                <st.Icon className="w-3 h-3" />
+                {st.label}
+                {info?.active && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+              </button>
+            </span>
+          );
+        })}
       </div>
 
       {open && (
@@ -157,7 +159,7 @@ export function StationSwitcher() {
           <div className="bg-card border border-border rounded-lg w-full max-w-md shadow-2xl">
             <div className="flex items-center justify-between px-4 py-3 border-b border-border">
               <span className="text-sm font-bold text-foreground flex items-center gap-2">
-                {target === "bluestation" ? <Radio className="w-4 h-4 text-violet-400" /> : <Waves className="w-4 h-4 text-emerald-400" />}
+                <meta.Icon className={`w-4 h-4 ${meta.text}`} />
                 {t("station_switch_title")}
               </span>
               <button onClick={() => !busy && setOpen(false)} disabled={busy} className="text-muted-foreground hover:text-foreground disabled:opacity-40">
@@ -166,15 +168,16 @@ export function StationSwitcher() {
             </div>
             <div className="p-4 space-y-3">
               <div className="text-xs text-muted-foreground">
-                {t("station_switch_confirm")} <strong className={target === "bluestation" ? "text-violet-300" : "text-emerald-300"}>
-                  {target === "bluestation" ? "BLUESTATION" : "FLOWSTATION"}
+                {t("station_switch_confirm")} <strong className={meta.text}>
+                  {meta.long}
                 </strong>
               </div>
               <div className="bg-black/40 border border-border rounded p-2 text-[10px] font-mono text-muted-foreground space-y-0.5">
-                <div className="text-red-400">$ sudo systemctl disable {target === "bluestation" ? "flowstation.service" : "tmo.service"}</div>
-                <div className="text-red-400">$ sudo systemctl stop {target === "bluestation" ? "flowstation.service" : "tmo.service"}</div>
-                <div className="text-green-400">$ sudo systemctl enable {target === "bluestation" ? "tmo.service" : "flowstation.service"}</div>
-                <div className="text-green-400">$ sudo systemctl start {target === "bluestation" ? "tmo.service" : "flowstation.service"}</div>
+                <div className="text-green-400">$ sudo systemctl enable {targetService}</div>
+                <div className="text-green-400">$ sudo systemctl start {targetService}</div>
+                {others.map(svc => (
+                  <div key={svc} className="text-red-400">$ sudo systemctl disable {svc} && sudo systemctl stop {svc}</div>
+                ))}
               </div>
 
               {!done && (
@@ -198,7 +201,7 @@ export function StationSwitcher() {
                       onClick={doSwitch}
                       disabled={busy || !password}
                       className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded text-white disabled:opacity-50 transition-colors ${
-                        target === "bluestation" ? "bg-violet-600 hover:bg-violet-500" : "bg-emerald-600 hover:bg-emerald-500"
+                        meta.btn
                       }`}
                       data-testid="button-station-confirm"
                     >

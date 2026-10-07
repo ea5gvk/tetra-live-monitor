@@ -308,3 +308,30 @@ test("calculator block handlers: the same values with doc comments = untouched; 
   spliceTableBlock(l4, 0, act.length, ["[telemetry]", 'host = "h"', "port = 1"]);
   assert.deepEqual(l4, act);
 });
+
+test("renamed geoalarm keys: station_lat/station_lon and flowstation_lat/flowstation_lon count as the same key", () => {
+  const geo = (lat: string, lon: string, active: boolean) => {
+    const p = active ? "" : "# ";
+    return `config_version = "0.6"\n\n${p}[geoalarm]\n${p}enabled = ${active}\n${p}${lat} = 40.5\n${p}${lon} = -0.25\n${p}radius_m = 500.0\n`;
+  };
+  // miura FlowStation -> MiuraStation: the user's active flowstation_* is the new station_* (no duplicate field)
+  for (const tplActive of [true, false]) {
+    const user = geo("flowstation_lat", "flowstation_lon", true);
+    const r = props(user, geo("station_lat", "station_lon", tplActive), geo("flowstation_lat", "flowstation_lon", tplActive));
+    assert.equal(r.changed, false);
+    assert.ok(!/station_lat/.test(r.merged.replace(/flowstation_lat/g, "")));
+    assert.ok(!r.unknownKept.some((x) => x.includes("flowstation_l")), "the old name is known through the new one");
+  }
+  // a commented [geoalarm] the same; a new key next to the renamed ones still goes in
+  const user = geo("flowstation_lat", "flowstation_lon", false);
+  const tpl = geo("station_lat", "station_lon", false) + "# radius_new = 1\n";
+  const r = props(user, tpl, geo("flowstation_lat", "flowstation_lon", false));
+  assert.equal(count(r.merged, /^#?\s*station_lat\s*=/), 0);
+  assert.equal(count(r.merged, /^# radius_new = 1$/), 1);
+  // back to razvan's FlowStation: a MiuraStation config gets no flowstation_* next to station_*
+  const back = props(geo("station_lat", "station_lon", true), geo("flowstation_lat", "flowstation_lon", true), null);
+  assert.equal(back.changed, false);
+  // without the old name the new key is added as usual
+  const none = props(`config_version = "0.6"\n\n[geoalarm]\nenabled = true\nradius_m = 500.0\n`, geo("station_lat", "station_lon", true), geo("x_lat", "x_lon", true));
+  assert.equal(count(none.merged, /^station_lat = 40.5$/), 1);
+});

@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Reserva los núcleos 2-3 de la Raspberry Pi para la estación TETRA (flowstation-tea2, flowstation,
-# BlueStation/tmo) y deja el resto del sistema en los núcleos 0-1. El trabajo en la Pi junto a la
+# miurastation, BlueStation/tmo) y deja el resto del sistema en los núcleos 0-1. El trabajo en la Pi junto a la
 # estación (comprobaciones de actualización, compilaciones, instalaciones) hacía que las radios
 # soltasen la celda (26-09-2026).
 #
@@ -9,11 +9,11 @@
 # momento, sin reiniciarla; el resto del sistema pasa a 0-1 en el próximo reinicio de la Pi.
 #
 # Deshacer: rm /etc/systemd/system.conf.d/10-tetra-cpu.conf \
-#              /etc/systemd/system/{flowstation-tea2,flowstation,tmo}.service.d/10-cpu.conf
+#              /etc/systemd/system/{flowstation-tea2,flowstation,miurastation,tmo}.service.d/10-cpu.conf
 #           y reiniciar la Pi.
 set -u
 
-UNITS="flowstation-tea2 flowstation tmo"
+UNITS="flowstation-tea2 flowstation miurastation tmo"
 
 [ "$(id -u)" -eq 0 ] || { echo "reserva de núcleos omitida: hace falta root"; exit 0; }
 grep -qa "Raspberry Pi" /proc/device-tree/model 2>/dev/null || { echo "reserva de núcleos omitida: no es una Raspberry Pi"; exit 0; }
@@ -36,6 +36,8 @@ write_conf /etc/systemd/system.conf.d/10-tetra-cpu.conf "# Resto del sistema en 
 [Manager]
 CPUAffinity=0 1"
 for u in $UNITS; do
+  # solo las estaciones instaladas (tras migrar a MiuraStation ya no hay flowstation.service)
+  [ -f "/etc/systemd/system/$u.service" ] || continue
   write_conf "/etc/systemd/system/$u.service.d/10-cpu.conf" "# Estacion TETRA en los nucleos reservados 2-3 (el resto del sistema va en 0-1)
 [Service]
 CPUAffinity=2 3"
