@@ -156,8 +156,9 @@ object TetraApi {
         post(base, "/api/system/reboot", buildJsonObject { put("password", password) })
 
     /**
-     * Unit of the flow-family station: miurastation.service when MiuraStation is installed on the Pi,
-     * else flowstation.service (razvan's FlowStation, or a miura FlowStation not migrated yet).
+     * Unit of the flow-family station in use, as the dashboard decides it (`flowService` of
+     * /api/station/active: the selected or running one, never the other one installed next to it).
+     * A dashboard without that field only knows flowstation.service.
      */
     suspend fun flowService(base: String): String = withContext(Dispatchers.IO) {
         runCatching {
@@ -165,10 +166,8 @@ object TetraApi {
             client.newCall(req).execute().use { resp ->
                 val body = resp.body?.string() ?: return@use null
                 if (!resp.isSuccessful) return@use null
-                val services = json.decodeFromString<JsonObject>(body)["services"] as? JsonObject
-                val miura = services?.get("miurastation") as? JsonObject
-                val present = listOf("exists", "installed").any { (miura?.get(it) as? JsonPrimitive)?.content == "true" }
-                if (present) "miurastation.service" else "flowstation.service"
+                val svc = (json.decodeFromString<JsonObject>(body)["flowService"] as? JsonPrimitive)?.content
+                svc?.takeIf { it == "flowstation.service" || it == "miurastation.service" }
             }
         }.getOrNull() ?: "flowstation.service"
     }

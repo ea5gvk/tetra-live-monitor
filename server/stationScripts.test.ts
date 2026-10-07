@@ -7,7 +7,7 @@ import * as path from "path";
 import { execFileSync } from "child_process";
 import {
   PRODUCTS, PI_LAYOUT, unitFile, watchdogConf, urlIsRepo, detectInstall, migrationState, isMigrationLink,
-  flowDirInstalled, updateScript, installScript, migrationScript, rollbackScript, SD_NOTIFY_MARKERS, type Layout,
+  flowDirInstalled, miuraInstalled, updateScript, installScript, migrationScript, rollbackScript, SD_NOTIFY_MARKERS, type Layout,
 } from "./stationScripts";
 
 test("units: MiuraStation runs its own binary; razvan's unit is the one the dashboard always wrote", () => {
@@ -107,8 +107,16 @@ test("migration state: the miura FlowStation needs it, a half-done one resumes, 
     execFileSync("git", ["-C", neu, "remote", "set-url", "origin", "https://github.com/ea5gvk/MiuraStation.git"]);
     execFileSync("git", ["-C", neu, "checkout", "-q", "-b", "main"]);
     assert.equal(detectInstall(neu), "miura");
+    assert.equal(migrationState(L), "none");                     // no copies: not a migration from here
+    const bk = `${L.root}/.tlm-miurastation-migration`;
+    fs.mkdirSync(bk);
+    assert.equal(migrationState(L), "resume", "cut during the fetch or the build: copies without done");
+    fs.writeFileSync(`${bk}/done`, "");
     assert.equal(migrationState(L), "none");                     // done
     fs.unlinkSync(old);
+    assert.ok(!miuraInstalled(L), "a directory without miurastation.service is not installed");
+    fs.writeFileSync(`${L.systemd}/miurastation.service`, unitFile(PRODUCTS.miura, L));
+    assert.ok(miuraInstalled(L));
   }
   const L2 = tmpLayout();
   repo(`${L2.root}/flowstation`, "https://github.com/razvanzeces/flowstation.git", "main");

@@ -35,6 +35,26 @@ export default function Calculator() {
     );
   }
 
+  // A flow-family station remembered in localStorage that is no longer installed (FLOWSTATION after the
+  // migration to MiuraStation, or the other way round) follows the one that is: its unit would not restart.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const r = await fetch("/api/station/active");
+        if (!r.ok) return;
+        const d = await r.json();
+        if (cancelled) return;
+        const other: Partial<Record<StationName, StationName>> = { flowstation: "miurastation", miurastation: "flowstation" };
+        setStation((cur) => {
+          const alt = other[cur];
+          return alt && d?.services?.[cur]?.installed === false && d?.services?.[alt]?.installed === true ? alt : cur;
+        });
+      } catch {}
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => { postLang(); }, [lang]);
   useEffect(() => {
     try { localStorage.setItem(STATION_KEY, station); } catch {}

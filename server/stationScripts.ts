@@ -44,6 +44,8 @@ export const unitPath = (p: Product, L: Layout) => `${L.systemd}/${p.service}`;
 export const watchdogDropin = (p: Product, L: Layout) => `${L.systemd}/${p.service}.d/10-watchdog.conf`;
 export const wasActiveMark = (p: Product, L: Layout) => `${L.tmp}/${p.service}.was-active`;
 export const migrationBackupDir = (L: Layout) => `${L.root}/.tlm-miurastation-migration`;
+// Free space a full build of MiuraStation needs (the migration builds from scratch next to the old target/).
+export const MIGRATION_MIN_FREE_KB = 2 * 1024 * 1024;
 
 // bash single-quoted literal
 const sq = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
@@ -109,6 +111,12 @@ elif [ -f "$DROPIN" ]; then
 fi`;
 }
 
+// One install / update / migration at a time, also against another process (the dashboard has its own lock).
+const lockCmd = (L: Layout) => `if command -v flock >/dev/null 2>&1 && exec 9>>"${L.tmp}/tlm-station-ops.lock"; then
+  flock -n 9 || { echo "=== Hay otra instalación o actualización de estación en curso: espera a que termine ==="; exit 1; }
+fi
+`;
+
 const cargoBuild = (dir: string) => `sudo bash -lc 'cd "${dir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env; cargo build --release'`;
 const reserveCoresCmd = (script: string | null) => script
   ? `if [ -f ${sq(script)} ]; then sudo bash ${sq(script)} || true; fi\n`
@@ -120,7 +128,7 @@ export function updateScript(p: Product, L: Layout): string {
   const dir = productDir(p, L);
   return `
 set -e
-cd "${dir}"
+${lockCmd(L)}cd "${dir}"
 echo "=== Fuente: ${p.label} ==="
 echo "=== git remote set-url origin https://github.com/${p.repo}.git ==="
 sudo git remote set-url origin https://github.com/${p.repo}.git
@@ -167,7 +175,7 @@ export function installScript(p: Product, L: Layout, opts: { sameSource: boolean
   const carry = opts.carryFrom ?? null;
   return `
 set -e
-cd "${L.root}"
+${lockCmd(L)}cd "${L.root}"
 NEW="${dir}.new"
 sudo rm -rf "$NEW"
 echo "=== Fuente: ${p.label} ==="
@@ -248,6 +256,8 @@ fi
 OLD="${oldDir}"; NEW="${newDir}"; BK="${BK}"; SYSD="${S}"
 say() { echo "[vuelta atrás] $*"; }
 echo "=== Vuelta atrás: MiuraStation -> FlowStation miura ==="
+WAS_RUNNING=0
+case "$(systemctl is-active miurastation.service 2>/dev/null)" in active|activating) WAS_RUNNING=1 ;; esac
 sudo systemctl stop miurastation.service 2>/dev/null
 sudo systemctl disable miurastation.service 2>/dev/null
 SRC="$NEW"
@@ -294,9 +304,13 @@ sudo systemctl daemon-reload
 if [ -f "$BK/flowstation.enabled" ]; then
   sudo systemctl enable flowstation.service && say "flowstation.service habilitado de nuevo"
 fi
+ON_AIR=""
+if [ "$WAS_RUNNING" = 1 ]; then
+  sudo systemctl start flowstation.service && ON_AIR=", en marcha" && say "flowstation.service arrancado (MiuraStation estaba en marcha)"
+fi
 STAMP=$(date +%Y%m%d-%H%M%S)
 sudo mv "$BK" "$BK.vuelta-atras-$STAMP" && say "copias de la migración en $BK.vuelta-atras-$STAMP"
-echo "=== Vuelta atrás completada: la estación es otra vez la FlowStation miura de $OLD (flowstation.service) ==="
+echo "=== Vuelta atrás completada: la estación es otra vez la FlowStation miura de $OLD (flowstation.service$ON_AIR) ==="
 exit 0
 `;
 }
@@ -312,12 +326,16 @@ export function migrationScript(L: Layout, opts: { reserveCores?: string | null 
   const BK = migrationBackupDir(L);
   return `
 set -u
-OLD="${oldDir}"; NEW="${newDir}"; BK="${BK}"; SYSD="${L.systemd}"
+${lockCmd(L)}OLD="${oldDir}"; NEW="${newDir}"; BK="${BK}"; SYSD="${L.systemd}"
 OLD_SVC=flowstation.service; NEW_SVC=${M.service}
 MARK="${wasActiveMark(M, L)}"
 step() { echo ""; echo "=== Migración $1 ==="; }
 say() { echo "  $*"; }
-stop_here() { echo ""; echo "=== MIGRACIÓN DETENIDA: $* ==="; echo "Nada se ha cambiado."; exit 1; }
+stop_here() {
+  echo ""; echo "=== MIGRACIÓN DETENIDA: $* ==="
+  if [ "\${MOVED:-0}" = 1 ]; then echo "La migración sigue a medias, como estaba: resuélvelo y vuelve a lanzarla."; else echo "Nada se ha cambiado."; fi
+  exit 1
+}
 restart_old() {
   if [ -f "$MARK" ]; then
     say "arrancando de nuevo $OLD_SVC (estaba en marcha)"
@@ -328,8 +346,12 @@ restart_old() {
 undo() {
   echo ""
   echo "=== MIGRACIÓN FALLIDA: $* ==="
-  echo "=== Se deshace todo (${BK}/rollback.sh) ==="
-  sudo bash "$BK/rollback.sh"
+  if [ -f "$BK/rollback.sh" ]; then
+    echo "=== Se deshace todo (${BK}/rollback.sh) ==="
+    sudo bash "$BK/rollback.sh"
+  else
+    echo "=== No hay ${BK}/rollback.sh: no se puede deshacer. La migración queda a medias: vuelve a lanzarla cuando se resuelva el fallo. ==="
+  fi
   restart_old
   exit 1
 }
@@ -359,34 +381,56 @@ SRC="$OLD"; [ "$MOVED" = 1 ] && SRC="$NEW"
 [ -f "$SRC/config.toml" ] && say "config.toml: $SRC/config.toml" || say "AVISO: $SRC no tiene config.toml (se usará el de ejemplo)"
 
 step "2/9: copias de seguridad y vuelta atrás en $BK"
+# Nothing is stopped or moved until the copies are in place and checked, and there is room for the build.
+FREE_KB=$(df -Pk "$SRC" 2>/dev/null | awk 'NR==2 {print $4}')
+if [ -n "$FREE_KB" ] && [ "$FREE_KB" -lt ${MIGRATION_MIN_FREE_KB} ] 2>/dev/null; then
+  stop_here "solo quedan $((FREE_KB / 1024)) MB libres en el disco y la compilación completa necesita al menos ${MIGRATION_MIN_FREE_KB / 1024} MB: libera espacio"
+fi
 if [ "$MOVED" = 0 ] && [ -e "$BK" ]; then
   sudo mv "$BK" "$BK.anterior-$(date +%Y%m%d-%H%M%S)"
   say "había copias de un intento anterior: apartadas"
 fi
-sudo mkdir -p "$BK"
+sudo mkdir -p "$BK" || stop_here "no se ha podido crear $BK (¿disco lleno?)"
 sudo chmod 700 "$BK"
 # only while $SRC is still on the miura FlowStation (a re-run after the switch must not record MiuraStation)
-if [ ! -f "$BK/legacy-head" ] && git -C "$SRC" remote get-url origin 2>/dev/null | grep -qi '${LEGACY_MIURA.repo}'; then
-  sudo sh -c 'git -C "$1" rev-parse HEAD > "$2"' _ "$SRC" "$BK/legacy-head" && say "commit de la FlowStation miura: $(cat "$BK/legacy-head")"
+if [ ! -s "$BK/legacy-head" ] && git -C "$SRC" remote get-url origin 2>/dev/null | grep -qi '${LEGACY_MIURA.repo}'; then
+  if ! { sudo sh -c 'git -C "$1" rev-parse HEAD > "$2"' _ "$SRC" "$BK/legacy-head" && [ -s "$BK/legacy-head" ]; }; then
+    stop_here "no se ha podido guardar en $BK el commit de la FlowStation miura (¿disco lleno?)"
+  fi
+  say "commit de la FlowStation miura: $(cat "$BK/legacy-head")"
 fi
 [ -f "$BK/tlm-config-base.toml" ] || { [ -f "$SRC/.git/tlm-config-base.toml" ] && sudo cp -p "$SRC/.git/tlm-config-base.toml" "$BK/tlm-config-base.toml"; }
 CFG_BAK=""
 if [ -f "$SRC/config.toml" ]; then
   CFG_BAK="$BK/config.toml.bak-$(date +%Y%m%d-%H%M%S)"
-  sudo cp -p "$SRC/config.toml" "$CFG_BAK"
+  if ! { sudo cp -p "$SRC/config.toml" "$CFG_BAK" && sudo cmp -s "$SRC/config.toml" "$CFG_BAK"; }; then
+    sudo rm -f "$CFG_BAK"
+    stop_here "no se ha podido copiar config.toml en $BK (¿disco lleno?)"
+  fi
   sudo chmod 600 "$CFG_BAK"
   say "config.toml copiado en $CFG_BAK"
 fi
-[ -f "$BK/flowstation.service" ] || { [ -f "$SYSD/$OLD_SVC" ] && sudo cp -p "$SYSD/$OLD_SVC" "$BK/flowstation.service" && say "unidad $OLD_SVC copiada"; }
+if [ ! -s "$BK/flowstation.service" ] && [ -f "$SYSD/$OLD_SVC" ]; then
+  if ! { sudo cp -p "$SYSD/$OLD_SVC" "$BK/flowstation.service" && sudo cmp -s "$SYSD/$OLD_SVC" "$BK/flowstation.service"; }; then
+    sudo rm -f "$BK/flowstation.service"
+    stop_here "no se ha podido copiar $OLD_SVC en $BK (¿disco lleno?)"
+  fi
+  say "unidad $OLD_SVC copiada"
+fi
 if [ ! -d "$BK/flowstation.service.d" ] && [ -d "$SYSD/$OLD_SVC.d" ]; then
   sudo cp -rp "$SYSD/$OLD_SVC.d" "$BK/flowstation.service.d" && say "drop-ins de $OLD_SVC copiados"
 fi
-printf '%s' ${sq(rollbackScript(L))} | sudo tee "$BK/rollback.sh" > /dev/null
+ROLLBACK=${sq(rollbackScript(L))}
+printf '%s' "$ROLLBACK" | sudo tee "$BK/rollback.sh" > /dev/null
+printf '%s' "$ROLLBACK" | sudo cmp -s - "$BK/rollback.sh" || stop_here "no se ha podido escribir $BK/rollback.sh (¿disco lleno?)"
 sudo chmod 700 "$BK/rollback.sh"
 say "vuelta atrás manual: sudo bash $BK/rollback.sh"
+sudo rm -f "$BK/done"
 
 step "3/9: parando la estación"
-sudo rm -f "$MARK"
+# A resumed migration keeps the mark of the run that was cut: that run stopped the station, which goes back on air.
+[ "$MOVED" = 0 ] && sudo rm -f "$MARK"
+[ -f "$MARK" ] && say "la paró la ejecución que se cortó: se arrancará al terminar"
 for s in $OLD_SVC $NEW_SVC; do
   st=$(systemctl is-active $s 2>/dev/null)
   if [ "$st" = active ] || [ "$st" = activating ]; then
@@ -460,6 +504,7 @@ ${watchdogSync(M, L)}
 
 step "9/9: núcleos reservados"
 ${reserveCoresCmd(opts.reserveCores ?? null) || "say \"(sin script de reserva de núcleos)\"\n"}
+sudo touch "$BK/done"
 echo ""
 echo "=== Migración completada: ${M.name} en $NEW con $NEW_SVC ==="
 echo "Si algo no va bien: sudo bash $BK/rollback.sh (vuelve a la FlowStation miura tal como estaba)."
@@ -508,11 +553,19 @@ export function detectInstall(dir: string): Installed {
 }
 
 // "needed": the miura FlowStation is in /root/flowstation and there is no /root/miurastation.
-// "resume": a migration stopped after moving the directory (still on the old code).
+// "resume": a migration stopped after moving the directory: still on the old code, or its copies are there
+// without the "done" that its last step writes (cut during the fetch or the build).
 export type MigrationState = "none" | "needed" | "resume";
 export function migrationState(L: Layout): MigrationState {
   const o = productDir(PRODUCTS.razvan, L), n = productDir(PRODUCTS.miura, L);
   if (!lexists(n)) return lexists(o) && !isLink(o) && detectInstall(o) === "legacy" ? "needed" : "none";
-  if ((isMigrationLink(L) || !lexists(o)) && detectInstall(n) === "legacy") return "resume";
+  if (!isMigrationLink(L) && lexists(o)) return "none";
+  const bk = migrationBackupDir(L);
+  if (detectInstall(n) === "legacy" || (fs.existsSync(bk) && !fs.existsSync(`${bk}/done`))) return "resume";
   return "none";
+}
+
+/** MiuraStation is installed: its directory and its unit (a bare clone or a migration cut short is not). */
+export function miuraInstalled(L: Layout): boolean {
+  return fs.existsSync(productDir(PRODUCTS.miura, L)) && fs.existsSync(unitPath(PRODUCTS.miura, L));
 }
