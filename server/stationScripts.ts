@@ -465,6 +465,10 @@ say "en $(git rev-parse --short HEAD 2>/dev/null) (los ficheros sin versionar, c
 if [ -n "$CFG_BAK" ] && ! sudo cmp -s "$CFG_BAK" "$NEW/config.toml"; then
   sudo cp -p "$CFG_BAK" "$NEW/config.toml" && say "config.toml restaurado desde $CFG_BAK"
 fi
+# the :8080 service control restarts the unit named here, and flowstation.service is gone after the migration
+if sudo grep -qE '^[ \\t]*service_name[ \\t]*=[ \\t]*"flowstation(\\.service)?"' "$NEW/config.toml" 2>/dev/null; then
+  sudo sed -i -E 's/^([ \\t]*service_name[ \\t]*=[ \\t]*)"flowstation(\\.service)?"/\\1"${M.dirName}"/' "$NEW/config.toml" && say "config.toml: service_name = \\"${M.dirName}\\""
+fi
 
 step "6/9: cargo build --release (compilación completa: el directorio ha cambiado; tarda varios minutos)"
 ${cargoBuild(newDir)} || undo "la compilación ha fallado"
