@@ -220,6 +220,8 @@ fun WifiScreen(base: String?, password: String, hasPassword: Boolean, onBack: ()
 
     connectTo?.let { n ->
         val open = isOpen(n.security)
+        // A saved network connects with its stored password, as in the web (empty wifiPassword).
+        val known = saved.any { it.name == n.ssid }
         AlertDialog(
             onDismissRequest = { connectTo = null },
             containerColor = Surface,
@@ -233,7 +235,7 @@ fun WifiScreen(base: String?, password: String, hasPassword: Boolean, onBack: ()
             },
             confirmButton = {
                 TextButton(
-                    enabled = open || wifiPw.isNotEmpty(),
+                    enabled = open || known || wifiPw.isNotEmpty(),
                     onClick = {
                         connectTo = null
                         val pw = if (open) "" else wifiPw
