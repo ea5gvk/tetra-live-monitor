@@ -83,7 +83,7 @@ private val UPDATERS = listOf(
 
 private val EXIT_RE = Regex("""\[Exit: (-?\d+)]""")
 
-private const val ARM64_NOTE = "Solo arm64: Raspberry Pi 3/4/5 con sistema de 64 bits."
+private const val ARCH_NOTE = "arm64: Raspberry Pi 3/4/5 con sistema de 64 bits; amd64: PC con Debian 12/13 o Ubuntu 22.04/24.04."
 
 /**
  * "ACTUALIZACIONES" block of the Control tab: check + update/install each component.
@@ -241,7 +241,7 @@ private fun UpdaterCard(
                 color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
         }
         i?.apiError?.let { Text(it, color = Danger, fontSize = 9.sp, maxLines = 2) }
-        if (miura && (install || i?.needsMigration == true)) Text(ARM64_NOTE, color = Warn, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        if (miura && (install || i?.needsMigration == true)) Text(ARCH_NOTE, color = Warn, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         i?.releaseUrl?.takeIf { it.isNotBlank() }?.let { url ->
             Text(
                 "Ver release ↗", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold,
@@ -306,9 +306,9 @@ private fun UpdaterCard(
                 Text(
                     // Same texts as the web's FlowstationUpdater for each case.
                     if (u.restartsDashboard) "Se descarga el código, se recompila y se reinicia el dashboard. La app perderá la conexión unos segundos."
-                    else if (migrateSource) "Se instala el paquete miurastation y se retira la unidad compilada /etc/systemd/system/miurastation.service (los drop-ins se quedan); config.toml, logs y cachés siguen en /root/miurastation. Si algo falla se deshace solo y la MiuraStation compilada sigue como estaba. $ARM64_NOTE"
-                    else if (i?.needsMigration == true) "/root/flowstation pasa a /root/miurastation con su config.toml, logs y cachés (queda un enlace /root/flowstation → /root/miurastation), se instala el paquete miurastation, miurastation.service recibe los drop-ins de flowstation.service y esta se deshabilita. Si algo falla se deshace solo y la FlowStation miura sigue como estaba. $ARM64_NOTE"
-                    else if (install && miura) "Descargará el paquete .deb de la última versión de ea5gvk/MiuraStation-dist ($ARM64_NOTE), comprobará su SHA-256 y lo instalará con apt-get. config.toml queda en /root/miurastation."
+                    else if (migrateSource) "Se instala el paquete miurastation y se retira la unidad compilada /etc/systemd/system/miurastation.service (los drop-ins se quedan); config.toml, logs y cachés siguen en /root/miurastation. Si algo falla se deshace solo y la MiuraStation compilada sigue como estaba. $ARCH_NOTE"
+                    else if (i?.needsMigration == true) "/root/flowstation pasa a /root/miurastation con su config.toml, logs y cachés (queda un enlace /root/flowstation → /root/miurastation), se instala el paquete miurastation, miurastation.service recibe los drop-ins de flowstation.service y esta se deshabilita. Si algo falla se deshace solo y la FlowStation miura sigue como estaba. $ARCH_NOTE"
+                    else if (install && miura) "Descargará el paquete .deb de la última versión de ea5gvk/MiuraStation-dist ($ARCH_NOTE), comprobará su SHA-256 y lo instalará con apt-get. config.toml queda en /root/miurastation."
                     else if (miura) "Se descarga el paquete .deb ($repo), se comprueba su SHA-256, se instala con apt-get y se reinicia el servicio si estaba activo."
                     else "Se descarga el código ($repo), se recompila y se reinicia el servicio si estaba activo. Puede tardar varios minutos.",
                     color = Muted,
