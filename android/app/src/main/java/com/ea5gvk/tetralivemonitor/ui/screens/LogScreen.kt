@@ -78,6 +78,13 @@ fun LogScreen(base: String?, station: StationActive?) {
     }.distinct()
     var reconnect by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
+    // One client for every (re)connection: a new one on each 3 s retry would pile up idle thread pools.
+    val client = remember {
+        OkHttpClient.Builder()
+            .connectTimeout(10, TimeUnit.SECONDS)
+            .readTimeout(0, TimeUnit.SECONDS)
+            .build()
+    }
     LaunchedEffect(base, logService) { lines = emptyList(); frozen = null }
 
     DisposableEffect(base, logService, reconnect) {
@@ -86,10 +93,6 @@ fun LogScreen(base: String?, station: StationActive?) {
         // journalctl replays its last 50 lines on every connection: skip those already shown after a reconnect.
         val seen = lines.take(60).toHashSet()
         var replayed = 0
-        val client = OkHttpClient.Builder()
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(0, TimeUnit.SECONDS)
-            .build()
         val request = Request.Builder()
             .url("$base/api/log-stream?service=$svc")
             .build()
