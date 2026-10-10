@@ -2112,6 +2112,16 @@ cargo build --release
     } catch { res.json({ networks: [] }); }
   });
 
+  // wlan0 on a Pi; on a PC (wlp2s0…) nmcli's first Wi-Fi device. The name only reaches the shell if it is a plain one.
+  function wifiIface(): string {
+    try {
+      const devs = execSync("nmcli -t -f DEVICE,TYPE device 2>/dev/null", { timeout: 5000 }).toString().split("\n")
+        .map((l) => l.trim().split(":")).filter((p) => p[1] === "wifi").map((p) => p[0]);
+      if (!devs.includes("wlan0") && devs[0] && /^[\w.-]+$/.test(devs[0])) return devs[0];
+    } catch {}
+    return "wlan0";
+  }
+
   app.post("/api/wifi/connect", (req, res) => {
     const { ssid, wifiPassword, password } = req.body || {};
     if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
@@ -2119,9 +2129,10 @@ cargo build --release
     if (!nmcliAvailable()) return res.status(503).json({ message: "nmcli no disponible (modo demo)" });
     try {
       const safeSsid = ssid.replace(/"/g, '\\"');
+      const iface = wifiIface();
       const cmd = wifiPassword
-        ? `sudo nmcli dev wifi connect "${safeSsid}" password "${wifiPassword.replace(/"/g, '\\"')}" ifname wlan0`
-        : `sudo nmcli dev wifi connect "${safeSsid}" ifname wlan0`;
+        ? `sudo nmcli dev wifi connect "${safeSsid}" password "${wifiPassword.replace(/"/g, '\\"')}" ifname ${iface}`
+        : `sudo nmcli dev wifi connect "${safeSsid}" ifname ${iface}`;
       execSync(cmd, { timeout: 30000 });
       res.json({ ok: true, message: `Conectado a ${ssid}` });
     } catch (e: any) {
@@ -2135,7 +2146,7 @@ cargo build --release
     if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
     if (!nmcliAvailable()) return res.status(503).json({ message: "nmcli no disponible (modo demo)" });
     try {
-      execSync("sudo nmcli device disconnect wlan0", { timeout: 10000 });
+      execSync(`sudo nmcli device disconnect ${wifiIface()}`, { timeout: 10000 });
       res.json({ ok: true, message: "Desconectado del WiFi" });
     } catch (e: any) {
       res.status(500).json({ ok: false, message: "Error al desconectar" });
