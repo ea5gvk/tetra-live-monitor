@@ -38,19 +38,20 @@ El selector de la barra de navegación elige la estación TETRA activa de la Pi:
 |---|---|---|---|---|
 | BLUE | BlueStation (MidnightBlueLabs) | `/root/tetra-bluestation` | `tmo.service` | `MidnightBlueLabs/tetra-bluestation` |
 | FLOW | FlowStation de razvan (YO6RZV) | `/root/flowstation` | `flowstation.service` | `razvanzeces/flowstation` · `main` |
-| MIURA | MiuraStation (EA5GVK) | `/root/miurastation` | `miurastation.service` | `ea5gvk/MiuraStation` · `main` |
+| MIURA | MiuraStation (EA5GVK) | `/root/miurastation` | `miurastation.service` (del paquete) | paquete `.deb` de `ea5gvk/MiuraStation-dist` |
 
 El botón de actualizar de FLOW/MIURA instala o actualiza cada una en su sitio; la configuración (`config.toml`) se conserva siempre y solo se le añade lo nuevo de la plantilla.
 
-**Migración desde la FlowStation miura.** Una Pi que tenga en `/root/flowstation` la FlowStation miura (`ea5gvk/flowstation`, rama `miura`) ve en MiuraStation el botón **MIGRAR A MIURASTATION** (en la app Android, **MIGRAR**). La migración:
+**MiuraStation se instala desde su paquete.** El código de MiuraStation es privado: se publican solo binarios, en las versiones de [`ea5gvk/MiuraStation-dist`](https://github.com/ea5gvk/MiuraStation-dist/releases). Instalar descarga `miurastation_X.Y.Z_arm64.deb` y `SHA256SUMS` de la última versión estable, comprueba la suma SHA-256 y lo instala con `apt-get` (solo `arm64`: Raspberry Pi 3/4/5 con sistema de 64 bits; no se compila nada). El paquete deja el binario en `/usr/bin/miurastation`, la plantilla en `/usr/share/miurastation/example_config/config.toml` y la unidad en `/lib/systemd/system/miurastation.service`; `config.toml`, logs y cachés siguen en `/root/miurastation`. Comprobar compara la versión instalada (`dpkg-query -W miurastation`) con la de la última versión publicada. Actualizar para la estación, instala el paquete nuevo, añade al `config.toml` lo nuevo de la plantilla y la arranca si estaba en marcha. El panel solo escribe drop-ins de la unidad (watchdog y núcleos reservados), nunca la unidad principal.
 
-1. para `flowstation.service` y guarda en `/root/.tlm-miurastation-migration/` una copia de `config.toml`, de la unidad, de sus drop-ins y el commit en que estaba;
-2. mueve `/root/flowstation` a `/root/miurastation` con su `config.toml`, logs y cachés, y deja el enlace `/root/flowstation → /root/miurastation`;
-3. cambia el código a `ea5gvk/MiuraStation` · `main` y lo recompila entero (varios minutos);
-4. crea `miurastation.service` (con el watchdog y la reserva de núcleos que tenía la otra), deshabilita y retira `flowstation.service`, y pasa el selector de FLOW a MIURA;
-5. añade al `config.toml` lo nuevo de la plantilla de MiuraStation y arranca la estación si estaba en marcha.
+**Migración al paquete.** El botón **MIGRAR A MIURASTATION** (en la app Android, **MIGRAR**) aparece en MiuraStation cuando la Pi tiene:
 
-Si algo falla (por ejemplo la compilación) se deshace solo y la Pi sigue con la FlowStation miura como estaba. Para volver atrás a mano después: `sudo bash /root/.tlm-miurastation-migration/rollback.sh`. Repetir la migración es seguro.
+- la FlowStation miura (`ea5gvk/flowstation`, rama `miura`) en `/root/flowstation`: se mueve a `/root/miurastation` con su `config.toml`, logs y cachés, queda el enlace `/root/flowstation → /root/miurastation`, sus drop-ins pasan a `miurastation.service.d`, se deshabilita y retira `flowstation.service` y el selector pasa de FLOW a MIURA;
+- una MiuraStation compilada (con su propia `/etc/systemd/system/miurastation.service`, que taparía la del paquete; el botón dice **PASAR AL PAQUETE .DEB**): se retira esa unidad, los drop-ins se quedan y `/root/miurastation` no se toca (el código y `target/` se pueden borrar a mano cuando ya no se quiera volver atrás).
+
+En los dos casos guarda antes en `/root/.tlm-miurastation-migration/` una copia de `config.toml`, de las unidades y sus drop-ins; descarga y comprueba el paquete antes de parar nada; lo instala; la estación sigue habilitada (o no) como estaba; añade al `config.toml` lo nuevo de la plantilla y la arranca si estaba en marcha.
+
+Si algo falla se deshace solo y la Pi sigue como estaba. Para volver atrás a mano después: `sudo bash /root/.tlm-miurastation-migration/rollback.sh` (quita el paquete y devuelve la FlowStation miura o la MiuraStation compilada). Repetir la migración es seguro: si se cortó, sigue donde se quedó.
 
 ---
 

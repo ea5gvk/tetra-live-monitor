@@ -18,8 +18,11 @@ interface UpdateInfo {
   source?: FlowSource;
   active?: FlowSource;
   sources?: Record<FlowSource, { repo: string; branch: string; label: string; dir?: string; service?: string }>;
-  // the miura FlowStation in /root/flowstation still has to move to MiuraStation (source miura)
+  // source miura: what still has to move to the package — the miura FlowStation in /root/flowstation ("legacy") or
+  // a MiuraStation built from source ("source")
   needsMigration?: boolean;
+  migrationKind?: "legacy" | "source" | null;
+  packaged?: boolean;
   dir?: string;
   service?: string;
 }
@@ -27,11 +30,13 @@ interface UpdateInfo {
 // Each check runs git/curl on the Pi next to the station; every 5 min (per open tab) lined up
 // with the radios dropping the cell. Once an hour, plus on page load and when the modal opens.
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
-// Two products: razvan's FlowStation and MiuraStation (EA5GVK), each in its own directory and unit.
+// Two products: razvan's FlowStation (git + cargo) and MiuraStation (EA5GVK, the .deb of its releases), each in its
+// own directory and unit.
 const SOURCE_META: Record<FlowSource, { repo: string; branch: string; label: string; dir: string; service: string }> = {
   razvan: { repo: "razvanzeces/flowstation", branch: "main", label: "FlowStation (razvan · main)", dir: "/root/flowstation", service: "flowstation.service" },
-  miura: { repo: "ea5gvk/MiuraStation", branch: "main", label: "MiuraStation (EA5GVK · main)", dir: "/root/miurastation", service: "miurastation.service" },
+  miura: { repo: "ea5gvk/MiuraStation-dist", branch: "latest", label: "MiuraStation (EA5GVK · paquete .deb)", dir: "/root/miurastation", service: "miurastation.service" },
 };
+const MIURA_INSTALL_HINT = "Descargará el paquete .deb de la última versión de ea5gvk/MiuraStation-dist (solo arm64: Raspberry Pi 3/4/5 con sistema de 64 bits), comprobará su SHA-256 y lo instalará con apt-get. config.toml queda en /root/miurastation.";
 
 // The i18n texts name razvan's FlowStation and its paths: for MiuraStation, its own name, directory and unit.
 function forSource(text: string, src: FlowSource): string {
@@ -221,7 +226,7 @@ export function FlowstationUpdater() {
                   <Download className="w-4 h-4 shrink-0" />
                   <div className="flex-1">
                     <div className="font-bold">{forSource(t("flowstation_not_installed"), sel)}</div>
-                    <div className="text-orange-300 text-[10px] mt-0.5">{forSource(t("flowstation_install_hint"), sel)}</div>
+                    <div className="text-orange-300 text-[10px] mt-0.5">{sel === "miura" ? MIURA_INSTALL_HINT : forSource(t("flowstation_install_hint"), sel)}</div>
                   </div>
                 </div>
               ) : info.demo ? (
@@ -233,12 +238,25 @@ export function FlowstationUpdater() {
                 <div className="flex items-start gap-2 p-3 rounded bg-amber-500/10 border border-amber-500/30 text-amber-300 text-xs" data-testid="text-flowstation-migration">
                   <ArrowUpCircle className="w-4 h-4 shrink-0 mt-0.5" />
                   <div className="flex-1 min-w-0 space-y-1">
-                    <div className="font-bold">Migrar la FlowStation miura a MiuraStation</div>
-                    <div className="text-[10px] text-amber-200/90">
-                      /root/flowstation pasa a {DIR} con su config.toml, logs y cachés (queda un enlace /root/flowstation → {DIR}),
-                      se crea {SERVICE} con los drop-ins de flowstation.service, que se deshabilita, y se recompila entero
-                      (varios minutos). Si algo falla se deshace solo y la FlowStation miura sigue como estaba.
-                    </div>
+                    {info.migrationKind === "source" ? (
+                      <>
+                        <div className="font-bold">Pasar MiuraStation compilada al paquete .deb</div>
+                        <div className="text-[10px] text-amber-200/90">
+                          Se instala el paquete miurastation y se retira la unidad compilada /etc/systemd/system/{SERVICE}
+                          (los drop-ins se quedan); config.toml, logs y cachés siguen en {DIR}. Si algo falla se deshace solo
+                          y la MiuraStation compilada sigue como estaba.
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div className="font-bold">Migrar la FlowStation miura a MiuraStation</div>
+                        <div className="text-[10px] text-amber-200/90">
+                          /root/flowstation pasa a {DIR} con su config.toml, logs y cachés (queda un enlace /root/flowstation → {DIR}),
+                          se instala el paquete miurastation, {SERVICE} recibe los drop-ins de flowstation.service y esta se
+                          deshabilita. Si algo falla se deshace solo y la FlowStation miura sigue como estaba.
+                        </div>
+                      </>
+                    )}
                     <div className="flex gap-3 text-[10px] font-mono text-muted-foreground">
                       <span>local: {info.localHash}</span>
                       <span className="text-amber-300">MiuraStation: {info.remoteHash}</span>
@@ -274,22 +292,31 @@ export function FlowstationUpdater() {
 
               {!done && (
                 <div className="bg-black/40 border border-border rounded p-2 text-[10px] font-mono text-muted-foreground space-y-0.5">
-                  {mode === "install" ? (
+                  {sel === "miura" ? (
+                    <>
+                      <div className="text-green-400">$ curl -LO …/{meta.repo}/releases/download/{info?.remoteHash ?? "vX.Y.Z"}/miurastation_…_arm64.deb · SHA256SUMS</div>
+                      <div className="text-green-400">$ sha256sum -c</div>
+                      {mode === "migrate" && (
+                        <div className="text-red-400">$ sudo systemctl stop {info?.migrationKind === "source" ? SERVICE : "flowstation.service"}</div>
+                      )}
+                      {mode === "migrate" && info?.migrationKind !== "source" && (
+                        <div className="text-green-400">$ mv /root/flowstation {DIR} &amp;&amp; ln -s {DIR} /root/flowstation</div>
+                      )}
+                      {mode === "migrate" && (
+                        <div className="text-amber-400">$ {info?.migrationKind === "source" ? `rm /etc/systemd/system/${SERVICE}` : "disable flowstation.service"} (copia en /root/.tlm-miurastation-migration)</div>
+                      )}
+                      {mode === "update" && <div className="text-red-400">$ sudo systemctl stop {SERVICE}</div>}
+                      <div className="text-green-400">$ sudo apt-get install ./miurastation_…_arm64.deb</div>
+                      <div className="text-green-400">$ config.toml {mode === "install" ? "existente → se conserva (si no hay: plantilla del paquete)" : "→ solo se añade lo nuevo de la plantilla"}</div>
+                      {mode !== "install" && <div className="text-amber-400">$ sudo systemctl start {SERVICE} (si estaba en marcha)</div>}
+                    </>
+                  ) : mode === "install" ? (
                     <>
                       <div className="text-green-400">$ cd /root</div>
                       <div className="text-green-400">$ sudo git clone -b {meta.branch} https://github.com/{meta.repo}.git</div>
                       <div className="text-green-400">$ config.toml existente → se conserva (si no hay: example_config/config.toml)</div>
                       <div className="text-green-400">$ cargo build --release</div>
                       <div className="text-amber-400">$ create /etc/systemd/system/{SERVICE}</div>
-                    </>
-                  ) : mode === "migrate" ? (
-                    <>
-                      <div className="text-red-400">$ sudo systemctl stop flowstation.service</div>
-                      <div className="text-green-400">$ mv /root/flowstation {DIR} &amp;&amp; ln -s {DIR} /root/flowstation</div>
-                      <div className="text-green-400">$ git remote set-url origin https://github.com/{meta.repo}.git &amp;&amp; git checkout -B {meta.branch} origin/{meta.branch}</div>
-                      <div className="text-green-400">$ cargo build --release (completa)</div>
-                      <div className="text-amber-400">$ create /etc/systemd/system/{SERVICE} · disable flowstation.service</div>
-                      <div className="text-amber-400">$ sudo systemctl start {SERVICE} (si estaba en marcha)</div>
                     </>
                   ) : (
                     <>
@@ -332,7 +359,7 @@ export function FlowstationUpdater() {
                       data-testid="button-flowstation-apply"
                     >
                       {mode === "install" ? <Download className={`w-3 h-3 ${busy ? "animate-pulse" : ""}`} /> : <Waves className={`w-3 h-3 ${busy ? "animate-pulse" : ""}`} />}
-                      {busy ? t("update_applying") : (mode === "install" ? forSource(t("flowstation_install"), sel) : mode === "migrate" ? "MIGRAR A MIURASTATION" : (info?.switching ? "CAMBIAR VERSIÓN" : t("update_apply")))}
+                      {busy ? t("update_applying") : (mode === "install" ? forSource(t("flowstation_install"), sel) : mode === "migrate" ? (info?.migrationKind === "source" ? "PASAR AL PAQUETE .DEB" : "MIGRAR A MIURASTATION") : (info?.switching ? "CAMBIAR VERSIÓN" : t("update_apply")))}
                     </button>
                   </div>
                   {errMsg && <p className="text-xs text-red-400">{errMsg}</p>}

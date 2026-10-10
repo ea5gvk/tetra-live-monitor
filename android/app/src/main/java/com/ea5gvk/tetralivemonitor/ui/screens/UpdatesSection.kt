@@ -70,7 +70,7 @@ private val UPDATERS = listOf(
         "/api/flowstation/check", "/api/flowstation/apply", "/api/flowstation/install",
         sources = listOf(
             UpdSource("razvan", "FlowStation", "razvanzeces/flowstation · main"),
-            UpdSource("miura", "MiuraStation", "ea5gvk/MiuraStation · main"),
+            UpdSource("miura", "MiuraStation", "ea5gvk/MiuraStation-dist · paquete .deb"),
         )),
     Updater("dashboard", "DASHBOARD", "ea5gvk/tetra-live-monitor · main",
         "/api/update/check", "/api/update/apply", restartsDashboard = true),
@@ -166,7 +166,7 @@ private fun UpdaterCard(
         i == null -> (if (checking) "Comprobando…" else "No se pudo comprobar") to (if (checking) Muted else Danger)
         i.demo -> "Modo demo (sin git en el servidor)" to Warn
         i.dirNotFound -> (if (u.installPath != null) "No instalado — puedes instalarlo" else "No instalado en la Pi") to Warn
-        i.needsMigration -> "Migrar la FlowStation miura a MiuraStation · ${i.remoteHash}" to Warn
+        i.needsMigration -> "Migrar a MiuraStation (paquete .deb) · ${i.remoteHash}" to Warn
         i.switching -> "Cambiar a esta versión · ${i.remoteHash}" to Cyan
         i.upToDate == true -> "Al día · ${i.localHash}" to Ok
         else -> "Nueva versión disponible" to Cyan
@@ -248,7 +248,8 @@ private fun UpdaterCard(
             text = {
                 Text(
                     if (u.restartsDashboard) "Se descarga el código, se recompila y se reinicia el dashboard. La app perderá la conexión unos segundos."
-                    else if (i?.needsMigration == true) "La FlowStation miura de /root/flowstation pasa a MiuraStation en /root/miurastation con su config.toml, logs y cachés; se crea miurastation.service y se recompila entero (varios minutos). Si algo falla se deshace solo."
+                    else if (i?.needsMigration == true) "MiuraStation pasa al paquete .deb de ea5gvk/MiuraStation-dist con su config.toml, logs y cachés en /root/miurastation (la FlowStation miura de /root/flowstation se mueve allí y queda un enlace; una MiuraStation compilada deja su unidad propia). Si algo falla se deshace solo."
+                    else if (repo.contains("MiuraStation-dist")) "Se descarga el paquete .deb ($repo), se comprueba su SHA-256, se instala con apt-get y se reinicia el servicio si estaba activo."
                     else "Se descarga el código ($repo), se recompila y se reinicia el servicio si estaba activo. Puede tardar varios minutos.",
                     color = Muted,
                 )
