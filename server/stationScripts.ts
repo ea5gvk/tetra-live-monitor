@@ -27,9 +27,10 @@ export interface Product {
   bin: string;      // razvan: target/release/<bin>; MiuraStation: /usr/bin/<bin>
 }
 // MiuraStation is only published as binaries (its source repo ea5gvk/MiuraStation is private): releases vX.Y.Z of
-// ea5gvk/MiuraStation-dist with miurastation_X.Y.Z_arm64.deb and SHA256SUMS. Only arm64 for now.
+// ea5gvk/MiuraStation-dist with miurastation_X.Y.Z_<arch>.deb and one SHA256SUMS. <arch> is the dpkg architecture:
+// arm64 (Raspberry Pi 3/4/5) and amd64 (PC with Debian 12/13 or Ubuntu 22.04/24.04).
 export const DIST_REPO = "ea5gvk/MiuraStation-dist";
-export const DEB_ARCH = "arm64";
+export const DEB_ARCHES = ["arm64", "amd64"] as const;
 export const PRODUCTS: Record<ProductId, Product> = {
   razvan: {
     id: "razvan", name: "FlowStation", repo: "razvanzeces/flowstation", branch: "main",
@@ -60,7 +61,7 @@ export const pkgBinPath = (L: Layout) => `${L.usr}/bin/${PRODUCTS.miura.bin}`;
 export const pkgTemplatePath = (L: Layout) => `${L.usr}/share/miurastation/example_config/config.toml`;
 // Base of the config.toml merge of the package (there is no .git): in the station home.
 export const pkgConfigBasePath = (L: Layout) => `${productDir(PRODUCTS.miura, L)}/.tlm-config-base.toml`;
-export const debAsset = (version: string) => `miurastation_${version}_${DEB_ARCH}.deb`;
+export const debAsset = (version: string, arch: string) => `miurastation_${version}_${arch}.deb`;
 // Free space for the download and the install of the package (a few tens of MB: nothing is built any more).
 export const PACKAGE_MIN_FREE_KB = 200 * 1024;
 
@@ -261,15 +262,19 @@ echo "Para activar ${p.name} usa el selector de estación en la barra de navegac
 
 // ── MiuraStation: the package ──
 
-// The release of the package: TAG, VER, DEB and BASE for the fragments below (tag and version are checked by
-// RELEASE_TAG_RE before they get here).
-const releaseVars = (tag: string, version: string) => `TAG=${sq(tag)}; VER=${sq(version)}; DEB=${sq(debAsset(version))}
+// The release of the package: TAG, VER and BASE for the fragments below (tag and version are checked by
+// RELEASE_TAG_RE before they get here); DEB comes from archCheck.
+const releaseVars = (tag: string, version: string) => `TAG=${sq(tag)}; VER=${sq(version)}
 BASE="https://github.com/${DIST_REPO}/releases/download/$TAG"
 `;
 
-// Only arm64 is published. `fail` = the script's error function (here and below).
-const archCheck = (fail: string) => `ARCH=$(dpkg --print-architecture 2>/dev/null || echo desconocida)
-[ "$ARCH" = ${DEB_ARCH} ] || ${fail} "MiuraStation solo se publica para ${DEB_ARCH} (Raspberry Pi 3/4/5 con Raspberry Pi OS de 64 bits) y este sistema es $ARCH"
+// The .deb of this system's dpkg architecture (DEB_ARCHES); any other one is refused. `fail` = the script's error
+// function (here and below).
+const archCheck = (version: string, fail: string) => `ARCH=$(dpkg --print-architecture 2>/dev/null || echo desconocida)
+case "$ARCH" in
+${DEB_ARCHES.map((a) => `  ${a}) DEB=${sq(debAsset(version, a))} ;;`).join("\n")}
+  *) ${fail} "MiuraStation solo se publica para arm64 (Raspberry Pi 3/4/5 con sistema de 64 bits) y amd64 (PC con Debian 12/13 o Ubuntu 22.04/24.04), y este sistema es $ARCH" ;;
+esac
 `;
 
 // Downloads the .deb and SHA256SUMS of the release into $WORK (a new directory, removed on exit) and checks the sum
@@ -345,7 +350,7 @@ ${releaseVars(opts.tag, opts.version)}die() {
 ${isSourceUnitFn}${aptInstall(`${opts.allowDowngrade ? " --allow-downgrades" : ""}${opts.reinstall ? " --reinstall" : ""}`)}echo "=== Fuente: ${M.label} ==="
 echo "=== ${M.name} $VER ($TAG) ==="
 sudo rm -f "$MARK"
-${archCheck("die")}${fetchDeb(L, "die")}${install ? `WAS_ENABLED=0
+${archCheck(opts.version, "die")}${fetchDeb(L, "die")}${install ? `WAS_ENABLED=0
 systemctl is-enabled --quiet $SVC 2>/dev/null && WAS_ENABLED=1
 if is_source_unit "$UNIT"; then
   sudo mkdir -p "$DIR"
@@ -601,7 +606,7 @@ else
   say "config.toml, logs y cachés se quedan en $NEW, y también el código y target/ (bórralos a mano cuando ya no quieras volver atrás)."
 fi
 [ -f "$SRC/config.toml" ] && say "config.toml: $SRC/config.toml" || say "AVISO: $SRC no tiene config.toml (se usará la plantilla del paquete)"
-${archCheck("fail")}
+${archCheck(opts.version, "fail")}
 step "2/9: copias de seguridad y vuelta atrás en $BK"
 # Nothing is stopped or moved until the copies are in place and checked, and the package is downloaded and checked.
 if [ -e "$BK" ] && { [ "$RESUMING" = 0 ] || { [ "$KIND" = legacy ] && [ "$MOVED" = 0 ]; }; }; then

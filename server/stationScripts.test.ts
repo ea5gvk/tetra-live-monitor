@@ -63,6 +63,7 @@ test("the watchdog accepts both sd_notify markers and every script names its own
   for (const [name, s] of Object.entries(scripts)) {
     assert.ok(s.includes("https://github.com/ea5gvk/MiuraStation-dist/releases/download/$TAG"), name);
     assert.ok(s.includes("DEB='miurastation_1.2.0_arm64.deb'") && s.includes("sha256sum -c deb.sha256"), name);
+    assert.ok(s.includes("  amd64) DEB='miurastation_1.2.0_amd64.deb' ;;"), `${name}: the PC .deb too`);
     assert.ok(s.includes("grep -aqE 'miurastation-sd-notify-v1|flowstation-sd-notify-v1' \"/usr/bin/miurastation\""), name);
     assert.ok(s.includes('/etc/systemd/system/miurastation.service.d/10-watchdog.conf'), name);
     assert.ok(s.includes("env -u MIURASTATION_OTA"), `${name}: the panel's apt-get never runs as the station's OTA`);
@@ -247,15 +248,18 @@ function sandbox(): Sandbox {
   };
   return { L, state, log, releases, env };
 }
-// A release vX.Y.Z of ea5gvk/MiuraStation-dist with its (fake) .deb and SHA256SUMS.
-function publish(sb: Sandbox, version: string, opts: { badSum?: boolean } = {}) {
+// A release vX.Y.Z of ea5gvk/MiuraStation-dist with a (fake) .deb of each arch and one SHA256SUMS.
+function publish(sb: Sandbox, version: string, opts: { badSum?: boolean; arches?: string[] } = {}) {
   const dir = path.join(sb.releases, `v${version}`);
   fs.mkdirSync(dir);
-  const deb = `miurastation_${version}_arm64.deb`;
-  const body = `Version: ${version.replace("-", "~")}-1\n--- template ---\n${TEMPLATE}# ${version}\n`;
-  fs.writeFileSync(path.join(dir, deb), body);
-  const sum = crypto.createHash("sha256").update(opts.badSum ? "otra cosa" : body).digest("hex");
-  fs.writeFileSync(path.join(dir, "SHA256SUMS"), `${sum}  ${deb}\n${"0".repeat(64)}  miurastation-${version}-aarch64.tar.gz\n`);
+  let sums = "";
+  for (const arch of opts.arches ?? ["arm64", "amd64"]) {
+    const deb = `miurastation_${version}_${arch}.deb`;
+    const body = `Version: ${version.replace("-", "~")}-1\n--- template ---\n${TEMPLATE}# ${version}\n`;
+    fs.writeFileSync(path.join(dir, deb), body);
+    sums += `${crypto.createHash("sha256").update(opts.badSum ? "otra cosa" : body).digest("hex")}  ${deb}\n`;
+  }
+  fs.writeFileSync(path.join(dir, "SHA256SUMS"), `${sums}${"0".repeat(64)}  miurastation-${version}-aarch64.tar.gz\n`);
 }
 // From a file: on Windows a long `bash -c` argument does not reach Git Bash whole.
 function run(sb: Sandbox, script: string, env: NodeJS.ProcessEnv = {}) {
@@ -277,7 +281,11 @@ test("package: install, refusals and update keep config.toml and only write drop
   const install = (tag: string, version: string) => packageScript(L, { mode: "install", tag, version });
   let r = run(sb, install("v1.2.0", "1.2.0"), { MOCK_ARCH: "armhf" });
   assert.equal(r.code, 1);
-  assert.match(r.out, /solo se publica para arm64.*armhf/);
+  assert.match(r.out, /solo se publica para arm64 \(Raspberry Pi 3\/4\/5.*\) y amd64 \(PC con Debian 12\/13 o Ubuntu 22\.04\/24\.04\), y este sistema es armhf/);
+  r = run(sb, install("v1.2.0", "1.2.0"), { MOCK_ARCH: "i386" });
+  assert.equal(r.code, 1);
+  assert.match(r.out, /solo se publica para arm64.*amd64.*y este sistema es i386/);
+  assert.ok(!/curl/.test(calls(sb)), "an unsupported arch downloads nothing");
   r = run(sb, install("v1.2.1", "1.2.1"));
   assert.equal(r.code, 1);
   assert.match(r.out, /SHA-256 de miurastation_1\.2\.1_arm64\.deb no coincide/);
@@ -323,6 +331,57 @@ test("package: install, refusals and update keep config.toml and only write drop
   r = run(sb, packageScript(L, { mode: "update", tag: "v1.4.0-beta.1", version: "1.4.0-beta.1" }));
   assert.equal(r.code, 0, r.out);
   assert.equal(pkgVersion(sb), "1.4.0~beta.1-1", "a pre-release: the ~ of dpkg");
+});
+
+test("package on a PC (amd64): its own .deb and its own SHA256SUMS line; a release without it is refused", { skip: !bashOk && "sin bash" }, () => {
+  const sb = sandbox(), L = sb.L, PC = { MOCK_ARCH: "amd64" };
+  const install = (tag: string, version: string) => packageScript(L, { mode: "install", tag, version });
+  publish(sb, "1.1.0", { arches: ["arm64"] });
+  let r = run(sb, install("v1.1.0", "1.1.0"), PC);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /no se ha podido descargar miurastation_1\.1\.0_amd64\.deb/);
+  publish(sb, "1.2.1", { badSum: true });
+  r = run(sb, install("v1.2.1", "1.2.1"), PC);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /SHA-256 de miurastation_1\.2\.1_amd64\.deb no coincide/);
+  publish(sb, "1.2.0");
+  const sums = path.join(sb.releases, "v1.2.0", "SHA256SUMS");
+  const allSums = fs.readFileSync(sums, "utf-8");
+  fs.writeFileSync(sums, allSums.split("\n").filter((l) => !l.endsWith("_amd64.deb")).join("\n"));
+  r = run(sb, install("v1.2.0", "1.2.0"), PC);
+  assert.equal(r.code, 1);
+  assert.match(r.out, /SHA256SUMS no incluye miurastation_1\.2\.0_amd64\.deb/, "the arm64 line is not the PC's");
+  assert.ok(!/apt-get/.test(calls(sb)) && !has(sb, "pkg-version"), "nothing installed after a refusal");
+
+  fs.writeFileSync(sums, allSums);
+  fs.writeFileSync(sb.log, "");
+  r = run(sb, install("v1.2.0", "1.2.0"), PC);
+  assert.equal(r.code, 0, r.out);
+  const log = calls(sb);
+  assert.ok(log.includes("curl https://github.com/ea5gvk/MiuraStation-dist/releases/download/v1.2.0/miurastation_1.2.0_amd64.deb"), log);
+  assert.ok(!log.includes("_arm64.deb"), log);
+  assert.match(log, /apt-get .*miurastation_1\.2\.0_amd64\.deb/);
+  assert.equal(pkgVersion(sb), "1.2.0-1");
+  assert.ok(miuraPackaged(L) && miuraInstalled(L));
+});
+
+test("migration: refused before touching anything on an unsupported arch, and to the amd64 .deb on a PC", { skip: !bashOk && "sin bash" }, () => {
+  const sb = sandbox(), L = sb.L;
+  sourceInstall(sb);
+  publish(sb, "1.2.0");
+  const unit = fs.readFileSync(`${L.systemd}/miurastation.service`, "utf-8");
+  let r = run(sb, migrationScript(L, { tag: "v1.2.0", version: "1.2.0" }), { MOCK_ARCH: "armhf" });
+  assert.equal(r.code, 1);
+  assert.match(r.out, /MIGRACIÓN DETENIDA: MiuraStation solo se publica para arm64.*amd64.*y este sistema es armhf/);
+  assert.match(r.out, /Nada se ha cambiado/);
+  assert.equal(fs.readFileSync(`${L.systemd}/miurastation.service`, "utf-8"), unit);
+  assert.ok(has(sb, "active-miurastation.service") && !/curl|apt-get|systemctl stop/.test(calls(sb)));
+
+  r = run(sb, migrationScript(L, { tag: "v1.2.0", version: "1.2.0" }), { MOCK_ARCH: "amd64" });
+  assert.equal(r.code, 0, r.out);
+  assert.match(calls(sb), /apt-get .*miurastation_1\.2\.0_amd64\.deb/);
+  assert.ok(!calls(sb).includes("_arm64.deb"));
+  assert.ok(miuraPackaged(L) && migrationState(L) === "none");
 });
 
 // A MiuraStation built from source as the .75 has it: its unit, drop-ins, the link and a finished migration.
