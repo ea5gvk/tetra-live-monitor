@@ -76,7 +76,7 @@ fun ControlScreen(state: TetraState, base: String?, password: String, hasPasswor
     var busy by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<String?>(null) }
     var resultOk by remember { mutableStateOf(true) }
-    var confirm by remember { mutableStateOf<String?>(null) } // "reboot" | "shutdown" | "kick"
+    var confirm by remember { mutableStateOf<String?>(null) } // "reboot" | "shutdown" | "kick" | "restart:<unit>"
 
     fun dispatch(block: suspend () -> ApiResult) {
         if (base == null) { result = "Configura la URL en Ajustes"; resultOk = false; return }
@@ -86,6 +86,10 @@ fun ControlScreen(state: TetraState, base: String?, password: String, hasPasswor
 
     // Unit of the flow-family station in use (miurastation.service or flowstation.service), from the shared poll.
     val flowSvc = state.station?.flowService?.takeIf { it == "miurastation.service" } ?: "flowstation.service"
+    // systemctl restart also starts a stopped unit: only the active station may be restarted (as the web).
+    val blueActive = state.station?.station == "bluestation"
+    val flowRestartable = state.station == null || !blueActive
+    val tmoRestartable = state.station == null || blueActive
 
     var sdsIssi by remember { mutableStateOf("") }
     var sdsMsg by remember { mutableStateOf("") }
@@ -167,16 +171,16 @@ fun ControlScreen(state: TetraState, base: String?, password: String, hasPasswor
             Text("SISTEMA / RASPBERRY PI", color = Cyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
                 Button(
-                    onClick = { dispatch { TetraApi.restartService(base!!, password, flowSvc) } },
-                    enabled = !busy, modifier = Modifier.weight(1f),
+                    onClick = { confirm = "restart:$flowSvc" },
+                    enabled = !busy && flowRestartable, modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = SurfaceHi, contentColor = OnBg),
                 ) {
                     Text(if (flowSvc == "miurastation.service") "REINICIAR MIURA" else "REINICIAR FLOW",
                         fontWeight = FontWeight.Bold, fontSize = 11.sp)
                 }
                 Button(
-                    onClick = { dispatch { TetraApi.restartService(base!!, password, "tmo.service") } },
-                    enabled = !busy, modifier = Modifier.weight(1f),
+                    onClick = { confirm = "restart:tmo.service" },
+                    enabled = !busy && tmoRestartable, modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(containerColor = SurfaceHi, contentColor = OnBg),
                 ) { Text("REINICIAR TMO", fontWeight = FontWeight.Bold, fontSize = 11.sp) }
             }
@@ -212,6 +216,21 @@ fun ControlScreen(state: TetraState, base: String?, password: String, hasPasswor
                     confirm = null
                     if (i != null) dispatch { TetraApi.kick(base!!, password, i) }
                 }) { Text("EXPULSAR", color = Warn, fontWeight = FontWeight.Black) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancelar", color = Muted) } },
+        )
+    } else if (confirm?.startsWith("restart:") == true) {
+        val unit = confirm!!.removePrefix("restart:")
+        AlertDialog(
+            onDismissRequest = { confirm = null },
+            containerColor = Surface,
+            title = { Text("¿Reiniciar $unit?", color = OnBg) },
+            text = { Text("La estación deja de emitir unos segundos mientras se reinicia.", color = Muted) },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirm = null
+                    dispatch { TetraApi.restartService(base!!, password, unit) }
+                }) { Text("REINICIAR", color = Warn, fontWeight = FontWeight.Black) }
             },
             dismissButton = { TextButton(onClick = { confirm = null }) { Text("Cancelar", color = Muted) } },
         )
