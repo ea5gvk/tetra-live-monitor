@@ -36,7 +36,7 @@ const SOURCE_META: Record<FlowSource, { repo: string; branch: string; label: str
   razvan: { repo: "razvanzeces/flowstation", branch: "main", label: "FlowStation (razvan · main)", dir: "/root/flowstation", service: "flowstation.service" },
   miura: { repo: "ea5gvk/MiuraStation-dist", branch: "latest", label: "MiuraStation (EA5GVK · paquete .deb)", dir: "/root/miurastation", service: "miurastation.service" },
 };
-const MIURA_INSTALL_HINT = "Descargará el paquete .deb de la última versión de ea5gvk/MiuraStation-dist (solo arm64: Raspberry Pi 3/4/5 con sistema de 64 bits), comprobará su SHA-256 y lo instalará con apt-get. config.toml queda en /root/miurastation.";
+const MIURA_INSTALL_HINT = "Descargará el paquete .deb de la última versión de ea5gvk/MiuraStation-dist (arm64: Raspberry Pi 3/4/5 con sistema de 64 bits; amd64: PC con Debian 12/13 o Ubuntu 22.04/24.04), comprobará su SHA-256 y lo instalará con apt-get. config.toml queda en /root/miurastation.";
 
 // The i18n texts name razvan's FlowStation and its paths: for MiuraStation, its own name, directory and unit.
 function forSource(text: string, src: FlowSource): string {
@@ -294,7 +294,7 @@ export function FlowstationUpdater() {
                 <div className="bg-black/40 border border-border rounded p-2 text-[10px] font-mono text-muted-foreground space-y-0.5">
                   {sel === "miura" ? (
                     <>
-                      <div className="text-green-400">$ curl -LO …/{meta.repo}/releases/download/{info?.remoteHash ?? "vX.Y.Z"}/miurastation_…_arm64.deb · SHA256SUMS</div>
+                      <div className="text-green-400">$ curl -LO …/{meta.repo}/releases/download/{info?.remoteHash ?? "vX.Y.Z"}/miurastation_…_arm64|amd64.deb · SHA256SUMS</div>
                       <div className="text-green-400">$ sha256sum -c</div>
                       {mode === "migrate" && (
                         <div className="text-red-400">$ sudo systemctl stop {info?.migrationKind === "source" ? SERVICE : "flowstation.service"}</div>
@@ -306,7 +306,7 @@ export function FlowstationUpdater() {
                         <div className="text-amber-400">$ {info?.migrationKind === "source" ? `rm /etc/systemd/system/${SERVICE}` : "disable flowstation.service"} (copia en /root/.tlm-miurastation-migration)</div>
                       )}
                       {mode === "update" && <div className="text-red-400">$ sudo systemctl stop {SERVICE}</div>}
-                      <div className="text-green-400">$ sudo apt-get install ./miurastation_…_arm64.deb</div>
+                      <div className="text-green-400">$ sudo apt-get install ./miurastation_…_arm64|amd64.deb</div>
                       <div className="text-green-400">$ config.toml {mode === "install" ? "existente → se conserva (si no hay: plantilla del paquete)" : "→ solo se añade lo nuevo de la plantilla"}</div>
                       {mode !== "install" && <div className="text-amber-400">$ sudo systemctl start {SERVICE} (si estaba en marcha)</div>}
                     </>
