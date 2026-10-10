@@ -18,8 +18,10 @@ UNITS="flowstation-tea2 flowstation miurastation tmo"
 [ "$(id -u)" -eq 0 ] || { echo "reserva de núcleos omitida: hace falta root"; exit 0; }
 grep -qa "Raspberry Pi" /proc/device-tree/model 2>/dev/null || { echo "reserva de núcleos omitida: no es una Raspberry Pi"; exit 0; }
 [ "$(nproc --all)" -ge 4 ] || { echo "reserva de núcleos omitida: menos de 4 núcleos"; exit 0; }
+# una unidad propia en /etc/systemd/system, o la de un paquete (miurastation .deb) en /lib/systemd/system
+installed() { [ -f "/etc/systemd/system/$1.service" ] || [ -f "/lib/systemd/system/$1.service" ]; }
 has_station=0
-for u in $UNITS; do [ -f "/etc/systemd/system/$u.service" ] && has_station=1; done
+for u in $UNITS; do installed "$u" && has_station=1; done
 [ "$has_station" -eq 1 ] || { echo "reserva de núcleos omitida: no hay ninguna estación instalada"; exit 0; }
 
 changed=0
@@ -37,7 +39,7 @@ write_conf /etc/systemd/system.conf.d/10-tetra-cpu.conf "# Resto del sistema en 
 CPUAffinity=0 1"
 for u in $UNITS; do
   # solo las estaciones instaladas (tras migrar a MiuraStation ya no hay flowstation.service)
-  [ -f "/etc/systemd/system/$u.service" ] || continue
+  installed "$u" || continue
   write_conf "/etc/systemd/system/$u.service.d/10-cpu.conf" "# Estacion TETRA en los nucleos reservados 2-3 (el resto del sistema va en 0-1)
 [Service]
 CPUAffinity=2 3"

@@ -10,7 +10,7 @@ import * as fs from "fs";
 import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
 import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken } from "./configMerge";
-import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, miuraInstalled, installScript, updateScript, migrationScript, type Product, type ProductId } from "./stationScripts";
+import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, migrationInfo, miuraInstalled, miuraPackaged, installScript, updateScript, migrationScript, packageScript, DIST_REPO, RELEASE_TAG_RE, pkgTemplatePath, pkgConfigBasePath, parseRelease, debUpstreamVersion, compareVersions, type MiuraRelease, type Product, type ProductId } from "./stationScripts";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -570,11 +570,13 @@ export async function registerRoutes(
   // kept inside .git (git ignores it). HEAD alone is not enough: after a failed build (or a dashboard restart
   // mid-build) HEAD is already the new commit, and the next update would take everything new as deleted by the
   // user and never add it. So the base is pinned BEFORE git reset / pull and only moves after a merge.
+  // (The MiuraStation package has no .git: its base is pkgConfigBasePath, in the station home.)
   const configBasePath = (dir: string) => `${dir}/.git/tlm-config-base.toml`;
-  function saveConfigBase(dir: string, tpl: string, write: (s: string) => void) {
-    try { fs.writeFileSync(configBasePath(dir), tpl, "utf-8"); }
-    catch (e: any) { write(`(no se ha podido guardar la plantilla base en .git: ${e?.message || e})\n`); }
+  function saveBaseFile(file: string, tpl: string, write: (s: string) => void) {
+    try { fs.writeFileSync(file, tpl, "utf-8"); }
+    catch (e: any) { write(`(no se ha podido guardar la plantilla base en ${file}: ${e?.message || e})\n`); }
   }
+  const saveConfigBase = (dir: string, tpl: string, write: (s: string) => void) => saveBaseFile(configBasePath(dir), tpl, write);
 
   // The saved base, else example_config/config.toml of the commit checked out in `dir` (saved now: pinned).
   // null when there is none.
@@ -595,12 +597,13 @@ export async function registerRoutes(
 
   // config.toml after an update: append-only merge (server/configMerge.ts). Never stops the update. The new
   // template becomes the base of the next one unless the merge was refused (then the next update tries again).
-  function mergeStationConfig(cfgPath: string, newTpl: string | null, base: { text: string; rev: string } | null, write: (s: string) => void) {
+  function mergeStationConfig(cfgPath: string, newTpl: string | null, base: { text: string; rev: string } | null, write: (s: string) => void,
+    basePath = configBasePath(path.dirname(cfgPath))) {
     write(`\n=== config.toml: se conserva y solo se añade lo nuevo de la plantilla ===\n`);
     if (!newTpl || newTpl.length < 500) { write("Plantilla nueva no disponible o inválida: config.toml intacto.\n"); return; }
     if (base) write(`Plantilla base: ${base.rev}\n`);
     try {
-      if (mergeConfigFile(cfgPath, newTpl, base ? base.text : null, write) !== "refused") saveConfigBase(path.dirname(cfgPath), newTpl, write);
+      if (mergeConfigFile(cfgPath, newTpl, base ? base.text : null, write) !== "refused") saveBaseFile(basePath, newTpl, write);
     } catch (e: any) {
       write(`[config.toml: error — ${e?.message || e}. config.toml intacto.]\n`);
     }
@@ -901,18 +904,89 @@ cargo build --release
     return fs.existsSync(MIURA_DIR) ? "miura" : readFlowSource();
   }
 
+  // ── MiuraStation: the miurastation package of ea5gvk/MiuraStation-dist (stationScripts.packageScript) ──
+  const MIURA_TEMPLATE = pkgTemplatePath(L);
+  const MIURA_BASE = pkgConfigBasePath(L);
+  // Installed version of the package ("1.2.0", "1.2.0-beta.1"), or null.
+  function miuraPkgVersion(): string | null {
+    try {
+      const v = execSync("dpkg-query -W -f='${Version}' miurastation 2>/dev/null", { timeout: 5000 }).toString().trim();
+      return v ? debUpstreamVersion(v) : null;
+    } catch { return null; }
+  }
+  // The latest stable release of ea5gvk/MiuraStation-dist, or the one of `tag` (checked by RELEASE_TAG_RE).
+  async function fetchMiuraRelease(tag?: string): Promise<MiuraRelease> {
+    const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
+    const url = `https://api.github.com/repos/${DIST_REPO}/releases/${tag ? `tags/${tag}` : "latest"}`;
+    const raw = await execOut(`${LOW_PRIO} curl -sf --max-time 10 -H "Accept: application/vnd.github+json" -H "User-Agent: tetra-live-monitor" ${ghToken} "${url}"`, 15000);
+    const rel = parseRelease(JSON.parse(raw));
+    if (!rel) throw new Error(`${DIST_REPO}: la versión publicada no es válida`);
+    return rel;
+  }
+  // Version asked for in the body ("1.2.0" or "v1.2.0"): the tag, undefined for the latest, null if invalid.
+  function miuraTagFrom(body: any): string | null | undefined {
+    const v = body?.version;
+    if (v === undefined || v === null || v === "") return undefined;
+    const tag = typeof v === "string" ? (v.startsWith("v") ? v : `v${v}`) : "";
+    return RELEASE_TAG_RE.test(tag) ? tag : null;
+  }
+  // Base of the config.toml merge of the package: the saved one, else the template of the installed package (read
+  // before apt-get replaces it, and saved now: pinned). null when there is none.
+  function packagedTemplate(write: (s: string) => void): { text: string; rev: string } | null {
+    try {
+      const saved = fs.readFileSync(MIURA_BASE, "utf-8");
+      if (saved.length >= 500) return { text: saved, rev: "la guardada en el último Actualizar/Instalar" };
+    } catch { /* none saved yet: the installed package's */ }
+    try {
+      const text = fs.readFileSync(MIURA_TEMPLATE, "utf-8");
+      if (text.length < 500) return null;
+      saveBaseFile(MIURA_BASE, text, write);
+      return { text, rev: `la del paquete instalado (${miuraPkgVersion() ?? "?"})` };
+    } catch { return null; }
+  }
+
+  // MiuraStation: the installed package against the latest release (versions, not commits), or what is to be
+  // migrated to the package (the miura FlowStation, or a MiuraStation built from source).
+  async function miuraCheck(res: any, base: Record<string, any>) {
+    const { state: mig, kind } = migrationInfo(L);
+    const needsMigration = mig !== "none";
+    const packaged = !needsMigration && miuraPackaged(L);
+    const info = { ...base, needsMigration, migrationKind: kind, packaged };
+    if (!needsMigration && !miuraInstalled(L)) return res.json({ demo: false, dirNotFound: true, ...info });
+    if (process.platform !== "linux") return res.json({ demo: true, ...info });
+    const cur = packaged ? miuraPkgVersion() : null;
+    let localHash = cur ? `v${cur}` : "?";
+    if (needsMigration) {
+      const dir = mig === "needed" && kind === "legacy" ? FLOW_DIR_DEFAULT : MIURA_DIR;
+      try { localHash = execSync(`git -C "${dir}" rev-parse --short=8 HEAD 2>/dev/null`, { timeout: 5000 }).toString().trim() || "compilada"; }
+      catch { localHash = "compilada"; }
+    }
+    let rel: MiuraRelease;
+    try { rel = await fetchMiuraRelease(); } catch (err) {
+      return res.json({
+        demo: false, dirNotFound: false, upToDate: false, ...info,
+        localHash, remoteHash: "??????", remoteMessage: `No se pudo consultar las versiones de ${DIST_REPO}`,
+        remoteDate: "", remoteAuthor: "", apiError: String(err).substring(0, 160),
+      });
+    }
+    res.json({
+      upToDate: !!cur && compareVersions(cur, rel.version) >= 0,
+      switching: false,
+      localHash, remoteHash: `v${rel.version}`,
+      remoteMessage: rel.name, remoteDate: rel.date, remoteAuthor: rel.author, releaseUrl: rel.url,
+      demo: false, dirNotFound: false, ...info,
+    });
+  }
+
   app.get("/api/flowstation/check", async (req, res) => {
     // Paths come from the constant map — never from user input (command injection)
     const active = activeFlowSource();
     const source: FlowSource = isFlowSource(req.query.source) ? req.query.source : active;
     const src = FLOW_SOURCES[source];
-    const mig = source === "miura" ? migrationState(L) : "none";
-    const needsMigration = mig !== "none";
-    const base = { source, active, sources: FLOW_SOURCES, dir: src.dir, service: src.service, product: src.name, needsMigration };
-    // The directory whose HEAD is compared: the product's own, or the miura FlowStation still to migrate.
-    const dir = mig === "needed" ? FLOW_DIR_DEFAULT : src.dir;
-    const installed = needsMigration || (source === "razvan" ? flowDirInstalled(L) : miuraInstalled(L));
-    if (!installed) return res.json({ demo: false, dirNotFound: true, ...base });
+    if (source === "miura") return miuraCheck(res, { source, active, sources: FLOW_SOURCES, dir: src.dir, service: src.service, product: src.name });
+    const base = { source, active, sources: FLOW_SOURCES, dir: src.dir, service: src.service, product: src.name, needsMigration: false };
+    const dir = src.dir;
+    if (!flowDirInstalled(L)) return res.json({ demo: false, dirNotFound: true, ...base });
     try { execSync("which git", { timeout: 2000 }); } catch { return res.json({ demo: true, ...base }); }
 
     let localHash = "";
@@ -947,10 +1021,10 @@ cargo build --release
     } catch { remoteMessage = "(detalles no disponibles)"; }
 
     // Up to date only when that directory holds this source at its latest commit; another source = switch.
-    const installedSrc = needsMigration ? null : detectFlowSource(dir);
+    const installedSrc = detectFlowSource(dir);
     res.json({
-      upToDate: !needsMigration && installedSrc === source && localHash === remoteHash,
-      switching: !needsMigration && installedSrc !== source,
+      upToDate: installedSrc === source && localHash === remoteHash,
+      switching: installedSrc !== source,
       localHash: localHash.substring(0, 8),
       remoteHash: remoteHash.substring(0, 8),
       remoteMessage, remoteDate, remoteAuthor,
@@ -1002,17 +1076,31 @@ cargo build --release
     });
   }
 
-  // Migración de la FlowStation miura a MiuraStation (stationScripts.migrationScript). Bash moves the directory,
-  // switches the code, rebuilds and swaps the units (undoing everything if something fails); here, when it ends
-  // well: config.toml merge, station selector and start.
-  function runMiuraMigration(res: any, unlock: () => void) {
+  const readMiuraTemplate = (): string | null => { try { return fs.readFileSync(MIURA_TEMPLATE, "utf-8"); } catch { return null; } };
+  // The release to install (the latest stable, or `tag`), streamed as an error when it cannot be read.
+  async function miuraReleaseOrEnd(res: any, unlock: () => void, tag?: string): Promise<MiuraRelease | null> {
+    try { return await fetchMiuraRelease(tag); } catch (e: any) {
+      unlock();
+      res.write(`=== No se ha podido consultar ${tag ?? "la última versión"} de ${DIST_REPO}: ${String(e?.message || e).substring(0, 200)} ===\nNo se ha tocado nada.\n\n[Exit: 1]\n`);
+      res.end();
+      return null;
+    }
+  }
+
+  // Migración a MiuraStation (paquete) de la FlowStation miura o de una MiuraStation compilada
+  // (stationScripts.migrationScript). Bash moves the directory if needed, installs the package and swaps the units
+  // (undoing everything if something fails); here, when it ends well: config.toml merge, station selector and start.
+  async function runMiuraMigration(res: any, unlock: () => void, tag?: string) {
     streamHeaders(res);
-    const from = migrationState(L) === "needed" ? FLOW_DIR_DEFAULT : MIURA_DIR;
-    // Base of the config.toml merge: the template of the miura FlowStation, pinned before the code changes.
+    const rel = await miuraReleaseOrEnd(res, unlock, tag);
+    if (!rel) return;
+    const { state, kind } = migrationInfo(L);
+    const from = state === "needed" && kind === "legacy" ? FLOW_DIR_DEFAULT : MIURA_DIR;
+    // Base of the config.toml merge: the template of what is migrated (its .git), pinned before anything changes.
     const baseTpl = installedTemplate(from, (t) => res.write(t));
     let selectorBefore = "";
     try { selectorBefore = JSON.parse(fs.readFileSync(ACTIVE_STATION_PATH, "utf-8")).station || ""; } catch { /* none */ }
-    const child = spawn("bash", ["-c", migrationScript(L, { reserveCores: RESERVE_CORES })], { cwd: L.root });
+    const child = spawn("bash", ["-c", migrationScript(L, { tag: rel.tag, version: rel.version, reserveCores: RESERVE_CORES })], { cwd: L.root });
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
     child.on("close", async (code: number) => {
@@ -1026,15 +1114,57 @@ cargo build --release
       }
       const cfgPath = `${MIURA_DIR}/config.toml`;
       if (fs.existsSync(cfgPath)) {
-        const localTpl = `${MIURA_DIR}/example_config/config.toml`;
-        const template = fs.existsSync(localTpl) ? fs.readFileSync(localTpl, "utf-8") : null;
-        mergeStationConfig(cfgPath, template, baseTpl, (t) => res.write(t));
+        // from now on the base lives in the station home (the package has no .git)
+        mergeStationConfig(cfgPath, readMiuraTemplate(), baseTpl, (t) => res.write(t), MIURA_BASE);
       } else {
-        res.write(`\nAVISO: no hay ${cfgPath}: copia example_config/config.toml y configúralo antes de arrancar.\n`);
+        res.write(`\nAVISO: no hay ${cfgPath}: copia ${MIURA_TEMPLATE} y configúralo antes de arrancar.\n`);
       }
       finishStationRun(res, PRODUCTS.miura.service, code, unlock);
     });
     child.on("error", (err: Error) => { unlock(); res.write(`\n[Error: ${err.message}]\n`); res.end(); });
+  }
+
+  // Instalar / Actualizar MiuraStation = its package (stationScripts.packageScript). Here: the release, the base of
+  // the config.toml merge (pinned before apt-get replaces the template) and, after an update, the merge and the start.
+  async function runMiuraPackage(res: any, unlock: () => void, mode: "install" | "update", tag?: string) {
+    streamHeaders(res);
+    const write = (t: string) => res.write(t);
+    const rel = await miuraReleaseOrEnd(res, unlock, tag);
+    if (!rel) return;
+    const cur = miuraPkgVersion();
+    if (mode === "update" && cur && (tag ? cur === rel.version : compareVersions(cur, rel.version) >= 0)) {
+      unlock();
+      write(`MiuraStation ${cur} instalada; ${tag ? "es la versión pedida" : "la última publicada es"} ${rel.tag}: nada que hacer.\n\n[Exit: 0]\n`);
+      res.end();
+      return;
+    }
+    const baseTpl = mode === "update" ? packagedTemplate(write) : null;
+    const child = spawn("bash", ["-c", packageScript(L, {
+      mode, tag: rel.tag, version: rel.version,
+      allowDowngrade: !!cur && compareVersions(rel.version, cur) < 0,
+      reinstall: cur === rel.version,
+      // a first MiuraStation next to razvan's FlowStation starts from its config.toml (as switching used to)
+      carryFrom: mode === "install" && flowDirInstalled(L) ? FLOW_DIR_DEFAULT : null,
+      reserveCores: RESERVE_CORES,
+    })], { cwd: L.root });
+    child.stdout.on("data", (d: Buffer) => write(d.toString()));
+    child.stderr.on("data", (d: Buffer) => write(d.toString()));
+    child.on("close", (code: number) => {
+      if (code !== 0) { unlock(); write(`\n[Exit: ${code}]\n`); res.end(); return; }
+      writeFlowSource("miura");
+      const tpl = readMiuraTemplate();
+      if (mode === "install") {
+        // config.toml starts from (or is kept against) this template: the base of the next Actualizar, unless the
+        // one a kept config.toml was merged against is still there
+        if (tpl && !fs.existsSync(MIURA_BASE)) saveBaseFile(MIURA_BASE, tpl, write);
+        unlock(); write(`\n[Exit: 0]\n`); res.end();
+        return;
+      }
+      const cfgPath = `${MIURA_DIR}/config.toml`;
+      if (fs.existsSync(cfgPath)) mergeStationConfig(cfgPath, tpl, baseTpl, write, MIURA_BASE);
+      finishStationRun(res, PRODUCTS.miura.service, code, unlock);
+    });
+    child.on("error", (err: Error) => { unlock(); write(`\n[Error: ${err.message}]\n`); res.end(); });
   }
 
   app.post("/api/flowstation/install", (req, res) => {
@@ -1044,19 +1174,21 @@ cargo build --release
     }
     // Source chosen in the dialog (repo+branch of the constant map, never from the user → no injection).
     const source: FlowSource = isFlowSource(rawSource) ? rawSource : readFlowSource();
+    // MiuraStation: optional version (checked: only vX.Y.Z[-pre] reaches the scripts); else the latest stable.
+    const tag = source === "miura" ? miuraTagFrom(req.body) : undefined;
+    if (tag === null) return res.status(400).json({ message: "Versión no válida: usa X.Y.Z (p. ej. 1.2.0)" });
     const unlock = stationOpLock(res);
     if (!unlock) return;
-    // A miura FlowStation in /root/flowstation is not cloned again: it moves to MiuraStation (config, logs, caches).
-    if (source === "miura" && migrationState(L) !== "none") return runMiuraMigration(res, unlock);
+    // A miura FlowStation in /root/flowstation (or a MiuraStation built from source) is moved to the package.
+    if (source === "miura" && migrationState(L) !== "none") return runMiuraMigration(res, unlock, tag);
+    if (source === "miura") return runMiuraPackage(res, unlock, "install", tag);
     streamHeaders(res);
     const p = PRODUCTS[source];
     const dir = productDir(p, L);
     // Same source reinstalled: the template the kept config.toml was merged against goes with it, so the next
     // Actualizar adds what is new since then (another source: config.toml kept as it is, as when switching).
     const sameSource = fs.existsSync(dir) && detectFlowSource(dir) === source;
-    // A first MiuraStation next to razvan's FlowStation starts from its config.toml (as switching used to).
-    const carryFrom = source === "miura" && flowDirInstalled(L) ? FLOW_DIR_DEFAULT : null;
-    const child = spawn("bash", ["-c", installScript(p, L, { sameSource, carryFrom, reserveCores: RESERVE_CORES })]);
+    const child = spawn("bash", ["-c", installScript(p, L, { sameSource, carryFrom: null, reserveCores: RESERVE_CORES })]);
     child.stdout.on("data", (d: Buffer) => res.write(d.toString()));
     child.stderr.on("data", (d: Buffer) => res.write(d.toString()));
     child.on("close", (code: number) => {
@@ -1074,17 +1206,23 @@ cargo build --release
     }
     // Fuente elegida (repo+rama del mapa constante, nunca del usuario → sin inyección).
     const source: FlowSource = isFlowSource(rawSource) ? rawSource : activeFlowSource();
+    const tag = source === "miura" ? miuraTagFrom(req.body) : undefined;
+    if (tag === null) return res.status(400).json({ message: "Versión no válida: usa X.Y.Z (p. ej. 1.2.0)" });
     const unlock = stationOpLock(res);
     if (!unlock) return;
-    // Actualizar MiuraStation on a Pi still on the miura FlowStation = the migration.
-    if (source === "miura" && migrationState(L) !== "none") return runMiuraMigration(res, unlock);
+    // Actualizar MiuraStation on a Pi still on the miura FlowStation, or with one built from source = the migration.
+    if (source === "miura" && migrationState(L) !== "none") return runMiuraMigration(res, unlock, tag);
+    if (source === "miura") {
+      if (!miuraInstalled(L)) { unlock(); return res.status(400).json({ message: "miurastation_dir_not_found" }); }
+      return runMiuraPackage(res, unlock, "update", tag);
+    }
     const p = PRODUCTS[source];
     // Hard-coded path/service — ignore any user-supplied input to avoid command injection
     const cleanDir = productDir(p, L);
     const cleanService = p.service;
-    if (!(source === "razvan" ? flowDirInstalled(L) : miuraInstalled(L))) {
+    if (!flowDirInstalled(L)) {
       unlock();
-      return res.status(400).json({ message: source === "razvan" ? "flowstation_dir_not_found" : "miurastation_dir_not_found" });
+      return res.status(400).json({ message: "flowstation_dir_not_found" });
     }
     const installed = detectFlowSource(cleanDir);
     const src = FLOW_SOURCES[source];
@@ -1869,9 +2007,11 @@ cargo build --release
     // Order: enable+start target FIRST, then stop+disable the other.
     // If target fails to start, return error WITHOUT having stopped the other.
     const enabled = run(`sudo systemctl enable ${targetService}`);
-    // --no-block solo con el watchdog (Type=notify): el start esperaría a READY, que no llega mientras
-    // la otra estación retiene la SDR. Sin él (tmo siempre) el start bloqueante sigue detectando un arranque fallido.
-    const noBlock = fs.existsSync(`${L.systemd}/${targetService}.d/10-watchdog.conf`) ? " --no-block" : "";
+    // --no-block solo con el watchdog (Type=notify, también en la unidad del paquete de MiuraStation): el start esperaría
+    // a READY, que no llega mientras la otra estación retiene la SDR. Sin él (tmo siempre) el start bloqueante sigue
+    // detectando un arranque fallido.
+    const notify = fs.existsSync(`${L.systemd}/${targetService}.d/10-watchdog.conf`) || (target === "miurastation" && miuraPackaged(L));
+    const noBlock = notify ? " --no-block" : "";
     const started = run(`sudo systemctl start${noBlock} ${targetService}`);
 
     if (!started) {
