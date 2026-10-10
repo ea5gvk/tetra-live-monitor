@@ -47,7 +47,9 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
+import com.ea5gvk.tetralivemonitor.BuildConfig
 import com.ea5gvk.tetralivemonitor.data.ServerProfile
 import com.ea5gvk.tetralivemonitor.net.TetraState
 import com.ea5gvk.tetralivemonitor.ui.screens.CalcScreen
@@ -65,6 +67,7 @@ import com.ea5gvk.tetralivemonitor.ui.theme.Muted
 import com.ea5gvk.tetralivemonitor.ui.theme.Ok
 import com.ea5gvk.tetralivemonitor.ui.theme.Surface
 import com.ea5gvk.tetralivemonitor.ui.theme.SurfaceHi
+import com.ea5gvk.tetralivemonitor.ui.theme.Warn
 
 private data class Tab(val label: String, val icon: ImageVector)
 
@@ -168,14 +171,19 @@ private fun TopStatusBar(state: TetraState) {
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(10.dp),
     ) {
-        Text(
-            "TETRA LIVE MONITOR",
-            color = Cyan,
-            fontWeight = FontWeight.Black,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 14.sp,
-            letterSpacing = 1.5.sp,
-        )
+        Column(Modifier.weight(1f, fill = false)) {
+            Text(
+                "TETRA LIVE MONITOR",
+                color = Cyan,
+                fontWeight = FontWeight.Black,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 14.sp,
+                letterSpacing = 1.5.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            Text("app v${BuildConfig.VERSION_NAME}", color = Muted, fontSize = 8.sp, fontFamily = FontFamily.Monospace)
+        }
         Row(
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))
@@ -188,7 +196,21 @@ private fun TopStatusBar(state: TetraState) {
             StatusDot(dotColor)
             Text(statusText, color = if (state.connected) Ok else Danger, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
-        if (state.fsDashboardActive) {
+        // Active station from /api/station/active (BLUE violet, FLOW green, MIURA amber, as the web switcher).
+        val station = state.station
+        if (station != null) {
+            val c = when (station.station) {
+                "bluestation" -> Color(0xFFA78BFA)
+                "flowstation" -> Ok
+                "miurastation" -> Warn
+                else -> Muted
+            }
+            Text(
+                station.label, color = c, fontSize = 9.sp, fontWeight = FontWeight.Black, maxLines = 1,
+                modifier = Modifier.clip(RoundedCornerShape(5.dp)).background(c.copy(alpha = 0.15f))
+                    .border(1.dp, c.copy(alpha = 0.5f), RoundedCornerShape(5.dp)).padding(horizontal = 6.dp, vertical = 3.dp),
+            )
+        } else if (state.fsDashboardActive) {
             Text("FLOW", color = Ok, fontSize = 9.sp, fontWeight = FontWeight.Black)
         }
     }
