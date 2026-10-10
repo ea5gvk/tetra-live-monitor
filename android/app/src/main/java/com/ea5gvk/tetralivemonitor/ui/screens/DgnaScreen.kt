@@ -11,14 +11,19 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -86,6 +91,39 @@ fun DgnaScreen(state: TetraState, base: String?, password: String) {
         }
     }
 
+    // ── DGNA en bloque (como el Centro DGNA de la web): radios elegidas para el GSSI del formulario ──
+    val bulkGssi = gssi.trim().toIntOrNull()
+    var selected by remember { mutableStateOf(setOf<String>()) }
+    var bulkMsg by remember { mutableStateOf<String?>(null) }
+    var bulkOk by remember { mutableStateOf(true) }
+    var confirmBulk by remember { mutableStateOf<String?>(null) } // "deassign" | "clearlog"
+
+    fun bulk(action: String) {
+        val g = bulkGssi ?: return
+        val targets = when (action) {
+            "assign-all" -> radios
+            // update = the selected radios that already have the group
+            "update" -> radios.filter { it.id in selected && groupState(it, g) != null }
+            else -> radios.filter { it.id in selected }
+        }.mapNotNull { it.id.toIntOrNull() }
+        when {
+            base == null -> { bulkMsg = "Configura la URL en Ajustes"; bulkOk = false }
+            password.isBlank() -> { bulkMsg = "Configura la contraseña en Ajustes"; bulkOk = false }
+            targets.isEmpty() -> { bulkMsg = "No hay radios seleccionadas."; bulkOk = false }
+            else -> scope.launch {
+                busy = true; bulkOk = true
+                val attach = action != "deassign"
+                val r = TetraApi.dgnaBulk(base, password, targets, g, attach, mnemonic.trim(), attachMode) { done, ok, total ->
+                    bulkMsg = "$done/$total enviadas · $ok OK"
+                }
+                bulkOk = r.ok == r.total
+                bulkMsg = "${r.ok}/${r.total} OK" + if (r.errors.isEmpty()) "" else "\n" + r.errors.take(5).joinToString("\n")
+                if (r.ok > 0 && attach) settings.addTg(TgEntry(g, mnemonic.trim(), attachMode))
+                busy = false
+            }
+        }
+    }
+
     LazyColumn(
         modifier = Modifier.fillMaxWidth().padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -147,12 +185,59 @@ fun DgnaScreen(state: TetraState, base: String?, password: String) {
             }
         }
 
+        item {
+            Column(
+                Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Surface)
+                    .border(1.dp, Border, RoundedCornerShape(10.dp)).padding(12.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text("DGNA EN BLOQUE", color = Cyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                if (bulkGssi == null) {
+                    Text("Escribe o elige un GSSI arriba para marcar varias radios y asignarles ese grupo de una vez.",
+                        color = Muted, fontSize = 11.sp)
+                } else {
+                    Text("Grupo $bulkGssi" + (mnemonic.trim().ifBlank { null }?.let { " · $it" } ?: "") +
+                        " · modo $attachMode · ${selected.size} seleccionadas", color = OnBg, fontSize = 11.sp)
+                    FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                        SelChip("TODAS") { selected = radios.map { it.id }.toSet() }
+                        SelChip("NINGUNA") { selected = emptySet() }
+                        SelChip("ENLAZADAS") { selected = radios.filter { groupState(it, bulkGssi)?.second == true }.map { it.id }.toSet() }
+                        SelChip("DINÁMICAS") { selected = radios.filter { groupState(it, bulkGssi)?.first == true }.map { it.id }.toSet() }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { bulk("assign") }, enabled = !busy && selected.isNotEmpty(), modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Ok, contentColor = Surface),
+                        ) { Text("ASIGNAR (${selected.size})", fontWeight = FontWeight.Black, fontSize = 11.sp) }
+                        Button(
+                            onClick = { bulk("update") }, enabled = !busy && selected.isNotEmpty(), modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = SurfaceHi, contentColor = Cyan),
+                        ) { Text("ACTUALIZAR", fontWeight = FontWeight.Black, fontSize = 11.sp) }
+                    }
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Button(
+                            onClick = { bulk("assign-all") }, enabled = !busy && radios.isNotEmpty(), modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = SurfaceHi, contentColor = Ok),
+                        ) { Text("ASIGNAR A TODAS", fontWeight = FontWeight.Black, fontSize = 11.sp) }
+                        Button(
+                            onClick = { confirmBulk = "deassign" }, enabled = !busy && selected.isNotEmpty(), modifier = Modifier.weight(1f),
+                            colors = ButtonDefaults.buttonColors(containerColor = Danger, contentColor = Surface),
+                        ) { Text("QUITAR SELECCIÓN", fontWeight = FontWeight.Black, fontSize = 11.sp) }
+                    }
+                }
+                bulkMsg?.let { Text(it, color = if (bulkOk) Ok else Danger, fontSize = 11.sp, fontWeight = FontWeight.Bold) }
+            }
+        }
+
         item { Header("ESTADO DE GRUPOS POR EQUIPO") }
         if (radios.isEmpty()) {
             item { Text("Sin equipos conectados.", color = Muted, fontSize = 12.sp) }
         } else {
             items(radios, key = { it.id }) { r ->
-                RadioGroups(r) { pIssi, pGssi, pMnem, pMode ->
+                RadioGroups(
+                    r, bulkGssi, r.id in selected,
+                    onToggle = { selected = if (r.id in selected) selected - r.id else selected + r.id },
+                ) { pIssi, pGssi, pMnem, pMode ->
                     issi = pIssi
                     pGssi?.let { gssi = it }
                     pMnem?.let { mnemonic = it.take(15) }
@@ -161,13 +246,69 @@ fun DgnaScreen(state: TetraState, base: String?, password: String) {
             }
         }
 
-        item { Header("REGISTRO DGNA (${state.dgnaLog.size})") }
+        item {
+            Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.fillMaxWidth()) {
+                Box(Modifier.weight(1f)) { Header("REGISTRO DGNA (${state.dgnaLog.size})") }
+                if (state.dgnaLog.isNotEmpty()) {
+                    Text(
+                        "BORRAR REGISTRO", color = Danger, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(top = 6.dp).clip(RoundedCornerShape(5.dp))
+                            .border(1.dp, Danger.copy(alpha = 0.5f), RoundedCornerShape(5.dp))
+                            .clickable(enabled = base != null) { confirmBulk = "clearlog" }
+                            .padding(horizontal = 8.dp, vertical = 3.dp),
+                    )
+                }
+            }
+        }
         if (state.dgnaLog.isEmpty()) {
             item { Text("Sin actividad DGNA todavía.", color = Muted, fontSize = 12.sp) }
         } else {
             items(state.dgnaLog.take(50)) { DgnaLogRow(it) }
         }
     }
+
+    confirmBulk?.let { what ->
+        val clearLog = what == "clearlog"
+        AlertDialog(
+            onDismissRequest = { confirmBulk = null },
+            containerColor = Surface,
+            title = { Text(if (clearLog) "¿Borrar el registro DGNA?" else "¿Quitar el grupo $bulkGssi?", color = OnBg) },
+            text = {
+                Text(
+                    if (clearLog) "Se borra el registro guardado en el servidor para todos (web y app)."
+                    else "Se quita el grupo $bulkGssi de ${selected.size} radios, una tras otra.",
+                    color = Muted,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    confirmBulk = null
+                    if (!clearLog) bulk("deassign")
+                    else base?.let { b ->
+                        scope.launch {
+                            val r = TetraApi.clearDgnaLog(b)
+                            if (!r.ok) { result = r.message; resultOk = false }
+                        }
+                    }
+                }) { Text(if (clearLog) "BORRAR" else "QUITAR", color = Danger, fontWeight = FontWeight.Black) }
+            },
+            dismissButton = { TextButton(onClick = { confirmBulk = null }) { Text("Cancelar", color = Muted) } },
+        )
+    }
+}
+
+/** State of a radio in [gssi]: (dynamic, attached), or null when the radio does not have it (web's targetState). */
+private fun groupState(t: Terminal, gssi: Int): Pair<Boolean, Boolean>? {
+    t.groupCatalog?.firstOrNull { it.gssi == gssi }?.let { return it.isDynamic to it.isAttached }
+    return if (t.groups.contains(gssi.toString())) false to true else null
+}
+
+@Composable
+private fun SelChip(label: String, onClick: () -> Unit) {
+    Text(label, color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Black,
+        modifier = Modifier.clip(RoundedCornerShape(6.dp)).background(SurfaceHi)
+            .border(1.dp, Cyan.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+            .clickable(onClick = onClick).padding(horizontal = 10.dp, vertical = 5.dp))
 }
 
 @OptIn(ExperimentalLayoutApi::class)
@@ -208,16 +349,35 @@ private fun Header(text: String) {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun RadioGroups(t: Terminal, onPick: (issi: String, gssi: String?, mnemonic: String?, mode: Int?) -> Unit) {
+private fun RadioGroups(
+    t: Terminal, bulkGssi: Int?, checked: Boolean, onToggle: () -> Unit,
+    onPick: (issi: String, gssi: String?, mnemonic: String?, mode: Int?) -> Unit,
+) {
     Column(
         Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(Surface)
-            .border(1.dp, Border, RoundedCornerShape(10.dp))
+            .border(1.dp, if (checked) Cyan.copy(alpha = 0.6f) else Border, RoundedCornerShape(10.dp))
             .clickable { onPick(t.id, null, null, null) }.padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+            if (bulkGssi != null) {
+                Checkbox(
+                    checked = checked, onCheckedChange = { onToggle() }, modifier = Modifier.size(24.dp),
+                    colors = CheckboxDefaults.colors(checkedColor = Cyan, uncheckedColor = Muted, checkmarkColor = Surface),
+                )
+            }
             Text(t.callsign?.ifBlank { t.id } ?: t.id, color = OnBg, fontWeight = FontWeight.Bold, fontSize = 13.sp)
-            Text(t.id, color = Muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            Text(t.id, color = Muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+            if (bulkGssi != null) {
+                val st = groupState(t, bulkGssi)
+                Text(
+                    when {
+                        st == null -> "no presente"
+                        else -> (if (st.first) "dinámico" else "estático") + " · " + (if (st.second) "adjunto" else "desadjunto")
+                    },
+                    color = when { st == null -> Muted; st.second -> Ok; else -> Warn }, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                )
+            }
         }
 
         val catalog = t.groupCatalog
