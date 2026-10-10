@@ -32,8 +32,13 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import com.ea5gvk.tetralivemonitor.net.LocalTetraClient
 import com.ea5gvk.tetralivemonitor.net.TetraApi
 import com.ea5gvk.tetralivemonitor.net.UpdateCheck
+import com.ea5gvk.tetralivemonitor.ui.StatusDot
 import com.ea5gvk.tetralivemonitor.ui.theme.Border
 import com.ea5gvk.tetralivemonitor.ui.theme.Cyan
 import com.ea5gvk.tetralivemonitor.ui.theme.Danger
@@ -78,9 +83,14 @@ private val UPDATERS = listOf(
 
 private val EXIT_RE = Regex("""\[Exit: (-?\d+)]""")
 
-/** "ACTUALIZACIONES" block of the Control tab: check + update/install each component. */
+private const val ARM64_NOTE = "Solo arm64: Raspberry Pi 3/4/5 con sistema de 64 bits."
+
+/**
+ * "ACTUALIZACIONES" block of the Control tab: check + update/install each component.
+ * [checks] are TetraClient's checks (at connect and hourly): shown first, so entering CTRL runs nothing on the Pi.
+ */
 @Composable
-fun UpdatesSection(base: String?, password: String, hasPassword: Boolean) {
+fun UpdatesSection(base: String?, password: String, hasPassword: Boolean, checks: Map<String, UpdateCheck> = emptyMap()) {
     // Only one updater may run at a time (they share the SDR/services on the Pi).
     var running by remember { mutableStateOf<String?>(null) }
     Column(
@@ -92,7 +102,7 @@ fun UpdatesSection(base: String?, password: String, hasPassword: Boolean) {
         Text("Los mismos botones que la web: comprueba y actualiza cada componente en la Pi.",
             color = Muted, fontSize = 10.sp)
         UPDATERS.forEach { u ->
-            UpdaterCard(u, base, password, hasPassword, running) { running = it }
+            UpdaterCard(u, base, password, hasPassword, running, checks[u.key]) { running = it }
         }
     }
 }
@@ -100,9 +110,11 @@ fun UpdatesSection(base: String?, password: String, hasPassword: Boolean) {
 @Composable
 private fun UpdaterCard(
     u: Updater, base: String?, password: String, hasPassword: Boolean,
-    running: String?, setRunning: (String?) -> Unit,
+    running: String?, polled: UpdateCheck?, setRunning: (String?) -> Unit,
 ) {
     val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    val client = LocalTetraClient.current
     var info by remember { mutableStateOf<UpdateCheck?>(null) }
     var checking by remember { mutableStateOf(false) }
     var source by remember { mutableStateOf<String?>(null) }
@@ -124,10 +136,26 @@ private fun UpdaterCard(
             checking = false
         }
     }
-    LaunchedEffect(base) { check(null) }
+    // The shared check (flowstation: the source in use) unless another source was picked here.
+    LaunchedEffect(base, polled) {
+        when {
+            polled == null -> if (info == null) check(null)
+            u.sources.isEmpty() || source == null || source == polled.active -> {
+                info = polled
+                if (u.sources.isNotEmpty()) source = polled.active ?: u.sources.first().id
+            }
+        }
+    }
 
     val install = info?.dirNotFound == true && u.installPath != null
     val repo = u.sources.firstOrNull { it.id == source }?.repo ?: u.repo
+    val miura = source == "miura"
+    val migrateSource = info?.needsMigration == true && info?.migrationKind == "source"
+    val title = when (info?.product) {
+        "MiuraStation" -> "MIURASTATION"
+        "FlowStation" -> "FLOWSTATION"
+        else -> u.title
+    }
 
     fun run() {
         val b = base ?: return
@@ -156,7 +184,10 @@ private fun UpdaterCard(
             }
             setRunning(null)
             if (u.restartsDashboard) delay(8000)
-            check(null)
+            check(if (u.sources.isNotEmpty()) source else null)
+            // The CTRL badge and the station selector follow what was installed / updated.
+            client?.refreshUpdates()
+            client?.refreshStation()
         }
     }
 
@@ -166,7 +197,8 @@ private fun UpdaterCard(
         i == null -> (if (checking) "Comprobando…" else "No se pudo comprobar") to (if (checking) Muted else Danger)
         i.demo -> "Modo demo (sin git en el servidor)" to Warn
         i.dirNotFound -> (if (u.installPath != null) "No instalado — puedes instalarlo" else "No instalado en la Pi") to Warn
-        i.needsMigration -> "Migrar a MiuraStation (paquete .deb) · ${i.remoteHash}" to Warn
+        i.needsMigration && migrateSource -> "Pasar MiuraStation compilada al paquete .deb · ${i.remoteHash}" to Warn
+        i.needsMigration -> "Migrar la FlowStation miura a MiuraStation · ${i.remoteHash}" to Warn
         i.switching -> "Cambiar a esta versión · ${i.remoteHash}" to Cyan
         i.upToDate == true -> "Al día · ${i.localHash}" to Ok
         else -> "Nueva versión disponible" to Cyan
@@ -177,7 +209,12 @@ private fun UpdaterCard(
         verticalArrangement = Arrangement.spacedBy(6.dp),
     ) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(u.title, color = OnBg, fontWeight = FontWeight.Black, fontSize = 12.sp)
+            Text(title, color = OnBg, fontWeight = FontWeight.Black, fontSize = 12.sp)
+            // Same dots as the web's navbar button: update available / not installed.
+            when {
+                i?.hasUpdate == true -> StatusDot(Cyan)
+                i?.dirNotFound == true && u.installPath != null -> StatusDot(Warn)
+            }
             Text(repo, color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
         }
         if (u.sources.isNotEmpty()) {
@@ -204,6 +241,13 @@ private fun UpdaterCard(
                 color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
         }
         i?.apiError?.let { Text(it, color = Danger, fontSize = 9.sp, maxLines = 2) }
+        if (miura && (install || i?.needsMigration == true)) Text(ARM64_NOTE, color = Warn, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        i?.releaseUrl?.takeIf { it.isNotBlank() }?.let { url ->
+            Text(
+                "Ver release ↗", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } },
+            )
+        }
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
             Button(
                 onClick = { check(if (u.sources.isNotEmpty()) source else null) },
@@ -221,7 +265,14 @@ private fun UpdaterCard(
                 ),
             ) {
                 Text(
-                    when { busy -> "EN CURSO…"; install -> "INSTALAR"; i?.needsMigration == true -> "MIGRAR"; i?.switching == true -> "CAMBIAR VERSIÓN"; else -> "ACTUALIZAR" },
+                    when {
+                        busy -> "EN CURSO…"
+                        install -> "INSTALAR"
+                        migrateSource -> "PASAR AL PAQUETE .DEB"
+                        i?.needsMigration == true -> "MIGRAR A MIURASTATION"
+                        i?.switching == true -> "CAMBIAR VERSIÓN"
+                        else -> "ACTUALIZAR"
+                    },
                     fontWeight = FontWeight.Black, fontSize = 10.sp,
                 )
             }
@@ -240,16 +291,25 @@ private fun UpdaterCard(
     }
 
     if (confirm) {
-        val verb = when { install -> "Instalar"; i?.needsMigration == true -> "Migrar a MiuraStation"; i?.switching == true -> "Cambiar de versión"; else -> "Actualizar" }
+        val verb = when {
+            install -> "Instalar"
+            migrateSource -> "Pasar al paquete .deb"
+            i?.needsMigration == true -> "Migrar a MiuraStation"
+            i?.switching == true -> "Cambiar de versión"
+            else -> "Actualizar"
+        }
         AlertDialog(
             onDismissRequest = { confirm = false },
             containerColor = Surface,
-            title = { Text("¿$verb ${u.title}?", color = OnBg) },
+            title = { Text(if (migrateSource || i?.needsMigration == true) "¿$verb?" else "¿$verb $title?", color = OnBg) },
             text = {
                 Text(
+                    // Same texts as the web's FlowstationUpdater for each case.
                     if (u.restartsDashboard) "Se descarga el código, se recompila y se reinicia el dashboard. La app perderá la conexión unos segundos."
-                    else if (i?.needsMigration == true) "MiuraStation pasa al paquete .deb de ea5gvk/MiuraStation-dist con su config.toml, logs y cachés en /root/miurastation (la FlowStation miura de /root/flowstation se mueve allí y queda un enlace; una MiuraStation compilada deja su unidad propia). Si algo falla se deshace solo."
-                    else if (repo.contains("MiuraStation-dist")) "Se descarga el paquete .deb ($repo), se comprueba su SHA-256, se instala con apt-get y se reinicia el servicio si estaba activo."
+                    else if (migrateSource) "Se instala el paquete miurastation y se retira la unidad compilada /etc/systemd/system/miurastation.service (los drop-ins se quedan); config.toml, logs y cachés siguen en /root/miurastation. Si algo falla se deshace solo y la MiuraStation compilada sigue como estaba. $ARM64_NOTE"
+                    else if (i?.needsMigration == true) "/root/flowstation pasa a /root/miurastation con su config.toml, logs y cachés (queda un enlace /root/flowstation → /root/miurastation), se instala el paquete miurastation, miurastation.service recibe los drop-ins de flowstation.service y esta se deshabilita. Si algo falla se deshace solo y la FlowStation miura sigue como estaba. $ARM64_NOTE"
+                    else if (install && miura) "Descargará el paquete .deb de la última versión de ea5gvk/MiuraStation-dist ($ARM64_NOTE), comprobará su SHA-256 y lo instalará con apt-get. config.toml queda en /root/miurastation."
+                    else if (miura) "Se descarga el paquete .deb ($repo), se comprueba su SHA-256, se instala con apt-get y se reinicia el servicio si estaba activo."
                     else "Se descarga el código ($repo), se recompila y se reinicia el servicio si estaba activo. Puede tardar varios minutos.",
                     color = Muted,
                 )
