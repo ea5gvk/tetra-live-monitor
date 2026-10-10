@@ -41,6 +41,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.zIndex
+import androidx.compose.ui.draw.clipToBounds
 import com.ea5gvk.tetralivemonitor.net.GpsPosition
 import com.ea5gvk.tetralivemonitor.net.TetraState
 import com.ea5gvk.tetralivemonitor.ui.StatusDot
@@ -137,7 +139,8 @@ fun MapScreen(state: TetraState) {
 
     Column(Modifier.fillMaxSize()) {
         Column(
-            Modifier.fillMaxWidth().background(Surface).padding(horizontal = 12.dp, vertical = 6.dp),
+            // Drawn above the map: osmdroid's MapView paints outside its own bounds (over the chips) unless clipped.
+            Modifier.fillMaxWidth().zIndex(1f).background(Surface).padding(horizontal = 12.dp, vertical = 6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
             Row(horizontalArrangement = Arrangement.spacedBy(14.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -160,10 +163,10 @@ fun MapScreen(state: TetraState) {
             }
         }
 
-        Box(Modifier.fillMaxWidth().weight(1f)) {
+        Box(Modifier.fillMaxWidth().weight(1f).clipToBounds()) {
             AndroidView(
                 factory = { mapView },
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxSize().clipToBounds(),
                 update = { map ->
                     if (map.tileProvider.tileSource != layer.source) map.setTileSource(layer.source)
                     map.overlays.clear()
