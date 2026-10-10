@@ -1,11 +1,13 @@
 package com.ea5gvk.tetralivemonitor.ui
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -14,21 +16,27 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Calculate
 import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Tune
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -42,6 +50,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ea5gvk.tetralivemonitor.data.ServerProfile
 import com.ea5gvk.tetralivemonitor.net.TetraState
+import com.ea5gvk.tetralivemonitor.ui.screens.CalcScreen
+import com.ea5gvk.tetralivemonitor.ui.screens.CalcWebHolder
 import com.ea5gvk.tetralivemonitor.ui.screens.ControlScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.DgnaScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.LogScreen
@@ -64,8 +74,11 @@ private val TABS = listOf(
     Tab("DGNA", Icons.Filled.Hub),
     Tab("LOG", Icons.Filled.Terminal),
     Tab("CTRL", Icons.Filled.Tune),
-    Tab("AJUSTES", Icons.Filled.Settings),
+    Tab("CALC", Icons.Filled.Calculate),
 )
+private const val TAB_CTRL = 4
+/** AJUSTES has no bottom tab any more: it opens from the gear next to the top bar. */
+private const val TAB_SETTINGS = 6
 
 @Composable
 fun TetraApp(
@@ -80,17 +93,37 @@ fun TetraApp(
     onDeleteProfile: (String) -> Unit,
 ) {
     var tab by rememberSaveable { mutableIntStateOf(0) }
+    var prevTab by rememberSaveable { mutableIntStateOf(0) }
+    BackHandler(enabled = tab == TAB_SETTINGS) { tab = prevTab }
+    // The calculator's WebView outlives tab switches (unsaved edits are kept).
+    val calcHolder = remember { CalcWebHolder() }
+    DisposableEffect(Unit) { onDispose { calcHolder.destroy() } }
 
     Scaffold(
         containerColor = com.ea5gvk.tetralivemonitor.ui.theme.Bg,
-        topBar = { TopStatusBar(state) },
+        topBar = {
+            Row(Modifier.fillMaxWidth().background(Surface), verticalAlignment = Alignment.Bottom) {
+                Box(Modifier.weight(1f)) { TopStatusBar(state) }
+                IconButton(
+                    onClick = { if (tab == TAB_SETTINGS) tab = prevTab else { prevTab = tab; tab = TAB_SETTINGS } },
+                    modifier = Modifier.statusBarsPadding().size(40.dp),
+                ) {
+                    Icon(Icons.Filled.Settings, contentDescription = "Ajustes",
+                        tint = if (tab == TAB_SETTINGS) Cyan else Muted, modifier = Modifier.size(20.dp))
+                }
+            }
+        },
         bottomBar = {
             NavigationBar(containerColor = Surface) {
                 TABS.forEachIndexed { i, t ->
                     NavigationBarItem(
                         selected = tab == i,
                         onClick = { tab = i },
-                        icon = { Icon(t.icon, contentDescription = t.label, modifier = Modifier.size(20.dp)) },
+                        icon = {
+                            BadgedBox(badge = { if (i == TAB_CTRL && state.updateAvailable) Badge(containerColor = Cyan) }) {
+                                Icon(t.icon, contentDescription = t.label, modifier = Modifier.size(20.dp))
+                            }
+                        },
                         label = { Text(t.label, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = Cyan,
@@ -104,16 +137,18 @@ fun TetraApp(
             }
         },
     ) { pad ->
-        Column(Modifier.fillMaxSize().padding(pad)) {
+        Column(Modifier.fillMaxSize().padding(pad).consumeWindowInsets(pad)) {
             when (tab) {
                 0 -> MonitorScreen(state, base, password)
                 1 -> MapScreen(state)
                 2 -> DgnaScreen(state, base, password)
-                3 -> LogScreen(base)
+                3 -> LogScreen(base, state.station)
                 4 -> ControlScreen(state, base, password, hasPassword = password.isNotBlank())
+                5 -> CalcScreen(state, base, password, calcHolder)
                 else -> SettingsScreen(
                     serverUrl, password, profiles,
                     onSaveUrl, onSavePassword, onSaveProfile, onDeleteProfile,
+                    passwordOk = state.passwordOk,
                 )
             }
         }

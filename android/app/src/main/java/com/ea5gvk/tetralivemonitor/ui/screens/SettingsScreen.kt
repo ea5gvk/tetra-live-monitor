@@ -20,13 +20,16 @@ import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -34,10 +37,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ea5gvk.tetralivemonitor.data.ServerProfile
 import com.ea5gvk.tetralivemonitor.data.Settings
+import com.ea5gvk.tetralivemonitor.net.TetraApi
 import java.util.UUID
+import kotlinx.coroutines.launch
 import com.ea5gvk.tetralivemonitor.ui.theme.Border
 import com.ea5gvk.tetralivemonitor.ui.theme.Cyan
+import com.ea5gvk.tetralivemonitor.ui.theme.Danger
 import com.ea5gvk.tetralivemonitor.ui.theme.Muted
+import com.ea5gvk.tetralivemonitor.ui.theme.Ok
 import com.ea5gvk.tetralivemonitor.ui.theme.OnBg
 import com.ea5gvk.tetralivemonitor.ui.theme.Surface
 import com.ea5gvk.tetralivemonitor.ui.theme.SurfaceHi
@@ -54,7 +61,17 @@ fun SettingsScreen(
     onSavePassword: (String) -> Unit,
     onSaveProfile: (ServerProfile) -> Unit,
     onDeleteProfile: (String) -> Unit,
+    passwordOk: Boolean? = null,
 ) {
+    val context = LocalContext.current
+    val settings = remember { Settings(context) }
+    val scope = rememberCoroutineScope()
+    val tgNames by settings.tgNames.collectAsState(initial = emptyMap())
+    val tgSource by settings.tgNamesSource.collectAsState(initial = "")
+    var tgPick by remember { mutableStateOf("bm") }
+    var tgBusy by remember { mutableStateOf(false) }
+    var tgMsg by remember { mutableStateOf<String?>(null) }
+    var tgMsgOk by remember { mutableStateOf(true) }
     var text by remember { mutableStateOf(serverUrl) }
     LaunchedEffect(serverUrl) { if (text.isBlank()) text = serverUrl }
     var pw by remember { mutableStateOf(password) }
@@ -143,6 +160,13 @@ fun SettingsScreen(
                 unfocusedContainerColor = Surface,
             ),
         )
+
+        when {
+            pw != password -> {}
+            passwordOk == false -> Text("⚠ El servidor rechaza esta contraseña: revísala.",
+                color = Danger, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            passwordOk == true -> Text("✓ Contraseña aceptada por el servidor.", color = Ok, fontSize = 11.sp)
+        }
 
         Button(
             onClick = {
@@ -238,6 +262,60 @@ fun SettingsScreen(
                 }
             }
         }
+
+        Text("NOMBRES DE TG", color = Muted, fontWeight = FontWeight.Black, fontSize = 11.sp,
+            letterSpacing = 1.sp, modifier = Modifier.padding(top = 10.dp))
+        Text(
+            "Descarga los nombres de los talkgroups de BrandMeister o ADN (a través de tu servidor) para verlos " +
+                "junto al número. Los mnemónicos de tu librería DGNA tienen prioridad.",
+            color = Muted, fontSize = 12.sp,
+        )
+        Text(
+            if (tgNames.isEmpty()) "Sin nombres cargados."
+            else "${tgNames.size} nombres cargados de ${tgSource.uppercase().ifBlank { "?" }}.",
+            color = if (tgNames.isEmpty()) Muted else Ok, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+        )
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+            listOf("bm" to "BRANDMEISTER", "adn" to "ADN").forEach { (id, label) ->
+                val sel = tgPick == id
+                Text(
+                    label, color = if (sel) Cyan else Muted, fontSize = 11.sp, fontWeight = FontWeight.Black,
+                    modifier = Modifier.clip(RoundedCornerShape(6.dp))
+                        .background(if (sel) Cyan.copy(alpha = 0.15f) else Surface)
+                        .border(1.dp, if (sel) Cyan.copy(alpha = 0.6f) else Border, RoundedCornerShape(6.dp))
+                        .clickable(enabled = !tgBusy) { tgPick = id }
+                        .padding(horizontal = 10.dp, vertical = 6.dp),
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = {
+                    val b = Settings.normalize(serverUrl) ?: run { tgMsg = "Configura la URL primero"; tgMsgOk = false; return@Button }
+                    val src = tgPick
+                    scope.launch {
+                        tgBusy = true; tgMsg = "Descargando… (la primera vez puede tardar ~30 s)"; tgMsgOk = true
+                        val r = TetraApi.getTalkgroups(b, src)
+                        if (r != null && r.data.isNotEmpty()) {
+                            settings.setTgNames(src, r.data)
+                            tgMsg = "✓ ${r.data.size} nombres de ${src.uppercase()}" + if (r.cached) " (caché del servidor)" else ""
+                            tgMsgOk = true
+                        } else {
+                            tgMsg = "No se pudieron descargar los nombres de ${src.uppercase()}"; tgMsgOk = false
+                        }
+                        tgBusy = false
+                    }
+                },
+                enabled = !tgBusy && serverUrl.isNotBlank(), modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = SurfaceHi, contentColor = Cyan),
+            ) { Text(if (tgBusy) "CARGANDO…" else "CARGAR", fontWeight = FontWeight.Black, fontSize = 12.sp) }
+            Button(
+                onClick = { scope.launch { settings.clearTgNames(); tgMsg = "Nombres borrados"; tgMsgOk = true } },
+                enabled = !tgBusy && tgNames.isNotEmpty(), modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = SurfaceHi, contentColor = Danger),
+            ) { Text("BORRAR", fontWeight = FontWeight.Black, fontSize = 12.sp) }
+        }
+        tgMsg?.let { Text(it, color = if (tgMsgOk) Muted else Danger, fontSize = 11.sp) }
 
         Column(
             Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp)).background(SurfaceHi).padding(14.dp),
