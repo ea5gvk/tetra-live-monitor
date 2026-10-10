@@ -60,19 +60,21 @@ function PasswordModal({ title, onConfirm, onClose, t }: { title: string; onConf
   );
 }
 
-function QrModal({ clientName, onClose, t }: { clientName: string; onClose: () => void; t: (k: string) => string }) {
+function QrModal({ clientName, password, onClose, t }: { clientName: string; password: string; onClose: () => void; t: (k: string) => string }) {
   const [config, setConfig] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetch(`/api/vpn/clients/${encodeURIComponent(clientName)}/config`)
+    fetch(`/api/vpn/clients/${encodeURIComponent(clientName)}/config`, {
+      method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ password }),
+    })
       .then(r => r.json())
       .then(d => { if (d.config) setConfig(d.config); else setError(d.message || "Error"); })
       .catch(() => setError(t("vpn_error_config")))
       .finally(() => setLoading(false));
-  }, [clientName, t]);
+  }, [clientName, password, t]);
 
   const copy = () => {
     if (!config) return;
@@ -121,7 +123,7 @@ export default function VpnManager() {
   const [msg, setMsg] = useState<{ text: string; ok: boolean } | null>(null);
   const [pendingAction, setPendingAction] = useState<((pw: string) => void) | null>(null);
   const [pendingTitle, setPendingTitle] = useState("");
-  const [qrClient, setQrClient] = useState<string | null>(null);
+  const [qrClient, setQrClient] = useState<{ name: string; password: string } | null>(null);
   const [showSetup, setShowSetup] = useState(false);
   const [newClientName, setNewClientName] = useState("");
   const [setupForm, setSetupForm] = useState({ serverAddress: "10.8.0.1/24", serverPort: "51820", clientDns: "8.8.8.8" });
@@ -221,7 +223,7 @@ export default function VpnManager() {
           t={t}
         />
       )}
-      {qrClient && <QrModal clientName={qrClient} onClose={() => setQrClient(null)} t={t} />}
+      {qrClient && <QrModal clientName={qrClient.name} password={qrClient.password} onClose={() => setQrClient(null)} t={t} />}
 
       {msg && (
         <div className={`text-xs px-3 py-2 rounded border font-mono ${msg.ok ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-400" : "bg-red-500/10 border-red-500/30 text-red-400"}`}>
@@ -453,7 +455,7 @@ export default function VpnManager() {
                       </div>
                     </div>
                     <button
-                      onClick={() => setQrClient(client.name)}
+                      onClick={() => withPassword(`QR ${client.name}`, async pw => setQrClient({ name: client.name, password: pw }))}
                       className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded bg-emerald-500/15 text-emerald-400 border border-emerald-500/25 hover:bg-emerald-500/30 transition-colors shrink-0"
                       data-testid={`button-qr-${client.name}`}
                     >

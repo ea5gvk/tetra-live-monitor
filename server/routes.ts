@@ -351,7 +351,10 @@ export async function registerRoutes(
     res.json({ name: client.name, address: client.address, publicKey: client.publicKey, createdAt: client.createdAt });
   });
 
-  app.get("/api/vpn/clients/:name/config", (req, res) => {
+  // The client config carries the client's private key: only with the system password.
+  app.post("/api/vpn/clients/:name/config", (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) return res.status(401).json({ message: "Contraseña incorrecta" });
     const data = readVpnData();
     if (!data) return res.status(404).json({ message: "No configurado" });
     const client = data.clients.find(c => c.name === req.params.name);
