@@ -96,9 +96,9 @@ fun MonitorScreen(state: TetraState, base: String?, password: String) {
 
             item { HealthPanel(stats, state.brewStatus?.connected == true, state.brewStatus?.version) }
 
-            item { BtsDetailsPanel(base) }
+            item { BtsDetailsPanel(state.btsInfo) }
 
-            item { RfTimeslots(state, base) }
+            item { RfTimeslots(state) }
 
             if (state.emergencies.isNotEmpty()) {
                 item {
@@ -224,12 +224,7 @@ private fun HealthChip(label: String, value: String, accent: Color, modifier: Mo
 // ─── BTS TETRA details ──────────────────────────────────────────────────────
 
 @Composable
-private fun BtsDetailsPanel(base: String?) {
-    var bts by remember { mutableStateOf<BtsInfo?>(null) }
-    LaunchedEffect(base) {
-        while (base != null) { bts = TetraApi.getBtsInfo(base); delay(30000) }
-    }
-    val info = bts
+private fun BtsDetailsPanel(info: BtsInfo?) {
     fun mhz(hz: Long?): String = if (hz != null) "%.4f MHz".format(java.util.Locale.US, hz / 1_000_000.0) else "—"
     val shift = info?.shiftHz?.let {
         "${if (it >= 0) "+" else ""}${"%.3f".format(java.util.Locale.US, it / 1_000_000.0)} MHz"
@@ -307,14 +302,8 @@ private fun formatDur(secs: Long): String {
 }
 
 @Composable
-private fun RfTimeslots(state: TetraState, base: String?) {
-    var bts by remember { mutableStateOf<BtsInfo?>(null) }
-    LaunchedEffect(base) {
-        while (base != null) {
-            bts = TetraApi.getBtsInfo(base)
-            delay(30000)
-        }
-    }
+private fun RfTimeslots(state: TetraState) {
+    val bts = state.btsInfo
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(500); now = System.currentTimeMillis() } }
 

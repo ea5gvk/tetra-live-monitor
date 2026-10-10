@@ -8,8 +8,11 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.ea5gvk.tetralivemonitor.net.TgEntry
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.builtins.MapSerializer
+import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.json.Json
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "settings")
@@ -87,11 +90,50 @@ class Settings(private val context: Context) {
         if (raw.isNullOrBlank()) emptyList()
         else runCatching { JSON.decodeFromString(TG_LIST, raw) }.getOrDefault(emptyList())
 
+    /** Talkgroup names loaded from BrandMeister / ADN (GET /api/talkgroups): GSSI (as string) -> name. */
+    val tgNames: Flow<Map<String, String>> = context.dataStore.data.map { it[KEY_TG_NAMES] }
+        .distinctUntilChanged().map { decodeNames(it) }
+
+    /** Source of [tgNames]: "bm" | "adn", or "" when none loaded. */
+    val tgNamesSource: Flow<String> = context.dataStore.data.map { it[KEY_TG_NAMES_SOURCE] ?: "" }.distinctUntilChanged()
+
+    suspend fun setTgNames(source: String, names: Map<String, String>) {
+        context.dataStore.edit {
+            it[KEY_TG_NAMES] = JSON.encodeToString(NAME_MAP, names)
+            it[KEY_TG_NAMES_SOURCE] = source
+        }
+    }
+
+    suspend fun clearTgNames() {
+        context.dataStore.edit { it.remove(KEY_TG_NAMES); it.remove(KEY_TG_NAMES_SOURCE) }
+    }
+
+    /** The user's own ISSI names (shown when the radio has no callsign): ISSI (as string) -> name. */
+    val issiNames: Flow<Map<String, String>> = context.dataStore.data.map { it[KEY_ISSI_NAMES] }
+        .distinctUntilChanged().map { decodeNames(it) }
+
+    /** Sets (or, with a blank name, removes) the own name of an ISSI. */
+    suspend fun setIssiName(issi: String, name: String) {
+        context.dataStore.edit { prefs ->
+            val cur = decodeNames(prefs[KEY_ISSI_NAMES])
+            val updated = if (name.isBlank()) cur - issi else cur + (issi to name.trim())
+            prefs[KEY_ISSI_NAMES] = JSON.encodeToString(NAME_MAP, updated)
+        }
+    }
+
+    private fun decodeNames(raw: String?): Map<String, String> =
+        if (raw.isNullOrBlank()) emptyMap()
+        else runCatching { JSON.decodeFromString(NAME_MAP, raw) }.getOrDefault(emptyMap())
+
     companion object {
         private val KEY_SERVER_URL = stringPreferencesKey("server_url")
         private val KEY_PASSWORD = stringPreferencesKey("system_password")
         private val KEY_TG_LIBRARY = stringPreferencesKey("tg_library")
         private val KEY_PROFILES = stringPreferencesKey("server_profiles")
+        private val KEY_TG_NAMES = stringPreferencesKey("tg_names")
+        private val KEY_TG_NAMES_SOURCE = stringPreferencesKey("tg_names_source")
+        private val KEY_ISSI_NAMES = stringPreferencesKey("issi_names")
+        private val NAME_MAP = MapSerializer(String.serializer(), String.serializer())
         private val JSON = Json { ignoreUnknownKeys = true }
         private val TG_LIST = ListSerializer(TgEntry.serializer())
         private val PROFILE_LIST = ListSerializer(ServerProfile.serializer())

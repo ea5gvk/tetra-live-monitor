@@ -1,10 +1,13 @@
 package com.ea5gvk.tetralivemonitor.net
 
+import androidx.compose.runtime.staticCompositionLocalOf
 import com.ea5gvk.tetralivemonitor.data.Settings
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -48,13 +51,22 @@ class TetraClient(private val scope: CoroutineScope) {
         .build()
 
     private var job: Job? = null
+    private var pollJob: Job? = null
     @Volatile private var socket: WebSocket? = null
+    @Volatile private var base: String? = null
+    @Volatile private var password: String = ""
 
     /** (Re)connects to the given normalized base URL (e.g. `http://10.33.1.75:5000`). */
     fun connectTo(base: String) {
         job?.cancel()
         socket?.cancel()
-        _state.update { it.copy(connected = false, mode = "connecting") }
+        this.base = base
+        // Another server: nothing polled from the previous one is valid any more.
+        _state.update {
+            it.copy(connected = false, mode = "connecting", btsInfo = null, station = null,
+                updateChecks = emptyMap(), passwordOk = null)
+        }
+        startPolling(base)
         val wsUrl = Settings.wsUrl(base)
         job = scope.launch(Dispatchers.IO) {
             while (isActive) {
@@ -88,9 +100,72 @@ class TetraClient(private val scope: CoroutineScope) {
 
     fun disconnect() {
         job?.cancel()
+        pollJob?.cancel()
         socket?.cancel()
         socket = null
+        base = null
         _state.update { it.copy(connected = false, mode = "disconnected") }
+    }
+
+    // --- REST polls shared by every screen ---
+
+    private fun startPolling(base: String) {
+        pollJob?.cancel()
+        pollJob = scope.launch(Dispatchers.IO) {
+            launch { while (isActive) { pollStation(base); delay(STATION_POLL_MS) } }
+            // Each check runs git/curl on the Pi next to the station: at connect and once an hour, as the web.
+            launch { while (isActive) { pollUpdates(base); delay(UPDATE_POLL_MS) } }
+            launch { pollPassword(base) }
+        }
+    }
+
+    private suspend fun pollStation(base: String) = coroutineScope {
+        val st = async { TetraApi.getStationActive(base) }
+        val bts = async { TetraApi.getBtsInfo(base) }
+        val (s, b) = st.await() to bts.await()
+        // Keep the last good answer through a failed poll.
+        if (this@TetraClient.base == base) {
+            _state.update { it.copy(station = s ?: it.station, btsInfo = b ?: it.btsInfo) }
+        }
+    }
+
+    private suspend fun pollUpdates(base: String) = coroutineScope {
+        val checks = UPDATE_CHECKS.map { (key, path) -> key to async { TetraApi.checkUpdate(base, path) } }
+            .mapNotNull { (key, d) -> d.await()?.let { key to it } }.toMap()
+        if (this@TetraClient.base == base) {
+            _state.update { it.copy(updateChecks = it.updateChecks + checks) }
+        }
+    }
+
+    private suspend fun pollPassword(base: String) {
+        val pw = password
+        val ok = if (pw.isEmpty()) null else TetraApi.verifyPassword(base, pw)
+        if (this.base == base && password == pw) _state.update { it.copy(passwordOk = ok) }
+    }
+
+    /** Re-reads /api/station/active and /api/btsinfo now (after a station switch, dual carrier change...). */
+    fun refreshStation() {
+        val b = base ?: return
+        scope.launch(Dispatchers.IO) { pollStation(b) }
+    }
+
+    /** Re-runs the three updater checks now (after an update or install finished). */
+    fun refreshUpdates() {
+        val b = base ?: return
+        scope.launch(Dispatchers.IO) { pollUpdates(b) }
+    }
+
+    /** Saved system password (MainActivity feeds it in): checked against the server into state.passwordOk. */
+    fun setPassword(pw: String) {
+        password = pw
+        val b = base
+        if (b == null || pw.isEmpty()) { _state.update { it.copy(passwordOk = null) }; return }
+        scope.launch(Dispatchers.IO) { pollPassword(b) }
+    }
+
+    /** Local names from DataStore: GSSI -> name (library mnemonics already merged over BM/ADN) and ISSI -> name. */
+    fun setNames(tgNames: Map<Int, String>, issiNames: Map<String, String>) {
+        _state.update { it.copy(tgNames = tgNames, issiNames = issiNames) }
     }
 
     private fun handle(text: String) {
@@ -102,6 +177,13 @@ class TetraClient(private val scope: CoroutineScope) {
         if (payload == null || payload is JsonNull) return null
         return runCatching { json.decodeFromJsonElement<T>(payload) }.getOrNull()
     }
+
+    /** rf_carrier_air_state / full_state.carrierAir -> carrier -> off | warming | on (as toCarrierAir in the web). */
+    private fun carrierAir(payload: JsonElement?): Map<String, String> =
+        (if (payload is JsonArray) decode<List<CarrierAirEntry>>(payload) else null)
+            ?.filter { it.carrier != null && it.state in AIR_STATES }
+            ?.associate { it.carrier.toString() to it.state }
+            ?: emptyMap()
 
     private fun reduce(s: TetraState, type: String, payload: JsonElement?): TetraState = when (type) {
         "full_state" -> decode<FullStatePayload>(payload)?.let { p ->
@@ -117,6 +199,13 @@ class TetraClient(private val scope: CoroutineScope) {
                 gpsPositions = p.gpsPositions,
                 gpsHistory = p.gpsHistory,
                 sdsMessages = p.sdsMessages,
+                pdchSlots = if (p.pdch is JsonArray) decode<List<RfPdch>>(p.pdch) ?: s.pdchSlots else s.pdchSlots,
+                carrierAir = carrierAir(p.carrierAir),
+                lastHeard = (if (p.lastHeard is JsonArray) decode<List<LastHeardEntry>>(p.lastHeard) else null) ?: emptyList(),
+                txQuality = decode<TxQuality>(p.txQuality),
+                health = decode<HealthSnapshot>(p.health),
+                sdrHealth = decode<SdrHealth>(p.sdrHealth),
+                sysHealth = decode<SysHealth>(p.sysHealth),
             )
         } ?: s
 
@@ -162,13 +251,39 @@ class TetraClient(private val scope: CoroutineScope) {
 
         "rf_ts_voice" -> decode<TsVoicePayload>(payload)?.let { p ->
             if (p.ts in 1..4) {
-                val vc = p.carrier?.toString() ?: "single"
-                s.copy(tsVoiceActivity = s.tsVoiceActivity + ("$vc:${p.ts}" to System.currentTimeMillis()))
+                val key = "${p.carrier?.toString() ?: "single"}:${p.ts}"
+                s.copy(
+                    tsVoiceActivity = s.tsVoiceActivity + (key to System.currentTimeMillis()),
+                    tsVoiceSpeaker = s.tsVoiceSpeaker + (key to p.speakerIssi),
+                )
             } else s
         } ?: s
 
+        "rf_ts_data" -> decode<TsDataPayload>(payload)?.let { p ->
+            if (p.ts in 1..4) {
+                val key = "${p.carrier?.toString() ?: "single"}:${p.ts}"
+                s.copy(tsDataActivity = s.tsDataActivity + (key to System.currentTimeMillis()))
+            } else s
+        } ?: s
+
+        "rf_pdch_state" -> s.copy(pdchSlots = if (payload is JsonArray) decode<List<RfPdch>>(payload) ?: emptyList() else emptyList())
+
+        "rf_carrier_air_state" -> s.copy(carrierAir = carrierAir(payload))
+
+        "fs_last_heard" -> s.copy(lastHeard = decode<LastHeardWrapper>(payload)?.list ?: emptyList())
+
+        "fs_tx_quality" -> s.copy(txQuality = decode<TxQuality>(payload))
+
+        "fs_health" -> s.copy(health = decode<HealthSnapshot>(payload))
+
+        "fs_sdr_health" -> s.copy(sdrHealth = decode<SdrHealth>(payload))
+
+        "fs_sys_health" -> s.copy(sysHealth = decode<SysHealth>(payload))
+
         "sds_message" -> decode<SdsMessage>(payload)?.let { sds ->
-            val msgs = (listOf(sds) + s.sdsMessages).distinctBy { it.id }.take(50)
+            // Same as the web: an update of a known SDS replaces it in place, a new one goes first.
+            val msgs = if (s.sdsMessages.any { it.id == sds.id }) s.sdsMessages.map { if (it.id == sds.id) sds else it }
+            else (listOf(sds) + s.sdsMessages).take(50)
             val lip = sds.lipData
             if (lip != null && sds.srcIssi.isNotBlank()) {
                 val pos = GpsPosition(
@@ -188,4 +303,22 @@ class TetraClient(private val scope: CoroutineScope) {
 
         else -> s
     }
+
+    private companion object {
+        const val STATION_POLL_MS = 30_000L
+        const val UPDATE_POLL_MS = 60 * 60 * 1000L
+        val AIR_STATES = setOf("off", "warming", "on")
+        /** state.updateChecks key -> check endpoint (flowstation: the source in use, chosen by the server). */
+        val UPDATE_CHECKS = listOf(
+            "bluestation" to "/api/bluestation/check",
+            "flowstation" to "/api/flowstation/check",
+            "dashboard" to "/api/update/check",
+        )
+    }
 }
+
+/**
+ * The app's [TetraClient] for screens that need to force a REST refresh (refreshStation / refreshUpdates).
+ * Provided by MainActivity; null only in previews.
+ */
+val LocalTetraClient = staticCompositionLocalOf<TetraClient?> { null }

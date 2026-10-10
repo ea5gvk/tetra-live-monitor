@@ -9,11 +9,14 @@ import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.add
+import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.decodeFromJsonElement
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 import kotlinx.serialization.json.putJsonArray
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
+import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
@@ -36,6 +39,9 @@ object TetraApi {
 
     // Updaters stream git + cargo build (minutes of silence possible): no read timeout.
     private val streamClient = client.newBuilder().readTimeout(0, TimeUnit.SECONDS).build()
+
+    // Calls that run slow commands on the Pi before answering (systemctl, nmcli, wg-quick, BM/ADN download).
+    private val slowClient = client.newBuilder().readTimeout(90, TimeUnit.SECONDS).build()
 
     /** GET of an updater's check endpoint (/api/update/check, /api/bluestation/check, …). */
     suspend fun checkUpdate(base: String, path: String): UpdateCheck? = withContext(Dispatchers.IO) {
@@ -177,6 +183,183 @@ object TetraApi {
             put("password", password); put("serviceName", serviceName)
         })
 
+    // ─── 1.4: station selector, verify password, station dashboard ─────────────
+
+    /** GET /api/station/active (null when unreachable). TetraClient polls it into TetraState.station. */
+    suspend fun getStationActive(base: String): StationActive? = getJson(base, "/api/station/active")
+
+    /**
+     * POST /api/station/switch {password, station}: starts [station] (bluestation | flowstation | miurastation) and
+     * then stops and disables the other installed ones. `log` holds the systemctl output, also on failure.
+     */
+    suspend fun switchStation(base: String, password: String, station: String): StationSwitchResult =
+        withContext(Dispatchers.IO) {
+            val r = call(slowClient, "POST", base, "/api/station/switch", buildJsonObject {
+                put("password", password); put("station", station)
+            })
+            val o = r.obj
+            val ok = r.ok && (o?.get("ok") as? JsonPrimitive)?.booleanOrNull != false
+            StationSwitchResult(
+                ok = ok,
+                message = o.str("message") ?: r.error ?: (if (ok) "OK" else "Error ${r.code}"),
+                station = o.str("station"),
+                service = o.str("service"),
+                configPath = o.str("configPath"),
+                log = o.str("log").orEmpty(),
+            )
+        }
+
+    /** POST /api/system/verify-password: true accepted, false rejected (401), null no answer. */
+    suspend fun verifyPassword(base: String, password: String): Boolean? = withContext(Dispatchers.IO) {
+        if (password.isEmpty()) return@withContext false
+        val r = call(client, "POST", base, "/api/system/verify-password", buildJsonObject { put("password", password) })
+        when {
+            r.ok -> true
+            r.code == 401 -> false
+            else -> null
+        }
+    }
+
+    /** GET /api/flowstation/dashboard-status: the station's own dashboard (opened at ${base}/flow-iframe/). */
+    suspend fun getFlowDashboardStatus(base: String): FlowDashboardStatus? =
+        getJson(base, "/api/flowstation/dashboard-status")
+
+    // ─── 1.4: talkgroup names ─────────────────────────────────────────────────
+
+    /** GET /api/talkgroups?source=bm|adn (server cache 1 h; the first download can take ~30 s). */
+    suspend fun getTalkgroups(base: String, source: String): TalkgroupNames? =
+        getJson(base, "/api/talkgroups?source=${enc(source)}", slowClient)
+
+    // ─── 1.4: DGNA in bulk + log ──────────────────────────────────────────────
+
+    /**
+     * Same DGNA to several radios, one POST /api/dgna after the other (as the web's DGNA centre).
+     * [onProgress] is called after each radio with (done, ok, total).
+     */
+    suspend fun dgnaBulk(
+        base: String, password: String, issis: List<Int>, gssi: Int,
+        attach: Boolean, mnemonic: String, attachMode: Int,
+        onProgress: suspend (done: Int, ok: Int, total: Int) -> Unit = { _, _, _ -> },
+    ): DgnaBulkResult {
+        var ok = 0
+        val errors = mutableListOf<String>()
+        issis.forEachIndexed { i, issi ->
+            val r = dgna(base, password, issi, gssi, attach, mnemonic, attachMode)
+            if (r.ok) ok++ else errors += "$issi: ${r.message}"
+            onProgress(i + 1, ok, issis.size)
+        }
+        return DgnaBulkResult(ok, issis.size, errors)
+    }
+
+    /** DELETE /api/dgna-log (no password, as the web). The WS then sends fs_dgna_log_cleared. */
+    suspend fun clearDgnaLog(base: String): ApiResult = withContext(Dispatchers.IO) { call(client, "DELETE", base, "/api/dgna-log").result() }
+
+    // ─── 1.4: VPN WireGuard ───────────────────────────────────────────────────
+
+    suspend fun getVpnStatus(base: String): VpnStatus? = getJson(base, "/api/vpn/status", slowClient)
+
+    suspend fun getVpnClients(base: String): List<VpnClient>? = getJson(base, "/api/vpn/clients")
+
+    /** POST /api/vpn/{action} {password}; action = install | connect | disconnect | uninstall. */
+    suspend fun vpnAction(base: String, password: String, action: String): ApiResult = withContext(Dispatchers.IO) {
+        call(slowClient, "POST", base, "/api/vpn/$action", buildJsonObject { put("password", password) }).result()
+    }
+
+    /** POST /api/vpn/setup: server keys + wg0.conf (web defaults: 10.8.0.1/24, 51820, 8.8.8.8). */
+    suspend fun vpnSetup(
+        base: String, password: String, serverAddress: String, serverPort: Int, clientDns: String,
+    ): ApiResult = withContext(Dispatchers.IO) {
+        call(slowClient, "POST", base, "/api/vpn/setup", buildJsonObject {
+            put("password", password); put("serverAddress", serverAddress)
+            put("serverPort", serverPort.toString()); put("clientDns", clientDns)
+        }).result()
+    }
+
+    /** POST /api/vpn/clients {password, name}; name: letters, digits, _ and - only. */
+    suspend fun vpnAddClient(base: String, password: String, name: String): ApiResult = withContext(Dispatchers.IO) {
+        call(slowClient, "POST", base, "/api/vpn/clients", buildJsonObject {
+            put("password", password); put("name", name)
+        }).result()
+    }
+
+    suspend fun vpnDeleteClient(base: String, password: String, name: String): ApiResult = withContext(Dispatchers.IO) {
+        call(slowClient, "DELETE", base, "/api/vpn/clients/${enc(name)}", buildJsonObject { put("password", password) }).result()
+    }
+
+    /** GET /api/vpn/clients/:name/config → the client's wg-quick .conf text (null on error). */
+    suspend fun getVpnClientConfig(base: String, name: String): String? = withContext(Dispatchers.IO) {
+        call(client, "GET", base, "/api/vpn/clients/${enc(name)}/config").takeIf { it.ok }?.obj.str("config")
+    }
+
+    // ─── 1.4: WiFi of the Pi ──────────────────────────────────────────────────
+
+    suspend fun getWifiStatus(base: String): WifiStatus? = getJson(base, "/api/wifi/status")
+
+    /** GET /api/wifi/scan (rescans: up to ~20 s), strongest first. */
+    suspend fun wifiScan(base: String): List<WifiNetwork>? = withContext(Dispatchers.IO) {
+        call(slowClient, "GET", base, "/api/wifi/scan").takeIf { it.ok }?.obj?.get("networks")
+            ?.let { runCatching { json.decodeFromJsonElement<List<WifiNetwork>>(it) }.getOrNull() }
+    }
+
+    suspend fun wifiSaved(base: String): List<WifiSaved>? = withContext(Dispatchers.IO) {
+        call(client, "GET", base, "/api/wifi/saved").takeIf { it.ok }?.obj?.get("networks")
+            ?.let { runCatching { json.decodeFromJsonElement<List<WifiSaved>>(it) }.getOrNull() }
+    }
+
+    /** POST /api/wifi/connect {password, ssid, wifiPassword}; empty wifiPassword = open network. */
+    suspend fun wifiConnect(base: String, password: String, ssid: String, wifiPassword: String): ApiResult =
+        withContext(Dispatchers.IO) {
+            call(slowClient, "POST", base, "/api/wifi/connect", buildJsonObject {
+                put("password", password); put("ssid", ssid); put("wifiPassword", wifiPassword)
+            }).result()
+        }
+
+    suspend fun wifiDisconnect(base: String, password: String): ApiResult = withContext(Dispatchers.IO) {
+        call(slowClient, "POST", base, "/api/wifi/disconnect", buildJsonObject { put("password", password) }).result()
+    }
+
+    /** POST /api/wifi/forget {password, name}: deletes a saved connection (name from wifiSaved). */
+    suspend fun wifiForget(base: String, password: String, name: String): ApiResult = withContext(Dispatchers.IO) {
+        call(slowClient, "POST", base, "/api/wifi/forget", buildJsonObject {
+            put("password", password); put("name", name)
+        }).result()
+    }
+
+    // ─── helpers ──────────────────────────────────────────────────────────────
+
+    /** Raw answer of [call]: HTTP code (-1 without connection), body and its JSON object if it is one. */
+    private class Http(val code: Int, val raw: String, val error: String? = null) {
+        val ok get() = code in 200..299
+        val obj: JsonObject? by lazy { runCatching { json.decodeFromString<JsonObject>(raw) }.getOrNull() }
+        /** Same rules as [post]: HTTP 2xx and no {"ok": false}; message from the body. */
+        fun result(): ApiResult {
+            if (error != null) return ApiResult(false, "Sin conexión: $error")
+            val okField = (obj?.get("ok") as? JsonPrimitive)?.booleanOrNull
+            val good = ok && okField != false
+            return ApiResult(good, obj.str("message") ?: (if (good) "OK" else "Error $code"))
+        }
+    }
+
+    private fun JsonObject?.str(key: String): String? =
+        (this?.get(key) as? JsonPrimitive)?.takeIf { it.isString }?.content
+
+    private fun enc(v: String): String = java.net.URLEncoder.encode(v, "UTF-8").replace("+", "%20")
+
+    /** Blocking request (call from Dispatchers.IO). */
+    private fun call(c: OkHttpClient, method: String, base: String, path: String, body: JsonObject? = null): Http =
+        runCatching {
+            val url = "$base$path".toHttpUrlOrNull() ?: return Http(-1, "", "URL inválida")
+            val rb = body?.let { json.encodeToString(JsonObject.serializer(), it).toRequestBody(JSON_MEDIA) }
+            val req = Request.Builder().url(url).method(method, rb).build()
+            c.newCall(req).execute().use { resp -> Http(resp.code, resp.body?.string().orEmpty()) }
+        }.getOrElse { Http(-1, "", it.message ?: it.javaClass.simpleName) }
+
+    private suspend inline fun <reified T> getJson(base: String, path: String, c: OkHttpClient = client): T? =
+        withContext(Dispatchers.IO) {
+            val r = call(c, "GET", base, path)
+            if (!r.ok) null else runCatching { json.decodeFromString<T>(r.raw) }.getOrNull()
+        }
+
     private suspend fun post(base: String, path: String, body: JsonObject): ApiResult =
         withContext(Dispatchers.IO) {
             runCatching {
@@ -186,10 +369,12 @@ object TetraApi {
                     .build()
                 client.newCall(req).execute().use { resp ->
                     val raw = resp.body?.string().orEmpty()
-                    val msg = runCatching {
-                        (json.decodeFromString<JsonObject>(raw)["message"] as? JsonPrimitive)?.content
-                    }.getOrNull() ?: (if (resp.isSuccessful) "OK" else "Error ${resp.code}")
-                    ApiResult(resp.isSuccessful, msg)
+                    val obj = runCatching { json.decodeFromString<JsonObject>(raw) }.getOrNull()
+                    val msg = (obj?.get("message") as? JsonPrimitive)?.content
+                        ?: (if (resp.isSuccessful) "OK" else "Error ${resp.code}")
+                    // Like the web: an HTTP 200 with {"ok": false} is a failure too.
+                    val okField = (obj?.get("ok") as? JsonPrimitive)?.booleanOrNull
+                    ApiResult(resp.isSuccessful && okField != false, msg)
                 }
             }.getOrElse { ApiResult(false, "Sin conexión: ${it.message}") }
         }
