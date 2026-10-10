@@ -286,9 +286,11 @@ object TetraApi {
         call(slowClient, "DELETE", base, "/api/vpn/clients/${enc(name)}", buildJsonObject { put("password", password) }).result()
     }
 
-    /** GET /api/vpn/clients/:name/config → the client's wg-quick .conf text (null on error). */
-    suspend fun getVpnClientConfig(base: String, name: String): String? = withContext(Dispatchers.IO) {
-        call(client, "GET", base, "/api/vpn/clients/${enc(name)}/config").takeIf { it.ok }?.obj.str("config")
+    /** POST /api/vpn/clients/:name/config {password} → the client's wg-quick .conf text (null on error; it carries
+     *  the client's private key, so the server asks for the system password). */
+    suspend fun getVpnClientConfig(base: String, password: String, name: String): String? = withContext(Dispatchers.IO) {
+        call(client, "POST", base, "/api/vpn/clients/${enc(name)}/config", buildJsonObject { put("password", password) })
+            .takeIf { it.ok }?.obj.str("config")
     }
 
     // ─── 1.4: WiFi of the Pi ──────────────────────────────────────────────────

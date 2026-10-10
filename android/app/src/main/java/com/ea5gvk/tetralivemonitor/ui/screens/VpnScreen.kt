@@ -156,9 +156,10 @@ fun VpnScreen(base: String?, password: String, hasPassword: Boolean, onBack: () 
 
     fun fetchConfig(name: String, then: (String) -> Unit) {
         val b = base ?: return
+        if (!hasPassword) { msg = "Configura la contraseña en Ajustes"; msgOk = false; return }
         scope.launch {
             busy = true
-            val conf = TetraApi.getVpnClientConfig(b, name)
+            val conf = TetraApi.getVpnClientConfig(b, password, name)
             busy = false
             if (conf == null) { msg = "Error al obtener la configuración de $name"; msgOk = false } else then(conf)
         }
