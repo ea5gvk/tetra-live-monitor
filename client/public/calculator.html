@@ -1355,6 +1355,16 @@
             <div class="checkbox-row"><input type="checkbox" id="telegramAlertCriticalLogs" checked /><label for="telegramAlertCriticalLogs" data-i18n="telegram_alert_critical_logs">alert_critical_logs (WARN/ERROR del stack)</label></div>
           </div>
         </div>
+
+        <!-- ALERT LANGUAGE (MiuraStation only) -->
+        <div id="telegramLanguageRow" style="margin-top:14px; padding:0 2px; max-width:480px;">
+          <label for="telegramLanguage" data-i18n="telegram_language">language (idioma de los avisos de Telegram)</label>
+          <select id="telegramLanguage" style="max-width:240px">
+            <option value="es" selected data-i18n="telegram_language_es">Español (por defecto)</option>
+            <option value="en">English</option>
+          </select>
+          <div class="hint" data-i18n="telegram_language_hint">Idioma de los mensajes que envía la estación (por defecto español). La clave solo se escribe si eliges English o si ya está en el config.toml: una estación sin esta opción la rechaza.</div>
+        </div>
       </div>
     </section>
   </div>
@@ -2184,6 +2194,9 @@
       telegram_alert_lip: "alert_lip (LIP position beacon)",
       telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
       telegram_alert_critical_logs: "alert_critical_logs (stack WARN/ERROR)",
+      telegram_language: "language (Telegram alert language)",
+      telegram_language_es: "Español (Spanish, default)",
+      telegram_language_hint: "Language of the messages the station sends (Spanish by default). The key is only written if you pick English or it is already in config.toml: a station without this option rejects it.",
       telegram_setup_title: "SETUP — 4 STEPS",
       telegram_setup_1: "In Telegram, open @BotFather, send /newbot and follow the prompts. Copy the bot token it gives you.",
       telegram_setup_2: "Paste the token below and click Verify — you should see your bot's @username.",
@@ -2520,6 +2533,9 @@
       telegram_alert_lip: "alert_lip（LIP 位置信标）",
       telegram_alert_backhaul: "alert_backhaul（Brew 上/下线）",
       telegram_alert_critical_logs: "alert_critical_logs（栈 WARN/ERROR）",
+      telegram_language: "language（Telegram 警报语言）",
+      telegram_language_es: "Español（西班牙语，默认）",
+      telegram_language_hint: "基站发送消息的语言（默认西班牙语）。仅当选择 English 或 config.toml 中已有该键时才写入：不支持此选项的基站会拒绝该键。",
       telegram_setup_title: "设置 — 4 步",
       telegram_setup_1: "在 Telegram 中打开 @BotFather，发送 /newbot 并按提示操作。复制它给你的 bot token。",
       telegram_setup_2: "将 token 粘贴到下方并点击验证 — 你将看到 bot 的 @用户名。",
@@ -2892,6 +2908,9 @@
       telegram_alert_lip: "alert_lip (baliza de posición LIP)",
       telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
       telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR del stack)",
+      telegram_language: "language (idioma de los avisos de Telegram)",
+      telegram_language_es: "Español (por defecto)",
+      telegram_language_hint: "Idioma de los mensajes que envía la estación (por defecto español). La clave solo se escribe si eliges English o si ya está en el config.toml: una estación sin esta opción la rechaza.",
       telegram_setup_title: "CONFIGURACIÓN — 4 PASOS",
       telegram_setup_1: "En Telegram, abre @BotFather, envía /newbot y sigue las instrucciones. Copia el token que te da.",
       telegram_setup_2: "Pega el token abajo y pulsa Verificar — verás el @usuario de tu bot.",
@@ -3228,6 +3247,9 @@
       telegram_alert_lip: "alert_lip (baliza de posição LIP)",
       telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
       telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR do stack)",
+      telegram_language: "language (idioma dos alertas do Telegram)",
+      telegram_language_es: "Español (espanhol, padrão)",
+      telegram_language_hint: "Idioma das mensagens enviadas pela estação (espanhol por padrão). A chave só é escrita se escolher English ou se já estiver no config.toml: uma estação sem esta opção rejeita-a.",
       telegram_setup_title: "CONFIGURAÇÃO — 4 ETAPAS",
       telegram_setup_1: "No Telegram, abra @BotFather, envie /newbot e siga as instruções. Copie o token fornecido.",
       telegram_setup_2: "Cole o token abaixo e clique em Verificar — você verá o @usuário do seu bot.",
@@ -3558,6 +3580,9 @@
       telegram_alert_lip: "alert_lip (LIP-Positionsbake)",
       telegram_alert_backhaul: "alert_backhaul (Brew auf/ab)",
       telegram_alert_critical_logs: "alert_critical_logs (Stack WARN/ERROR)",
+      telegram_language: "language (Sprache der Telegram-Benachrichtigungen)",
+      telegram_language_es: "Español (Spanisch, Standard)",
+      telegram_language_hint: "Sprache der Nachrichten, die die Station sendet (standardmäßig Spanisch). Der Schlüssel wird nur geschrieben, wenn du English wählst oder er schon in config.toml steht: Eine Station ohne diese Option lehnt ihn ab.",
       telegram_setup_title: "EINRICHTUNG — 4 SCHRITTE",
       telegram_setup_1: "Öffne in Telegram @BotFather, sende /newbot und folge den Anweisungen. Kopiere den Bot-Token.",
       telegram_setup_2: "Füge den Token unten ein und klicke auf Verifizieren — du siehst den @Benutzernamen deines Bots.",
@@ -3888,6 +3913,9 @@
       telegram_alert_lip: "alert_lip (balise de position LIP)",
       telegram_alert_backhaul: "alert_backhaul (Brew up/down)",
       telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR du stack)",
+      telegram_language: "language (langue des alertes Telegram)",
+      telegram_language_es: "Español (espagnol, par défaut)",
+      telegram_language_hint: "Langue des messages envoyés par la station (espagnol par défaut). La clé n'est écrite que si vous choisissez English ou si elle figure déjà dans config.toml : une station sans cette option la refuse.",
       telegram_setup_title: "CONFIGURATION — 4 ÉTAPES",
       telegram_setup_1: "Dans Telegram, ouvrez @BotFather, envoyez /newbot et suivez les instructions. Copiez le token fourni.",
       telegram_setup_2: "Collez le token ci-dessous et cliquez sur Vérifier — vous verrez le @nom d'utilisateur de votre bot.",
@@ -4218,6 +4246,9 @@
       telegram_alert_lip: "alert_lip (beacon di posizione LIP)",
       telegram_alert_backhaul: "alert_backhaul (Brew su/giù)",
       telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR dello stack)",
+      telegram_language: "language (lingua degli avvisi Telegram)",
+      telegram_language_es: "Español (spagnolo, predefinito)",
+      telegram_language_hint: "Lingua dei messaggi inviati dalla stazione (spagnolo per impostazione predefinita). La chiave viene scritta solo se scegli English o se è già nel config.toml: una stazione senza questa opzione la rifiuta.",
       telegram_setup_title: "CONFIGURAZIONE — 4 PASSI",
       telegram_setup_1: "In Telegram, apri @BotFather, invia /newbot e segui le istruzioni. Copia il token fornito.",
       telegram_setup_2: "Incolla il token qui sotto e clicca su Verifica — vedrai il @nomeutente del tuo bot.",
@@ -5208,6 +5239,9 @@
       telegram_alert_lip: "alert_lip (baliză de poziție LIP)",
       telegram_alert_backhaul: "alert_backhaul (Brew sus/jos)",
       telegram_alert_critical_logs: "alert_critical_logs (WARN/ERROR stack)",
+      telegram_language: "language (limba alertelor Telegram)",
+      telegram_language_es: "Español (spaniolă, implicit)",
+      telegram_language_hint: "Limba mesajelor trimise de stație (implicit spaniolă). Cheia se scrie doar dacă alegi English sau dacă există deja în config.toml: o stație fără această opțiune o respinge.",
       telegram_setup_title: "CONFIGURARE — 4 PAȘI",
       telegram_setup_1: "În Telegram, deschide @BotFather, trimite /newbot și urmează instrucțiunile. Copiază token-ul primit.",
       telegram_setup_2: "Lipește token-ul mai jos și apasă Verifică — vei vedea @username-ul botului tău.",
@@ -5347,6 +5381,14 @@
 
   // Station picked in the bar above the calculator (bluestation | flowstation | miurastation).
   var calcStation = "bluestation";
+  // [telegram_alerts] language to write (MiuraStation only): "es" is the station's default, so it is written only
+  // when the loaded config.toml already had the key; "en" always. null = no line (a station without the option
+  // rejects the key; the server keeps the line the file already has).
+  function tgLanguageOut(){
+    var s = document.getElementById("telegramLanguage");
+    if (calcStation !== "miurastation" || !s) return null;
+    return s.value === "en" || s.dataset.present === "1" ? s.value : null;
+  }
   // With MiuraStation selected, the texts about our station name it: "FlowStation miura ... of dd-mm-2026 or later"
   // becomes "MiuraStation v1.0 or later" (any MiuraStation has it) and the other FlowStation mentions MiuraStation.
   // What is said of razvan's FlowStation keeps its name (it is his product).
@@ -6060,6 +6102,8 @@
       lines.push(`${p}alert_lip = ${el("telegramAlertLip").checked ? "true" : "false"}`);
       lines.push(`${p}alert_backhaul = ${el("telegramAlertBackhaul").checked ? "true" : "false"}`);
       lines.push(`${p}alert_critical_logs = ${el("telegramAlertCriticalLogs").checked ? "true" : "false"}`);
+      const tgLang = tgLanguageOut();
+      if (tgLang) lines.push(`${p}language = "${tgLang}"`);
     }
     // Telemetry [telemetry] (Flowstation only)
     if (document.getElementById("sectionTelemetry")?.style.display !== "none") {
@@ -7216,6 +7260,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
         if (data.telegram_alerts.alert_lip !== null) el("telegramAlertLip").checked = data.telegram_alerts.alert_lip !== false;
         if (data.telegram_alerts.alert_backhaul !== null) el("telegramAlertBackhaul").checked = data.telegram_alerts.alert_backhaul !== false;
         if (data.telegram_alerts.alert_critical_logs !== null) el("telegramAlertCriticalLogs").checked = data.telegram_alerts.alert_critical_logs !== false;
+        // absent key (or a value the station does not know) = Spanish
+        el("telegramLanguage").value = data.telegram_alerts.language === "en" ? "en" : "es";
+        el("telegramLanguage").dataset.present = data.telegram_alerts.language_present ? "1" : "";
         el("enableTelegramAlerts").dispatchEvent(new Event("change"));
       }
 
@@ -7507,6 +7554,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       alert_lip: el("telegramAlertLip").checked,
       alert_backhaul: el("telegramAlertBackhaul").checked,
       alert_critical_logs: el("telegramAlertCriticalLogs").checked,
+      language: tgLanguageOut(),
     } : null;
 
     // Collect Weather Service options (Flowstation only — null in bluestation)
@@ -8721,7 +8769,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     const node = el(id); if (!node) return;
     node.addEventListener("input", updateTomlFromNew);
   });
-  ["telegramAlertConnect","telegramAlertDisconnect","telegramAlertT351","telegramAlertLip","telegramAlertBackhaul","telegramAlertCriticalLogs"].forEach(id => {
+  ["telegramAlertConnect","telegramAlertDisconnect","telegramAlertT351","telegramAlertLip","telegramAlertBackhaul","telegramAlertCriticalLogs","telegramLanguage"].forEach(id => {
     const node = el(id); if (!node) return;
     node.addEventListener("change", updateTomlFromNew);
   });
@@ -8827,6 +8875,9 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
     });
     var miura = station === "miurastation";
     calcStation = station;
+    // [telegram_alerts] language: only MiuraStation knows it (FlowStation rejects an unknown key)
+    var tgLang = document.getElementById("telegramLanguageRow");
+    if (tgLang) tgLang.style.display = miura ? "" : "none";
     // [geoalarm] position keys: MiuraStation station_lat/station_lon, FlowStation flowstation_lat/flowstation_lon
     var gl = document.querySelector('label[for="geoLat"]'), gn = document.querySelector('label[for="geoLon"]');
     if (gl) gl.textContent = miura ? "station_lat" : "flowstation_lat";

@@ -500,3 +500,23 @@ export function spliceTableBlock(lines: string[], start: number, end: number, bl
   });
   if (!same) lines.splice(start, last + 1 - start, ...block);
 }
+
+// [telegram_alerts] language of the alerts (MiuraStation): "es" (the station's default without the key) or "en",
+// from the value of the active `language = ...` line ("Español"/"English"... accepted, any case). null when there
+// is no line or the value is none of those (the station warns and uses Spanish).
+export function telegramLanguage(raw: string | null): "es" | "en" | null {
+  const m = raw?.match(/^\s*(["'])(.*?)\1/);
+  const v = (m ? m[2] : "").trim().toLowerCase();
+  if (["es", "español", "espanol", "spanish"].includes(v)) return "es";
+  if (["en", "english", "inglés", "ingles"].includes(v)) return "en";
+  return null;
+}
+
+// The `language` line of the [telegram_alerts] block the calculator writes (p = "" or "# ", the block's state):
+// the language it sent, or, when it sent none, the line the old block already has (a station that does not
+// know the key never gets it; a calculator that does not know it never drops it).
+export function telegramLanguageLine(sent: unknown, old: string[], p: string): string[] {
+  if (sent === "es" || sent === "en") return [`${p}language = "${sent}"`];
+  const l = old.map((x) => x.replace(/\r$/, "")).find((x) => /^\s*#?\s*language\s*=/.test(x));
+  return l ? [p + l.replace(/^\s*#?\s*/, "")] : [];
+}

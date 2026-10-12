@@ -5,7 +5,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { parse } from "smol-toml";
-import { mergeAppendOnly, verifyMerge, mergeConfigFile, backupWithRotation, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken } from "./configMerge";
+import { mergeAppendOnly, verifyMerge, mergeConfigFile, backupWithRotation, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken, telegramLanguage, telegramLanguageLine } from "./configMerge";
 
 const BASE = `# Station config
 config_version = "0.6"
@@ -334,4 +334,45 @@ test("renamed geoalarm keys: station_lat/station_lon and flowstation_lat/flowsta
   // without the old name the new key is added as usual
   const none = props(`config_version = "0.6"\n\n[geoalarm]\nenabled = true\nradius_m = 500.0\n`, geo("station_lat", "station_lon", true), geo("x_lat", "x_lon", true));
   assert.equal(count(none.merged, /^station_lat = 40.5$/), 1);
+});
+
+test("calculator [telegram_alerts] language: read, written only when sent or already there, round trip untouched", () => {
+  assert.equal(telegramLanguage('"en"'), "en");
+  assert.equal(telegramLanguage('"es"   # alert language'), "es");
+  assert.equal(telegramLanguage("'English'"), "en");
+  assert.equal(telegramLanguage('"Español"'), "es");
+  assert.equal(telegramLanguage('"fr"'), null);
+  assert.equal(telegramLanguage(null), null);
+  // the generated block as the handler builds it: the flags, then the language line
+  const gen = (p: string, sent: unknown, old: string[]) =>
+    [`${p}[telegram_alerts]`, `${p}enabled = ${p ? "false" : "true"}`, `${p}chat_ids = [1]`, ...telegramLanguageLine(sent, old.slice(1), p)];
+  // an active block with language = "en": loaded and applied as it is = untouched (CRLF too)
+  const act = ["[telegram_alerts]\r", "enabled = true\r", "chat_ids = [1]\r", 'language = "en"   # set on :8080\r', "\r", "[telemetry]\r"];
+  const l1 = [...act];
+  spliceTableBlock(l1, 0, 5, gen("", "en", act.slice(0, 5)));
+  assert.deepEqual(l1, act);
+  // the user picks Spanish: the line says "es", nothing else of the file moves
+  const l2 = [...act];
+  spliceTableBlock(l2, 0, 5, gen("", "es", act.slice(0, 5)));
+  assert.deepEqual(l2, ["[telegram_alerts]", "enabled = true", "chat_ids = [1]", 'language = "es"', "\r", "[telemetry]\r"]);
+  // a calculator that sends no language (FlowStation, or one older than the key) keeps the line there
+  const l3 = [...act];
+  spliceTableBlock(l3, 0, 5, gen("", null, act.slice(0, 5)));
+  assert.deepEqual(l3, act);
+  // no key and Spanish (sent as null): no line is added, the block stays as it is
+  const none = ["[telegram_alerts]", "enabled = true", "chat_ids = [1]", ""];
+  const l4 = [...none];
+  spliceTableBlock(l4, 0, 4, gen("", null, none));
+  assert.deepEqual(l4, none);
+  // English on a file without the key: added
+  spliceTableBlock(l4, 0, 4, gen("", "en", none));
+  assert.deepEqual(l4, ["[telegram_alerts]", "enabled = true", "chat_ids = [1]", 'language = "en"', ""]);
+  // the example_config commented block with its documented line: same values = untouched
+  const ex = ["# [telegram_alerts]", "# enabled = false", "# chat_ids = [1]",
+    '# language = "es"               # alert language: "es" (Spanish, default) or "en" (English)', ""];
+  const l5 = [...ex];
+  spliceTableBlock(l5, 0, 5, gen("# ", null, ex));
+  assert.deepEqual(l5, ex);
+  // an active line kept into a block switched off is commented with it (never left active under the previous table)
+  assert.deepEqual(telegramLanguageLine(undefined, ['language = "en"'], "# "), ['# language = "en"']);
 });

@@ -9,7 +9,7 @@ import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
-import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken } from "./configMerge";
+import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken, telegramLanguage, telegramLanguageLine } from "./configMerge";
 import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, migrationInfo, miuraInstalled, miuraPackaged, installScript, updateScript, migrationScript, packageScript, DIST_REPO, RELEASE_TAG_RE, pkgTemplatePath, pkgConfigBasePath, parseRelease, debUpstreamVersion, compareVersions, type MiuraRelease, type Product, type ProductId } from "./stationScripts";
 
 let pythonProcess: ChildProcess | null = null;
@@ -2825,6 +2825,8 @@ cargo build --release
           alert_lip: bool('telegram_alerts', 'alert_lip'),
           alert_backhaul: bool('telegram_alerts', 'alert_backhaul'),
           alert_critical_logs: bool('telegram_alerts', 'alert_critical_logs'),
+          language: telegramLanguage(get('telegram_alerts', 'language')),
+          language_present: get('telegram_alerts', 'language') !== null,
         },
         service_name: {
           enabled: serviceNameActive,
@@ -4901,6 +4903,7 @@ cargo build --release
           if (lines[i].match(/^\s*#\s*\[telegram_alerts\]/)) { tgStart = i; break; }
         }
         if (tgStart === -1) {
+          block.push(...telegramLanguageLine(telegramAlertsConfig.language, [], p));
           if (lines.length > 0 && lines[lines.length - 1].trim() !== "") lines.push("");
           lines.push(...block);
         } else {
@@ -4908,6 +4911,7 @@ cargo build --release
           for (let j = tgStart + 1; j < lines.length; j++) {
             if (lines[j].match(/^\s*\[[^\]]+\]/) || lines[j].match(/^\s*#\s*\[[^\]]+\]/)) { tgEnd = j; break; }
           }
+          block.push(...telegramLanguageLine(telegramAlertsConfig.language, lines.slice(tgStart + 1, tgEnd), p));
           spliceTableBlock(lines, tgStart, tgEnd, block);
         }
       }
