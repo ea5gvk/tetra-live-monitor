@@ -514,9 +514,10 @@ export function telegramLanguage(raw: string | null): "es" | "en" | null {
 
 // The `language` line of the [telegram_alerts] block the calculator writes (p = "" or "# ", the block's state):
 // the language it sent, or, when it sent none, the line the old block already has (a station that does not
-// know the key never gets it; a calculator that does not know it never drops it).
+// know the key never gets it; a calculator that does not know it never drops it). A commented line stays
+// commented: the loader did not read it, so switching the block on must not switch it on.
 export function telegramLanguageLine(sent: unknown, old: string[], p: string): string[] {
   if (sent === "es" || sent === "en") return [`${p}language = "${sent}"`];
   const l = old.map((x) => x.replace(/\r$/, "")).find((x) => /^\s*#?\s*language\s*=/.test(x));
-  return l ? [p + l.replace(/^\s*#?\s*/, "")] : [];
+  return l ? [(/^\s*#/.test(l) ? "# " : p) + l.replace(/^\s*#?\s*/, "")] : [];
 }

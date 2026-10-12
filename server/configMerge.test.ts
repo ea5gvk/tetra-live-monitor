@@ -375,4 +375,10 @@ test("calculator [telegram_alerts] language: read, written only when sent or alr
   assert.deepEqual(l5, ex);
   // an active line kept into a block switched off is commented with it (never left active under the previous table)
   assert.deepEqual(telegramLanguageLine(undefined, ['language = "en"'], "# "), ['# language = "en"']);
+  // the commented template line in a block switched on with Spanish (sent as null): it stays commented, as loaded
+  const l6 = [...ex];
+  spliceTableBlock(l6, 0, 5, gen("", null, ex));
+  assert.deepEqual(l6, ["[telegram_alerts]", "enabled = true", "chat_ids = [1]", ex[3], ""]);
+  // and a commented `# language = "en"` is not switched on either (the loader showed Spanish)
+  assert.deepEqual(telegramLanguageLine(null, ['# language = "en"'], ""), ['# language = "en"']);
 });
