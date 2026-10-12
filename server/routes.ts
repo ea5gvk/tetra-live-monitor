@@ -859,6 +859,15 @@ cargo build --release
         res.end();
         return;
       }
+      // Restart only when BlueStation is the selected station or was already running: started next to another
+      // station it fails on the busy SDR every 2 s (Restart=always) and takes the SDR as soon as that one stops.
+      let running = false;
+      try { running = execSync(`systemctl is-active ${cleanService}`, { encoding: "utf-8" }).trim() === "active"; } catch {}
+      if (!running && readActiveStation() !== "bluestation") {
+        res.write(`\nBlueStation no es la estación activa: actualizada sin arrancarla.\n\n[Exit: ${code}]\n`);
+        res.end();
+        return;
+      }
       res.write(`\n=== Restarting ${cleanService}... ===\n`);
       const since = Math.floor(Date.now() / 1000);
       exec(`sudo systemctl restart ${cleanService}`, async (err) => {
