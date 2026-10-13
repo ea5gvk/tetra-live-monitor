@@ -298,14 +298,21 @@ awk -v f="$DEB" '$2 == f || $2 == "*" f' "$WORK/SHA256SUMS" > "$WORK/deb.sha256"
 `;
 
 // apt-get install of the downloaded .deb, with its dependencies; stale package lists get an apt-get update and one
-// more try. Never with MIURASTATION_OTA (that is the station's own update): on an upgrade the postinst restarts a
+// more try. Damaged lists (a power cut or a full disk during an apt-get update: apt-cache cannot parse them, and
+// apt-get update keeps them while the mirror has not changed) are deleted first: they are only a cache.
+// Never with MIURASTATION_OTA (that is the station's own update): on an upgrade the postinst restarts a
 // running station, so the scripts stop it first and the caller starts it after the config.toml merge.
 const aptInstall = (extra: string) => {
   const cmd = `sudo env -u MIURASTATION_OTA DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confold${extra} "$WORK/$DEB"`;
   return `apt_install_deb() {
   echo "=== apt-get install $DEB ==="
   ${cmd} && return 0
-  echo "=== apt-get install ha fallado: se actualizan las listas de paquetes (apt-get update) y se reintenta ==="
+  if ! sudo apt-cache stats >/dev/null 2>&1; then
+    echo "=== Las listas de paquetes de apt están dañadas: se borran (solo son una caché) y se vuelven a descargar ==="
+    sudo find "\${APT_LISTS:-/var/lib/apt/lists}" -maxdepth 1 -type f -name '*_*' -delete
+  else
+    echo "=== apt-get install ha fallado: se actualizan las listas de paquetes (apt-get update) y se reintenta ==="
+  fi
   sudo env DEBIAN_FRONTEND=noninteractive apt-get update && ${cmd}
 }
 `;

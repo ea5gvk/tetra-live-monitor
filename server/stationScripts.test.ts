@@ -201,6 +201,8 @@ case "$*" in *Version*) cat "$MOCK_STATE/pkg-version" ;; *) echo "miurastation $
   "apt-get": `echo "apt-get $*\${MIURASTATION_OTA:+ (OTA)}" >> "$MOCK_LOG"
 cmd=""; deb=""
 for a in "$@"; do case "$a" in install|purge|update) cmd=$a ;; *.deb) deb=$a ;; esac; done
+# a damaged package list (any *Translation-en* file in APT_LISTS) breaks every apt-get, update included
+ls "$APT_LISTS"/*Translation-en* >/dev/null 2>&1 && { echo "E: Problem with MergeList $APT_LISTS/x_Translation-en" >&2; exit 100; }
 case "$cmd" in
   install)
     [ -n "\${MOCK_APT_KILL:-}" ] && kill -9 $PPID
@@ -222,6 +224,8 @@ case "$cmd" in
     ;;
 esac
 exit 0`,
+  "apt-cache": `ls "$APT_LISTS"/*Translation-en* >/dev/null 2>&1 && { echo "E: The package lists or status file could not be parsed or opened." >&2; exit 100; }
+exit 0`,
   curl: `out=""; url=""
 while [ $# -gt 0 ]; do case "$1" in -o) out=$2; shift ;; http*) url=$1 ;; esac; shift; done
 echo "curl $url" >> "$MOCK_LOG"
@@ -236,7 +240,8 @@ function sandbox(): Sandbox {
   const L = tmpLayout();
   const base = path.dirname(L.root);
   const bin = path.join(base, "mockbin"), state = path.join(base, "state"), releases = path.join(base, "releases");
-  for (const d of [bin, state, releases]) fs.mkdirSync(d);
+  const aptLists = path.join(base, "apt-lists");
+  for (const d of [bin, state, releases, aptLists]) fs.mkdirSync(d);
   for (const [name, body] of Object.entries(MOCKS)) fs.writeFileSync(path.join(bin, name), `#!/usr/bin/env bash\n${body}\n`, { mode: 0o755 });
   const log = path.join(base, "calls.log");
   fs.writeFileSync(log, "");
@@ -244,7 +249,7 @@ function sandbox(): Sandbox {
   const env: NodeJS.ProcessEnv = {
     ...process.env, [pathKey]: `${bin}${path.delimiter}${process.env[pathKey]}`,
     MSYS: "winsymlinks:nativestrict", MOCK_LOG: log, MOCK_STATE: state, MOCK_RELEASES: releases,
-    MOCK_ROOT: L.root, MOCK_USR: L.usr, MOCK_SYSD: L.systemd, MOCK_PKGSYSD: L.pkgSystemd,
+    MOCK_ROOT: L.root, MOCK_USR: L.usr, MOCK_SYSD: L.systemd, MOCK_PKGSYSD: L.pkgSystemd, APT_LISTS: aptLists,
   };
   return { L, state, log, releases, env };
 }
@@ -331,6 +336,18 @@ test("package: install, refusals and update keep config.toml and only write drop
   r = run(sb, packageScript(L, { mode: "update", tag: "v1.4.0-beta.1", version: "1.4.0-beta.1" }));
   assert.equal(r.code, 0, r.out);
   assert.equal(pkgVersion(sb), "1.4.0~beta.1-1", "a pre-release: the ~ of dpkg");
+
+  // damaged package lists (apt-get update keeps them): deleted, downloaded again and the install goes through
+  const lists = sb.env.APT_LISTS as string;
+  const broken = path.join(lists, "deb.debian.org_debian_dists_trixie_contrib_i18n_Translation-en");
+  fs.writeFileSync(broken, "garbage");
+  fs.writeFileSync(path.join(lists, "lock"), "");
+  publish(sb, "1.4.0");
+  r = run(sb, packageScript(L, { mode: "update", tag: "v1.4.0", version: "1.4.0" }));
+  assert.equal(r.code, 0, r.out);
+  assert.match(r.out, /listas de paquetes de apt están dañadas/);
+  assert.ok(!fs.existsSync(broken) && fs.existsSync(path.join(lists, "lock")), "only the list files are deleted");
+  assert.equal(pkgVersion(sb), "1.4.0-1");
 });
 
 test("package on a PC (amd64): its own .deb and its own SHA256SUMS line; a release without it is refused", { skip: !bashOk && "sin bash" }, () => {
