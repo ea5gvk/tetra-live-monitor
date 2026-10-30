@@ -11,6 +11,7 @@ import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
 import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken, telegramLanguage, telegramLanguageLine } from "./configMerge";
 import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, migrationInfo, miuraInstalled, miuraPackaged, installScript, updateScript, migrationScript, packageScript, DIST_REPO, RELEASE_TAG_RE, pkgTemplatePath, pkgConfigBasePath, parseRelease, debUpstreamVersion, compareVersions, type MiuraRelease, type Product, type ProductId } from "./stationScripts";
+import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, DMR_SECRET_KEYS, type DmrRelease } from "./dmrStation";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -1277,27 +1278,36 @@ cargo build --release
     child.on("error", (err: Error) => { unlock(); res.write(`\n[Error: ${err.message}]\n`); res.end(); });
   });
 
-  // ─── Active station selector (BlueStation / FlowStation / MiuraStation) ─────
+  // ─── Active station selector (BlueStation / FlowStation / MiuraStation / DMR Tier III) ─────
   const ACTIVE_STATION_PATH = path.join(process.cwd(), "active-station.json");
-  type StationName = "bluestation" | "flowstation" | "miurastation";
-  const STATION_NAMES: StationName[] = ["bluestation", "flowstation", "miurastation"];
+  type StationName = "bluestation" | "flowstation" | "miurastation" | "dmr";
+  const STATION_NAMES: StationName[] = ["bluestation", "flowstation", "miurastation", "dmr"];
   const isStationName = (v: any): v is StationName => STATION_NAMES.includes(v);
+  // dmr: the DMR Tier III stack (dmrStation.ts) as one systemd target; its "config" is a KEY=VALUE file, not TOML.
   const STATION_SERVICE: Record<StationName, string> = {
     bluestation: "tmo.service",
     flowstation: PRODUCTS.razvan.service,
     miurastation: PRODUCTS.miura.service,
+    dmr: DMR.target,
   };
   const STATION_DIR: Record<StationName, string> = {
     bluestation: "/root/tetra-bluestation",
     flowstation: productDir(PRODUCTS.razvan, L),
     miurastation: productDir(PRODUCTS.miura, L),
+    dmr: DMR.dir,
   };
   const STATION_CONFIG_PATH: Record<StationName, string> = {
     bluestation: "/root/tetra-bluestation/config.toml",
     flowstation: `${STATION_DIR.flowstation}/config.toml`,
     miurastation: `${STATION_DIR.miurastation}/config.toml`,
+    dmr: DMR.confPath,
   };
-  const STATION_PRODUCT: Record<StationName, string> = { bluestation: "BlueStation", flowstation: "FlowStation", miurastation: "MiuraStation" };
+  const STATION_PRODUCT: Record<StationName, string> = { bluestation: "BlueStation", flowstation: "FlowStation", miurastation: "MiuraStation", dmr: DMR.pkg };
+  // The stations whose configuration is a config.toml (the calculator, btsinfo): everything but the DMR.
+  const TOML_STATIONS: StationName[] = ["bluestation", "flowstation", "miurastation"];
+  const isDmrConfPath = (p: string) => {
+    try { return fs.realpathSync(p) === fs.realpathSync(STATION_CONFIG_PATH.dmr); } catch { return path.resolve(p) === STATION_CONFIG_PATH.dmr; }
+  };
 
   function readActiveStation(): StationName {
     let s: StationName = "bluestation";
@@ -1311,13 +1321,15 @@ cargo build --release
     return s;
   }
 
-  // The flow-family station (FlowStation or MiuraStation) that the features of its :8080 dashboard talk to:
-  // SDS, kick, DGNA, native dashboard, whitelist, dual carrier. The selected one; with BLUE selected, MiuraStation
-  // if installed, else FlowStation.
+  // The flow-family station (FlowStation or MiuraStation: the explicit set, never BLUE nor the DMR) that the
+  // features of its :8080 dashboard talk to: SDS, kick, DGNA, native dashboard, whitelist, dual carrier. The
+  // selected one; with BLUE or the DMR selected, MiuraStation if installed, else FlowStation.
   type FlowStationName = "flowstation" | "miurastation";
+  const FLOW_STATIONS: FlowStationName[] = ["flowstation", "miurastation"];
+  const isFlowFamily = (s: StationName): s is FlowStationName => (FLOW_STATIONS as StationName[]).includes(s);
   function flowFamily(): FlowStationName {
     const s = readActiveStation();
-    if (s !== "bluestation") return s;
+    if (isFlowFamily(s)) return s;
     return fs.existsSync(STATION_CONFIG_PATH.miurastation) ? "miurastation" : "flowstation";
   }
   // The flow-family station that is running (the selected one first), or null.
@@ -1329,7 +1341,16 @@ cargo build --release
   }
   const isFlowService = (svc: string) => svc === STATION_SERVICE.flowstation || svc === STATION_SERVICE.miurastation;
   const stationInstalled = (n: StationName) => n === "flowstation" ? flowDirInstalled(L)
-    : n === "miurastation" ? miuraInstalled(L) : fs.existsSync(STATION_DIR[n]);
+    : n === "miurastation" ? miuraInstalled(L) : n === "dmr" ? dmrInstalled() : fs.existsSync(STATION_DIR[n]);
+
+  // The DMR target as the selector sees it: "active" only with mmdvm-multi and dmrtc up (dmrStation.dmrHealth);
+  // a target active with one of them down is degraded and `missing` names it.
+  type StationState = { exists: boolean; active: boolean; enabled: boolean; degraded?: boolean; missing?: string[] };
+  function stationState(n: StationName): StationState {
+    const st = serviceState(STATION_SERVICE[n]);
+    if (n !== "dmr") return st;
+    return { ...st, ...dmrHealth(st.active, unitActive) };
+  }
 
   function serviceState(name: string): { exists: boolean; active: boolean; enabled: boolean } {
     let exists = false, active = false, enabled = false;
@@ -1355,8 +1376,8 @@ cargo build --release
   }
 
   app.get("/api/station/active", (_req, res) => {
-    const states = {} as Record<StationName, ReturnType<typeof serviceState>>;
-    for (const n of STATION_NAMES) states[n] = serviceState(STATION_SERVICE[n]);
+    const states = {} as Record<StationName, StationState>;
+    for (const n of STATION_NAMES) states[n] = stationState(n);
     const persisted = readActiveStation();
     // The "real" active station is the one whose service is active (overrides persisted)
     const running = STATION_NAMES.filter((n) => states[n].active);
@@ -1366,9 +1387,231 @@ cargo build --release
       services[n] = { ...states[n], installed: stationInstalled(n), dir: STATION_DIR[n], configPath: STATION_CONFIG_PATH[n], service: STATION_SERVICE[n], product: STATION_PRODUCT[n] };
     }
     // Unit of the flow-family station the app restarts and follows in its log: the one in use, else the one
-    // running, else the one the :8080 features talk to.
-    const flowService = STATION_SERVICE[detected !== "bluestation" ? detected : activeFlowStation() ?? flowFamily()];
-    res.json({ station: detected, persisted, services, flowService });
+    // running, else the one the :8080 features talk to. Never the DMR target: with the DMR in use it is the
+    // flow-family station persisted or running, else MiuraStation.
+    const flowService = STATION_SERVICE[isFlowFamily(detected) ? detected : activeFlowStation() ?? flowFamily()];
+    const dmr = { degraded: !!states.dmr.degraded, missing: states.dmr.missing ?? [] };
+    res.json({ station: detected, persisted, services, flowService, dmr });
+  });
+
+  // ─── DMR Tier III: the dmr-tier3 package of ea5gvk/MiuraStation-dist (dmrStation.ts) ──
+  // The highest dmr-tier3-vX.Y.Z release (pre-releases count, drafts do not), or null when none is published.
+  async function fetchDmrRelease(): Promise<DmrRelease | null> {
+    const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
+    const url = `https://api.github.com/repos/${DIST_REPO}/releases?per_page=30`;
+    const raw = await execOut(`${LOW_PRIO} curl -sf --max-time 10 -H "Accept: application/vnd.github+json" -H "User-Agent: tetra-live-monitor" ${ghToken} "${url}"`, 15000);
+    const json = JSON.parse(raw);
+    if (!Array.isArray(json)) throw new Error(`${DIST_REPO}: respuesta inesperada de la API de GitHub`);
+    return parseDmrReleases(json);
+  }
+  // The release of `tag` among the published ones (the asset names come from the tag: DMR_TAG_RE checked it).
+  async function fetchDmrReleaseTag(tag: string): Promise<DmrRelease | null> {
+    const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
+    const url = `https://api.github.com/repos/${DIST_REPO}/releases/tags/${tag}`;
+    const raw = await execOut(`${LOW_PRIO} curl -sf --max-time 10 -H "Accept: application/vnd.github+json" -H "User-Agent: tetra-live-monitor" ${ghToken} "${url}"`, 15000);
+    return parseDmrReleases([JSON.parse(raw)]);
+  }
+
+  app.get("/api/dmr/check", async (_req, res) => {
+    const state = dmrState();
+    const base = {
+      product: DMR.name, pkg: DMR.pkg, service: DMR.target, dir: DMR.dir, configPath: DMR.confPath, repo: DIST_REPO,
+      demo: process.platform !== "linux", installed: state.installed, version: state.version,
+      state: { exists: state.exists, active: state.active, enabled: state.enabled, degraded: state.degraded, missing: state.missing },
+      configExists: fs.existsSync(DMR.confPath),
+    };
+    let rel: DmrRelease | null;
+    try { rel = await fetchDmrRelease(); } catch (err) {
+      return res.json({ ...base, release: null, noReleases: false, upToDate: false, apiError: String(err).substring(0, 160) });
+    }
+    res.json({
+      ...base, release: rel, noReleases: rel === null,
+      upToDate: !!state.version && !!rel && compareVersions(state.version, rel.version) >= 0,
+    });
+  });
+
+  // Instalar / Actualizar the dmr-tier3 package (dmrStation.dmrPackageScript): the release (the latest, or the
+  // version asked for), the script; nothing is enabled, started or regenerated here (the selector and the config
+  // form do that; the postinst handles a running stack on an upgrade).
+  async function runDmrPackage(res: any, unlock: () => void, mode: "install" | "update", tag?: string) {
+    streamHeaders(res);
+    const write = (t: string) => res.write(t);
+    let rel: DmrRelease | null;
+    try { rel = tag ? await fetchDmrReleaseTag(tag) : await fetchDmrRelease(); } catch (e: any) {
+      unlock();
+      write(`=== No se ha podido consultar ${tag ?? "las versiones"} de ${DIST_REPO}: ${String(e?.message || e).substring(0, 200)} ===\nNo se ha tocado nada.\n\n[Exit: 1]\n`);
+      res.end();
+      return;
+    }
+    if (!rel) {
+      unlock();
+      write(tag
+        ? `=== ${DIST_REPO} no tiene publicada la versión ${tag} de ${DMR.name} ===\nNo se ha tocado nada.\n\n[Exit: 1]\n`
+        : `=== ${DIST_REPO} no tiene ninguna versión publicada de ${DMR.name} (sin versiones publicadas) ===\nNo se ha tocado nada.\n\n[Exit: 1]\n`);
+      res.end();
+      return;
+    }
+    const cur = dmrPkgVersion();
+    if (mode === "update" && cur && (tag ? cur === rel.version : compareVersions(cur, rel.version) >= 0)) {
+      unlock();
+      write(`${DMR.name} ${cur} instalada; ${tag ? "es la versión pedida" : "la última publicada es"} ${rel.tag}: nada que hacer.\n\n[Exit: 0]\n`);
+      res.end();
+      return;
+    }
+    const child = spawn("bash", ["-c", dmrPackageScript(L, { mode, tag: rel.tag, version: rel.version, allowDowngrade: !!cur && compareVersions(rel.version, cur) < 0 })], { cwd: L.tmp });
+    child.stdout.on("data", (d: Buffer) => write(d.toString()));
+    child.stderr.on("data", (d: Buffer) => write(d.toString()));
+    child.on("close", (code: number) => {
+      unlock();
+      if (code === 0 && mode === "install") write(`\nSiguiente paso: configura la estación (formulario DMR) y actívala con el selector de estación.\n`);
+      write(`\n[Exit: ${code}]\n`);
+      res.end();
+    });
+    child.on("error", (err: Error) => { unlock(); write(`\n[Error: ${err.message}]\n`); res.end(); });
+  }
+
+  for (const [route, mode] of [["/api/dmr/install", "install"], ["/api/dmr/apply", "update"]] as const) {
+    app.post(route, (req, res) => {
+      const { password } = req.body || {};
+      if (!password || password !== getSystemPassword()) {
+        return res.status(401).json({ message: "Contraseña incorrecta" });
+      }
+      // Optional version (checked: only dmr-tier3-vX.Y.Z[-pre] reaches the script); else the highest published.
+      const tag = dmrTagFrom(req.body?.version);
+      if (tag === null) return res.status(400).json({ message: "Versión no válida: usa X.Y.Z (p. ej. 0.2.0)" });
+      if (mode === "update" && !dmrInstalled()) return res.status(400).json({ message: "dmr_not_installed" });
+      const unlock = stationOpLock(res);
+      if (!unlock) return;
+      return runDmrPackage(res, unlock, mode, tag);
+    });
+  }
+
+  // gen-config.py: `args` after the script; stdout carries the channel plan, stderr the errors (genConfigErrors).
+  function runGenConfig(args: string[], timeout = 60000): Promise<{ code: number | null; stdout: string; stderr: string }> {
+    return new Promise((resolve) => {
+      let stdout = "", stderr = "";
+      const child = spawn("sudo", ["python3", DMR.genConfig, ...args], { stdio: ["ignore", "pipe", "pipe"] });
+      const timer = setTimeout(() => { try { child.kill(); } catch { /* gone */ } }, timeout);
+      child.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
+      child.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
+      child.on("error", (err) => { clearTimeout(timer); resolve({ code: null, stdout, stderr: `${stderr}${err.message}` }); });
+      child.on("close", (code) => { clearTimeout(timer); resolve({ code, stdout, stderr }); });
+    });
+  }
+  // Regenerates the nine files of the stack from the conf: with the stack running (or half running) it is stopped
+  // first, since gen-config refuses with dmrtc active (it rewrites its cfg on exit), and started again when
+  // gen-config succeeded. With the stack stopped: gen-config only.
+  async function dmrRegenerate(log: string[]): Promise<{ ok: boolean; errors: string[] }> {
+    const wasRunning = dmrRunning();
+    if (wasRunning) {
+      log.push(`$ sudo systemctl stop ${DMR.target}`);
+      try { await execOut(`sudo systemctl stop ${DMR.target} 2>&1`, 60000); }
+      catch (e: any) { return { ok: false, errors: [`no se ha podido parar ${DMR.target}: ${String(e?.message || e).substring(0, 200)}`] }; }
+    }
+    log.push(`$ sudo python3 ${DMR.genConfig}`);
+    const r = await runGenConfig([]);
+    for (const l of `${r.stdout}${r.stderr}`.split("\n")) if (l.trim()) log.push(l);
+    const errors = genConfigErrors(r.code, r.stdout, r.stderr);
+    if (wasRunning) {
+      if (errors.length) {
+        log.push(`gen-config.py ha fallado: ${DMR.target} se queda parada (configuración anterior en los .ini).`);
+      } else {
+        log.push(`$ sudo systemctl start --no-block ${DMR.target}`);
+        try { await execOut(`sudo systemctl start --no-block ${DMR.target} 2>&1`, 30000); }
+        catch (e: any) { errors.push(`no se ha podido arrancar ${DMR.target}: ${String(e?.message || e).substring(0, 200)}`); }
+      }
+    }
+    return { ok: errors.length === 0, errors };
+  }
+
+  // The configuration form of the DMR station: the keys of dmr-tier3.conf with the help of its example.
+  app.get("/api/dmr/config", (_req, res) => {
+    const installed = dmrInstalled();
+    const exists = fs.existsSync(DMR.confPath);
+    const current = exists ? parseDmrConf((() => { try { return fs.readFileSync(DMR.confPath, "utf-8"); } catch { return ""; } })()) : {};
+    const help = dmrConfHelp();
+    const template = help.length ? help : Object.keys(current).map((key) => ({ key, default: "", help: "", section: "" }));
+    const keys = template.map((k) => {
+      const secret = (DMR_SECRET_KEYS as readonly string[]).includes(k.key);
+      const value = k.key in current ? current[k.key] : k.default;
+      return { key: k.key, value: secret ? "" : value, help: k.help, section: k.section, default: k.default, secret, ...(secret ? { set: value !== "" } : {}) };
+    });
+    const st = dmrState();
+    res.json({ exists, installed, active: st.active, degraded: st.degraded, missing: st.missing, path: DMR.confPath, examplePath: DMR.examplePath, keys });
+  });
+
+  // Saves the values (validated by gen-config.py --check on a copy: an invalid conf never reaches the station) and
+  // regenerates the stack's files; the stack is stopped and started again for that when it is running.
+  app.post("/api/dmr/config", async (req, res) => {
+    const { password, values, restart } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ ok: false, errors: ["Contraseña incorrecta"], log: [] });
+    }
+    if (!values || typeof values !== "object" || Array.isArray(values)) {
+      return res.status(400).json({ ok: false, errors: ["Valores no proporcionados"], log: [] });
+    }
+    if (!dmrInstalled() || !fs.existsSync(DMR.genConfig)) {
+      return res.status(400).json({ ok: false, errors: [`${DMR.name} no está instalada (falta ${DMR.genConfig})`], log: [] });
+    }
+    const log: string[] = [];
+    let text = "";
+    try { text = fs.readFileSync(DMR.confPath, "utf-8"); } catch {
+      // the postinst creates it from the example; without it, start from the example
+      try { text = fs.readFileSync(DMR.examplePath, "utf-8"); log.push(`${DMR.confPath} no existía: se crea a partir de ${DMR.examplePath}`); }
+      catch { return res.status(400).json({ ok: false, errors: [`no existe ${DMR.confPath} ni ${DMR.examplePath}`], log }); }
+    }
+    const help = dmrConfHelp();
+    const known = help.length ? help.map((k) => k.key) : Object.keys(parseDmrConf(text));
+    let content: string;
+    try { content = updateDmrConf(text, values, known); }
+    catch (e: any) { return res.status(400).json({ ok: false, errors: [String(e?.message || e)], log }); }
+    // gen-config.py --check on a private copy (it holds NET_PASSWORD): the errors come back as it prints them.
+    let tmpDir = "";
+    try {
+      tmpDir = fs.mkdtempSync(path.join(L.tmp, "dmr-conf-check."));
+      const tmp = path.join(tmpDir, "dmr-tier3.conf");
+      fs.writeFileSync(tmp, content, { encoding: "utf-8", mode: 0o600 });
+      log.push(`$ python3 ${DMR.genConfig} --check (copia temporal)`);
+      const r = await runGenConfig(["--check", tmp]);
+      const errors = genConfigErrors(r.code, r.stdout, r.stderr);
+      if (errors.length) return res.json({ ok: false, errors, log });
+      for (const l of r.stdout.split("\n")) if (l.trim()) log.push(l);
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, errors: [`no se ha podido validar la configuración: ${String(e?.message || e)}`], log });
+    } finally {
+      if (tmpDir) try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* best effort */ }
+    }
+    try {
+      const backup = saveDmrConf(DMR.confPath, content);
+      log.push(backup ? `${DMR.confPath} escrito (copia en ${path.basename(backup)})` : `${DMR.confPath} escrito`);
+    } catch (e: any) {
+      return res.status(500).json({ ok: false, errors: [`no se ha podido escribir ${DMR.confPath}: ${String(e?.message || e)}`], log });
+    }
+    // Stack stopped: gen-config only. Stack running: stop -> gen-config -> start, unless restart === false was asked
+    // for (then the conf is saved and applied later: /api/dmr/regenerate, or a save with restart).
+    if (restart === false && dmrRunning()) {
+      log.push(`${DMR.target} está en marcha y no se ha pedido reiniciarla: los cambios quedan guardados y se aplicarán al regenerar (Regenerar) o al guardar con reinicio.`);
+      return res.json({ ok: true, errors: [], log, applied: false });
+    }
+    const r = await dmrRegenerate(log);
+    res.json({ ok: r.ok, errors: r.errors, log, applied: r.ok });
+  });
+
+  // The conf was edited by hand: regenerate the stack's files (stop -> gen-config -> start when it is running).
+  app.post("/api/dmr/regenerate", async (req, res) => {
+    const { password } = req.body || {};
+    if (!password || password !== getSystemPassword()) {
+      return res.status(401).json({ ok: false, errors: ["Contraseña incorrecta"], log: [] });
+    }
+    if (!dmrInstalled() || !fs.existsSync(DMR.genConfig)) {
+      return res.status(400).json({ ok: false, errors: [`${DMR.name} no está instalada (falta ${DMR.genConfig})`], log: [] });
+    }
+    if (!fs.existsSync(DMR.confPath)) {
+      return res.status(400).json({ ok: false, errors: [`no existe ${DMR.confPath}`], log: [] });
+    }
+    const log: string[] = [];
+    const r = await dmrRegenerate(log);
+    res.json({ ok: r.ok, errors: r.errors, log });
   });
 
   // ─── TETRA BTS Details ──────────────────────────────────────────────────────
@@ -1426,10 +1669,12 @@ cargo build --release
   }
   app.get("/api/btsinfo", async (_req, res) => {
     try {
-      const station = readActiveStation();
+      // The DMR has no config.toml: with it selected, the TETRA card shows the flow-family station's.
+      const selected = readActiveStation();
+      const station: StationName = selected === "dmr" ? flowFamily() : selected;
       let cfgPath = STATION_CONFIG_PATH[station];
       if (!fs.existsSync(cfgPath)) {
-        const other = STATION_NAMES.find((n) => n !== station && fs.existsSync(STATION_CONFIG_PATH[n]));
+        const other = TOML_STATIONS.find((n) => n !== station && fs.existsSync(STATION_CONFIG_PATH[n]));
         if (other) cfgPath = STATION_CONFIG_PATH[other];
       }
       if (!fs.existsSync(cfgPath)) return res.json({});
@@ -1981,7 +2226,7 @@ cargo build --release
     }
   });
 
-  app.post("/api/station/switch", (req, res) => {
+  app.post("/api/station/switch", async (req, res) => {
     const { password, station } = req.body || {};
     if (!password || password !== getSystemPassword()) {
       return res.status(401).json({ message: "Contraseña incorrecta" });
@@ -1999,7 +2244,7 @@ cargo build --release
       return res.status(400).json({
         ok: false,
         message: target !== "bluestation"
-          ? `${STATION_PRODUCT[target]} aún no está instalada. Pulsa 'Instalar' en el actualizador primero.`
+          ? `${target === "dmr" ? DMR.name : STATION_PRODUCT[target]} aún no está instalada. Pulsa 'Instalar' en el actualizador primero.`
           : `Servicio ${targetService} no encontrado.`,
       });
     }
@@ -2016,22 +2261,60 @@ cargo build --release
       }
     }
 
-    // Order: enable+start target FIRST, then stop+disable the other.
-    // If target fails to start, return error WITHOUT having stopped the other.
-    const enabled = run(`sudo systemctl enable ${targetService}`);
-    // --no-block solo con el watchdog (Type=notify, también en la unidad del paquete de MiuraStation): el start esperaría
-    // a READY, que no llega mientras la otra estación retiene la SDR. Sin él (tmo siempre) el start bloqueante sigue
-    // detectando un arranque fallido.
-    const notify = fs.existsSync(`${L.systemd}/${targetService}.d/10-watchdog.conf`) || (target === "miurastation" && miuraPackaged(L));
-    const noBlock = notify ? " --no-block" : "";
-    const started = run(`sudo systemctl start${noBlock} ${targetService}`);
+    if (target === "dmr") {
+      // The DMR stack: enable + start --no-block of the target, then up to 60 s for mmdvm-multi and dmrtc to be
+      // active (stopping MiuraStation, which the target's Conflicts= does, takes a few seconds). Only MiuraStation
+      // carries that Conflicts=: another TETRA station running would keep the SDR and MMDVM-Multi would fail on it,
+      // so a running station is stopped first and started again when the DMR does not come up. On failure the
+      // target is disabled again: MIURA and the DMR must never both be enabled.
+      const prev = STATION_NAMES.find((n) => n !== "dmr" && serviceState(STATION_SERVICE[n]).active) ?? null;
+      if (prev) {
+        try { fs.rmSync(`${L.tmp}/${STATION_SERVICE[prev]}.was-active`, { force: true }); } catch { /* none */ }
+        run(`sudo systemctl stop ${STATION_SERVICE[prev]}`);
+      }
+      run(`sudo systemctl enable ${targetService}`);
+      const started = run(`sudo systemctl start --no-block ${targetService}`);
+      let up = false, reason = "";
+      if (started) {
+        const deadline = Date.now() + 60000;
+        while (Date.now() < deadline) {
+          await new Promise((r) => setTimeout(r, 1000));
+          if (DMR_CORE_UNITS.every(unitActive)) { up = true; break; }
+          const ts = unitState(targetService);
+          if (ts === "failed" || (ts === "inactive" && Date.now() > deadline - 40000)) { reason = `${targetService} ha quedado en ${ts}`; break; }
+        }
+        if (!up && !reason) reason = `${DMR_CORE_UNITS.filter((u) => !unitActive(u)).join(" y ")} sin arrancar tras 60 s`;
+        log.push(up ? `${DMR_CORE_UNITS.join(" y ")} activos` : `[fail] ${reason}`);
+      }
+      if (!up) {
+        run(`sudo systemctl disable --now ${targetService}`);
+        if (prev) run(`sudo systemctl start${prev === "miurastation" ? " --no-block" : ""} ${STATION_SERVICE[prev]}`);
+        let journal = "";
+        try { journal = execSync(`${dmrJournalRecent(40)} 2>&1`, { timeout: 10000 }).toString().trim(); } catch (e: any) { journal = String(e?.stdout || e?.message || ""); }
+        return res.status(500).json({
+          ok: false,
+          message: `No se pudo iniciar ${DMR.name}: ${reason || `no se pudo arrancar ${targetService}`}${prev ? ` (${STATION_SERVICE[prev]} arrancada de nuevo)` : ""}`,
+          log: `${log.join("\n\n")}\n\n$ ${dmrJournalRecent(40)}\n${journal}`,
+        });
+      }
+    } else {
+      // Order: enable+start target FIRST, then stop+disable the other.
+      // If target fails to start, return error WITHOUT having stopped the other.
+      run(`sudo systemctl enable ${targetService}`);
+      // --no-block solo con el watchdog (Type=notify, también en la unidad del paquete de MiuraStation): el start esperaría
+      // a READY, que no llega mientras la otra estación retiene la SDR. Sin él (tmo siempre) el start bloqueante sigue
+      // detectando un arranque fallido.
+      const notify = fs.existsSync(`${L.systemd}/${targetService}.d/10-watchdog.conf`) || (target === "miurastation" && miuraPackaged(L));
+      const noBlock = notify ? " --no-block" : "";
+      const started = run(`sudo systemctl start${noBlock} ${targetService}`);
 
-    if (!started) {
-      return res.status(500).json({
-        ok: false,
-        message: `No se pudo iniciar ${targetService}`,
-        log: log.join("\n\n"),
-      });
+      if (!started) {
+        return res.status(500).json({
+          ok: false,
+          message: `No se pudo iniciar ${targetService}`,
+          log: log.join("\n\n"),
+        });
+      }
     }
 
     // Target is up — now stop+disable the others that are installed (ignore failures)
@@ -2040,6 +2323,7 @@ cargo build --release
       // an update or migration that stopped it must not start it again when it ends
       try { fs.rmSync(`${L.tmp}/${STATION_SERVICE[other]}.was-active`, { force: true }); } catch { /* none */ }
       if (!serviceState(STATION_SERVICE[other]).exists) continue;
+      if (other === "dmr") { run(`sudo systemctl disable --now ${STATION_SERVICE[other]}`); continue; }
       run(`sudo systemctl disable ${STATION_SERVICE[other]}`);
       run(`sudo systemctl stop ${STATION_SERVICE[other]}`);
     }
@@ -2182,6 +2466,8 @@ cargo build --release
     const configPath = typeof req.query.path === 'string' ? req.query.path : '';
     if (!configPath) return res.status(400).json({ message: 'Ruta no especificada' });
     if (!fs.existsSync(configPath)) return res.status(404).json({ message: `Archivo no encontrado: ${configPath}` });
+    // The DMR conf is KEY=VALUE, not TOML: its own form (/api/dmr/config) reads and writes it.
+    if (isDmrConfPath(configPath)) return res.status(400).json({ message: `${DMR.name}: su configuración no es TOML; usa el formulario DMR` });
 
     try {
       const content = fs.readFileSync(configPath, 'utf-8');
@@ -2999,6 +3285,10 @@ cargo build --release
     try {
       if (!fs.existsSync(configPath)) {
         return res.status(404).json({ message: `Archivo no encontrado: ${configPath}` });
+      }
+      // The DMR conf is KEY=VALUE, not TOML: never patched here (/api/dmr/config).
+      if (isDmrConfPath(configPath)) {
+        return res.status(400).json({ message: `${DMR.name}: su configuración no es TOML; usa el formulario DMR` });
       }
 
       let content = fs.readFileSync(configPath, "utf-8");
@@ -5071,14 +5361,17 @@ cargo build --release
       hasJournalctl = true;
     } catch {}
 
+    // One unit, the whole journal, or one of the closed presets of the DMR station: service=dmr (the journal of
+    // its units) and file=dmrtc (tail -F of dmrtc.log). Never a free path (dmrStation.logStreamCommand).
+    const stream = logStreamCommand({ service: req.query.service, file: req.query.file });
+    if (!stream) {
+      res.write(`data: ${JSON.stringify({ error: "Registro no admitido" })}\n\n`);
+      res.end();
+      return;
+    }
+
     if (hasJournalctl) {
-      const serviceName = typeof req.query.service === 'string' && /^[a-zA-Z0-9._@-]+$/.test(req.query.service)
-        ? req.query.service
-        : '';
-      const args = serviceName
-        ? ['-u', serviceName, '-f', '-n', '50', '--no-pager']
-        : ['-f', '-n', '50', '--no-pager'];
-      journalProcess = spawn('journalctl', args, {
+      journalProcess = spawn(stream.cmd, stream.args, {
         stdio: ['ignore', 'pipe', 'pipe'],
       });
 

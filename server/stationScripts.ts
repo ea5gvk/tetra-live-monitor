@@ -65,8 +65,25 @@ export const debAsset = (version: string, arch: string) => `miurastation_${versi
 // Free space for the download and the install of the package (a few tens of MB: nothing is built any more).
 export const PACKAGE_MIN_FREE_KB = 200 * 1024;
 
+// A .deb published in the releases of DIST_REPO: the miurastation package (the default of every fragment below) and
+// the dmr-tier3 package of the DMR Tier III station (dmrStation.ts).
+export interface DebPackage {
+  name: string;                                      // dpkg name
+  product: string;                                   // visible name
+  arches: readonly string[];                         // dpkg architectures it is published for
+  asset: (version: string, arch: string) => string;  // the .deb of a release
+  archNote: string;                                  // the systems it is published for (unsupported-arch error)
+  tmpPrefix: string;                                 // mktemp -d prefix in Layout.tmp
+  shownPath: (L: Layout) => string;                  // where it lands, for the final message
+}
+export const MIURA_DEB: DebPackage = {
+  name: "miurastation", product: "MiuraStation", arches: DEB_ARCHES, asset: debAsset,
+  archNote: "arm64 (Raspberry Pi 3/4/5 con sistema de 64 bits) y amd64 (PC con Debian 12/13 o Ubuntu 22.04/24.04)",
+  tmpPrefix: "miurastation-deb", shownPath: (L) => pkgBinPath(L),
+};
+
 // bash single-quoted literal
-const sq = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
+export const sq = (s: string) => `'${s.replace(/'/g, "'\\''")}'`;
 
 export function unitFile(p: Product, L: Layout): string {
   const dir = productDir(p, L);
@@ -132,13 +149,13 @@ fi`;
 }
 
 // One install / update / migration at a time, also against another process (the dashboard has its own lock).
-const lockCmd = (L: Layout) => `if command -v flock >/dev/null 2>&1 && exec 9>>"${L.tmp}/tlm-station-ops.lock"; then
+export const lockCmd = (L: Layout) => `if command -v flock >/dev/null 2>&1 && exec 9>>"${L.tmp}/tlm-station-ops.lock"; then
   flock -n 9 || { echo "=== Hay otra instalación o actualización de estación en curso: espera a que termine ==="; exit 1; }
 fi
 `;
 
 const cargoBuild = (dir: string) => `sudo bash -lc 'cd "${dir}" && [ -f /root/.cargo/env ] && . /root/.cargo/env; cargo build --release'`;
-const reserveCoresCmd = (script: string | null) => script
+export const reserveCoresCmd = (script: string | null) => script
   ? `if [ -f ${sq(script)} ]; then sudo bash ${sq(script)} || true; fi\n`
   : "";
 
@@ -263,29 +280,29 @@ echo "Para activar ${p.name} usa el selector de estación en la barra de navegac
 // ── MiuraStation: the package ──
 
 // The release of the package: TAG, VER and BASE for the fragments below (tag and version are checked by
-// RELEASE_TAG_RE before they get here); DEB comes from archCheck.
-const releaseVars = (tag: string, version: string) => `TAG=${sq(tag)}; VER=${sq(version)}
-BASE="https://github.com/${DIST_REPO}/releases/download/$TAG"
+// RELEASE_TAG_RE, or DMR_TAG_RE, before they get here); DEB comes from archCheck.
+export const releaseVars = (tag: string, version: string, repo = DIST_REPO) => `TAG=${sq(tag)}; VER=${sq(version)}
+BASE="https://github.com/${repo}/releases/download/$TAG"
 `;
 
-// The .deb of this system's dpkg architecture (DEB_ARCHES); any other one is refused. `fail` = the script's error
+// The .deb of this system's dpkg architecture (pkg.arches); any other one is refused. `fail` = the script's error
 // function (here and below).
-const archCheck = (version: string, fail: string) => `ARCH=$(dpkg --print-architecture 2>/dev/null || echo desconocida)
+export const archCheck = (version: string, fail: string, pkg: DebPackage = MIURA_DEB) => `ARCH=$(dpkg --print-architecture 2>/dev/null || echo desconocida)
 case "$ARCH" in
-${DEB_ARCHES.map((a) => `  ${a}) DEB=${sq(debAsset(version, a))} ;;`).join("\n")}
-  *) ${fail} "MiuraStation solo se publica para arm64 (Raspberry Pi 3/4/5 con sistema de 64 bits) y amd64 (PC con Debian 12/13 o Ubuntu 22.04/24.04), y este sistema es $ARCH" ;;
+${pkg.arches.map((a) => `  ${a}) DEB=${sq(pkg.asset(version, a))} ;;`).join("\n")}
+  *) ${fail} "${pkg.product} solo se publica para ${pkg.archNote}, y este sistema es $ARCH" ;;
 esac
 `;
 
 // Downloads the .deb and SHA256SUMS of the release into $WORK (a new directory, removed on exit) and checks the sum
 // of the .deb against its line ("hash  name" or "hash *name"). A small space check first.
-const fetchDeb = (L: Layout, fail: string) => `for d in "${L.tmp}" "${L.usr}"; do
-  FREE_KB=$(df -Pk "$d" 2>/dev/null | awk 'NR==2 {print $4}')
+export const fetchDeb = (L: Layout, fail: string, pkg: DebPackage = MIURA_DEB) => `for d in "${L.tmp}" "${L.usr}"; do
+  FREE_KB=$(df -Pk "$d" 2>/dev/null | awk 'NR==2 {print $4}' || true)
   if [ -n "$FREE_KB" ] && [ "$FREE_KB" -lt ${PACKAGE_MIN_FREE_KB} ] 2>/dev/null; then
     ${fail} "solo quedan $((FREE_KB / 1024)) MB libres en $d y el paquete necesita al menos ${PACKAGE_MIN_FREE_KB / 1024} MB: libera espacio"
   fi
 done
-WORK=$(mktemp -d "${L.tmp}/miurastation-deb.XXXXXX") || ${fail} "no se ha podido crear un directorio temporal en ${L.tmp}"
+WORK=$(mktemp -d "${L.tmp}/${pkg.tmpPrefix}.XXXXXX") || ${fail} "no se ha podido crear un directorio temporal en ${L.tmp}"
 trap 'rm -rf "$WORK"' EXIT
 chmod 755 "$WORK" # apt-get reads the .deb as the _apt user
 echo "=== Descargando $DEB y SHA256SUMS (${DIST_REPO}, $TAG) ==="
@@ -302,7 +319,7 @@ awk -v f="$DEB" '$2 == f || $2 == "*" f' "$WORK/SHA256SUMS" > "$WORK/deb.sha256"
 // apt-get update keeps them while the mirror has not changed) are deleted first: they are only a cache.
 // Never with MIURASTATION_OTA (that is the station's own update): on an upgrade the postinst restarts a
 // running station, so the scripts stop it first and the caller starts it after the config.toml merge.
-const aptInstall = (extra: string) => {
+export const aptInstall = (extra: string) => {
   const cmd = `sudo env -u MIURASTATION_OTA DEBIAN_FRONTEND=noninteractive apt-get install -y -o Dpkg::Options::=--force-confold${extra} "$WORK/$DEB"`;
   return `apt_install_deb() {
   echo "=== apt-get install $DEB ==="
@@ -319,10 +336,10 @@ const aptInstall = (extra: string) => {
 };
 
 // The installed version (dpkg, "1.2.0-1" / "1.2.0~beta.1-1") must be the release's.
-const checkInstalled = (L: Layout, fail: string) => `INST=$(dpkg-query -W -f='\${Version}' miurastation 2>/dev/null)
+export const checkInstalled = (L: Layout, fail: string, pkg: DebPackage = MIURA_DEB) => `INST=$(dpkg-query -W -f='\${Version}' ${pkg.name} 2>/dev/null || true)
 INST_UP=$(printf '%s' "\${INST%-*}" | tr '~' '-')
-[ -n "$INST" ] && [ "$INST_UP" = "$VER" ] || ${fail} "tras apt-get, dpkg dice que miurastation está en \${INST:-ninguna versión} y se esperaba $VER"
-echo "=== miurastation $INST instalado (${pkgBinPath(L)}) ==="
+[ -n "$INST" ] && [ "$INST_UP" = "$VER" ] || ${fail} "tras apt-get, dpkg dice que ${pkg.name} está en \${INST:-ninguna versión} y se esperaba $VER"
+echo "=== ${pkg.name} $INST instalado (${pkg.shownPath(L)}) ==="
 `;
 
 // A unit of a source install in /etc/systemd/system (ExecStart .../target/release/...) hides the package's.
