@@ -40,7 +40,7 @@ export const DMR = {
 export const DMR_CORE_UNITS = ["mmdvm-multi.service", "dmrtc.service"] as const;
 // The units of the live log preset "dmr" (journalctl -u accepts globs).
 export const DMR_JOURNAL_UNITS = ["mmdvm-multi", "mmdvm-iq@*", "mmdvm-host@*", "dmrtc", "dmrgateway"] as const;
-export const DMR_SECRET_KEYS = ["NET_PASSWORD"] as const;
+export const DMR_SECRET_KEYS = ["NET_PASSWORD", "AUTH_KEYS"] as const;
 export const DMR_KEY_RE = /^[A-Z][A-Z0-9_]*$/;
 // A value of the conf is one line of printable text (gen-config.py checks each key's own rules); AUTH_KEYS, a list
 // of id:key pairs, is the longest one.
