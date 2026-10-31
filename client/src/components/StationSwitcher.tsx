@@ -35,6 +35,9 @@ const STATIONS: { name: StationName; label: string; long: string; Icon: typeof R
 ];
 
 const POLL_MS = 30 * 1000;
+// Other pages (the DMR dashboard when the stack is stopped) open the switch dialog through this window event,
+// with { detail: { station } }; nothing happens when that station is not installed or is already the active one.
+export const OPEN_STATION_SWITCHER_EVENT = "tlm:open-station-switcher";
 // The live log of the DMR station is the journal of its five units (/api/log-stream?service=dmr), not the target.
 const DMR_LOG_SERVICE = "dmr";
 // Switching to the DMR stack waits up to 60 s on the server for mmdvm-multi and dmrtc, and every systemctl of a
@@ -86,6 +89,17 @@ export function StationSwitcher() {
     setBusy(false);
     setOpen(true);
   }
+
+  useEffect(() => {
+    const onOpen = (e: Event) => {
+      const to = (e as CustomEvent<{ station?: StationName }>).detail?.station;
+      if (!to || !data?.services[to]?.installed || data.station === to) return;
+      openSwitch(to);
+    };
+    window.addEventListener(OPEN_STATION_SWITCHER_EVENT, onOpen);
+    return () => window.removeEventListener(OPEN_STATION_SWITCHER_EVENT, onOpen);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [data]);
 
   async function doSwitch() {
     if (!password) return;

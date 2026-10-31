@@ -12,6 +12,7 @@ import WifiManager from "@/pages/WifiManager";
 import FlowstationDash from "@/pages/FlowstationDash";
 import DgnaCenter from "@/pages/DgnaCenter";
 import DmrConfig from "@/pages/DmrConfig";
+import DmrDash from "@/pages/DmrDash";
 import NotFound from "@/pages/not-found";
 import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin, Gauge, Heart, Copy, Check, X, Tag, Hexagon, RadioTower } from "lucide-react";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
@@ -164,6 +165,25 @@ function DonateButton() {
   );
 }
 
+// The DMR dashboard link shows up once the dmr-tier3 package is installed (/api/station/active.services.dmr).
+function useDmrInstalled(): boolean {
+  const [installed, setInstalled] = useState(false);
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const r = await fetch("/api/station/active");
+        const j = await r.json();
+        if (alive) setInstalled(!!j?.services?.dmr?.installed);
+      } catch {}
+    };
+    check();
+    const id = setInterval(check, 60 * 1000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+  return installed;
+}
+
 const THEME_STORAGE_KEY = "tetra_dashboard_theme";
 type Theme = "dark" | "light" | "blue" | "military";
 const THEMES: Theme[] = ["dark", "light", "blue", "military"];
@@ -236,6 +256,7 @@ function LangSelector() {
 function NavBar() {
   const [location] = useLocation();
   const { t } = useI18n();
+  const dmrInstalled = useDmrInstalled();
 
   const navLinks = [
     { href: "/",           label: "MONITOR",       shortLabel: "MON",    icon: <Radio className="w-3.5 h-3.5 flex-shrink-0" />,    testId: "nav-link-monitor" },
@@ -246,7 +267,8 @@ function NavBar() {
     { href: "/wifi",       label: t("wifi_manager"),shortLabel: "WIFI",   icon: <Wifi className="w-3.5 h-3.5 flex-shrink-0" />,    testId: "nav-link-wifi" },
     { href: "/flow-dash",  label: t("flow_dash"),   shortLabel: "FLOW",   icon: <Gauge className="w-3.5 h-3.5 flex-shrink-0" />,   testId: "nav-link-flow-dash" },
     { href: "/dgna",       label: t("dgnac_title"), shortLabel: "DGNA",   icon: <Hexagon className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-dgna" },
-    { href: "/dmr-config", label: t("dmr_config"),  shortLabel: "DMR",    icon: <RadioTower className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-dmr-config" },
+    ...(dmrInstalled || location === "/dmr" ? [{ href: "/dmr", label: "DMR", shortLabel: "DMR", icon: <RadioTower className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-dmr" }] : []),
+    { href: "/dmr-config", label: t("dmr_config"),  shortLabel: "CFG DMR", icon: <RadioTower className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-dmr-config" },
   ];
 
   return (
@@ -340,6 +362,7 @@ function Router() {
           <Route path="/wifi" component={WifiManager} />
           <Route path="/flow-dash" component={FlowstationDash} />
           <Route path="/dgna" component={DgnaCenter} />
+          <Route path="/dmr" component={DmrDash} />
           <Route path="/dmr-config" component={DmrConfig} />
           <Route component={NotFound} />
         </Switch>
