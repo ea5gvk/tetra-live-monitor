@@ -31,6 +31,7 @@ export const RADIOID_TTL_MS = 24 * 3600 * 1000;
 export const RADIOID_TIMEOUT_MS = 4000;
 export const RADIOID_MIN_ID = 1000;      // below that: talkgroups and lab IDs, never a radioid.net user
 export const NAMES_QUERY_MAX = 200;
+export const NAMES_QUEUE_MAX = 500;     // IDs waiting for radioid.net at most; the rest wait for their next appearance
 
 export interface Upstream { host: string; port: number }
 
@@ -240,7 +241,10 @@ export async function fetchRadioidUser(id: number, timeoutMs = RADIOID_TIMEOUT_M
 
 /** {id: {callsign, name, city, country, ts}} on disk; an ID is asked to the fetcher once per TTL at most, found
  *  or not (ts with an empty callsign = a miss, not retried before the TTL), `concurrency` at a time, in the
- *  background: lookup() answers from memory at once and queues what is missing or stale. */
+ *  background: lookup() answers from memory at once and queues what is missing or stale. The queue holds
+ *  NAMES_QUEUE_MAX IDs at most (/api/dmr/names takes 200 per call without a password: a flood never piles up
+ *  queries nor memory) and the misses older than the TTL are dropped when the file is read, so it only grows
+ *  with the radios actually seen. */
 export class DmrNameCache {
   private entries = new Map<number, CacheEntry>();
   private queue: number[] = [];
@@ -265,6 +269,7 @@ export class DmrNameCache {
         const id = Number(k);
         if (Number.isInteger(id) && v && typeof v === "object" && typeof (v as any).ts === "number") {
           const e = v as CacheEntry;
+          if (!e.callsign && Date.now() - e.ts >= this.ttlMs) continue; // an expired miss: asked again when seen
           this.entries.set(id, { ts: e.ts, callsign: typeof e.callsign === "string" ? e.callsign : "", ...(e.name ? { name: e.name } : {}), ...(e.city ? { city: e.city } : {}), ...(e.country ? { country: e.country } : {}) });
         }
       }
@@ -311,7 +316,7 @@ export class DmrNameCache {
   }
   get pending(): number { return this.queue.length + this.running; }
   private enqueue(id: number) {
-    if (this.queued.has(id)) return;
+    if (this.queued.has(id) || this.queue.length >= NAMES_QUEUE_MAX) return;
     this.queued.add(id);
     this.queue.push(id);
     this.pump();

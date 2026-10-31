@@ -259,6 +259,9 @@ function ActionModal({ spec, onClose, sendCmd, history, nameOf, initialPassword,
   const [sentAt, setSentAt] = useState<string | null>(null);
   const [result, setResult] = useState<CmdResult | null>(null);
   const [timedOut, setTimedOut] = useState(false);
+  // the history entries that already existed when the command was sent: the reply is whatever of the right
+  // type shows up after them (the Pi's clock and the browser's may differ, so timestamps are not compared)
+  const seenAtSend = useRef<Set<string> | null>(null);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) { if (e.key === "Escape" && !busy) onClose(); }
@@ -266,11 +269,12 @@ function ActionModal({ spec, onClose, sendCmd, history, nameOf, initialPassword,
     return () => window.removeEventListener("keydown", onKey);
   }, [busy, onClose]);
 
-  // the reply event, when the command has one: the first of that type after the send, from that radio (or
-  // from an unidentified one: dmrtc 3a may not say which)
+  // the reply event, when the command has one: the first of that type that arrived after the send, from that
+  // radio (or from an unidentified one: dmrtc 3a may not say which)
   const reply = useMemo(() => {
-    if (!sentAt || !spec.reply) return undefined;
-    return [...history].reverse().find((h) => h.type === spec.reply && h.ts >= sentAt && !h.local && (spec.replyRadio === undefined || eventRadioId(h) === undefined || eventRadioId(h) === spec.replyRadio));
+    const seen = seenAtSend.current;
+    if (!sentAt || !spec.reply || !seen) return undefined;
+    return [...history].reverse().find((h) => h.type === spec.reply && !seen.has(h.key) && !h.local && (spec.replyRadio === undefined || eventRadioId(h) === undefined || eventRadioId(h) === spec.replyRadio));
   }, [history, sentAt, spec.reply, spec.replyRadio]);
 
   useEffect(() => {
@@ -325,6 +329,7 @@ function ActionModal({ spec, onClose, sendCmd, history, nameOf, initialPassword,
       return;
     }
     onPassword(password);
+    seenAtSend.current = new Set(history.map((h) => h.key));
     setResult(r);
     setSentAt(new Date().toISOString());
   }
@@ -789,7 +794,9 @@ export default function DmrDash() {
   const pwRef = useRef("");
 
   const live = conn === "live";
-  const showStack = (conn === "stopped" || conn === "unreachable") || (!state && conn !== "loading" && conn !== "reconnecting");
+  // the stack card only when the server said so: with the SSE already open and the first state still in flight
+  // the page shows the loading placeholder, never a false "stopped"
+  const showStack = conn === "stopped" || conn === "unreachable";
   const gw = state?.gateway;
   const gwLabel = !gw ? "" : !gw.enabled ? t("dmrd_gw_disabled") : gw.logged_in === true ? t("dmrd_gw_logged_in") : gw.logged_in === null ? t("dmrd_gw_unknown") : t("dmrd_gw_waiting");
   const gwCls = !gw || !gw.enabled ? "text-muted-foreground border-white/10" : gw.logged_in === true ? "text-emerald-400 border-emerald-400/40 bg-emerald-400/5" : "text-amber-400 border-amber-400/40 bg-amber-400/5";
@@ -804,13 +811,15 @@ export default function DmrDash() {
           ? { icon: <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />, text: t("dmrd_loading"), cls: "text-muted-foreground" }
           : { icon: <WifiOff className="w-4 h-4 text-red-400 animate-pulse" />, text: t("dmrd_reconnecting"), cls: "text-red-400" };
 
+  // the direction comes from the button pressed and goes as a fixed argument (a checkbox to tick would read
+  // backwards): the modal states it in its title and in its fixed-arguments line
   const toggleSlot = (ch: DmrChannel, slot: DmrSlot) => setAction({
     cmd: "setChannelEnabled",
-    title: fmt(t("dmrd_confirm_slot"), { slot: slot.slot, ch: ch.channel_id }),
+    title: `${slot.enabled ? t("dmrd_disable_slot") : t("dmrd_enable_slot")} · ${fmt(t("dmrd_confirm_slot"), { slot: slot.slot, ch: ch.channel_id })}`,
     hint: t("dmrd_slot_disable_hint"),
     danger: slot.enabled,
-    fields: [{ name: "enabled", label: slot.enabled ? t("dmrd_disable_slot") : t("dmrd_enable_slot"), kind: "bool", value: !slot.enabled }],
-    fixed: { channel_id: ch.channel_id, slot: slot.slot },
+    fields: [],
+    fixed: { channel_id: ch.channel_id, slot: slot.slot, enabled: !slot.enabled },
     reply: "channel",
   });
 

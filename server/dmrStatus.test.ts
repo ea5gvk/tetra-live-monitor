@@ -13,7 +13,7 @@ import express from "express";
 import type { DmrState } from "./dmrStation";
 import {
   DMR_COMMANDS, DMR_ID_MAX, DMRTC_CFG, DMRTC_DEFAULT_PORT, parseControlPort, dmrtcUpstream, intArg, validateDmrCmd,
-  parseRadioidUser, collectDmrIds, eventDmrIds, DmrNameCache, createDmrStatus, type DmrName,
+  parseRadioidUser, collectDmrIds, eventDmrIds, DmrNameCache, createDmrStatus, NAMES_QUEUE_MAX, type DmrName,
 } from "./dmrStatus";
 
 const UP: DmrState = { installed: true, exists: true, enabled: true, version: "0.3.0", active: true, degraded: false, missing: [] };
@@ -201,6 +201,33 @@ test("name cache: served from disk, misses queued in the background two at a tim
   assert.deepEqual(none.lookup([2147001]), {});
   await none.flush();
   none.save();
+  fs.rmSync(d, { recursive: true, force: true });
+});
+
+test("name cache: the queue is capped and expired misses are dropped from the file", async () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "tlm-dmrid-"));
+  const file = path.join(d, "dmrid_cache.json");
+  const stale = Date.now() - 25 * 3600 * 1000;
+  fs.writeFileSync(file, JSON.stringify({ "2147001": { callsign: "EA5GVK", ts: stale }, "2147002": { callsign: "", ts: stale }, "2147003": { callsign: "", ts: Date.now() } }));
+  let release: () => void = () => {};
+  const gate = new Promise<void>((r) => { release = r; });
+  const asked: number[] = [];
+  const cache = new DmrNameCache(file, async (id) => { asked.push(id); await gate; return null; }, { concurrency: 2 });
+  assert.equal(cache.get(2147001)?.callsign, "EA5GVK", "a stale hit is kept (served while it is refreshed)");
+  assert.equal(cache.lookup([2147003]) && cache.pending, 0, "a fresh miss is not asked again");
+  // a flood of unknown IDs (what /api/dmr/names could bring without a password): the queue stops at the cap
+  const flood = Array.from({ length: NAMES_QUEUE_MAX + 300 }, (_, i) => 3000000 + i);
+  cache.lookup(flood);
+  assert.equal(cache.pending, NAMES_QUEUE_MAX + 2, "the cap plus the two in flight");
+  cache.lookup([2147002]);
+  assert.equal(cache.pending, NAMES_QUEUE_MAX + 2, "the expired miss has to wait for room");
+  release();
+  await cache.flush();
+  assert.equal(asked.length, NAMES_QUEUE_MAX + 2);
+  cache.save();
+  const onDisk = JSON.parse(fs.readFileSync(file, "utf-8"));
+  assert.equal(onDisk["2147002"], undefined, "the expired miss was dropped at load");
+  assert.equal(onDisk["2147003"].callsign, "", "the fresh miss stays");
   fs.rmSync(d, { recursive: true, force: true });
 });
 
