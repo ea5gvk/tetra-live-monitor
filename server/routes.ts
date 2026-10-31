@@ -12,6 +12,7 @@ import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtr
 import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken, telegramLanguage, telegramLanguageLine } from "./configMerge";
 import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, migrationInfo, miuraInstalled, miuraPackaged, installScript, updateScript, migrationScript, packageScript, DIST_REPO, RELEASE_TAG_RE, pkgTemplatePath, pkgConfigBasePath, parseRelease, debUpstreamVersion, compareVersions, type MiuraRelease, type Product, type ProductId } from "./stationScripts";
 import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, DMR_SECRET_KEYS, type DmrRelease } from "./dmrStation";
+import { dmrStatusRoutes } from "./dmrStatus";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -1613,6 +1614,15 @@ cargo build --release
     const r = await dmrRegenerate(log);
     res.json({ ok: r.ok, errors: r.errors, log });
   });
+
+  // The DMR dashboard (dmrStatus.ts): the status server dmrtc runs on 127.0.0.1:control_port, relayed to the
+  // panel as /state + names, the SSE /events framed by "panel" events, a closed list of /cmd commands with the
+  // system password, and the callsign cache of radioid.net.
+  const dmrStatus = dmrStatusRoutes(getSystemPassword);
+  app.get("/api/dmr/state", dmrStatus.state);
+  app.get("/api/dmr/events", dmrStatus.events);
+  app.post("/api/dmr/cmd", dmrStatus.cmd);
+  app.get("/api/dmr/names", dmrStatus.names);
 
   // ─── TETRA BTS Details ──────────────────────────────────────────────────────
   // RF / cell identity pulled (read-only) from the active station's config.toml.
