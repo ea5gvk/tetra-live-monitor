@@ -3,8 +3,9 @@ import { UserX, X, Lock, AlertTriangle, CheckCircle2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
 interface ActiveResp {
-  station: "bluestation" | "flowstation" | "miurastation";
-  services: Partial<Record<"flowstation" | "miurastation", { active: boolean; installed: boolean }>>;
+  station: "bluestation" | "flowstation" | "miurastation" | "dmr";
+  // only the flow family takes kicks: with BlueStation or the DMR Tier III stack active the button stays off
+  services: Partial<Record<"flowstation" | "miurastation" | "dmr", { active: boolean; installed: boolean }>>;
 }
 
 const POLL_MS = 30 * 1000;

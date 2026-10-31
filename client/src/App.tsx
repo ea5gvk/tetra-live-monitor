@@ -11,12 +11,14 @@ import VpnManager from "@/pages/VpnManager";
 import WifiManager from "@/pages/WifiManager";
 import FlowstationDash from "@/pages/FlowstationDash";
 import DgnaCenter from "@/pages/DgnaCenter";
+import DmrConfig from "@/pages/DmrConfig";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin, Gauge, Heart, Copy, Check, X, Tag, Hexagon } from "lucide-react";
+import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin, Gauge, Heart, Copy, Check, X, Tag, Hexagon, RadioTower } from "lucide-react";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 import { UpdateChecker } from "@/components/UpdateChecker";
 import { BluestationUpdater } from "@/components/BluestationUpdater";
 import { FlowstationUpdater } from "@/components/FlowstationUpdater";
+import { DmrUpdater } from "@/components/DmrUpdater";
 import { StationSwitcher } from "@/components/StationSwitcher";
 import { SdsSender } from "@/components/SdsSender";
 import { KickSender } from "@/components/KickSender";
@@ -244,6 +246,7 @@ function NavBar() {
     { href: "/wifi",       label: t("wifi_manager"),shortLabel: "WIFI",   icon: <Wifi className="w-3.5 h-3.5 flex-shrink-0" />,    testId: "nav-link-wifi" },
     { href: "/flow-dash",  label: t("flow_dash"),   shortLabel: "FLOW",   icon: <Gauge className="w-3.5 h-3.5 flex-shrink-0" />,   testId: "nav-link-flow-dash" },
     { href: "/dgna",       label: t("dgnac_title"), shortLabel: "DGNA",   icon: <Hexagon className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-dgna" },
+    { href: "/dmr-config", label: t("dmr_config"),  shortLabel: "DMR",    icon: <RadioTower className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-dmr-config" },
   ];
 
   return (
@@ -278,6 +281,7 @@ function NavBar() {
           <StationSwitcher />
           <BluestationUpdater />
           <FlowstationUpdater />
+          <DmrUpdater />
           <SdsSender />
           <KickSender />
           <UpdateChecker />
@@ -306,6 +310,7 @@ function NavBar() {
         <StationSwitcher />
         <BluestationUpdater />
         <FlowstationUpdater />
+        <DmrUpdater />
         <SdsSender />
         <KickSender />
         <UpdateChecker />
@@ -335,6 +340,7 @@ function Router() {
           <Route path="/wifi" component={WifiManager} />
           <Route path="/flow-dash" component={FlowstationDash} />
           <Route path="/dgna" component={DgnaCenter} />
+          <Route path="/dmr-config" component={DmrConfig} />
           <Route component={NotFound} />
         </Switch>
       </div>

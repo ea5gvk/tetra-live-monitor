@@ -3,8 +3,9 @@ import { MessageSquare, X, Lock, AlertTriangle, CheckCircle2, Send } from "lucid
 import { useI18n } from "@/lib/i18n";
 
 interface ActiveResp {
-  station: "bluestation" | "flowstation" | "miurastation";
-  services: Partial<Record<"flowstation" | "miurastation", { active: boolean; installed: boolean }>>;
+  station: "bluestation" | "flowstation" | "miurastation" | "dmr";
+  // only the flow family takes SDS: with BlueStation or the DMR Tier III stack active the button stays off
+  services: Partial<Record<"flowstation" | "miurastation" | "dmr", { active: boolean; installed: boolean }>>;
 }
 
 const POLL_MS = 30 * 1000;

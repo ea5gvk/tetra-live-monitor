@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from "react";
-import { Radio, Waves, X, Lock, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { Radio, Waves, RadioTower, X, Lock, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { useI18n } from "@/lib/i18n";
 
-type StationName = "bluestation" | "flowstation" | "miurastation";
+type StationName = "bluestation" | "flowstation" | "miurastation" | "dmr";
 
 interface StationInfo {
   exists: boolean;
@@ -13,22 +13,40 @@ interface StationInfo {
   configPath: string;
   service: string;
   product?: string;
+  // dmr only: the target is up but mmdvm-multi.service / dmrtc.service (missing) are not
+  degraded?: boolean;
+  missing?: string[];
 }
 
 interface ActiveResp {
   station: StationName;
   persisted: StationName;
   services: Record<StationName, StationInfo | undefined>;
+  dmr?: { degraded: boolean; missing: string[] };
 }
 
-// MIURA = MiuraStation (EA5GVK), FLOW = razvan's FlowStation, BLUE = BlueStation (tmo).
+// MIURA = MiuraStation (EA5GVK), FLOW = razvan's FlowStation, BLUE = BlueStation (tmo),
+// DMR = the DMR Tier III stack (EA7KEN's MMDVM-Multi/dmrtc/DMRGateway on the SX1255) as one systemd target.
 const STATIONS: { name: StationName; label: string; long: string; Icon: typeof Radio; on: string; text: string; btn: string; switchKey: string }[] = [
   { name: "bluestation", label: "BLUE", long: "BLUESTATION", Icon: Radio, on: "bg-violet-500/20 text-violet-300", text: "text-violet-300", btn: "bg-violet-600 hover:bg-violet-500", switchKey: "station_switch_to_blue" },
   { name: "flowstation", label: "FLOW", long: "FLOWSTATION", Icon: Waves, on: "bg-emerald-500/20 text-emerald-300", text: "text-emerald-300", btn: "bg-emerald-600 hover:bg-emerald-500", switchKey: "station_switch_to_flow" },
   { name: "miurastation", label: "MIURA", long: "MIURASTATION", Icon: Waves, on: "bg-amber-500/20 text-amber-300", text: "text-amber-300", btn: "bg-amber-600 hover:bg-amber-500", switchKey: "station_switch_to_flow" },
+  { name: "dmr", label: "DMR", long: "DMR TIER III", Icon: RadioTower, on: "bg-cyan-500/20 text-cyan-300", text: "text-cyan-300", btn: "bg-cyan-600 hover:bg-cyan-500", switchKey: "station_switch_to_dmr" },
 ];
 
 const POLL_MS = 30 * 1000;
+// The live log of the DMR station is the journal of its five units (/api/log-stream?service=dmr), not the target.
+const DMR_LOG_SERVICE = "dmr";
+// Switching to the DMR stack waits up to 60 s on the server for mmdvm-multi and dmrtc: give the request room.
+const SWITCH_TIMEOUT_MS = { dmr: 120 * 1000, other: 60 * 1000 };
+
+function rememberServices(station: StationName, service: string) {
+  try {
+    const logSvc = station === "dmr" ? DMR_LOG_SERVICE : service;
+    if (localStorage.getItem("tetra_restart_service") !== service) localStorage.setItem("tetra_restart_service", service);
+    if (localStorage.getItem("tetra_log_service") !== logSvc) localStorage.setItem("tetra_log_service", logSvc);
+  } catch {}
+}
 
 export function StationSwitcher() {
   const { t } = useI18n();
@@ -47,17 +65,8 @@ export function StationSwitcher() {
       const j: ActiveResp = await r.json();
       setData(j);
       // Auto-update restart-service & log-service localStorage to match the running station
-      try {
-        const svc = j?.services?.[j.station]?.service;
-        if (svc) {
-          if (localStorage.getItem("tetra_restart_service") !== svc) {
-            localStorage.setItem("tetra_restart_service", svc);
-          }
-          if (localStorage.getItem("tetra_log_service") !== svc) {
-            localStorage.setItem("tetra_log_service", svc);
-          }
-        }
-      } catch {}
+      const svc = j?.services?.[j.station]?.service;
+      if (svc) rememberServices(j.station, svc);
     } catch {}
   }, []);
 
@@ -81,11 +90,14 @@ export function StationSwitcher() {
     if (!password) return;
     setBusy(true);
     setErr("");
+    const ctl = new AbortController();
+    const timer = setTimeout(() => ctl.abort(), target === "dmr" ? SWITCH_TIMEOUT_MS.dmr : SWITCH_TIMEOUT_MS.other);
     try {
       const r = await fetch("/api/station/switch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ password, station: target }),
+        signal: ctl.signal,
       });
       const j = await r.json();
       if (!r.ok || !j.ok) {
@@ -98,16 +110,13 @@ export function StationSwitcher() {
       setDone(true);
       setBusy(false);
       // Update localStorage for restart/log service immediately
-      try {
-        if (j.service) {
-          localStorage.setItem("tetra_restart_service", j.service);
-          localStorage.setItem("tetra_log_service", j.service);
-        }
-      } catch {}
+      if (j.service) rememberServices(target, j.service);
       setTimeout(fetchActive, 600);
     } catch {
       setErr(t("station_switch_error"));
       setBusy(false);
+    } finally {
+      clearTimeout(timer);
     }
   }
 
@@ -117,6 +126,13 @@ export function StationSwitcher() {
   // the dialog lists the units the switch will stop (the installed ones other than the target)
   const others = STATIONS.filter(s => s.name !== target && data.services[s.name]?.exists).map(s => data.services[s.name]!.service);
   const targetService = data.services[target]?.service ?? "";
+  const toDmr = target === "dmr";
+  // to the DMR: the station in use is stopped first (the SDR must be free), then the target is started
+  const running = toDmr ? STATIONS.find(s => s.name !== "dmr" && data.services[s.name]?.active) : undefined;
+  const runningService = running ? (data.services[running.name]?.service ?? "") : "";
+  const dmrInfo = data.services.dmr;
+  const dmrMissing = dmrInfo?.missing ?? data.dmr?.missing ?? [];
+  const dmrDegraded = !!(dmrInfo?.degraded ?? data.dmr?.degraded) && dmrMissing.length > 0;
 
   return (
     <>
@@ -129,6 +145,14 @@ export function StationSwitcher() {
           const info = data.services[st.name];
           const ok = !!info?.installed;
           const isActive = active === st.name;
+          const degraded = st.name === "dmr" && dmrDegraded;
+          const title = !ok
+            ? st.name === "bluestation" ? t("station_not_installed")
+              : st.name === "dmr" ? `${t("station_not_installed")}: ${st.long} — ${t("station_install_first")}`
+              : `${t("station_not_installed")}: ${info?.product ?? st.long}`
+            : degraded ? `${t("station_dmr_degraded")} ${dmrMissing.join(", ")}`
+            : st.name === "miurastation" ? t(st.switchKey).replace(/Flow[Ss]tation|FLOWSTATION/, "MiuraStation")
+            : t(st.switchKey);
           return (
             <span key={st.name} className="inline-flex items-center">
               {i > 0 && <div className="w-px h-4 bg-white/10" />}
@@ -142,12 +166,15 @@ export function StationSwitcher() {
                       ? "text-muted-foreground hover:text-foreground hover:bg-white/5"
                       : "text-muted-foreground/40 cursor-not-allowed"
                 }`}
-                title={!ok ? (st.name === "bluestation" ? t("station_not_installed") : `${t("station_not_installed")}: ${info?.product ?? st.long}`) : (st.name === "miurastation" ? t(st.switchKey).replace(/Flow[Ss]tation|FLOWSTATION/, "MiuraStation") : t(st.switchKey))}
+                title={title}
                 data-testid={`button-station-${st.name}`}
               >
                 <st.Icon className="w-3 h-3" />
                 {st.label}
                 {info?.active && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+                {!info?.active && degraded && (
+                  <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" title={`${t("station_dmr_degraded")} ${dmrMissing.join(", ")}`} data-testid="dot-station-dmr-degraded" />
+                )}
               </button>
             </span>
           );
@@ -168,15 +195,33 @@ export function StationSwitcher() {
             </div>
             <div className="p-4 space-y-3">
               <div className="text-xs text-muted-foreground">
-                {t("station_switch_confirm")} <strong className={meta.text}>
+                {t(toDmr ? "station_switch_confirm_dmr" : "station_switch_confirm")} <strong className={meta.text}>
                   {meta.long}
                 </strong>
               </div>
+              {toDmr && (
+                <div className="text-[10px] text-cyan-200/90 bg-cyan-500/10 border border-cyan-500/30 rounded px-2 py-1.5" data-testid="text-station-dmr-explain">
+                  {t("station_switch_dmr_explain")}
+                </div>
+              )}
               <div className="bg-black/40 border border-border rounded p-2 text-[10px] font-mono text-muted-foreground space-y-0.5">
-                <div className="text-green-400">$ sudo systemctl enable {targetService}</div>
-                <div className="text-green-400">$ sudo systemctl start {targetService}</div>
-                {others.map(svc => (
-                  <div key={svc} className="text-red-400">$ sudo systemctl disable {svc} && sudo systemctl stop {svc}</div>
+                {toDmr ? (
+                  <>
+                    {runningService && <div className="text-red-400">$ sudo systemctl stop {runningService}</div>}
+                    <div className="text-green-400">$ sudo systemctl enable {targetService}</div>
+                    <div className="text-green-400">$ sudo systemctl start --no-block {targetService}</div>
+                    <div className="text-amber-400"># mmdvm-multi.service + dmrtc.service (≤ 60 s)</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="text-green-400">$ sudo systemctl enable {targetService}</div>
+                    <div className="text-green-400">$ sudo systemctl start {targetService}</div>
+                  </>
+                )}
+                {others.filter(svc => svc !== runningService).map(svc => (
+                  <div key={svc} className="text-red-400">
+                    {svc.endsWith(".target") ? `$ sudo systemctl disable --now ${svc}` : `$ sudo systemctl disable ${svc} && sudo systemctl stop ${svc}`}
+                  </div>
                 ))}
               </div>
 
@@ -205,7 +250,8 @@ export function StationSwitcher() {
                       }`}
                       data-testid="button-station-confirm"
                     >
-                      {busy ? t("station_switching") : t("station_switch_btn")}
+                      {busy && <Loader2 className="w-3 h-3 animate-spin" />}
+                      {busy ? t(toDmr ? "station_switching_dmr" : "station_switching") : t("station_switch_btn")}
                     </button>
                   </div>
                 </div>

@@ -1,9 +1,13 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useI18n } from "@/lib/i18n";
-import { Trash2, Settings2 } from "lucide-react";
+import { Trash2, Settings2, RadioTower, FileText } from "lucide-react";
 
 const MAX_LINES = 5000;
 const SERVICE_STORAGE_KEY = "tetra_log_service";
+// Presets of the DMR Tier III station (the selector stores "dmr" when it is the active one): the journal of its
+// five units (/api/log-stream?service=dmr) and the dmrtc.log file (?file=dmrtc). Anything else is one unit.
+const DMR_JOURNAL = "dmr";
+const DMRTC_FILE = "file:dmrtc";
 
 function getStoredService(): string {
   try {
@@ -13,11 +17,17 @@ function getStoredService(): string {
   }
 }
 
+function logStreamUrl(sel: string): string {
+  if (sel === DMRTC_FILE) return "/api/log-stream?file=dmrtc";
+  return sel ? `/api/log-stream?service=${encodeURIComponent(sel)}` : "/api/log-stream";
+}
+
 export default function LogLive() {
   const { t } = useI18n();
   const [lines, setLines] = useState<string[]>([]);
   const [isDemo, setIsDemo] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [streamError, setStreamError] = useState("");
   const [service, setService] = useState(getStoredService);
   const [serviceInput, setServiceInput] = useState(getStoredService);
   const [showServiceInput, setShowServiceInput] = useState(false);
@@ -32,9 +42,9 @@ export default function LogLive() {
     setLines([]);
     setIsDemo(false);
     setConnected(false);
+    setStreamError("");
 
-    const url = svc ? `/api/log-stream?service=${encodeURIComponent(svc)}` : "/api/log-stream";
-    const es = new EventSource(url);
+    const es = new EventSource(logStreamUrl(svc));
     eventSourceRef.current = es;
 
     es.onopen = () => {
@@ -47,6 +57,12 @@ export default function LogLive() {
         if (data.demo) {
           setIsDemo(true);
           setConnected(true);
+          return;
+        }
+        if (data.error) {
+          // e.g. a file that is not on the server's list: the stream closes right after
+          setStreamError(String(data.error));
+          es.close();
           return;
         }
         if (data.line) {
@@ -77,18 +93,23 @@ export default function LogLive() {
     };
   }, [service, connect]);
 
-  const handleApplyService = () => {
-    const trimmed = serviceInput.trim();
+  const applyService = (sel: string) => {
+    const trimmed = sel.trim();
     try {
       localStorage.setItem(SERVICE_STORAGE_KEY, trimmed);
     } catch {}
+    setServiceInput(trimmed);
     setService(trimmed);
     setShowServiceInput(false);
   };
+  const handleApplyService = () => applyService(serviceInput);
 
   const handleClear = () => {
     setLines([]);
   };
+
+  const isFile = service === DMRTC_FILE;
+  const badge = service === DMR_JOURNAL ? t("log_live_preset_dmr") : isFile ? "dmrtc.log" : service;
 
   return (
     <div className="flex flex-col h-full bg-background" data-testid="log-live-page">
@@ -103,7 +124,7 @@ export default function LogLive() {
           </span>
           {service && (
             <span className="text-[10px] text-cyan-400 font-mono bg-cyan-400/10 px-1.5 py-0.5 rounded border border-cyan-400/20" data-testid="text-log-service-badge">
-              {service}
+              {badge}
             </span>
           )}
           <span className="text-[10px] text-muted-foreground font-mono" data-testid="text-log-line-count">
@@ -137,13 +158,13 @@ export default function LogLive() {
       </div>
 
       {showServiceInput && (
-        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/80" data-testid="service-input-bar">
+        <div className="flex items-center gap-2 px-3 py-2 border-b border-border bg-card/80 flex-wrap" data-testid="service-input-bar">
           <label className="text-[10px] text-muted-foreground font-mono whitespace-nowrap">
             journalctl -u
           </label>
           <input
             type="text"
-            value={serviceInput}
+            value={serviceInput === DMR_JOURNAL || serviceInput === DMRTC_FILE ? "" : serviceInput}
             onChange={(e) => setServiceInput(e.target.value)}
             onKeyDown={(e) => { if (e.key === "Enter") handleApplyService(); }}
             placeholder="tmo.service"
@@ -157,7 +178,34 @@ export default function LogLive() {
           >
             {t("log_live_apply")}
           </button>
-          <span className="text-[10px] text-muted-foreground/60 font-mono hidden sm:inline">
+          <span className="w-px h-4 bg-white/10 hidden sm:inline-block" />
+          <button
+            onClick={() => applyService(DMR_JOURNAL)}
+            title={t("log_live_preset_hint")}
+            className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border transition-colors ${
+              service === DMR_JOURNAL
+                ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10 hover:text-foreground"
+            }`}
+            data-testid="button-log-preset-dmr"
+          >
+            <RadioTower className="w-3 h-3" />
+            {t("log_live_preset_dmr")}
+          </button>
+          <button
+            onClick={() => applyService(DMRTC_FILE)}
+            title={t("log_live_preset_hint")}
+            className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded border font-mono transition-colors ${
+              isFile
+                ? "bg-cyan-500/20 text-cyan-300 border-cyan-500/40"
+                : "bg-white/5 text-muted-foreground border-white/10 hover:bg-white/10 hover:text-foreground"
+            }`}
+            data-testid="button-log-preset-dmrtc"
+          >
+            <FileText className="w-3 h-3" />
+            dmrtc.log
+          </button>
+          <span className="text-[10px] text-muted-foreground/60 font-mono hidden lg:inline">
             {t("log_live_service_hint")}
           </span>
         </div>
@@ -171,6 +219,12 @@ export default function LogLive() {
           <div className="flex items-center justify-center h-full">
             <p className="text-muted-foreground text-xs text-center max-w-md" data-testid="text-log-demo">
               {t("log_live_demo")}
+            </p>
+          </div>
+        ) : streamError ? (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-red-400 text-xs text-center max-w-md" data-testid="text-log-error">
+              {t("log_live_error")}: {streamError}
             </p>
           </div>
         ) : lines.length === 0 && connected ? (
