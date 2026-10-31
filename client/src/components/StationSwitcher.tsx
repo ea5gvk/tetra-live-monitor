@@ -37,8 +37,9 @@ const STATIONS: { name: StationName; label: string; long: string; Icon: typeof R
 const POLL_MS = 30 * 1000;
 // The live log of the DMR station is the journal of its five units (/api/log-stream?service=dmr), not the target.
 const DMR_LOG_SERVICE = "dmr";
-// Switching to the DMR stack waits up to 60 s on the server for mmdvm-multi and dmrtc: give the request room.
-const SWITCH_TIMEOUT_MS = { dmr: 120 * 1000, other: 60 * 1000 };
+// Switching to the DMR stack waits up to 60 s on the server for mmdvm-multi and dmrtc, and every systemctl of a
+// switch may take up to 15 s: give the request room (before there was no limit at all).
+const SWITCH_TIMEOUT_MS = 120 * 1000;
 
 function rememberServices(station: StationName, service: string) {
   try {
@@ -91,7 +92,7 @@ export function StationSwitcher() {
     setBusy(true);
     setErr("");
     const ctl = new AbortController();
-    const timer = setTimeout(() => ctl.abort(), target === "dmr" ? SWITCH_TIMEOUT_MS.dmr : SWITCH_TIMEOUT_MS.other);
+    const timer = setTimeout(() => ctl.abort(), SWITCH_TIMEOUT_MS);
     try {
       const r = await fetch("/api/station/switch", {
         method: "POST",
@@ -131,6 +132,8 @@ export function StationSwitcher() {
   const running = toDmr ? STATIONS.find(s => s.name !== "dmr" && data.services[s.name]?.active) : undefined;
   const runningService = running ? (data.services[running.name]?.service ?? "") : "";
   const dmrInfo = data.services.dmr;
+  // leaving the DMR for BLUE or FLOW (no Conflicts= with them): the server stops the stack first, MIURA's unit does it
+  const dmrStoppedFirst = !toDmr && target !== "miurastation" && (dmrInfo?.active || dmrInfo?.degraded) ? (dmrInfo?.service ?? "") : "";
   const dmrMissing = dmrInfo?.missing ?? data.dmr?.missing ?? [];
   const dmrDegraded = !!(dmrInfo?.degraded ?? data.dmr?.degraded) && dmrMissing.length > 0;
 
@@ -214,6 +217,7 @@ export function StationSwitcher() {
                   </>
                 ) : (
                   <>
+                    {dmrStoppedFirst && <div className="text-red-400">$ sudo systemctl stop {dmrStoppedFirst}</div>}
                     <div className="text-green-400">$ sudo systemctl enable {targetService}</div>
                     <div className="text-green-400">$ sudo systemctl start {targetService}</div>
                   </>

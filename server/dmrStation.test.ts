@@ -102,6 +102,22 @@ test("conf: values read; a write keeps comments and order, appends what is new, 
   assert.throws(() => updateDmrConf(conf, { callsign: "x" }, known), /clave desconocida: callsign/);
   assert.throws(() => updateDmrConf(conf, { "CALLSIGN=X\nDMR_ID": "1" }, known), /clave desconocida/);
   assert.throws(() => updateDmrConf(conf, { CALLSIGN: "X\nDMR_ID=1" }, known), /saltos de línea/);
+  assert.throws(() => updateDmrConf(conf, { CALLSIGN: "X\rDMR_ID=1" }, known), /saltos de línea/);
+  assert.throws(() => updateDmrConf(conf, { CALLSIGN: "a\tb" }, known), /caracteres de control/);
+  assert.throws(() => updateDmrConf(conf, { CALLSIGN: "a\x00b" }, known), /caracteres de control/);
+  assert.throws(() => updateDmrConf(conf, { CALLSIGN: "a\x1b[31mb" }, known), /caracteres de control/);
+  assert.throws(() => updateDmrConf(conf, { NET_ADDRESS: "x".repeat(4097) }, known), /4096 caracteres/);
+  assert.equal(updateDmrConf("A=1\n", { NET_ADDRESS: "x".repeat(4096) }, known), `A=1\nNET_ADDRESS=${"x".repeat(4096)}\n`);
+  assert.throws(() => updateDmrConf(conf, { CALLSIGN: { a: 1 } }, known), /valor no válido/);
+  assert.throws(() => updateDmrConf(conf, { CALLSIGN: ["EA5GVK"] }, known), /valor no válido/);
+  assert.equal(updateDmrConf("A=1\n", { DMR_ID: 2147001, TX_FREQUENCY: true }, known), "A=1\nDMR_ID=2147001\nTX_FREQUENCY=true\n", "numbers and booleans as text");
+  // shell metacharacters are data: the conf is only read by gen-config.py (never sourced by a shell), which checks
+  // each key by its own rules, so they are written verbatim, never escaped nor run
+  const nasty = "x; rm -rf / $(id) `id` 'a' \"b\" & | > /etc/passwd ${HOME} \\";
+  assert.equal(updateDmrConf("A=1\n", { CALLSIGN: nasty, NET_ADDRESS: " con espacios  dentro " }, known),
+    `A=1\nCALLSIGN=${nasty}\nNET_ADDRESS=con espacios  dentro\n`);
+  assert.equal(updateDmrConf("CALLSIGN=A\n", { CALLSIGN: "#no es comentario" }, known), "CALLSIGN=#no es comentario\n");
+  assert.equal(updateDmrConf("CALLSIGN=A\n", { CALLSIGN: "" }, known), "CALLSIGN=\n", "an empty value of a non-secret is written (gen-config decides)");
   // the comment "# NET_PASSWORD=..." of an example is not the value
   assert.equal(updateDmrConf("# CALLSIGN=EJEMPLO\nCALLSIGN=A\n", { CALLSIGN: "B" }, known), "# CALLSIGN=EJEMPLO\nCALLSIGN=B\n");
 

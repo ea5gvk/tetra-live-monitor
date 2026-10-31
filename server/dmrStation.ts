@@ -42,6 +42,9 @@ export const DMR_CORE_UNITS = ["mmdvm-multi.service", "dmrtc.service"] as const;
 export const DMR_JOURNAL_UNITS = ["mmdvm-multi", "mmdvm-iq@*", "mmdvm-host@*", "dmrtc", "dmrgateway"] as const;
 export const DMR_SECRET_KEYS = ["NET_PASSWORD"] as const;
 export const DMR_KEY_RE = /^[A-Z][A-Z0-9_]*$/;
+// A value of the conf is one line of printable text (gen-config.py checks each key's own rules); AUTH_KEYS, a list
+// of id:key pairs, is the longest one.
+export const DMR_VALUE_MAX = 4096;
 export const DMR_TAG_RE = /^dmr-tier3-v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$/;
 
 export const DMR_DEB: DebPackage = {
@@ -218,16 +221,21 @@ export function dmrConfHelp(examplePath = DMR.examplePath): DmrConfKey[] {
 }
 
 /** `text` with `values` applied: a key already there is rewritten in place (comments, order and everything else
- *  stay), a missing one is appended. A key not in `known` is refused, as is a value with a line break. A secret
- *  that is absent or empty keeps what the file has. Pure. */
+ *  stay), a missing one is appended. A key not in `known` is refused, as is a value that is not a scalar, has a
+ *  line break or another control character, or is longer than DMR_VALUE_MAX. Everything else is written verbatim:
+ *  the conf is only ever read by gen-config.py (never sourced by a shell), so quotes, $, backticks or ; are data.
+ *  A secret that is absent or empty keeps what the file has. Pure. */
 export function updateDmrConf(text: string, values: Record<string, unknown>, known: Iterable<string>): string {
   const ok = new Set(known);
   const want = new Map<string, string>();
   for (const [key, raw] of Object.entries(values)) {
     if (!DMR_KEY_RE.test(key) || !ok.has(key)) throw new Error(`clave desconocida: ${key}`);
     if (raw === undefined || raw === null) continue;
+    if (typeof raw === "object") throw new Error(`${key}: valor no válido`);
     const value = String(raw).trim();
     if (/[\r\n]/.test(value)) throw new Error(`${key}: el valor no puede tener saltos de línea`);
+    if (/[\x00-\x1f\x7f]/.test(value)) throw new Error(`${key}: el valor no puede tener caracteres de control`);
+    if (value.length > DMR_VALUE_MAX) throw new Error(`${key}: el valor no puede pasar de ${DMR_VALUE_MAX} caracteres`);
     if ((DMR_SECRET_KEYS as readonly string[]).includes(key) && value === "") continue;
     want.set(key, value);
   }

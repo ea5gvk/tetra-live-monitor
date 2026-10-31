@@ -1398,7 +1398,7 @@ cargo build --release
   // The highest dmr-tier3-vX.Y.Z release (pre-releases count, drafts do not), or null when none is published.
   async function fetchDmrRelease(): Promise<DmrRelease | null> {
     const ghToken = process.env.GITHUB_TOKEN ? `-H "Authorization: token ${process.env.GITHUB_TOKEN}"` : "";
-    const url = `https://api.github.com/repos/${DIST_REPO}/releases?per_page=30`;
+    const url = `https://api.github.com/repos/${DIST_REPO}/releases?per_page=100`;
     const raw = await execOut(`${LOW_PRIO} curl -sf --max-time 10 -H "Accept: application/vnd.github+json" -H "User-Agent: tetra-live-monitor" ${ghToken} "${url}"`, 15000);
     const json = JSON.parse(raw);
     if (!Array.isArray(json)) throw new Error(`${DIST_REPO}: respuesta inesperada de la API de GitHub`);
@@ -2226,6 +2226,9 @@ cargo build --release
     }
   });
 
+  // Switching to the DMR waits up to 60 s without blocking the event loop (below): a second switch in that window
+  // (another browser, the app) would interleave with it and could leave two stations enabled, so it is refused.
+  let dmrSwitching = false;
   app.post("/api/station/switch", async (req, res) => {
     const { password, station } = req.body || {};
     if (!password || password !== getSystemPassword()) {
@@ -2236,6 +2239,9 @@ cargo build --release
     }
     const target: StationName = station;
     const targetService = STATION_SERVICE[target];
+    if (dmrSwitching) {
+      return res.status(409).json({ ok: false, message: `Hay un cambio a ${DMR.name} en curso: espera a que termine.` });
+    }
 
     // Validate target service exists BEFORE touching the other one — prevents downtime
     // if target is missing/broken.
@@ -2262,42 +2268,55 @@ cargo build --release
     }
 
     if (target === "dmr") {
-      // The DMR stack: enable + start --no-block of the target, then up to 60 s for mmdvm-multi and dmrtc to be
-      // active (stopping MiuraStation, which the target's Conflicts= does, takes a few seconds). Only MiuraStation
-      // carries that Conflicts=: another TETRA station running would keep the SDR and MMDVM-Multi would fail on it,
-      // so a running station is stopped first and started again when the DMR does not come up. On failure the
-      // target is disabled again: MIURA and the DMR must never both be enabled.
-      const prev = STATION_NAMES.find((n) => n !== "dmr" && serviceState(STATION_SERVICE[n]).active) ?? null;
-      if (prev) {
-        try { fs.rmSync(`${L.tmp}/${STATION_SERVICE[prev]}.was-active`, { force: true }); } catch { /* none */ }
-        run(`sudo systemctl stop ${STATION_SERVICE[prev]}`);
-      }
-      run(`sudo systemctl enable ${targetService}`);
-      const started = run(`sudo systemctl start --no-block ${targetService}`);
-      let up = false, reason = "";
-      if (started) {
-        const deadline = Date.now() + 60000;
-        while (Date.now() < deadline) {
-          await new Promise((r) => setTimeout(r, 1000));
-          if (DMR_CORE_UNITS.every(unitActive)) { up = true; break; }
-          const ts = unitState(targetService);
-          if (ts === "failed" || (ts === "inactive" && Date.now() > deadline - 40000)) { reason = `${targetService} ha quedado en ${ts}`; break; }
+      dmrSwitching = true;
+      try {
+        // The DMR stack: enable + start --no-block of the target, then up to 60 s for mmdvm-multi and dmrtc to be
+        // active (stopping MiuraStation, which the target's Conflicts= does, takes a few seconds). Only MiuraStation
+        // carries that Conflicts=: another TETRA station running would keep the SDR and MMDVM-Multi would fail on it,
+        // so a running station is stopped first and started again when the DMR does not come up. On failure the
+        // target is disabled again: MIURA and the DMR must never both be enabled.
+        const prev = STATION_NAMES.find((n) => n !== "dmr" && serviceState(STATION_SERVICE[n]).active) ?? null;
+        if (prev) {
+          try { fs.rmSync(`${L.tmp}/${STATION_SERVICE[prev]}.was-active`, { force: true }); } catch { /* none */ }
+          run(`sudo systemctl stop ${STATION_SERVICE[prev]}`);
         }
-        if (!up && !reason) reason = `${DMR_CORE_UNITS.filter((u) => !unitActive(u)).join(" y ")} sin arrancar tras 60 s`;
-        log.push(up ? `${DMR_CORE_UNITS.join(" y ")} activos` : `[fail] ${reason}`);
-      }
-      if (!up) {
-        run(`sudo systemctl disable --now ${targetService}`);
-        if (prev) run(`sudo systemctl start${prev === "miurastation" ? " --no-block" : ""} ${STATION_SERVICE[prev]}`);
-        let journal = "";
-        try { journal = execSync(`${dmrJournalRecent(40)} 2>&1`, { timeout: 10000 }).toString().trim(); } catch (e: any) { journal = String(e?.stdout || e?.message || ""); }
-        return res.status(500).json({
-          ok: false,
-          message: `No se pudo iniciar ${DMR.name}: ${reason || `no se pudo arrancar ${targetService}`}${prev ? ` (${STATION_SERVICE[prev]} arrancada de nuevo)` : ""}`,
-          log: `${log.join("\n\n")}\n\n$ ${dmrJournalRecent(40)}\n${journal}`,
-        });
+        run(`sudo systemctl enable ${targetService}`);
+        const started = run(`sudo systemctl start --no-block ${targetService}`);
+        let up = false, reason = "";
+        if (started) {
+          const deadline = Date.now() + 60000;
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 1000));
+            if (DMR_CORE_UNITS.every(unitActive)) { up = true; break; }
+            const ts = unitState(targetService);
+            if (ts === "failed" || (ts === "inactive" && Date.now() > deadline - 40000)) { reason = `${targetService} ha quedado en ${ts}`; break; }
+          }
+          if (!up && !reason) reason = `${DMR_CORE_UNITS.filter((u) => !unitActive(u)).join(" y ")} sin arrancar tras 60 s`;
+          log.push(up ? `${DMR_CORE_UNITS.join(" y ")} activos` : `[fail] ${reason}`);
+        }
+        if (!up) {
+          run(`sudo systemctl disable --now ${targetService}`);
+          if (prev) run(`sudo systemctl start${prev === "miurastation" ? " --no-block" : ""} ${STATION_SERVICE[prev]}`);
+          let journal = "";
+          try { journal = execSync(`${dmrJournalRecent(40)} 2>&1`, { timeout: 10000 }).toString().trim(); } catch (e: any) { journal = String(e?.stdout || e?.message || ""); }
+          return res.status(500).json({
+            ok: false,
+            message: `No se pudo iniciar ${DMR.name}: ${reason || `no se pudo arrancar ${targetService}`}${prev ? ` (${STATION_SERVICE[prev]} arrancada de nuevo)` : ""}`,
+            log: `${log.join("\n\n")}\n\n$ ${dmrJournalRecent(40)}\n${journal}`,
+          });
+        }
+      } catch (e: any) {
+        // not expected (every command above catches its own failure): answer rather than leave the request hanging
+        return res.status(500).json({ ok: false, message: `Error al cambiar a ${DMR.name}: ${String(e?.message || e)}`, log: log.join("\n\n") });
+      } finally {
+        dmrSwitching = false;
       }
     } else {
+      // Leaving the DMR for BLUE or FLOW: neither carries Conflicts= with the stack (MiuraStation does) and its
+      // MMDVM-Multi holds the SDR, so the stack is stopped first and started again when the target does not come up.
+      // With the DMR not running, the three TETRA stations switch exactly as before.
+      const dmrWasUp = target !== "miurastation" && dmrRunning();
+      if (dmrWasUp) run(`sudo systemctl stop ${STATION_SERVICE.dmr}`);
       // Order: enable+start target FIRST, then stop+disable the other.
       // If target fails to start, return error WITHOUT having stopped the other.
       run(`sudo systemctl enable ${targetService}`);
@@ -2309,6 +2328,7 @@ cargo build --release
       const started = run(`sudo systemctl start${noBlock} ${targetService}`);
 
       if (!started) {
+        if (dmrWasUp) run(`sudo systemctl start --no-block ${STATION_SERVICE.dmr}`);
         return res.status(500).json({
           ok: false,
           message: `No se pudo iniciar ${targetService}`,
