@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { Radio, Waves, RadioTower, X, Lock, AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
+import { useLocation } from "wouter";
 import { useI18n } from "@/lib/i18n";
 
 type StationName = "bluestation" | "flowstation" | "miurastation" | "dmr";
@@ -54,6 +55,7 @@ function rememberServices(station: StationName, service: string) {
 
 export function StationSwitcher() {
   const { t } = useI18n();
+  const [location, setLocation] = useLocation();
   const [data, setData] = useState<ActiveResp | null>(null);
   const [open, setOpen] = useState(false);
   const [target, setTarget] = useState<StationName>("bluestation");
@@ -126,6 +128,8 @@ export function StationSwitcher() {
       setBusy(false);
       // Update localStorage for restart/log service immediately
       if (j.service) rememberServices(target, j.service);
+      if (target === "dmr") setLocation("/dmr");
+      else if (location === "/dmr") setLocation("/");
       setTimeout(fetchActive, 600);
     } catch {
       setErr(t("station_switch_error"));

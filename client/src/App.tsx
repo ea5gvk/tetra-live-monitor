@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation, Link } from "wouter";
+import { Switch, Route, Redirect, useLocation, Link } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -348,13 +348,34 @@ function NavBar() {
   );
 }
 
+// With the DMR stack as the active station the home page is its dashboard: the TETRA monitor has nothing to show.
+function Home() {
+  const [station, setStation] = useState<string | null | undefined>(undefined);
+  useEffect(() => {
+    let alive = true;
+    const check = async () => {
+      try {
+        const j = await (await fetch("/api/station/active")).json();
+        if (alive) setStation(j?.station ?? null);
+      } catch {
+        if (alive) setStation((s) => (s === undefined ? null : s));
+      }
+    };
+    check();
+    const id = setInterval(check, 30 * 1000);
+    return () => { alive = false; clearInterval(id); };
+  }, []);
+  if (station === undefined) return null;
+  return station === "dmr" ? <Redirect to="/dmr" /> : <Dashboard />;
+}
+
 function Router() {
   return (
     <div className="min-h-screen flex flex-col bg-background">
       <NavBar />
       <div className="flex-1 flex flex-col">
         <Switch>
-          <Route path="/" component={Dashboard} />
+          <Route path="/" component={Home} />
           <Route path="/calculator" component={Calculator} />
           <Route path="/log-live" component={LogLive} />
           <Route path="/gps-map" component={GpsMap} />
