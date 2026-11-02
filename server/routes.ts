@@ -1505,8 +1505,11 @@ cargo build --release
   async function dmrRegenerate(log: string[]): Promise<{ ok: boolean; errors: string[] }> {
     const wasRunning = dmrRunning();
     if (wasRunning) {
-      log.push(`$ sudo systemctl stop ${DMR.target}`);
-      try { await execOut(`sudo systemctl stop ${DMR.target} 2>&1`, 60000); }
+      // Naming the core units makes systemctl wait for them too: stopping the target alone returns while dmrtc is
+      // still shutting down (about 3 s), and gen-config would find it active.
+      const stop = `sudo systemctl stop ${DMR.target} ${DMR_CORE_UNITS.join(" ")}`;
+      log.push(`$ ${stop}`);
+      try { await execOut(`${stop} 2>&1`, 60000); }
       catch (e: any) { return { ok: false, errors: [`no se ha podido parar ${DMR.target}: ${String(e?.message || e).substring(0, 200)}`] }; }
     }
     log.push(`$ sudo python3 ${DMR.genConfig}`);

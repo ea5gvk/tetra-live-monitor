@@ -37,7 +37,7 @@ const STATIONS: { name: StationName; label: string; long: string; Icon: typeof R
 
 const POLL_MS = 30 * 1000;
 // Other pages (the DMR dashboard when the stack is stopped) open the switch dialog through this window event,
-// with { detail: { station } }; nothing happens when that station is not installed or is already the active one.
+// with { detail: { station } }; nothing happens when that station is not installed or is already running.
 export const OPEN_STATION_SWITCHER_EVENT = "tlm:open-station-switcher";
 // The live log of the DMR station is the journal of its five units (/api/log-stream?service=dmr), not the target.
 const DMR_LOG_SERVICE = "dmr";
@@ -95,7 +95,7 @@ export function StationSwitcher() {
   useEffect(() => {
     const onOpen = (e: Event) => {
       const to = (e as CustomEvent<{ station?: StationName }>).detail?.station;
-      if (!to || !data?.services[to]?.installed || data.station === to) return;
+      if (!to || !data?.services[to]?.installed || (data.station === to && data.services[to]?.active)) return;
       openSwitch(to);
     };
     window.addEventListener(OPEN_STATION_SWITCHER_EVENT, onOpen);
@@ -166,6 +166,8 @@ export function StationSwitcher() {
           const info = data.services[st.name];
           const ok = !!info?.installed;
           const isActive = active === st.name;
+          // the chosen station with its unit stopped (a failed apply, a crash) can be started again from here
+          const canSwitch = ok && !(isActive && info?.active);
           const degraded = st.name === "dmr" && dmrDegraded;
           const title = !ok
             ? st.name === "bluestation" ? t("station_not_installed")
@@ -178,8 +180,8 @@ export function StationSwitcher() {
             <span key={st.name} className="inline-flex items-center">
               {i > 0 && <div className="w-px h-4 bg-white/10" />}
               <button
-                onClick={() => ok && !isActive ? openSwitch(st.name) : null}
-                disabled={!ok || isActive}
+                onClick={() => canSwitch ? openSwitch(st.name) : null}
+                disabled={!canSwitch}
                 className={`inline-flex items-center gap-1 px-2 py-1 text-[10px] font-bold transition-colors ${
                   isActive
                     ? st.on
