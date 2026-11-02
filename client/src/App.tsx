@@ -348,22 +348,19 @@ function NavBar() {
   );
 }
 
-// With the DMR stack as the active station the home page is its dashboard: the TETRA monitor has nothing to show.
+// With the DMR stack as the active station the panel opens on its dashboard. Only when it opens on the home page:
+// the MONITOR tab stays reachable afterwards.
+let landingRedirect = window.location.pathname === "/";
 function Home() {
-  const [station, setStation] = useState<string | null | undefined>(undefined);
+  const [station, setStation] = useState<string | null | undefined>(landingRedirect ? undefined : null);
   useEffect(() => {
+    if (!landingRedirect) return;
     let alive = true;
-    const check = async () => {
-      try {
-        const j = await (await fetch("/api/station/active")).json();
-        if (alive) setStation(j?.station ?? null);
-      } catch {
-        if (alive) setStation((s) => (s === undefined ? null : s));
-      }
-    };
-    check();
-    const id = setInterval(check, 30 * 1000);
-    return () => { alive = false; clearInterval(id); };
+    fetch("/api/station/active")
+      .then((r) => r.json())
+      .then((j) => { if (alive) setStation(j?.station ?? null); }, () => { if (alive) setStation(null); })
+      .finally(() => { landingRedirect = false; });
+    return () => { alive = false; };
   }, []);
   if (station === undefined) return null;
   return station === "dmr" ? <Redirect to="/dmr" /> : <Dashboard />;
