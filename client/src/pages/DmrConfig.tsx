@@ -23,6 +23,7 @@ interface ConfResp {
   active: boolean;
   degraded: boolean;
   missing: string[];
+  shared?: boolean; // SDR_COMPARTIDO applied (the stack runs next to MiuraStation)
   path: string;
   examplePath: string;
   keys: ConfKey[];
@@ -42,6 +43,9 @@ type Kind = { kind: "secret" | "switch" | "number" | "text"; min?: number; max?:
 const RANGE_RE = /(\d+)\.\.(\d+|N_CHANNELS)\)/;
 const BOOL_RE = /(^|\s)[01] = /;
 const MAX_CHANNELS = 4;
+// The keys that rewrite the [dmr_window] block of MiuraStation's config.toml (SDR_COMPARTIDO): the server then
+// restarts MiuraStation, and with it the stack (Wants=).
+const MIURA_KEYS = ["SDR_COMPARTIDO", "TX_FREQUENCY", "RX_FREQUENCY", "N_CHANNELS"];
 
 function channels(values: Record<string, string>): number {
   const n = parseInt(values.N_CHANNELS ?? "", 10);
@@ -218,6 +222,13 @@ export default function DmrConfig() {
 
   const opTitle = (op: Op) => op === "apply" ? t("dmr_config_save_apply") : op === "save" ? t("dmr_config_save_only") : t("dmr_config_regenerate");
   const restarts = (op: Op) => op !== "save" && !!data?.active;
+  const restartsMiura = (op: Op) => op === "regenerate"
+    ? !!data?.shared || original.SDR_COMPARTIDO === "1"
+    : (!!data?.shared || values.SDR_COMPARTIDO === "1") && changed.some(k => MIURA_KEYS.includes(k));
+  const opHint = (op: Op) => [
+    restarts(op) ? t("dmr_config_apply_warning") : op === "regenerate" ? t("dmr_config_regenerate_hint") : "",
+    restartsMiura(op) ? t("dmr_config_miura_restart_warning") : "",
+  ].filter(Boolean).join(" ") || undefined;
 
   const statusBadge = data && (
     <span
@@ -480,7 +491,7 @@ export default function DmrConfig() {
       {pendingOp && (
         <PasswordModal
           title={opTitle(pendingOp)}
-          hint={restarts(pendingOp) ? t("dmr_config_apply_warning") : pendingOp === "regenerate" ? t("dmr_config_regenerate_hint") : undefined}
+          hint={opHint(pendingOp)}
           busy={busy}
           error={opError}
           onConfirm={pw => runOp(pendingOp, pw)}

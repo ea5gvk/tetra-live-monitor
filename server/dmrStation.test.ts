@@ -12,7 +12,9 @@ import { PI_LAYOUT, type Layout } from "./stationScripts";
 import {
   DMR, DMR_DEB, DMR_CORE_UNITS, DMR_JOURNAL_UNITS, parseDmrRelease, parseDmrReleases, dmrTagFrom, dmrHealth, dmrPackageScript,
   parseDmrConf, parseDmrConfHelp, updateDmrConf, writeDmrConf, saveDmrConf, genConfigErrors, logStreamCommand,
+  dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN,
 } from "./dmrStation";
+import { compareVersions } from "./stationScripts";
 
 const rel = (tag: string, extra: Record<string, unknown> = {}) => ({ tag_name: tag, name: `x ${tag}`, published_at: "2026-10-30T10:00:00Z", html_url: `https://github.com/ea5gvk/MiuraStation-dist/releases/tag/${tag}`, ...extra });
 
@@ -142,6 +144,84 @@ test("conf: values read; a write keeps comments and order, appends what is new, 
   fs.rmSync(d, { recursive: true, force: true });
 });
 
+// The SDR_COMPARTIDO key of dmr-tier3.conf.example (0.4.0), as the form reads it.
+const EXAMPLE_SHARED = `# ---------------------------------------------------------------- Radio (SX1255 / SoapySX)
+# Uso del SX1255. 0 = exclusivo: MMDVM-Multi abre la SDR y la estación DMR sustituye a la TETRA
+# (como hasta 0.3.x). 1 = compartido: MiuraStation (1.4.0 o posterior) sigue con la SDR y pasa a
+# MMDVM-Multi una ventana de 150 kHz alrededor de los canales DMR: TETRA y DMR a la vez.
+# gen-config.py la comprueba contra /root/miurastation/config.toml (sin pisar portadoras TETRA,
+# dentro de la banda de la SDR) y escribe allí la sección [dmr_window]; hay que
+# reiniciar miurastation para aplicarla (el panel lo hace). En compartido no se usan RX_GAIN,
+# TX_GAIN ni las antenas, DIGITAL_GAIN es el nivel DMR frente a la TETRA y RSSI_CALIBRATION se
+# vuelve a ajustar.
+SDR_COMPARTIDO=0
+# Ganancia agregada de recepción que MMDVM-Multi pide a SoapySDR (0..100). Rafa: 50.
+RX_GAIN=50
+`;
+
+test("conf help: SDR_COMPARTIDO is a 0/1 switch of the Radio section (its help has '0 = ' and '1 = ', no range)", () => {
+  const h = parseDmrConfHelp(EXAMPLE_SHARED);
+  assert.deepEqual(h.map((k) => k.key), ["SDR_COMPARTIDO", "RX_GAIN"]);
+  assert.equal(h[0].default, "0");
+  assert.equal(h[0].section, "Radio (SX1255 / SoapySX)");
+  assert.match(h[0].help, /(^|\s)0 = exclusivo/);
+  assert.match(h[0].help, /(^|\s)1 = compartido/);
+  assert.ok(!/(\d+)\.\.(\d+|N_CHANNELS)\)/.test(h[0].help), "'(1.4.0 o posterior)' is not a range of the form");
+  assert.equal(h[1].help, "Ganancia agregada de recepción que MMDVM-Multi pide a SoapySDR (0..100). Rafa: 50.");
+});
+
+test("shared SDR: applied = gen-config's drop-in exists; the [dmr_window] block as gen-config recognises it", () => {
+  assert.equal(DMR.sharedDropIn, "/etc/systemd/system/mmdvm-multi.service.d/20-compartido.conf");
+  assert.equal(DMR.shmPath, "/dev/shm/miurastation-dmr");
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "tlm-dmr-shared-"));
+  const dropIn = path.join(d, "20-compartido.conf");
+  assert.equal(dmrShared(dropIn), false);
+  fs.writeFileSync(dropIn, "# Generado por gen-config.py (SDR_COMPARTIDO=1). No editar: se borra con SDR_COMPARTIDO=0.\n[Unit]\nRequires=miurastation.service\n");
+  assert.equal(dmrShared(dropIn), true);
+  // gen-config.py 0.3.x does not know --miura-config: the panel must not pass it
+  const gen = path.join(d, "gen-config.py");
+  assert.equal(genConfigKnowsShared(gen), false, "no file");
+  fs.writeFileSync(gen, `ap.add_argument("--check", action="store_true")\n`);
+  assert.equal(genConfigKnowsShared(gen), false, "0.3.x");
+  fs.writeFileSync(gen, `ap.add_argument("--check", action="store_true")\nap.add_argument("--miura-config", default=DEFAULT_MIURA_CONFIG)\n`);
+  assert.equal(genConfigKnowsShared(gen), true, "0.4.0");
+  fs.rmSync(d, { recursive: true, force: true });
+
+  const head = `stack_mode = "Bs"\n\n[phy_io.soapysdr]\nsample_rate = 600000\n`;
+  const block = `[dmr_window]\n# >>> dmr-tier3: SDR_COMPARTIDO=1 (gen-config.py; no editar, se reescribe)\ntx_freq = 438412500\nrx_freq = 430812500\ncarriers = 3\n# <<< dmr-tier3\n`;
+  assert.equal(hasDmrWindowBlock(`${head}\n${block}`), true, "the block at the end");
+  assert.equal(hasDmrWindowBlock(`${head}\n${block}`.replace(/\n/g, "\r\n")), true, "CRLF");
+  assert.equal(hasDmrWindowBlock(`${head}\n  [dmr_window]  \n${block.split("\n").slice(1).join("\n")}`), true, "spaces around the header");
+  assert.equal(hasDmrWindowBlock(`${block}\n# [packet_data]\n# enabled = true\n`), true, "anywhere in the file");
+  assert.equal(hasDmrWindowBlock(`${head}\n[dmr_window]\ntx_freq = 438412500\ncarriers = 3\n`), false, "written by hand: no marker");
+  assert.equal(hasDmrWindowBlock(`${head}\n[dmr_window]\n\n# >>> dmr-tier3\ncarriers = 3\n# <<< dmr-tier3\n`), false, "the marker must follow the header");
+  assert.equal(hasDmrWindowBlock(`${head}\n[dmr_window]\n # >>> dmr-tier3\ncarriers = 3\n# <<< dmr-tier3\n`), false, "the marker starts the line");
+  assert.equal(hasDmrWindowBlock(`${head}\n[dmr_window]\n# >>> dmr-tier3\ncarriers = 3\n`), false, "not closed");
+  assert.equal(hasDmrWindowBlock(`${head}\n# [dmr_window]\n# >>> dmr-tier3\n# <<< dmr-tier3\n`), false, "commented out");
+  assert.equal(hasDmrWindowBlock(`${head}\n[dmr_window.x]\n# >>> dmr-tier3\n# <<< dmr-tier3\n`), false);
+  assert.equal(hasDmrWindowBlock(head), false, "no block");
+  assert.equal(hasDmrWindowBlock(""), false);
+
+  // MIURA+DMR restarts MiuraStation only when it started before config.toml changed (whole seconds: a full one after)
+  assert.equal(startedBeforeChange("@1730714533\n", 1730714534000), true);
+  assert.equal(startedBeforeChange("@1730714533", 1730714533900), false, "the same second: unknown, no restart");
+  assert.equal(startedBeforeChange("@1730714533", 1730714000000), false, "config older than the run");
+  assert.equal(startedBeforeChange("", 1730714534000), false, "never started");
+  assert.equal(startedBeforeChange("Tue 2026-11-04 10:12:13 CET", 1830714534000), false, "no --timestamp=unix");
+  // ... and otherwise reports why its PHY refused the window
+  const journal = "\x1b[2m2026-11-04T10:12:13Z\x1b[0m \x1b[31mERROR\x1b[0m tetra_entities::phy: DMR window off: DMR channel 438400000 Hz is 0.0 kHz from the TETRA downlink 438400000 Hz (25 kHz at least). TETRA runs alone\n";
+  assert.equal(dmrWindowOffLine(journal), "DMR window off: DMR channel 438400000 Hz is 0.0 kHz from the TETRA downlink 438400000 Hz (25 kHz at least). TETRA runs alone");
+  assert.equal(dmrWindowOffLine("INFO DMR window (miurastation-dmr-window-v1) on at /dev/shm/miurastation-dmr\n"), "");
+  assert.equal(dmrWindowOffLine(""), "");
+
+  // a MiuraStation older than 1.4.0 refuses the section; the 1.4.0 betas carry it
+  assert.ok(compareVersions("1.3.9", DMR_WINDOW_MIURA_MIN) < 0);
+  assert.ok(compareVersions("1.3.0-beta.2", DMR_WINDOW_MIURA_MIN) < 0);
+  assert.ok(compareVersions("1.4.0-beta.1", DMR_WINDOW_MIURA_MIN) >= 0);
+  assert.ok(compareVersions("1.4.0", DMR_WINDOW_MIURA_MIN) >= 0);
+  assert.ok(compareVersions("1.10.0", DMR_WINDOW_MIURA_MIN) >= 0);
+});
+
 test("gen-config errors: the '  - ' lines of an invalid conf, else stderr, else the exit code", () => {
   assert.deepEqual(genConfigErrors(0, "Plan de canales\n", ""), []);
   assert.deepEqual(genConfigErrors(2, "", "gen-config: configuración no válida:\n  - CALLSIGN: obligatorio\n  - DMR_ID: debe ser un número entero (vale 'x')\n"),
@@ -149,6 +229,10 @@ test("gen-config errors: the '  - ' lines of an invalid conf, else stderr, else 
   assert.deepEqual(genConfigErrors(3, "", "gen-config: dmrtc.service está activo y reescribe dmrtc.cfg al salir; páralo antes\n"),
     ["gen-config: dmrtc.service está activo y reescribe dmrtc.cfg al salir; páralo antes"]);
   assert.deepEqual(genConfigErrors(1, "", ""), ["gen-config.py ha terminado con código 1"]);
+  // the warnings of SDR_COMPARTIDO ("gen-config: aviso: ...") are not errors
+  assert.deepEqual(genConfigErrors(0, "Plan\n", "gen-config: aviso: el salto dúplex DMR no es el de la TETRA\n"), []);
+  assert.deepEqual(genConfigErrors(2, "", "gen-config: aviso: canal DMR en la imagen de una portadora\ngen-config: configuración no válida:\n  - SAMPLE_RATE: con SDR_COMPARTIDO=1 tiene que ser 150000\n"),
+    ["SAMPLE_RATE: con SDR_COMPARTIDO=1 tiene que ser 150000"]);
 });
 
 test("live log: the closed list of presets, one unit, the whole journal; never a free path", () => {

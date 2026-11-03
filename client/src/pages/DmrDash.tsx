@@ -457,6 +457,11 @@ function StackCard({ conn, stack, reason, onRetry, t }: { conn: ConnStatus; stac
   const notInstalled = stack !== null && !stack.installed;
   const degraded = !!stack?.degraded && (stack?.missing?.length ?? 0) > 0;
   const unreachable = conn === "unreachable";
+  // SDR shared with MiuraStation: the stack is started with MIURA+DMR and the TETRA stays on air
+  const [shared, setShared] = useState(false);
+  useEffect(() => {
+    fetch("/api/station/active").then(r => r.ok ? r.json() : null).then(j => setShared(!!j?.dmr?.shared)).catch(() => {});
+  }, []);
   const open = () => {
     if (notInstalled) window.dispatchEvent(new Event(OPEN_DMR_UPDATER_EVENT));
     else window.dispatchEvent(new CustomEvent(OPEN_STATION_SWITCHER_EVENT, { detail: { station: "dmr" } }));
@@ -469,7 +474,7 @@ function StackCard({ conn, stack, reason, onRetry, t }: { conn: ConnStatus; stac
         {unreachable ? t("dmrd_unreachable_title") : notInstalled ? t("dmrd_stack_not_installed") : degraded ? `${t("dmrd_stack_degraded").toUpperCase()}` : t("dmrd_stack_stopped")}
       </h2>
       <p className="text-xs text-muted-foreground max-w-xl leading-relaxed" data-testid="text-dmr-stack-explain">
-        {unreachable ? t("dmrd_unreachable_explain") : notInstalled ? t("dmr_config_not_installed") : degraded ? `${t("dmrd_degraded_explain")} ${stack?.missing.join(", ")}` : t("dmrd_stopped_explain")}
+        {unreachable ? t("dmrd_unreachable_explain") : notInstalled ? t("dmr_config_not_installed") : degraded ? `${t("dmrd_degraded_explain")} ${stack?.missing.join(", ")}` : t(shared ? "dmrd_stopped_explain_shared" : "dmrd_stopped_explain")}
       </p>
       {reason && !["stopped", "unreachable", "sse"].includes(reason) && <p className="text-[10px] font-mono text-muted-foreground/70 break-all max-w-xl">{reason}</p>}
       {stack?.version && <p className="text-[10px] font-mono text-muted-foreground">dmr-tier3 {stack.version}</p>}

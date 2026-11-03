@@ -4,7 +4,8 @@
 // family: no config.toml, no :8080 dashboard, no SDS/kick/DGNA.
 // - systemd: dmr-tier3.target, with mmdvm-multi.service, mmdvm-iq@N / mmdvm-host@N (N = 1..4), dmrtc.service and
 //   dmrgateway.service all PartOf= it. The target can stay "active" with mmdvm-multi failed: the real state is
-//   target + mmdvm-multi + dmrtc (dmrHealth). The target and mmdvm-multi carry Conflicts=miurastation.service.
+//   target + mmdvm-multi + dmrtc (dmrHealth). The target and mmdvm-multi carry Conflicts=miurastation.service,
+//   except in the shared mode (dmrShared), where the stack runs next to MiuraStation.
 // - configuration: /etc/dmr-tier3/dmr-tier3.conf (KEY=VALUE, mode 0600, NET_PASSWORD is a secret), from which
 //   /opt/dmr-tier3/bin/gen-config.py writes the nine files of the stack (only with dmrtc stopped: exit 3 otherwise;
 //   2 = invalid conf, listed in Spanish; 1 = write failure; --check only validates).
@@ -33,6 +34,11 @@ export const DMR = {
   genConfig: "/opt/dmr-tier3/bin/gen-config.py",
   multiBin: "/opt/dmr-tier3/bin/MMDVM-Multi",
   dmrtcLog: "/var/lib/dmr-tier3/.config/dmrtc/dmrtc.log",
+  // SDR shared with MiuraStation (SDR_COMPARTIDO=1, dmr-tier3 0.4.0): gen-config.py writes this drop-in only in
+  // that mode, so it says what was applied (not what was saved without regenerating); MiuraStation passes the DMR
+  // window to MMDVM-Multi through the file below.
+  sharedDropIn: "/etc/systemd/system/mmdvm-multi.service.d/20-compartido.conf",
+  shmPath: "/dev/shm/miurastation-dmr",
   tagPrefix: "dmr-tier3-v",
   repoLabel: `DMR Tier III · ${DIST_REPO} · paquete .deb dmr-tier3 (pila de EA7KEN)`,
 } as const;
@@ -149,6 +155,44 @@ export function dmrState(): DmrState {
 
 /** The stack is running or half-running (gen-config refuses with dmrtc active): anything to stop first. */
 export const dmrRunning = (): boolean => unitActiveOrActivating(DMR.target) || DMR_CORE_UNITS.some(unitActiveOrActivating);
+
+// ── SDR shared with MiuraStation ──
+
+/** The shared mode is applied: MiuraStation keeps the SDR and the DMR stack runs next to it (selector MIURA+DMR). */
+export const dmrShared = (file = DMR.sharedDropIn): boolean => fs.existsSync(file);
+
+// The first MiuraStation that accepts [dmr_window] (its betas too); an older one refuses the section and does not start.
+export const DMR_WINDOW_MIURA_MIN = "1.4.0-0";
+
+/** config.toml holds the [dmr_window] block of gen-config.py: a line that is exactly "[dmr_window]" once trimmed,
+ *  the next one starting with "# >>> dmr-tier3" and a later one starting with "# <<< dmr-tier3" (its split_block). */
+export function hasDmrWindowBlock(text: string): boolean {
+  const lines = text.split("\n");
+  for (let i = 0; i + 1 < lines.length; i++) {
+    if (lines[i].trim() !== "[dmr_window]" || !lines[i + 1].startsWith("# >>> dmr-tier3")) continue;
+    if (lines.slice(i + 2).some((l) => l.startsWith("# <<< dmr-tier3"))) return true;
+  }
+  return false;
+}
+
+/** `systemctl show --timestamp=unix -P ExecMainStartTimestamp` ("@<seconds>") against a file's mtime: the process
+ *  started before the file last changed. Whole seconds, so only a change a full second after the start counts;
+ *  unknown is false (nothing is restarted on a guess). */
+export function startedBeforeChange(showOut: string, mtimeMs: number): boolean {
+  const m = /^@(\d+)$/.exec(showOut.trim());
+  return !!m && mtimeMs >= (Number(m[1]) + 1) * 1000;
+}
+
+/** The "DMR window off: ..." line of MiuraStation's PHY (the window refused at start) in a journal text, or "". */
+export function dmrWindowOffLine(journal: string): string {
+  const line = journal.replace(/\x1b\[[0-9;]*m/g, "").split("\n").find((l) => l.includes("DMR window off"));
+  return line ? line.slice(line.indexOf("DMR window off")).trim() : "";
+}
+
+/** gen-config.py knows the shared mode (dmr-tier3 0.4.0 or later): the 0.3.x one refuses --miura-config. */
+export function genConfigKnowsShared(file = DMR.genConfig): boolean {
+  try { return fs.readFileSync(file, "utf-8").includes("--miura-config"); } catch { return false; }
+}
 
 // ── The package script (bash) ──
 

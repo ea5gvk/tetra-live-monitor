@@ -11,7 +11,7 @@ import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
 import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken, telegramLanguage, telegramLanguageLine } from "./configMerge";
 import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, migrationInfo, miuraInstalled, miuraPackaged, installScript, updateScript, migrationScript, packageScript, DIST_REPO, RELEASE_TAG_RE, pkgTemplatePath, pkgConfigBasePath, parseRelease, debUpstreamVersion, compareVersions, type MiuraRelease, type Product, type ProductId } from "./stationScripts";
-import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, DMR_SECRET_KEYS, type DmrRelease } from "./dmrStation";
+import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, DMR_SECRET_KEYS, dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN, type DmrRelease } from "./dmrStation";
 import { dmrStatusRoutes } from "./dmrStatus";
 
 let pythonProcess: ChildProcess | null = null;
@@ -1101,13 +1101,26 @@ cargo build --release
     }
   }
 
+  // SDR shared with the DMR: a MiuraStation older than 1.4.0 refuses the [dmr_window] section that gen-config.py
+  // wrote in config.toml and would not start (TETRA off air). Streamed as an error, nothing touched.
+  function miuraVersionRefused(res: any, unlock: () => void, version: string): boolean {
+    let cfg = "";
+    try { cfg = fs.readFileSync(`${MIURA_DIR}/config.toml`, "utf-8"); } catch { /* none */ }
+    if (compareVersions(version, DMR_WINDOW_MIURA_MIN) >= 0 || !hasDmrWindowBlock(cfg)) return false;
+    unlock();
+    res.write(`=== MiuraStation ${version} no admite la SDR compartida con la DMR (sección [dmr_window] de ${MIURA_DIR}/config.toml) y no arrancaría ===\n`
+      + `Primero apaga SDR_COMPARTIDO en CONFIG DMR; o instala la 1.4.0 o posterior.\nNo se ha tocado nada.\n\n[Exit: 1]\n`);
+    res.end();
+    return true;
+  }
+
   // Migración a MiuraStation (paquete) de la FlowStation miura o de una MiuraStation compilada
   // (stationScripts.migrationScript). Bash moves the directory if needed, installs the package and swaps the units
   // (undoing everything if something fails); here, when it ends well: config.toml merge, station selector and start.
   async function runMiuraMigration(res: any, unlock: () => void, tag?: string) {
     streamHeaders(res);
     const rel = await miuraReleaseOrEnd(res, unlock, tag);
-    if (!rel) return;
+    if (!rel || miuraVersionRefused(res, unlock, rel.version)) return;
     const { state, kind } = migrationInfo(L);
     const from = state === "needed" && kind === "legacy" ? FLOW_DIR_DEFAULT : MIURA_DIR;
     // Base of the config.toml merge: the template of what is migrated (its .git), pinned before anything changes.
@@ -1152,6 +1165,7 @@ cargo build --release
       res.end();
       return;
     }
+    if (miuraVersionRefused(res, unlock, rel.version)) return;
     const baseTpl = mode === "update" ? packagedTemplate(write) : null;
     const child = spawn("bash", ["-c", packageScript(L, {
       mode, tag: rel.tag, version: rel.version,
@@ -1382,7 +1396,11 @@ cargo build --release
     const persisted = readActiveStation();
     // The "real" active station is the one whose service is active (overrides persisted)
     const running = STATION_NAMES.filter((n) => states[n].active);
-    const detected: StationName = running.length === 1 ? running[0] : persisted;
+    // SDR shared with the DMR: MiuraStation is the station on air (the stack runs next to it) and there is no DMR
+    // station of its own to be in.
+    const shared = dmrShared();
+    let detected: StationName = shared && states.miurastation.active ? "miurastation" : running.length === 1 ? running[0] : persisted;
+    if (shared && detected === "dmr") detected = "miurastation";
     const services = {} as Record<StationName, any>;
     for (const n of STATION_NAMES) {
       services[n] = { ...states[n], installed: stationInstalled(n), dir: STATION_DIR[n], configPath: STATION_CONFIG_PATH[n], service: STATION_SERVICE[n], product: STATION_PRODUCT[n] };
@@ -1391,7 +1409,7 @@ cargo build --release
     // running, else the one the :8080 features talk to. Never the DMR target: with the DMR in use it is the
     // flow-family station persisted or running, else MiuraStation.
     const flowService = STATION_SERVICE[isFlowFamily(detected) ? detected : activeFlowStation() ?? flowFamily()];
-    const dmr = { degraded: !!states.dmr.degraded, missing: states.dmr.missing ?? [] };
+    const dmr = { degraded: !!states.dmr.degraded, missing: states.dmr.missing ?? [], shared };
     res.json({ station: detected, persisted, services, flowService, dmr });
   });
 
@@ -1488,10 +1506,13 @@ cargo build --release
   }
 
   // gen-config.py: `args` after the script; stdout carries the channel plan, stderr the errors (genConfigErrors).
+  // MiuraStation's config.toml goes with them (SDR_COMPARTIDO checks it and writes [dmr_window] there), unless the
+  // installed gen-config.py is a 0.3.x one, which refuses the option.
   function runGenConfig(args: string[], timeout = 60000): Promise<{ code: number | null; stdout: string; stderr: string }> {
+    const miura = genConfigKnowsShared() ? ["--miura-config", STATION_CONFIG_PATH.miurastation] : [];
     return new Promise((resolve) => {
       let stdout = "", stderr = "";
-      const child = spawn("sudo", ["python3", DMR.genConfig, ...args], { stdio: ["ignore", "pipe", "pipe"] });
+      const child = spawn("sudo", ["python3", DMR.genConfig, ...miura, ...args], { stdio: ["ignore", "pipe", "pipe"] });
       const timer = setTimeout(() => { try { child.kill(); } catch { /* gone */ } }, timeout);
       child.stdout.on("data", (d: Buffer) => { stdout += d.toString(); });
       child.stderr.on("data", (d: Buffer) => { stderr += d.toString(); });
@@ -1502,7 +1523,20 @@ cargo build --release
   // Regenerates the nine files of the stack from the conf: with the stack running (or half running) it is stopped
   // first, since gen-config refuses with dmrtc active (it rewrites its cfg on exit), and started again when
   // gen-config succeeded. With the stack stopped: gen-config only.
+  // SDR_COMPARTIDO: gen-config may rewrite the [dmr_window] block of MiuraStation's config.toml. When it changed,
+  // a running MiuraStation is restarted (--no-block: Type=notify may take longer than the request) before the stack
+  // is started again; when the block went away (shared mode off), the stack is not started again: in exclusive
+  // mode its Conflicts= would take the TETRA off air.
+  // When gen-config.py fails nothing is restarted: its files may be half written (in exclusive mode, an .ini with
+  // Type=sx next to a systemd that still pulls the stack with MiuraStation would open the SDR she holds).
+  // The shared mode coming or going with MiuraStation on air (or pulled in by the stack) makes it the station, as
+  // the MIURA+DMR switch does: miurastation enabled and the target disabled, so a reboot never brings up the
+  // exclusive DMR (Conflicts=) instead of the TETRA.
   async function dmrRegenerate(log: string[]): Promise<{ ok: boolean; errors: string[] }> {
+    const readMiuraCfg = () => { try { return fs.readFileSync(STATION_CONFIG_PATH.miurastation, "utf-8"); } catch { return null; } };
+    const cfgBefore = readMiuraCfg();
+    const miuraService = STATION_SERVICE.miurastation;
+    const miuraActive = unitActive(miuraService);
     const wasRunning = dmrRunning();
     if (wasRunning) {
       // Naming the core units makes systemctl wait for them too: stopping the target alone returns while dmrtc is
@@ -1516,9 +1550,32 @@ cargo build --release
     const r = await runGenConfig([]);
     for (const l of `${r.stdout}${r.stderr}`.split("\n")) if (l.trim()) log.push(l);
     const errors = genConfigErrors(r.code, r.stdout, r.stderr);
+    const genFailed = errors.length > 0;
+    const cfgAfter = readMiuraCfg();
+    if (genFailed && cfgAfter !== cfgBefore && miuraActive) {
+      log.push(`${STATION_CONFIG_PATH.miurastation} ha cambiado pero gen-config.py ha fallado: ${miuraService} no se reinicia (sigue con la configuración con la que arrancó).`);
+    } else if (cfgAfter !== cfgBefore && miuraActive) {
+      log.push(`${STATION_CONFIG_PATH.miurastation} ha cambiado: se reinicia ${miuraService} para aplicarlo`);
+      log.push(`$ sudo systemctl restart --no-block ${miuraService}`);
+      try { await execOut(`sudo systemctl restart --no-block ${miuraService} 2>&1`, 30000); }
+      catch (e: any) { errors.push(`no se ha podido reiniciar ${miuraService}: ${String(e?.message || e).substring(0, 200)}`); }
+    }
+    const blockBefore = cfgBefore !== null && hasDmrWindowBlock(cfgBefore);
+    const blockAfter = cfgAfter !== null && hasDmrWindowBlock(cfgAfter);
+    const windowGone = blockBefore && !blockAfter;
+    if (!genFailed && (windowGone ? miuraActive : !blockBefore && blockAfter && (miuraActive || wasRunning))) {
+      for (const cmd of [`sudo systemctl disable ${DMR.target}`, `sudo systemctl enable ${miuraService}`]) {
+        log.push(`$ ${cmd}`);
+        try { await execOut(`${cmd} 2>&1`, 30000); }
+        catch (e: any) { errors.push(`${cmd}: ${String(e?.message || e).substring(0, 200)}`); }
+      }
+      try { fs.writeFileSync(ACTIVE_STATION_PATH, JSON.stringify({ station: "miurastation" }, null, 2)); } catch { /* best effort */ }
+    }
     if (wasRunning) {
-      if (errors.length) {
+      if (genFailed) {
         log.push(`gen-config.py ha fallado: ${DMR.target} se queda parada (configuración anterior en los .ini).`);
+      } else if (windowGone) {
+        log.push(`SDR compartida desactivada: ${DMR.target} se queda parada. En modo exclusivo la pila DMR sustituye a la TETRA: arráncala con el selector de estación (DMR).`);
       } else {
         log.push(`$ sudo systemctl start --no-block ${DMR.target}`);
         try { await execOut(`sudo systemctl start --no-block ${DMR.target} 2>&1`, 30000); }
@@ -1526,6 +1583,23 @@ cargo build --release
       }
     }
     return { ok: errors.length === 0, errors };
+  }
+
+  // MiuraStation (running) started before its config.toml last changed: systemd's start of its main process.
+  function miuraStartedBeforeConfig(service: string): boolean {
+    try {
+      const out = execSync(`systemctl show --timestamp=unix -P ExecMainStartTimestamp ${service}`, { timeout: 4000 }).toString();
+      return startedBeforeChange(out, fs.statSync(STATION_CONFIG_PATH.miurastation).mtimeMs);
+    } catch { return false; }
+  }
+
+  // The "DMR window off" line its PHY logged in the current run of the service (the window refused), or "".
+  function miuraWindowOff(service: string): string {
+    try {
+      const id = execSync(`systemctl show -P InvocationID ${service}`, { timeout: 4000 }).toString().trim();
+      if (!/^[0-9a-f]{32}$/.test(id)) return "";
+      return dmrWindowOffLine(execSync(`journalctl _SYSTEMD_INVOCATION_ID=${id} -o cat --no-pager | grep -m1 -F "DMR window off"`, { timeout: 10000 }).toString());
+    } catch { return ""; }
   }
 
   // The configuration form of the DMR station: the keys of dmr-tier3.conf with the help of its example.
@@ -1541,7 +1615,7 @@ cargo build --release
       return { key: k.key, value: secret ? "" : value, help: k.help, section: k.section, default: k.default, secret, ...(secret ? { set: value !== "" } : {}) };
     });
     const st = dmrState();
-    res.json({ exists, installed, active: st.active, degraded: st.degraded, missing: st.missing, path: DMR.confPath, examplePath: DMR.examplePath, keys });
+    res.json({ exists, installed, active: st.active, degraded: st.degraded, missing: st.missing, shared: dmrShared(), path: DMR.confPath, examplePath: DMR.examplePath, keys });
   });
 
   // Saves the values (validated by gen-config.py --check on a copy: an invalid conf never reaches the station) and
@@ -2250,7 +2324,9 @@ cargo build --release
     if (!isStationName(station)) {
       return res.status(400).json({ message: "Estación no válida" });
     }
-    const target: StationName = station;
+    // SDR shared with the DMR: MIURA+DMR is one station, MiuraStation's (the target of the DMR goes with it).
+    const shared = dmrShared();
+    const target: StationName = shared && station === "dmr" ? "miurastation" : station;
     const targetService = STATION_SERVICE[target];
     if (dmrSwitching) {
       return res.status(409).json({ ok: false, message: `Hay un cambio a ${DMR.name} en curso: espera a que termine.` });
@@ -2280,7 +2356,55 @@ cargo build --release
       }
     }
 
-    if (target === "dmr") {
+    let sharedFail = "";
+    if (shared && target === "miurastation") {
+      dmrSwitching = true;
+      try {
+        // MIURA+DMR: MiuraStation keeps the SDR and its Wants= pulls the stack, so the target is not enabled of its
+        // own. A MiuraStation running without the window is restarted only when it started before config.toml last
+        // changed (before the [dmr_window] block): otherwise its PHY refused the window ("DMR window off", e.g. a
+        // carrier changed since) and a restart would take the TETRA off air for nothing. The TETRA stays on air
+        // whatever the DMR does: a stack that does not come up is an error with its journal, and nothing is undone.
+        for (const n of ["bluestation", "flowstation"] as const) {
+          if (!serviceState(STATION_SERVICE[n]).active) continue;
+          try { fs.rmSync(`${L.tmp}/${STATION_SERVICE[n]}.was-active`, { force: true }); } catch { /* none */ }
+          run(`sudo systemctl stop ${STATION_SERVICE[n]}`);
+        }
+        run(`sudo systemctl enable ${targetService}`);
+        run(`sudo systemctl disable ${DMR.target}`);
+        const noWindow = unitActive(targetService) && !fs.existsSync(DMR.shmPath);
+        const restart = noWindow && miuraStartedBeforeConfig(targetService);
+        const windowOff = noWindow && !restart ? miuraWindowOff(targetService) : "";
+        if (windowOff) {
+          sharedFail = `MIURA+DMR: ${targetService} sigue en el aire con la TETRA sola; su PHY ha rechazado la ventana DMR: ${windowOff}`;
+          log.push(`[fail] ${sharedFail}`);
+        } else {
+          run(`sudo systemctl ${restart ? "restart" : "start"} --no-block ${targetService}`);
+          run(`sudo systemctl start --no-block ${DMR.target}`);
+          const units = [targetService, ...DMR_CORE_UNITS];
+          const deadline = Date.now() + 60000;
+          let up = false;
+          while (Date.now() < deadline) {
+            await new Promise((r) => setTimeout(r, 1000));
+            if (units.every(unitActive)) { up = true; break; }
+            if (unitState(targetService) === "failed") break;
+          }
+          if (up) log.push(`${units.join(", ")} activos`);
+          else {
+            const missing = units.filter((u) => !unitActive(u));
+            sharedFail = `MIURA+DMR: ${missing.join(", ")} sin arrancar tras 60 s${unitActive(targetService) ? ` (${targetService} sigue en el aire; mira «DMR window off» en journalctl -u ${targetService})` : ""}`;
+            const journal = `${dmrJournalRecent(40)} -u ${targetService}`;
+            let out = "";
+            try { out = execSync(`${journal} 2>&1`, { timeout: 10000 }).toString().trim(); } catch (e: any) { out = String(e?.stdout || e?.message || ""); }
+            log.push(`[fail] ${sharedFail}`, `$ ${journal}\n${out}`);
+          }
+        }
+      } catch (e: any) {
+        return res.status(500).json({ ok: false, message: `Error al cambiar a MIURA+DMR: ${String(e?.message || e)}`, log: log.join("\n\n") });
+      } finally {
+        dmrSwitching = false;
+      }
+    } else if (target === "dmr") {
       dmrSwitching = true;
       try {
         // The DMR stack: enable + start --no-block of the target, then up to 60 s for mmdvm-multi and dmrtc to be
@@ -2356,6 +2480,8 @@ cargo build --release
       // an update or migration that stopped it must not start it again when it ends
       try { fs.rmSync(`${L.tmp}/${STATION_SERVICE[other]}.was-active`, { force: true }); } catch { /* none */ }
       if (!serviceState(STATION_SERVICE[other]).exists) continue;
+      // MIURA+DMR: the stack goes with MiuraStation (already disabled above, never stopped here)
+      if (other === "dmr" && shared && target === "miurastation") continue;
       if (other === "dmr") { run(`sudo systemctl disable --now ${STATION_SERVICE[other]}`); continue; }
       run(`sudo systemctl disable ${STATION_SERVICE[other]}`);
       run(`sudo systemctl stop ${STATION_SERVICE[other]}`);
@@ -2365,6 +2491,9 @@ cargo build --release
       fs.writeFileSync(ACTIVE_STATION_PATH, JSON.stringify({ station: target }, null, 2));
     } catch {}
 
+    if (sharedFail) {
+      return res.status(500).json({ ok: false, message: sharedFail, station: target, service: targetService, log: log.join("\n\n") });
+    }
     res.json({
       ok: true,
       station: target,
