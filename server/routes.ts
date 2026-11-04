@@ -1552,6 +1552,9 @@ cargo build --release
     const errors = genConfigErrors(r.code, r.stdout, r.stderr);
     const genFailed = errors.length > 0;
     const cfgAfter = readMiuraCfg();
+    const blockBefore = cfgBefore !== null && hasDmrWindowBlock(cfgBefore);
+    const blockAfter = cfgAfter !== null && hasDmrWindowBlock(cfgAfter);
+    const windowGone = blockBefore && !blockAfter;
     if (genFailed && cfgAfter !== cfgBefore && miuraActive) {
       log.push(`${STATION_CONFIG_PATH.miurastation} ha cambiado pero gen-config.py ha fallado: ${miuraService} no se reinicia (sigue con la configuración con la que arrancó).`);
     } else if (cfgAfter !== cfgBefore && miuraActive) {
@@ -1559,10 +1562,11 @@ cargo build --release
       log.push(`$ sudo systemctl restart --no-block ${miuraService}`);
       try { await execOut(`sudo systemctl restart --no-block ${miuraService} 2>&1`, 30000); }
       catch (e: any) { errors.push(`no se ha podido reiniciar ${miuraService}: ${String(e?.message || e).substring(0, 200)}`); }
+      // Its drop-in Wants= pulls the stack up with it: MIURA+DMR is one station.
+      if (!blockBefore && blockAfter && !wasRunning) {
+        log.push(`SDR compartida activada: al rearrancar, ${miuraService} arranca también ${DMR.target} (MIURA+DMR en la misma SDR).`);
+      }
     }
-    const blockBefore = cfgBefore !== null && hasDmrWindowBlock(cfgBefore);
-    const blockAfter = cfgAfter !== null && hasDmrWindowBlock(cfgAfter);
-    const windowGone = blockBefore && !blockAfter;
     if (!genFailed && (windowGone ? miuraActive : !blockBefore && blockAfter && (miuraActive || wasRunning))) {
       for (const cmd of [`sudo systemctl disable ${DMR.target}`, `sudo systemctl enable ${miuraService}`]) {
         log.push(`$ ${cmd}`);
