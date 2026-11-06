@@ -4,6 +4,9 @@ import { useLocation } from "wouter";
 import { useI18n } from "@/lib/i18n";
 
 type StationName = "bluestation" | "flowstation" | "miurastation" | "dmr";
+// The buttons: the four stations and MIURA+DMR, MiuraStation's unit with the DMR stack next to it on the SDR.
+type ButtonName = StationName | "miuradmr";
+const unitOf = (b: ButtonName): StationName => b === "miuradmr" ? "miurastation" : b;
 
 interface StationInfo {
   exists: boolean;
@@ -23,21 +26,30 @@ interface ActiveResp {
   station: StationName;
   persisted: StationName;
   services: Record<StationName, StationInfo | undefined>;
-  dmr?: { degraded: boolean; missing: string[]; shared?: boolean };
+  // shared: SDR_COMPARTIDO applied; sharedAvailable: MIURA+DMR can be chosen (dmr-tier3 0.4.0 + MiuraStation 1.4.0)
+  dmr?: { degraded: boolean; missing: string[]; shared?: boolean; sharedAvailable?: boolean };
 }
 
 // MIURA = MiuraStation (EA5GVK), FLOW = razvan's FlowStation, BLUE = BlueStation (tmo),
-// DMR = the DMR Tier III stack (EA7KEN's MMDVM-Multi/dmrtc/DMRGateway on the SX1255) as one systemd target.
-const STATIONS: { name: StationName; label: string; long: string; Icon: typeof Radio; on: string; text: string; btn: string; switchKey: string }[] = [
+// DMR = the DMR Tier III stack (EA7KEN's MMDVM-Multi/dmrtc/DMRGateway on the SX1255) as one systemd target,
+// MIURA+DMR = both at once on the SDR (SDR_COMPARTIDO=1). MIURA and DMR are each alone on the SDR.
+const STATIONS: { name: ButtonName; label: string; long: string; Icon: typeof Radio; on: string; text: string; btn: string; switchKey: string }[] = [
   { name: "bluestation", label: "BLUE", long: "BLUESTATION", Icon: Radio, on: "bg-violet-500/20 text-violet-300", text: "text-violet-300", btn: "bg-violet-600 hover:bg-violet-500", switchKey: "station_switch_to_blue" },
   { name: "flowstation", label: "FLOW", long: "FLOWSTATION", Icon: Waves, on: "bg-emerald-500/20 text-emerald-300", text: "text-emerald-300", btn: "bg-emerald-600 hover:bg-emerald-500", switchKey: "station_switch_to_flow" },
   { name: "miurastation", label: "MIURA", long: "MIURASTATION", Icon: Waves, on: "bg-amber-500/20 text-amber-300", text: "text-amber-300", btn: "bg-amber-600 hover:bg-amber-500", switchKey: "station_switch_to_flow" },
+  { name: "miuradmr", label: "MIURA+DMR", long: "MIURASTATION + DMR TIER III", Icon: Waves, on: "bg-amber-500/20 text-amber-300", text: "text-amber-300", btn: "bg-amber-600 hover:bg-amber-500", switchKey: "station_switch_to_miura_dmr" },
   { name: "dmr", label: "DMR", long: "DMR TIER III", Icon: RadioTower, on: "bg-cyan-500/20 text-cyan-300", text: "text-cyan-300", btn: "bg-cyan-600 hover:bg-cyan-500", switchKey: "station_switch_to_dmr" },
 ];
-// SDR shared with the DMR (dmr.shared, SDR_COMPARTIDO applied): MIURA and DMR are one button, MiuraStation's, and
-// the stack runs next to it.
-const MIURA_DMR = { ...STATIONS.find(s => s.name === "miurastation")!, label: "MIURA+DMR", long: "MIURASTATION + DMR TIER III", switchKey: "station_switch_to_miura_dmr" };
-const SHARED_STATIONS = STATIONS.filter(s => s.name !== "dmr").map(s => s.name === "miurastation" ? MIURA_DMR : s);
+
+// The button of the station in use: MiuraStation with SDR_COMPARTIDO applied is MIURA+DMR.
+const activeButton = (d: ActiveResp): ButtonName => d.station === "miurastation" && d.dmr?.shared ? "miuradmr" : d.station;
+// A button's units are on air: MIURA+DMR only with the stack up too; MIURA and DMR only alone on the SDR.
+function onAir(d: ActiveResp, b: ButtonName): boolean {
+  const shared = !!d.dmr?.shared;
+  if (b === "miuradmr") return shared && !!d.services.miurastation?.active && !!d.services.dmr?.active;
+  if (b === "miurastation" || b === "dmr") return !shared && !!d.services[b]?.active;
+  return !!d.services[b]?.active;
+}
 
 const POLL_MS = 30 * 1000;
 // Other pages (the DMR dashboard when the stack is stopped) open the switch dialog through this window event,
@@ -62,7 +74,7 @@ export function StationSwitcher() {
   const [location, setLocation] = useLocation();
   const [data, setData] = useState<ActiveResp | null>(null);
   const [open, setOpen] = useState(false);
-  const [target, setTarget] = useState<StationName>("bluestation");
+  const [target, setTarget] = useState<ButtonName>("bluestation");
   const [password, setPassword] = useState("");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState("");
@@ -86,7 +98,7 @@ export function StationSwitcher() {
     return () => clearInterval(id);
   }, [fetchActive]);
 
-  function openSwitch(to: StationName) {
+  function openSwitch(to: ButtonName) {
     setTarget(to);
     setPassword("");
     setErr("");
@@ -98,13 +110,11 @@ export function StationSwitcher() {
 
   useEffect(() => {
     const onOpen = (e: Event) => {
-      let to = (e as CustomEvent<{ station?: StationName }>).detail?.station;
-      // shared: reactivating the DMR is switching to MIURA+DMR, which is up only with the stack up too
-      const shared = !!data?.dmr?.shared;
-      if (shared && to === "dmr") to = "miurastation";
-      if (!to || !data?.services[to]?.installed) return;
-      const up = !!data.services[to]?.active && !(shared && to === "miurastation" && !data.services.dmr?.active);
-      if (data.station === to && up) return;
+      let to: ButtonName | undefined = (e as CustomEvent<{ station?: StationName }>).detail?.station;
+      // shared: reactivating the DMR is MIURA+DMR again, which is up only with the stack up too
+      if (data?.dmr?.shared && to === "dmr") to = "miuradmr";
+      if (!to || !data?.services[unitOf(to)]?.installed) return;
+      if (activeButton(data) === to && onAir(data, to)) return;
       openSwitch(to);
     };
     window.addEventListener(OPEN_STATION_SWITCHER_EVENT, onOpen);
@@ -122,7 +132,8 @@ export function StationSwitcher() {
       const r = await fetch("/api/station/switch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password, station: target }),
+        // alone: MIURA and DMR each alone on the SDR (without it the server keeps MIURA+DMR when it is applied)
+        body: JSON.stringify({ password, station: target, ...(target === "miurastation" || target === "dmr" ? { alone: true } : {}) }),
         signal: ctl.signal,
       });
       const j = await r.json();
@@ -130,45 +141,53 @@ export function StationSwitcher() {
         setErr(j.message || t("station_switch_error"));
         if (j.log) setLogOut(j.log);
         setBusy(false);
-        // MIURA+DMR with the stack not up: MiuraStation is the station now all the same
-        if (j.station) setTimeout(fetchActive, 600);
+        // a failed switch may have changed things all the same (MIURA+DMR with the stack not up, SDR_COMPARTIDO)
+        setTimeout(fetchActive, 600);
         return;
       }
       setLogOut(j.log || "");
       setDone(true);
       setBusy(false);
       // Update localStorage for restart/log service immediately
-      if (j.service) rememberServices(target, j.service);
+      if (j.service) rememberServices(unitOf(target), j.service);
       if (target === "dmr") setLocation("/dmr");
       // MIURA+DMR keeps the DMR dashboard (it is the DMR being started from there)
-      else if (location === "/dmr" && !(data?.dmr?.shared && target === "miurastation")) setLocation("/");
+      else if (location === "/dmr" && target !== "miuradmr") setLocation("/");
       setTimeout(fetchActive, 600);
     } catch {
       setErr(t("station_switch_error"));
       setBusy(false);
+      setTimeout(fetchActive, 600);
     } finally {
       clearTimeout(timer);
     }
   }
 
   if (!data) return null;
-  const active = data.station;
+  const current = activeButton(data);
   const shared = !!data.dmr?.shared;
-  const stations = shared ? SHARED_STATIONS : STATIONS;
-  const meta = stations.find(s => s.name === target) ?? stations[0];
+  // MIURA+DMR only where it can run (dmr-tier3 0.4.0 + MiuraStation 1.4.0 or later) or is already applied
+  const buttons = STATIONS.filter(s => s.name !== "miuradmr" || shared || data.dmr?.sharedAvailable);
+  const meta = STATIONS.find(s => s.name === target) ?? STATIONS[0];
+  const targetUnit = unitOf(target);
   // to MIURA+DMR: BLUE / FLOW stopped first, MiuraStation (re)started and the stack started next to it
-  const toShared = shared && target === "miurastation";
+  const toShared = target === "miuradmr";
+  // SDR_COMPARTIDO changes first (stack stopped, gen-config.py): on for MIURA+DMR, off for MIURA and DMR
+  const sharedOn = toShared && !shared;
+  const sharedOff = shared && (target === "miurastation" || target === "dmr");
+  const units = STATIONS.filter(s => s.name !== "miuradmr").map(s => s.name as StationName);
   // the dialog lists the units the switch will stop (the installed ones other than the target; MIURA+DMR keeps the stack)
-  const others = STATIONS.filter(s => s.name !== target && !(toShared && s.name === "dmr") && data.services[s.name]?.exists).map(s => data.services[s.name]!.service);
-  const targetService = data.services[target]?.service ?? "";
+  const others = units.filter(n => n !== targetUnit && !(toShared && n === "dmr") && data.services[n]?.exists).map(n => data.services[n]!.service);
+  const targetService = data.services[targetUnit]?.service ?? "";
   const toDmr = target === "dmr";
-  const sharedStopped = toShared ? stations.filter(s => s.name !== target && data.services[s.name]?.active).map(s => data.services[s.name]!.service) : [];
+  const sharedStopped = toShared ? units.filter(n => (n === "bluestation" || n === "flowstation") && data.services[n]?.active).map(n => data.services[n]!.service) : [];
   // to the DMR: the station in use is stopped first (the SDR must be free), then the target is started
-  const running = toDmr ? STATIONS.find(s => s.name !== "dmr" && data.services[s.name]?.active) : undefined;
-  const runningService = running ? (data.services[running.name]?.service ?? "") : "";
+  const running = toDmr ? units.find(n => n !== "dmr" && data.services[n]?.active) : undefined;
+  const runningService = running ? (data.services[running]?.service ?? "") : "";
   const dmrInfo = data.services.dmr;
+  const dmrUp = !!(dmrInfo?.active || dmrInfo?.degraded);
   // leaving the DMR for BLUE or FLOW (no Conflicts= with them): the server stops the stack first, MIURA's unit does it
-  const dmrStoppedFirst = !toDmr && target !== "miurastation" && (dmrInfo?.active || dmrInfo?.degraded) ? (dmrInfo?.service ?? "") : "";
+  const dmrStoppedFirst = !toDmr && targetUnit !== "miurastation" && dmrUp ? (dmrInfo?.service ?? "") : "";
   const dmrMissing = dmrInfo?.missing ?? data.dmr?.missing ?? [];
   const dmrDegraded = !!(dmrInfo?.degraded ?? data.dmr?.degraded) && dmrMissing.length > 0;
   // MIURA+DMR with MiuraStation on air and the stack not (fully) up: what is missing, the target when it is stopped
@@ -183,20 +202,19 @@ export function StationSwitcher() {
         title={t("station_active")}
         data-testid="station-switcher"
       >
-        {stations.map((st, i) => {
-          const info = data.services[st.name];
-          const ok = !!info?.installed;
-          const isActive = active === st.name;
-          const merged = shared && st.name === "miurastation";
-          // MIURA+DMR is on air only with the stack up too
-          const onAir = !!info?.active && (!merged || !!dmrInfo?.active);
+        {buttons.map((st, i) => {
+          const info = data.services[unitOf(st.name)];
+          const merged = st.name === "miuradmr";
+          const ok = !!info?.installed && (!merged || !!dmrInfo?.installed);
+          const isActive = current === st.name;
+          const on = onAir(data, st.name);
           // the chosen station with its unit stopped (a failed apply, a crash) can be started again from here
-          const canSwitch = ok && !(isActive && onAir);
-          const degraded = (st.name === "dmr" && dmrDegraded) || (merged && sharedDown);
+          const canSwitch = ok && !(isActive && on);
+          const degraded = (st.name === "dmr" && !shared && dmrDegraded) || (merged && sharedDown);
           const missing = merged ? sharedMissing : dmrMissing;
           const title = !ok
             ? st.name === "bluestation" ? t("station_not_installed")
-              : st.name === "dmr" ? `${t("station_not_installed")}: ${st.long} — ${t("station_install_first")}`
+              : st.name === "dmr" || merged ? `${t("station_not_installed")}: ${st.long} — ${t("station_install_first")}`
               : `${t("station_not_installed")}: ${info?.product ?? st.long}`
             : degraded ? `${t("station_dmr_degraded")} ${missing.join(", ")}`
             : st.name === "miurastation" ? t(st.switchKey).replace(/Flow[Ss]tation|FLOWSTATION/, "MiuraStation")
@@ -219,8 +237,8 @@ export function StationSwitcher() {
               >
                 <st.Icon className="w-3 h-3" />
                 {st.label}
-                {onAir && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
-                {!onAir && degraded && (
+                {on && <span className="w-1.5 h-1.5 rounded-full bg-green-400 animate-pulse" />}
+                {!on && degraded && (
                   <span className="w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse" title={`${t("station_dmr_degraded")} ${missing.join(", ")}`} data-testid="dot-station-dmr-degraded" />
                 )}
               </button>
@@ -247,12 +265,24 @@ export function StationSwitcher() {
                   {meta.long}
                 </strong>
               </div>
+              {(sharedOn || sharedOff) && (
+                <div className="text-[10px] text-amber-200/90 bg-amber-500/10 border border-amber-500/30 rounded px-2 py-1.5" data-testid="text-station-shared-explain">
+                  {t(sharedOn ? "station_switch_shared_on_explain" : "station_switch_shared_off_explain")}
+                </div>
+              )}
               {toDmr && (
                 <div className="text-[10px] text-cyan-200/90 bg-cyan-500/10 border border-cyan-500/30 rounded px-2 py-1.5" data-testid="text-station-dmr-explain">
                   {t("station_switch_dmr_explain")}
                 </div>
               )}
               <div className="bg-black/40 border border-border rounded p-2 text-[10px] font-mono text-muted-foreground space-y-0.5">
+                {(sharedOn || sharedOff) && (
+                  <>
+                    {dmrUp && <div className="text-red-400">$ sudo systemctl stop {dmrInfo?.service}</div>}
+                    <div className="text-amber-400"># SDR_COMPARTIDO={sharedOn ? 1 : 0} (dmr-tier3.conf)</div>
+                    <div className="text-green-400">$ sudo python3 gen-config.py</div>
+                  </>
+                )}
                 {toDmr ? (
                   <>
                     {runningService && <div className="text-red-400">$ sudo systemctl stop {runningService}</div>}
@@ -266,7 +296,7 @@ export function StationSwitcher() {
                     <div className="text-green-400">$ sudo systemctl enable {targetService}</div>
                     <div className="text-red-400">$ sudo systemctl disable {dmrInfo?.service}</div>
                     <div className="text-green-400">
-                      $ {miuraInfo?.active ? `[ -e /dev/shm/miurastation-dmr ] || ! [ config.toml -nt ${targetService} ] || sudo systemctl restart --no-block ${targetService}` : `sudo systemctl start --no-block ${targetService}`}
+                      $ {miuraInfo?.active ? (sharedOn ? `sudo systemctl restart --no-block ${targetService}` : `[ -e /dev/shm/miurastation-dmr ] || ! [ config.toml -nt ${targetService} ] || sudo systemctl restart --no-block ${targetService}`) : `sudo systemctl start --no-block ${targetService}`}
                     </div>
                     <div className="text-green-400">$ sudo systemctl start --no-block {dmrInfo?.service}</div>
                     <div className="text-amber-400"># {targetService} + mmdvm-multi.service + dmrtc.service (≤ 60 s)</div>
@@ -275,7 +305,7 @@ export function StationSwitcher() {
                   <>
                     {dmrStoppedFirst && <div className="text-red-400">$ sudo systemctl stop {dmrStoppedFirst}</div>}
                     <div className="text-green-400">$ sudo systemctl enable {targetService}</div>
-                    <div className="text-green-400">$ sudo systemctl start {targetService}</div>
+                    <div className="text-green-400">$ sudo systemctl {sharedOff && miuraInfo?.active ? "restart --no-block" : "start"} {targetService}</div>
                   </>
                 )}
                 {others.filter(svc => svc !== runningService).map(svc => (
