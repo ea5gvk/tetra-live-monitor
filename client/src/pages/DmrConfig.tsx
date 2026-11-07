@@ -60,7 +60,8 @@ function kindOf(k: ConfKey, values: Record<string, string>): Kind {
   if (BOOL_RE.test(k.help) && /^[01]?$/.test(value)) return { kind: "switch" };
   if (k.choices && k.choices.includes(value)) return { kind: "select", options: k.choices };
   if (k.key === "N_CHANNELS") return { kind: "number", min: 1, max: MAX_CHANNELS };
-  if (k.key === "CONTROL_CHANNEL") return { kind: "number", min: 1, max: channels(values) };
+  // Tier II has no control channel (gen-config only checks 1..4 then): N_CHANNELS=1 must not hold it back
+  if (k.key === "CONTROL_CHANNEL") return { kind: "number", min: 1, max: values.DMR_TIER === "2" ? MAX_CHANNELS : channels(values) };
   const m = RANGE_RE.exec(k.help);
   if (m) return { kind: "number", min: parseInt(m[1], 10), max: m[2] === "N_CHANNELS" ? channels(values) : parseInt(m[2], 10) };
   if (/^-?\d+$/.test(k.default) && /^-?\d*$/.test(value)) return { kind: "number" };

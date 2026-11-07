@@ -462,8 +462,9 @@ function StackCard({ conn, stack, reason, onRetry, t }: { conn: ConnStatus; stac
   useEffect(() => {
     fetch("/api/station/active").then(r => r.ok ? r.json() : null).then(j => setShared(!!j?.dmr?.shared)).catch(() => {});
   }, []);
-  // Tier II (DMR_TIER=2): a conventional repeater, no dmrtc and so nothing for this page; its live log tells
-  if (conn === "tier2") {
+  // Tier II (DMR_TIER=2): a conventional repeater, no dmrtc and so nothing for this page; its live log tells.
+  // A Tier II stack not on air (stopped, degraded, not installed) shows the card below like a Tier III one.
+  if (conn === "tier2" && stack?.installed && stack.active) {
     return (
       <div className="glass-panel rounded-md p-4 sm:p-6 flex flex-col items-center text-center gap-3 border border-cyan-500/30" data-testid="panel-dmr-tier2">
         <Info className="w-10 h-10 text-cyan-400" />
