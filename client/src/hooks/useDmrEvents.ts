@@ -76,8 +76,9 @@ export interface DmrState {
 }
 
 // live = the SSE is open; reconnecting = it dropped and a retry is scheduled; stopped = the stack is not running
-// (503 reason stopped / panel reason stopped); unreachable = the stack runs but dmrtc has no status server.
-export type ConnStatus = "loading" | "live" | "reconnecting" | "stopped" | "unreachable";
+// (503 reason stopped / panel reason stopped); unreachable = the stack runs but dmrtc has no status server;
+// tier2 = DMR_TIER=2 applied, a conventional repeater without dmrtc (reason tier2).
+export type ConnStatus = "loading" | "live" | "reconnecting" | "stopped" | "unreachable" | "tier2";
 
 export interface CmdResult { ok: boolean; status: number; message?: string; data: Record<string, unknown> }
 
@@ -97,7 +98,7 @@ interface Model {
 
 type Action =
   | { type: "state"; state: DmrState; source: "fetch" | "hello" }
-  | { type: "stack"; stack: DmrStackState | null; conn: "stopped" | "unreachable"; reason: string }
+  | { type: "stack"; stack: DmrStackState | null; conn: "stopped" | "unreachable" | "tier2"; reason: string }
   | { type: "conn"; conn: ConnStatus; reason?: string }
   | { type: "event"; event: DmrEvent }
   | { type: "names"; names: Record<string, DmrName> }
@@ -289,7 +290,7 @@ function reducer(m: Model, a: Action): Model {
         latencyMs: panel?.latency_ms ?? m.latencyMs,
         stack: m.stack ? { ...m.stack, active: true, degraded: false, missing: [] } : m.stack,
         // the stack answers again: "live" only when the SSE says so
-        conn: m.conn === "stopped" || m.conn === "unreachable" ? "reconnecting" : m.conn,
+        conn: m.conn === "stopped" || m.conn === "unreachable" || m.conn === "tier2" ? "reconnecting" : m.conn,
       };
     }
     case "stack":
@@ -376,7 +377,7 @@ export function useDmrEvents() {
         wantNames(stateRadioIds(j as DmrState));
         if (!esRef.current) connectNowRef.current();
       } else if (r.status === 503 && j && typeof j === "object") {
-        const reason = j.reason === "stopped" ? "stopped" : "unreachable";
+        const reason = j.reason === "stopped" || j.reason === "tier2" ? j.reason : "unreachable";
         dispatch({ type: "stack", stack: (j.state as DmrStackState) ?? null, conn: reason, reason: String(j.message ?? "") });
       } else {
         dispatch({ type: "conn", conn: "reconnecting", reason: `HTTP ${r.status}` });
@@ -427,7 +428,7 @@ export function useDmrEvents() {
           return;
         }
         const reason = String(d.reason ?? "");
-        if (reason === "stopped") dispatch({ type: "stack", stack: (d.state as DmrStackState) ?? null, conn: "stopped", reason });
+        if (reason === "stopped" || reason === "tier2") dispatch({ type: "stack", stack: (d.state as DmrStackState) ?? null, conn: reason, reason });
         else if (reason === "unreachable") dispatch({ type: "stack", stack: null, conn: "unreachable", reason });
         else dispatch({ type: "conn", conn: "reconnecting", reason });
         // the server closes right after; our backoff decides when to come back

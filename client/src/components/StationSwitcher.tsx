@@ -17,7 +17,8 @@ interface StationInfo {
   configPath: string;
   service: string;
   product?: string;
-  // dmr only: the target is up but mmdvm-multi.service / dmrtc.service (missing) are not
+  // dmr only: the target is up but mmdvm-multi.service / dmrtc.service (missing) are not (Tier II: mmdvm-host@1.service
+  // instead of dmrtc.service)
   degraded?: boolean;
   missing?: string[];
 }
@@ -26,13 +27,15 @@ interface ActiveResp {
   station: StationName;
   persisted: StationName;
   services: Record<StationName, StationInfo | undefined>;
-  // shared: SDR_COMPARTIDO applied; sharedAvailable: MIURA+DMR can be chosen (dmr-tier3 0.4.0 + MiuraStation 1.4.0)
-  dmr?: { degraded: boolean; missing: string[]; shared?: boolean; sharedAvailable?: boolean };
+  // shared: SDR_COMPARTIDO applied; sharedAvailable: MIURA+DMR can be chosen (dmr-tier3 0.4.0 + MiuraStation 1.4.0);
+  // tier: the DMR tier applied (2 = conventional repeater, DMR_TIER=2; absent from an older panel = 3)
+  dmr?: { degraded: boolean; missing: string[]; shared?: boolean; sharedAvailable?: boolean; tier?: number };
 }
 
 // MIURA = MiuraStation (EA5GVK), FLOW = razvan's FlowStation, BLUE = BlueStation (tmo),
 // DMR = the DMR Tier III stack (EA7KEN's MMDVM-Multi/dmrtc/DMRGateway on the SX1255) as one systemd target,
-// MIURA+DMR = both at once on the SDR (SDR_COMPARTIDO=1). MIURA and DMR are each alone on the SDR.
+// MIURA+DMR = both at once on the SDR (SDR_COMPARTIDO=1). MIURA and DMR are each alone on the SDR. With Tier II
+// applied (a conventional repeater, no dmrtc) the long names say DMR TIER II.
 const STATIONS: { name: ButtonName; label: string; long: string; Icon: typeof Radio; on: string; text: string; btn: string; switchKey: string }[] = [
   { name: "bluestation", label: "BLUE", long: "BLUESTATION", Icon: Radio, on: "bg-violet-500/20 text-violet-300", text: "text-violet-300", btn: "bg-violet-600 hover:bg-violet-500", switchKey: "station_switch_to_blue" },
   { name: "flowstation", label: "FLOW", long: "FLOWSTATION", Icon: Waves, on: "bg-emerald-500/20 text-emerald-300", text: "text-emerald-300", btn: "bg-emerald-600 hover:bg-emerald-500", switchKey: "station_switch_to_flow" },
@@ -169,6 +172,10 @@ export function StationSwitcher() {
   // MIURA+DMR only where it can run (dmr-tier3 0.4.0 + MiuraStation 1.4.0 or later) or is already applied
   const buttons = STATIONS.filter(s => s.name !== "miuradmr" || shared || data.dmr?.sharedAvailable);
   const meta = STATIONS.find(s => s.name === target) ?? STATIONS[0];
+  const tier2 = data.dmr?.tier === 2;
+  const longOf = (s: typeof meta) => tier2 ? s.long.replace("DMR TIER III", "DMR TIER II") : s.long;
+  // what the switch waits for (dmrStation.dmrCoreUnits)
+  const coreUnits = tier2 ? "mmdvm-multi.service + mmdvm-host@1.service" : "mmdvm-multi.service + dmrtc.service";
   const targetUnit = unitOf(target);
   // to MIURA+DMR: BLUE / FLOW stopped first, MiuraStation (re)started and the stack started next to it
   const toShared = target === "miuradmr";
@@ -214,10 +221,11 @@ export function StationSwitcher() {
           const missing = merged ? sharedMissing : dmrMissing;
           const title = !ok
             ? st.name === "bluestation" ? t("station_not_installed")
-              : st.name === "dmr" || merged ? `${t("station_not_installed")}: ${st.long} — ${t("station_install_first")}`
+              : st.name === "dmr" || merged ? `${t("station_not_installed")}: ${longOf(st)} — ${t("station_install_first")}`
               : `${t("station_not_installed")}: ${info?.product ?? st.long}`
             : degraded ? `${t("station_dmr_degraded")} ${missing.join(", ")}`
             : st.name === "miurastation" ? t(st.switchKey).replace(/Flow[Ss]tation|FLOWSTATION/, "MiuraStation")
+            : tier2 ? t(st.switchKey).replace("Tier III", "Tier II")
             : t(st.switchKey);
           return (
             <span key={st.name} className="inline-flex items-center">
@@ -262,7 +270,7 @@ export function StationSwitcher() {
             <div className="p-4 space-y-3">
               <div className="text-xs text-muted-foreground">
                 {t(toDmr ? "station_switch_confirm_dmr" : "station_switch_confirm")} <strong className={meta.text}>
-                  {meta.long}
+                  {longOf(meta)}
                 </strong>
               </div>
               {(sharedOn || sharedOff) && (
@@ -288,7 +296,7 @@ export function StationSwitcher() {
                     {runningService && <div className="text-red-400">$ sudo systemctl stop {runningService}</div>}
                     <div className="text-green-400">$ sudo systemctl enable {targetService}</div>
                     <div className="text-green-400">$ sudo systemctl start --no-block {targetService}</div>
-                    <div className="text-amber-400"># mmdvm-multi.service + dmrtc.service (≤ 60 s)</div>
+                    <div className="text-amber-400"># {coreUnits} (≤ 60 s)</div>
                   </>
                 ) : toShared ? (
                   <>
@@ -299,7 +307,7 @@ export function StationSwitcher() {
                       $ {miuraInfo?.active ? (sharedOn ? `sudo systemctl restart --no-block ${targetService}` : `[ -e /dev/shm/miurastation-dmr ] || ! [ config.toml -nt ${targetService} ] || sudo systemctl restart --no-block ${targetService}`) : `sudo systemctl start --no-block ${targetService}`}
                     </div>
                     <div className="text-green-400">$ sudo systemctl start --no-block {dmrInfo?.service}</div>
-                    <div className="text-amber-400"># {targetService} + mmdvm-multi.service + dmrtc.service (≤ 60 s)</div>
+                    <div className="text-amber-400"># {targetService} + {coreUnits} (≤ 60 s)</div>
                   </>
                 ) : (
                   <>

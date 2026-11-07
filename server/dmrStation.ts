@@ -6,6 +6,9 @@
 //   dmrgateway.service all PartOf= it. The target can stay "active" with mmdvm-multi failed: the real state is
 //   target + mmdvm-multi + dmrtc (dmrHealth). The target and mmdvm-multi carry Conflicts=miurastation.service,
 //   except in the shared mode (dmrShared), where the stack runs next to MiuraStation.
+// - Tier II (DMR_TIER=2, dmrTier2): one conventional repeater (N_CHANNELS=1) for any DMR radio, without dmrtc
+//   (its unit carries ConditionPathExists=!<marker>, so the target starts and skips it): the core units are then
+//   mmdvm-multi + mmdvm-host@1.
 // - configuration: /etc/dmr-tier3/dmr-tier3.conf (KEY=VALUE, mode 0600, NET_PASSWORD is a secret), from which
 //   /opt/dmr-tier3/bin/gen-config.py writes the nine files of the stack (only with dmrtc stopped: exit 3 otherwise;
 //   2 = invalid conf, listed in Spanish; 1 = write failure; --check only validates).
@@ -39,11 +42,16 @@ export const DMR = {
   // window to MMDVM-Multi through the file below.
   sharedDropIn: "/etc/systemd/system/mmdvm-multi.service.d/20-compartido.conf",
   shmPath: "/dev/shm/miurastation-dmr",
+  // Tier II (DMR_TIER=2): gen-config.py writes this marker only when it applies Tier II and deletes it with Tier III,
+  // so, like the drop-in above, it says what was applied.
+  tier2Marker: "/etc/dmr-tier3/tier2",
   tagPrefix: "dmr-tier3-v",
   repoLabel: `DMR Tier III · ${DIST_REPO} · paquete .deb dmr-tier3 (pila de EA7KEN)`,
 } as const;
 // The units whose state is the station's (Requires= of the target): both must be active.
 export const DMR_CORE_UNITS = ["mmdvm-multi.service", "dmrtc.service"] as const;
+// The same in Tier II: no dmrtc, the one repeater's MMDVM-Host instead.
+export const DMR_CORE_UNITS_TIER2 = ["mmdvm-multi.service", "mmdvm-host@1.service"] as const;
 // The units of the live log preset "dmr" (journalctl -u accepts globs).
 export const DMR_JOURNAL_UNITS = ["mmdvm-multi", "mmdvm-iq@*", "mmdvm-host@*", "dmrtc", "dmrgateway"] as const;
 export const DMR_SECRET_KEYS = ["NET_PASSWORD", "AUTH_KEYS"] as const;
@@ -111,11 +119,12 @@ export function dmrPkgVersion(): string | null {
 export const dmrInstalled = (): boolean => fs.existsSync(DMR.multiBin) || dmrPkgVersion() !== null;
 
 export interface DmrHealth { active: boolean; degraded: boolean; missing: string[] }
-/** The station is on air when the target is active AND both core units are; a target active with one of them
- *  down (mmdvm-multi failed on a busy SDR, dmrtc without its cfg) is "degraded" and `missing` says which. */
-export function dmrHealth(targetActive: boolean, isActive: (unit: string) => boolean): DmrHealth {
+/** The station is on air when the target is active AND both core units (`units`: dmrCoreUnits) are; a target
+ *  active with one of them down (mmdvm-multi failed on a busy SDR, dmrtc without its cfg) is "degraded" and
+ *  `missing` says which. */
+export function dmrHealth(targetActive: boolean, isActive: (unit: string) => boolean, units: readonly string[] = DMR_CORE_UNITS): DmrHealth {
   if (!targetActive) return { active: false, degraded: false, missing: [] };
-  const missing = DMR_CORE_UNITS.filter((u) => !isActive(u));
+  const missing = units.filter((u) => !isActive(u));
   return { active: missing.length === 0, degraded: missing.length > 0, missing };
 }
 
@@ -150,11 +159,18 @@ export function dmrState(): DmrState {
       enabled = e === "enabled" || e === "alias" || e === "static";
     } catch { /* disabled */ }
   }
-  return { installed, exists, enabled, version, ...dmrHealth(exists && unitActive(DMR.target), unitActive) };
+  return { installed, exists, enabled, version, ...dmrHealth(exists && unitActive(DMR.target), unitActive, dmrCoreUnits()) };
 }
 
 /** The stack is running or half-running (gen-config refuses with dmrtc active): anything to stop first. */
-export const dmrRunning = (): boolean => unitActiveOrActivating(DMR.target) || DMR_CORE_UNITS.some(unitActiveOrActivating);
+export const dmrRunning = (): boolean => unitActiveOrActivating(DMR.target) || dmrCoreUnits().some(unitActiveOrActivating);
+
+// ── Tier II ──
+
+/** Tier II is applied: gen-config.py's marker exists (a conventional repeater, no dmrtc). */
+export const dmrTier2 = (file = DMR.tier2Marker): boolean => fs.existsSync(file);
+/** The core units of the tier applied: what health, "on air" and the waits of a switch look at. */
+export const dmrCoreUnits = (tier2 = dmrTier2()): readonly string[] => tier2 ? DMR_CORE_UNITS_TIER2 : DMR_CORE_UNITS;
 
 // ── SDR shared with MiuraStation ──
 
@@ -239,9 +255,10 @@ export function readDmrConf(file = DMR.confPath): Record<string, string> | null 
   try { return parseDmrConf(fs.readFileSync(file, "utf-8")); } catch { return null; }
 }
 
-export interface DmrConfKey { key: string; default: string; help: string; section: string }
+export interface DmrConfKey { key: string; default: string; help: string; section: string; choices?: string[] }
 /** The keys of dmr-tier3.conf.example in order, each with its default and the help of the # lines right above it
- *  (a "# ---- Name" banner starts a section and is not help). Pure. */
+ *  (a "# ---- Name" banner starts a section and is not help). A help with two or more lines that start with
+ *  "<number> = " (DMR_TIER: "2 = ..." / "3 = ...") lists the values of the key: `choices`, for a select. Pure. */
 export function parseDmrConfHelp(text: string): DmrConfKey[] {
   const keys: DmrConfKey[] = [];
   let section = "", help: string[] = [];
@@ -255,7 +272,10 @@ export function parseDmrConfHelp(text: string): DmrConfKey[] {
       continue;
     }
     const m = KV_RE.exec(line);
-    if (m && !keys.some((k) => k.key === m[1])) keys.push({ key: m[1], default: m[2].trim(), help: help.join("\n"), section });
+    if (m && !keys.some((k) => k.key === m[1])) {
+      const choices = Array.from(new Set(help.map((l) => /^(\d+) = /.exec(l)?.[1]).filter((v): v is string => !!v)));
+      keys.push({ key: m[1], default: m[2].trim(), help: help.join("\n"), section, ...(choices.length > 1 ? { choices } : {}) });
+    }
     help = [];
   }
   return keys;
@@ -355,4 +375,4 @@ export function logStreamCommand(q: { service?: unknown; file?: unknown }): LogS
 }
 
 export const dmrJournalRecent = (lines = 40) =>
-  `journalctl -u ${DMR.target} ${DMR_CORE_UNITS.map((u) => `-u ${u}`).join(" ")} -n ${lines} --no-pager -o short`;
+  `journalctl -u ${DMR.target} ${dmrCoreUnits().map((u) => `-u ${u}`).join(" ")} -n ${lines} --no-pager -o short`;

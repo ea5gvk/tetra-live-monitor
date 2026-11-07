@@ -1,7 +1,8 @@
 // The DMR dashboard's server side: the panel's client of the status server that dmrtc runs with "-h -s" on
 // 127.0.0.1:control_port (4939; GET /health, /state, /events; POST /cmd, no authentication: the panel puts it).
 // - /api/dmr/state: the /state JSON of dmrtc as is, plus "names" (the callsigns of the IDs in it that the cache
-//   knows) and "panel" (when and how fast it was fetched); 503 when the stack is stopped or dmrtc does not answer.
+//   knows) and "panel" (when and how fast it was fetched); 503 when the stack is stopped or dmrtc does not answer,
+//   and with reason "tier2" in Tier II (a conventional repeater: there is no dmrtc at all).
 // - /api/dmr/events: the /events SSE stream relayed byte for byte, framed by the panel's own "panel" events
 //   ({connected:true} first, {connected:false, reason} last); the upstream socket dies with the client.
 // - /api/dmr/cmd: the system password, a closed list of commands whose arguments are checked here (never a free
@@ -14,7 +15,7 @@ import * as http from "http";
 import * as fs from "fs";
 import * as path from "path";
 import type { Request, Response } from "express";
-import { DMR, dmrState as realDmrState, type DmrState } from "./dmrStation";
+import { DMR, dmrState as realDmrState, dmrTier2, type DmrState } from "./dmrStation";
 
 export const DMRTC_HOST = "127.0.0.1";
 export const DMRTC_DEFAULT_PORT = 4939;
@@ -32,6 +33,7 @@ export const RADIOID_TIMEOUT_MS = 4000;
 export const RADIOID_MIN_ID = 1000;      // below that: talkgroups and lab IDs, never a radioid.net user
 export const NAMES_QUERY_MAX = 200;
 export const NAMES_QUEUE_MAX = 500;     // IDs waiting for radioid.net at most; the rest wait for their next appearance
+export const TIER2_MESSAGE = "La estación DMR está en Tier II (repetidor convencional, DMR_TIER=2): no hay dmrtc ni panel de llamadas y registros";
 
 export interface Upstream { host: string; port: number }
 
@@ -391,6 +393,7 @@ export interface DmrStatusDeps {
   getPassword: () => string;
   upstream: () => Upstream;
   names: DmrNameCache;
+  tier2?: () => boolean;
 }
 
 export function createDmrStatus(deps: DmrStatusDeps) {
@@ -404,6 +407,7 @@ export function createDmrStatus(deps: DmrStatusDeps) {
   /** GET /api/dmr/state */
   async function state(_req: Request, res: Response) {
     const st = stateOf();
+    if (deps.tier2?.()) return res.status(503).json({ ok: false, reason: "tier2", state: st, message: TIER2_MESSAGE });
     if (!st.active) return res.status(503).json({ ok: false, reason: "stopped", state: st, message: `La pila ${DMR.name} está parada` });
     const up = deps.upstream();
     let r: UpstreamReply;
@@ -423,8 +427,9 @@ export function createDmrStatus(deps: DmrStatusDeps) {
     res.flushHeaders();
     const panel = (data: Record<string, unknown>) => { if (!res.writableEnded) res.write(`event: panel\ndata: ${JSON.stringify({ ...data, ts: new Date().toISOString() })}\n\n`); };
     const st = stateOf();
-    if (!st.active) {
-      panel({ connected: false, reason: "stopped", state: st });
+    const tier2 = !!deps.tier2?.();
+    if (tier2 || !st.active) {
+      panel({ connected: false, reason: tier2 ? "tier2" : "stopped", state: st });
       res.end();
       return;
     }
@@ -499,5 +504,5 @@ export function createDmrStatus(deps: DmrStatusDeps) {
 /** The production wiring: the real dmrState, the control_port of dmrtc.cfg, dmrid_cache.json in the cwd. */
 export function dmrStatusRoutes(getPassword: () => string) {
   const names = new DmrNameCache(path.join(process.cwd(), "dmrid_cache.json"), fetchRadioidUser);
-  return createDmrStatus({ dmrState: realDmrState, getPassword, upstream: () => dmrtcUpstream(), names });
+  return createDmrStatus({ dmrState: realDmrState, getPassword, upstream: () => dmrtcUpstream(), names, tier2: () => dmrTier2() });
 }

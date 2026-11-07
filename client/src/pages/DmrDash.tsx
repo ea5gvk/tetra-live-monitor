@@ -462,6 +462,31 @@ function StackCard({ conn, stack, reason, onRetry, t }: { conn: ConnStatus; stac
   useEffect(() => {
     fetch("/api/station/active").then(r => r.ok ? r.json() : null).then(j => setShared(!!j?.dmr?.shared)).catch(() => {});
   }, []);
+  // Tier II (DMR_TIER=2): a conventional repeater, no dmrtc and so nothing for this page; its live log tells
+  if (conn === "tier2") {
+    return (
+      <div className="glass-panel rounded-md p-4 sm:p-6 flex flex-col items-center text-center gap-3 border border-cyan-500/30" data-testid="panel-dmr-tier2">
+        <Info className="w-10 h-10 text-cyan-400" />
+        <h2 className="text-sm font-bold tracking-[0.15em] uppercase text-foreground">{t("dmrd_tier2_title")}</h2>
+        <p className="text-xs text-muted-foreground max-w-xl leading-relaxed" data-testid="text-dmr-stack-explain">{t("dmrd_tier2_explain")}</p>
+        {stack?.version && <p className="text-[10px] font-mono text-muted-foreground">dmr-tier3 {stack.version}</p>}
+        <div className="flex items-center gap-2 flex-wrap justify-center">
+          <Link href="/log-live" onClick={() => { try { localStorage.setItem("tetra_log_service", "dmr"); } catch {} }} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded text-white bg-cyan-600 hover:bg-cyan-500 transition-colors" data-testid="button-dmr-tier2-log">
+            <History className="w-3.5 h-3.5" />
+            {t("dmrd_tier2_log")}
+          </Link>
+          <button onClick={onRetry} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded bg-white/10 hover:bg-white/20 text-foreground transition-colors" data-testid="button-dmr-stack-retry">
+            <RefreshCw className="w-3.5 h-3.5" />
+            {t("dmrd_retry")}
+          </button>
+          <Link href="/dmr-config" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded bg-white/10 hover:bg-white/20 text-foreground transition-colors">
+            <Wrench className="w-3.5 h-3.5" />
+            {t("dmr_config")}
+          </Link>
+        </div>
+      </div>
+    );
+  }
   const open = () => {
     if (notInstalled) window.dispatchEvent(new Event(OPEN_DMR_UPDATER_EVENT));
     else window.dispatchEvent(new CustomEvent(OPEN_STATION_SWITCHER_EVENT, { detail: { station: "dmr" } }));
@@ -801,7 +826,7 @@ export default function DmrDash() {
   const live = conn === "live";
   // the stack card only when the server said so: with the SSE already open and the first state still in flight
   // the page shows the loading placeholder, never a false "stopped"
-  const showStack = conn === "stopped" || conn === "unreachable";
+  const showStack = conn === "stopped" || conn === "unreachable" || conn === "tier2";
   const gw = state?.gateway;
   const gwLabel = !gw ? "" : !gw.enabled ? t("dmrd_gw_disabled") : gw.logged_in === true ? t("dmrd_gw_logged_in") : gw.logged_in === null ? t("dmrd_gw_unknown") : t("dmrd_gw_waiting");
   const gwCls = !gw || !gw.enabled ? "text-muted-foreground border-white/10" : gw.logged_in === true ? "text-emerald-400 border-emerald-400/40 bg-emerald-400/5" : "text-amber-400 border-amber-400/40 bg-amber-400/5";
@@ -812,9 +837,11 @@ export default function DmrDash() {
       ? { icon: <Power className="w-4 h-4 text-muted-foreground" />, text: t("dmrd_stack_stopped"), cls: "text-muted-foreground" }
       : conn === "unreachable"
         ? { icon: <WifiOff className="w-4 h-4 text-amber-400" />, text: t("dmrd_no_status_server"), cls: "text-amber-400" }
-        : conn === "loading"
-          ? { icon: <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />, text: t("dmrd_loading"), cls: "text-muted-foreground" }
-          : { icon: <WifiOff className="w-4 h-4 text-red-400 animate-pulse" />, text: t("dmrd_reconnecting"), cls: "text-red-400" };
+        : conn === "tier2"
+          ? { icon: <Info className="w-4 h-4 text-cyan-400" />, text: "DMR TIER II", cls: "text-cyan-400" }
+          : conn === "loading"
+            ? { icon: <Loader2 className="w-4 h-4 text-muted-foreground animate-spin" />, text: t("dmrd_loading"), cls: "text-muted-foreground" }
+            : { icon: <WifiOff className="w-4 h-4 text-red-400 animate-pulse" />, text: t("dmrd_reconnecting"), cls: "text-red-400" };
 
   // the direction comes from the button pressed and goes as a fixed argument (a checkbox to tick would read
   // backwards): the modal states it in its title and in its fixed-arguments line

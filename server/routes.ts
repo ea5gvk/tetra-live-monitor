@@ -11,7 +11,7 @@ import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
 import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken, telegramLanguage, telegramLanguageLine } from "./configMerge";
 import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, migrationInfo, miuraInstalled, miuraPackaged, installScript, updateScript, migrationScript, packageScript, DIST_REPO, RELEASE_TAG_RE, pkgTemplatePath, pkgConfigBasePath, parseRelease, debUpstreamVersion, compareVersions, type MiuraRelease, type Product, type ProductId } from "./stationScripts";
-import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, DMR_SECRET_KEYS, dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN, type DmrRelease } from "./dmrStation";
+import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, DMR_SECRET_KEYS, dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN, dmrTier2, dmrCoreUnits, type DmrRelease } from "./dmrStation";
 import { dmrStatusRoutes } from "./dmrStatus";
 
 let pythonProcess: ChildProcess | null = null;
@@ -1358,13 +1358,14 @@ cargo build --release
   const stationInstalled = (n: StationName) => n === "flowstation" ? flowDirInstalled(L)
     : n === "miurastation" ? miuraInstalled(L) : n === "dmr" ? dmrInstalled() : fs.existsSync(STATION_DIR[n]);
 
-  // The DMR target as the selector sees it: "active" only with mmdvm-multi and dmrtc up (dmrStation.dmrHealth);
-  // a target active with one of them down is degraded and `missing` names it.
+  // The DMR target as the selector sees it: "active" only with mmdvm-multi and dmrtc up (dmrStation.dmrHealth;
+  // mmdvm-host@1 instead of dmrtc in Tier II); a target active with one of them down is degraded and `missing`
+  // names it.
   type StationState = { exists: boolean; active: boolean; enabled: boolean; degraded?: boolean; missing?: string[] };
   function stationState(n: StationName): StationState {
     const st = serviceState(STATION_SERVICE[n]);
     if (n !== "dmr") return st;
-    return { ...st, ...dmrHealth(st.active, unitActive) };
+    return { ...st, ...dmrHealth(st.active, unitActive, dmrCoreUnits()) };
   }
 
   function serviceState(name: string): { exists: boolean; active: boolean; enabled: boolean } {
@@ -1409,8 +1410,8 @@ cargo build --release
     // running, else the one the :8080 features talk to. Never the DMR target: with the DMR in use it is the
     // flow-family station persisted or running, else MiuraStation.
     const flowService = STATION_SERVICE[isFlowFamily(detected) ? detected : activeFlowStation() ?? flowFamily()];
-    // sharedAvailable: the selector offers MIURA+DMR next to MIURA and DMR
-    const dmr = { degraded: !!states.dmr.degraded, missing: states.dmr.missing ?? [], shared, sharedAvailable: shared || !sharedUnavailable() };
+    // sharedAvailable: the selector offers MIURA+DMR next to MIURA and DMR; tier: the DMR tier applied (2 or 3)
+    const dmr = { degraded: !!states.dmr.degraded, missing: states.dmr.missing ?? [], shared, sharedAvailable: shared || !sharedUnavailable(), tier: dmrTier2() ? 2 : 3 };
     res.json({ station: detected, persisted, services, flowService, dmr });
   });
 
@@ -1704,11 +1705,11 @@ cargo build --release
     const exists = fs.existsSync(DMR.confPath);
     const current = exists ? parseDmrConf((() => { try { return fs.readFileSync(DMR.confPath, "utf-8"); } catch { return ""; } })()) : {};
     const help = dmrConfHelp();
-    const template = help.length ? help : Object.keys(current).map((key) => ({ key, default: "", help: "", section: "" }));
+    const template: typeof help = help.length ? help : Object.keys(current).map((key) => ({ key, default: "", help: "", section: "" }));
     const keys = template.map((k) => {
       const secret = (DMR_SECRET_KEYS as readonly string[]).includes(k.key);
       const value = k.key in current ? current[k.key] : k.default;
-      return { key: k.key, value: secret ? "" : value, help: k.help, section: k.section, default: k.default, secret, ...(secret ? { set: value !== "" } : {}) };
+      return { key: k.key, value: secret ? "" : value, help: k.help, section: k.section, default: k.default, secret, ...(secret ? { set: value !== "" } : {}), ...(k.choices ? { choices: k.choices } : {}) };
     });
     const st = dmrState();
     res.json({ exists, installed, active: st.active, degraded: st.degraded, missing: st.missing, shared: dmrShared(), path: DMR.confPath, examplePath: DMR.examplePath, keys });
@@ -2499,7 +2500,7 @@ cargo build --release
         } else {
           run(`sudo systemctl ${restart ? "restart" : "start"} --no-block ${targetService}`);
           run(`sudo systemctl start --no-block ${DMR.target}`);
-          const units = [targetService, ...DMR_CORE_UNITS];
+          const units = [targetService, ...dmrCoreUnits()];
           const deadline = Date.now() + 60000;
           let up = false;
           while (Date.now() < deadline) {
@@ -2525,11 +2526,11 @@ cargo build --release
     } else if (target === "dmr") {
       dmrSwitching = true;
       try {
-        // The DMR stack: enable + start --no-block of the target, then up to 60 s for mmdvm-multi and dmrtc to be
-        // active (stopping MiuraStation, which the target's Conflicts= does, takes a few seconds). Only MiuraStation
-        // carries that Conflicts=: another TETRA station running would keep the SDR and MMDVM-Multi would fail on it,
-        // so a running station is stopped first and started again when the DMR does not come up. On failure the
-        // target is disabled again: MIURA and the DMR must never both be enabled.
+        // The DMR stack: enable + start --no-block of the target, then up to 60 s for mmdvm-multi and dmrtc (Tier II:
+        // mmdvm-host@1) to be active (stopping MiuraStation, which the target's Conflicts= does, takes a few
+        // seconds). Only MiuraStation carries that Conflicts=: another TETRA station running would keep the SDR and
+        // MMDVM-Multi would fail on it, so a running station is stopped first and started again when the DMR does
+        // not come up. On failure the target is disabled again: MIURA and the DMR must never both be enabled.
         const prev = STATION_NAMES.find((n) => n !== "dmr" && serviceState(STATION_SERVICE[n]).active) ?? null;
         if (prev) {
           try { fs.rmSync(`${L.tmp}/${STATION_SERVICE[prev]}.was-active`, { force: true }); } catch { /* none */ }
@@ -2539,15 +2540,16 @@ cargo build --release
         const started = run(`sudo systemctl start --no-block ${targetService}`);
         let up = false, reason = "";
         if (started) {
+          const core = dmrCoreUnits();
           const deadline = Date.now() + 60000;
           while (Date.now() < deadline) {
             await new Promise((r) => setTimeout(r, 1000));
-            if (DMR_CORE_UNITS.every(unitActive)) { up = true; break; }
+            if (core.every(unitActive)) { up = true; break; }
             const ts = unitState(targetService);
             if (ts === "failed" || (ts === "inactive" && Date.now() > deadline - 40000)) { reason = `${targetService} ha quedado en ${ts}`; break; }
           }
-          if (!up && !reason) reason = `${DMR_CORE_UNITS.filter((u) => !unitActive(u)).join(" y ")} sin arrancar tras 60 s`;
-          log.push(up ? `${DMR_CORE_UNITS.join(" y ")} activos` : `[fail] ${reason}`);
+          if (!up && !reason) reason = `${core.filter((u) => !unitActive(u)).join(" y ")} sin arrancar tras 60 s`;
+          log.push(up ? `${core.join(" y ")} activos` : `[fail] ${reason}`);
         }
         if (!up) {
           run(`sudo systemctl disable --now ${targetService}`);

@@ -13,6 +13,7 @@ import {
   DMR, DMR_DEB, DMR_CORE_UNITS, DMR_JOURNAL_UNITS, parseDmrRelease, parseDmrReleases, dmrTagFrom, dmrHealth, dmrPackageScript,
   parseDmrConf, parseDmrConfHelp, updateDmrConf, writeDmrConf, saveDmrConf, genConfigErrors, logStreamCommand,
   dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN,
+  DMR_CORE_UNITS_TIER2, dmrTier2, dmrCoreUnits,
 } from "./dmrStation";
 import { compareVersions } from "./stationScripts";
 
@@ -52,6 +53,30 @@ test("state: active only with the target and both core units up; a target active
   assert.deepEqual(dmrHealth(true, () => true), { active: true, degraded: false, missing: [] });
   assert.deepEqual(dmrHealth(true, (u) => u === "dmrtc.service"), { active: false, degraded: true, missing: ["mmdvm-multi.service"] });
   assert.deepEqual(dmrHealth(true, () => false), { active: false, degraded: true, missing: ["mmdvm-multi.service", "dmrtc.service"] });
+});
+
+test("Tier II: applied = gen-config's marker exists; its core units are mmdvm-multi + mmdvm-host@1 (no dmrtc)", () => {
+  assert.equal(DMR.tier2Marker, "/etc/dmr-tier3/tier2");
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "tlm-dmr-tier2-"));
+  const marker = path.join(d, "tier2");
+  assert.equal(dmrTier2(marker), false, "no marker: Tier III, as always");
+  fs.writeFileSync(marker, "# Generado por gen-config.py (DMR_TIER=2). No editar: se borra con DMR_TIER=3.\n");
+  assert.equal(dmrTier2(marker), true);
+  fs.rmSync(d, { recursive: true, force: true });
+  assert.deepEqual(dmrCoreUnits(false), ["mmdvm-multi.service", "dmrtc.service"]);
+  assert.equal(dmrCoreUnits(false), DMR_CORE_UNITS, "Tier III: the very list of today");
+  assert.deepEqual(dmrCoreUnits(true), ["mmdvm-multi.service", "mmdvm-host@1.service"]);
+  assert.deepEqual(DMR_CORE_UNITS_TIER2, ["mmdvm-multi.service", "mmdvm-host@1.service"]);
+  // health with the Tier II units: dmrtc does not count, the repeater's MMDVM-Host does
+  const up = (...units: string[]) => (u: string) => units.includes(u);
+  const t2 = dmrCoreUnits(true);
+  assert.deepEqual(dmrHealth(true, up("mmdvm-multi.service", "mmdvm-host@1.service"), t2), { active: true, degraded: false, missing: [] });
+  assert.deepEqual(dmrHealth(true, up("mmdvm-multi.service", "dmrtc.service"), t2), { active: false, degraded: true, missing: ["mmdvm-host@1.service"] });
+  assert.deepEqual(dmrHealth(true, up("mmdvm-host@1.service"), t2), { active: false, degraded: true, missing: ["mmdvm-multi.service"] });
+  assert.deepEqual(dmrHealth(false, () => true, t2), { active: false, degraded: false, missing: [] });
+  // ... and with the Tier III ones (the default) the same radios without dmrtc are degraded
+  assert.deepEqual(dmrHealth(true, up("mmdvm-multi.service", "mmdvm-host@1.service")), { active: false, degraded: true, missing: ["dmrtc.service"] });
+  assert.deepEqual(dmrHealth(true, up("mmdvm-multi.service", "mmdvm-host@1.service"), dmrCoreUnits(false)), { active: false, degraded: true, missing: ["dmrtc.service"] });
 });
 
 const EXAMPLE = `# /etc/dmr-tier3/dmr-tier3.conf — parámetros de la estación DMR Tier III
@@ -168,6 +193,34 @@ test("conf help: SDR_COMPARTIDO is a 0/1 switch of the Radio section (its help h
   assert.match(h[0].help, /(^|\s)1 = compartido/);
   assert.ok(!/(\d+)\.\.(\d+|N_CHANNELS)\)/.test(h[0].help), "'(1.4.0 o posterior)' is not a range of the form");
   assert.equal(h[1].help, "Ganancia agregada de recepción que MMDVM-Multi pide a SoapySDR (0..100). Rafa: 50.");
+  assert.ok(!("choices" in h[0]) && !("choices" in h[1]), "'0 = ' and '1 = ' inside a line are not a list of values");
+});
+
+// The DMR_TIER key of dmr-tier3.conf.example (Tier II), as the form reads it: each value on its own line.
+const EXAMPLE_TIER = `# ---------------------------------------------------------------- Identidad
+# Nivel DMR de la estación:
+# 2 = Tier II: repetidor convencional (2 ranuras, código de color, red Homebrew por DMRGateway),
+#     para cualquier radio DMR, sin dmrtc. Necesita N_CHANNELS=1.
+# 3 = Tier III: troncal con dmrtc (como hasta ahora).
+DMR_TIER=3
+# 1 = registro obligatorio (Rafa: 1). 0 = sistema abierto.
+REGISTRATION=1
+# Modo:
+# 1 = uno
+# 1 = otra vez uno
+MODE=1
+`;
+
+test("conf help: a help with lines '2 = ' / '3 = ' lists the choices of the key (DMR_TIER); one such line is not a list", () => {
+  const h = parseDmrConfHelp(EXAMPLE_TIER);
+  assert.deepEqual(h.map((k) => k.key), ["DMR_TIER", "REGISTRATION", "MODE"]);
+  assert.deepEqual(h[0].choices, ["2", "3"]);
+  assert.equal(h[0].default, "3");
+  assert.equal(h[0].section, "Identidad");
+  assert.match(h[0].help, /^Nivel DMR de la estación:\n2 = Tier II: .*\n {4}para cualquier radio DMR, sin dmrtc\. Necesita N_CHANNELS=1\.\n3 = Tier III: /);
+  assert.ok(!("choices" in h[1]), "one line with '1 = ' (and '0 = ' inside it): the 0/1 switch, as always");
+  assert.ok(!("choices" in h[2]), "the same value twice is one value");
+  assert.ok(parseDmrConfHelp(EXAMPLE).every((k) => !("choices" in k)));
 });
 
 test("shared SDR: applied = gen-config's drop-in exists; the [dmr_window] block as gen-config recognises it", () => {

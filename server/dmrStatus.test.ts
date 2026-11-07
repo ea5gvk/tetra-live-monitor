@@ -13,7 +13,7 @@ import express from "express";
 import type { DmrState } from "./dmrStation";
 import {
   DMR_COMMANDS, DMR_ID_MAX, DMRTC_CFG, DMRTC_DEFAULT_PORT, parseControlPort, dmrtcUpstream, intArg, validateDmrCmd,
-  parseRadioidUser, collectDmrIds, eventDmrIds, DmrNameCache, createDmrStatus, NAMES_QUEUE_MAX, type DmrName,
+  parseRadioidUser, collectDmrIds, eventDmrIds, DmrNameCache, createDmrStatus, NAMES_QUEUE_MAX, TIER2_MESSAGE, type DmrName,
 } from "./dmrStatus";
 
 const UP: DmrState = { installed: true, exists: true, enabled: true, version: "0.3.0", active: true, degraded: false, missing: [] };
@@ -272,7 +272,7 @@ function fakeDmrtc(): Promise<Fake> {
   }));
 }
 
-interface Panel { base: string; close: () => Promise<void>; state: DmrState; upstreamPort: number; cache: DmrNameCache; dir: string; release: () => void }
+interface Panel { base: string; close: () => Promise<void>; state: DmrState; upstreamPort: number; cache: DmrNameCache; dir: string; release: () => void; tier2: boolean }
 async function panel(fake: Fake): Promise<Panel> {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "tlm-dmr-panel-"));
   const file = path.join(dir, "dmrid_cache.json");
@@ -282,8 +282,8 @@ async function panel(fake: Fake): Promise<Panel> {
   let release = () => {};
   let gate = new Promise<void>((r) => { release = r; });
   const cache = new DmrNameCache(file, async (id) => { asked.push(id); await gate; return id === 2147005 ? { callsign: "EA5NEW" } : null; });
-  const p: Panel = { base: "", close: () => Promise.resolve(), state: UP, upstreamPort: fake.port, cache, dir, release: () => { release(); gate = Promise.resolve(); } };
-  const h = createDmrStatus({ dmrState: () => p.state, getPassword: () => "pw", upstream: () => ({ host: "127.0.0.1", port: p.upstreamPort }), names: cache });
+  const p: Panel = { base: "", close: () => Promise.resolve(), state: UP, upstreamPort: fake.port, cache, dir, release: () => { release(); gate = Promise.resolve(); }, tier2: false };
+  const h = createDmrStatus({ dmrState: () => p.state, getPassword: () => "pw", upstream: () => ({ host: "127.0.0.1", port: p.upstreamPort }), names: cache, tier2: () => p.tier2 });
   const app = express();
   app.use(express.json());
   app.get("/api/dmr/state", h.state);
@@ -419,6 +419,39 @@ test("GET /api/dmr/events: panel {connected:true}, the upstream stream byte for 
     assert.match(r.text, /"connected":true/);
     for (let i = 0; i < 50 && fake.eventsClosed === before; i++) await new Promise((w) => setTimeout(w, 20));
     assert.equal(fake.eventsClosed, before + 1, "upstream /events closed after the client left");
+  } finally {
+    await p.close();
+    await fake.close();
+  }
+});
+
+test("Tier II (no dmrtc): /api/dmr/state 503 reason tier2 with the stack's state, /events one panel event, nothing asked upstream", async () => {
+  const fake = await fakeDmrtc();
+  const p = await panel(fake);
+  try {
+    p.tier2 = true;
+    for (const st of [UP, DOWN]) {
+      p.state = st;
+      const r = await fetch(`${p.base}/api/dmr/state`);
+      assert.equal(r.status, 503);
+      const j: any = await r.json();
+      assert.equal(j.ok, false);
+      assert.equal(j.reason, "tier2", "running or stopped: there is no dmrtc to ask");
+      assert.deepEqual(j.state, st);
+      assert.equal(j.message, TIER2_MESSAGE);
+      assert.match(j.message, /Tier II/);
+      const e = await sse(`${p.base}/api/dmr/events`);
+      assert.equal(e.status, 200);
+      const pe = panelEvents(e.text);
+      assert.deepEqual(pe.map((x) => [x.connected, x.reason]), [[false, "tier2"]]);
+      assert.deepEqual(pe[0].state, st);
+      assert.equal(e.text.split("\n\n").filter(Boolean).length, 1);
+    }
+    assert.equal(fake.eventsOpen, 0, "nothing opened upstream");
+    // Tier III again: as always
+    p.tier2 = false;
+    p.state = UP;
+    assert.equal((await fetch(`${p.base}/api/dmr/state`)).status, 200);
   } finally {
     await p.close();
     await fake.close();

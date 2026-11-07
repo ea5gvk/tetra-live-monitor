@@ -15,6 +15,7 @@ interface ConfKey {
   default: string;
   secret: boolean;
   set?: boolean; // secret only: a value is stored in the conf (never sent to the browser)
+  choices?: string[]; // the values its help lists as lines "2 = ..." / "3 = ..." (DMR_TIER)
 }
 
 interface ConfResp {
@@ -37,9 +38,10 @@ interface OpResult {
 }
 
 type Op = "apply" | "save" | "regenerate";
-type Kind = { kind: "secret" | "switch" | "number" | "text"; min?: number; max?: number };
+type Kind = { kind: "secret" | "switch" | "select" | "number" | "text"; min?: number; max?: number; options?: string[] };
 
-// "(a..b)" at the end of a parenthesis in the help = the range gen-config checks; "1 = ..." = a 0/1 flag.
+// "(a..b)" at the end of a parenthesis in the help = the range gen-config checks; "1 = ..." = a 0/1 flag; the
+// choices of the server (lines "2 = ..." / "3 = ...") = a select while the value is one of them.
 const RANGE_RE = /(\d+)\.\.(\d+|N_CHANNELS)\)/;
 const BOOL_RE = /(^|\s)[01] = /;
 const MAX_CHANNELS = 4;
@@ -56,6 +58,7 @@ function kindOf(k: ConfKey, values: Record<string, string>): Kind {
   if (k.secret) return { kind: "secret" };
   const value = values[k.key] ?? "";
   if (BOOL_RE.test(k.help) && /^[01]?$/.test(value)) return { kind: "switch" };
+  if (k.choices && k.choices.includes(value)) return { kind: "select", options: k.choices };
   if (k.key === "N_CHANNELS") return { kind: "number", min: 1, max: MAX_CHANNELS };
   if (k.key === "CONTROL_CHANNEL") return { kind: "number", min: 1, max: channels(values) };
   const m = RANGE_RE.exec(k.help);
@@ -348,6 +351,17 @@ export default function DmrConfig() {
                               />
                               <span className="text-[10px] font-mono text-muted-foreground">{value === "1" ? "1" : "0"}</span>
                             </>
+                          ) : kind.kind === "select" ? (
+                            <select
+                              id={`dmr-${k.key}`}
+                              value={value}
+                              onChange={e => setValue(k.key, e.target.value)}
+                              disabled={busy}
+                              className={`${inputCls} w-40`}
+                              data-testid={`select-dmr-config-${k.key}`}
+                            >
+                              {(kind.options ?? []).map(o => <option key={o} value={o}>{o}</option>)}
+                            </select>
                           ) : kind.kind === "secret" ? (
                             <>
                               <div className="relative flex-1 max-w-xs">
