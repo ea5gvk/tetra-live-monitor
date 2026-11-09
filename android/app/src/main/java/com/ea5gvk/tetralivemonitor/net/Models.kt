@@ -375,9 +375,25 @@ data class StationService(
     val configPath: String = "",
     val service: String = "",
     val product: String = "",
+    /** dmr only: the target is up but some core unit (missing) is not. */
+    val degraded: Boolean = false,
+    val missing: List<String> = emptyList(),
 )
 
-/** GET /api/station/active. station/persisted: bluestation | flowstation | miurastation. */
+/** GET /api/station/active -> dmr: the DMR stack as the selector needs it. */
+@Serializable
+data class StationDmr(
+    val degraded: Boolean = false,
+    val missing: List<String> = emptyList(),
+    /** SDR_COMPARTIDO applied: the stack runs next to MiuraStation (MIURA+DMR). */
+    val shared: Boolean = false,
+    /** MIURA+DMR can be chosen (dmr-tier3 0.4.0 + MiuraStation 1.4.0 or later). */
+    val sharedAvailable: Boolean = false,
+    /** DMR tier applied: 2 = conventional repeater (DMR_TIER=2), 3 = trunking. */
+    val tier: Int = 3,
+)
+
+/** GET /api/station/active. station/persisted: bluestation | flowstation | miurastation | dmr. */
 @Serializable
 data class StationActive(
     val station: String = "bluestation",
@@ -385,25 +401,54 @@ data class StationActive(
     val services: Map<String, StationService> = emptyMap(),
     /** Unit of the flow-family station in use (flowstation.service | miurastation.service). */
     val flowService: String? = null,
+    /** null from a panel without the DMR station. */
+    val dmr: StationDmr? = null,
 ) {
     val current: StationService? get() = services[station]
-    /** Unit of the active station (tmo.service for BlueStation): what LOG follows. */
+    /** Unit of the active station (tmo.service for BlueStation): what LOG follows ("dmr" = the stack's journal). */
     val activeService: String
-        get() = current?.service?.ifBlank { null } ?: STATION_DEFAULT_SERVICE[station] ?: "tmo.service"
-    /** Short label BLUE / FLOW / MIURA. */
-    val label: String get() = stationLabel(station)
+        get() = if (station == "dmr") DMR_LOG_SERVICE
+            else current?.service?.ifBlank { null } ?: STATION_DEFAULT_SERVICE[station] ?: "tmo.service"
+    val shared: Boolean get() = dmr?.shared == true
+    val tier2: Boolean get() = dmr?.tier == 2
+    val dmrInstalled: Boolean get() = services["dmr"]?.installed == true
+    /** Button of the station in use: MiuraStation with SDR_COMPARTIDO applied is MIURA+DMR. */
+    val activeButton: String get() = if (station == "miurastation" && shared) "miuradmr" else station
+    /** Short label BLUE / FLOW / MIURA / MIURA+DMR / DMR (with the tier when the DMR is involved). */
+    val label: String get() = buttonLabel(activeButton) + when (activeButton) {
+        "miuradmr", "dmr" -> if (tier2) " T2" else " T3"
+        else -> ""
+    }
+
+    /** The button's units are on air: MIURA+DMR only with the stack up too; MIURA and DMR only alone on the SDR. */
+    fun onAir(button: String): Boolean = when (button) {
+        "miuradmr" -> shared && services["miurastation"]?.active == true && services["dmr"]?.active == true
+        "miurastation", "dmr" -> !shared && services[button]?.active == true
+        else -> services[button]?.active == true
+    }
 
     companion object {
         val STATION_NAMES = listOf("bluestation", "flowstation", "miurastation")
+        /** The selector's buttons: the four stations and MIURA+DMR (MiuraStation with the DMR stack on its SDR). */
+        val BUTTONS = listOf("bluestation", "flowstation", "miurastation", "miuradmr", "dmr")
+        /** The live log of the DMR station: the journal of its units (/api/log-stream?service=dmr). */
+        const val DMR_LOG_SERVICE = "dmr"
+        /** dmrtc's own log file (/api/log-stream?file=dmrtc), Tier III only. */
+        const val DMRTC_LOG_FILE = "file:dmrtc"
         val STATION_DEFAULT_SERVICE = mapOf(
             "bluestation" to "tmo.service",
             "flowstation" to "flowstation.service",
             "miurastation" to "miurastation.service",
+            "dmr" to "dmr-tier3.target",
         )
-        fun stationLabel(name: String): String = when (name) {
+        fun unitOf(button: String): String = if (button == "miuradmr") "miurastation" else button
+        fun stationLabel(name: String): String = buttonLabel(name)
+        fun buttonLabel(name: String): String = when (name) {
             "bluestation" -> "BLUE"
             "flowstation" -> "FLOW"
             "miurastation" -> "MIURA"
+            "miuradmr" -> "MIURA+DMR"
+            "dmr" -> "DMR"
             else -> name.uppercase()
         }
     }
@@ -417,6 +462,188 @@ data class StationSwitchResult(
     val service: String? = null,
     val configPath: String? = null,
     val log: String = "",
+)
+
+// --- DMR Tier III / Tier II (dmr-tier3 package: /api/dmr/*) ---
+
+/** The stack's units as the panel sees them (state of /api/dmr/check, /api/dmr/state 503 answers). */
+@Serializable
+data class DmrStack(
+    val installed: Boolean = false,
+    val exists: Boolean = false,
+    val enabled: Boolean = false,
+    val version: String? = null,
+    val active: Boolean = false,
+    val degraded: Boolean = false,
+    val missing: List<String> = emptyList(),
+)
+
+@Serializable
+data class DmrRelease(
+    val tag: String = "",
+    val version: String = "",
+    val name: String = "",
+    val date: String = "",
+    val url: String = "",
+    val prerelease: Boolean = false,
+)
+
+/** GET /api/dmr/check: the installed dmr-tier3 and the highest release of ea5gvk/MiuraStation-dist. */
+@Serializable
+data class DmrCheck(
+    val product: String = "DMR Tier III",
+    val repo: String = "",
+    val demo: Boolean = false,
+    val installed: Boolean = false,
+    val version: String? = null,
+    val state: DmrStack? = null,
+    val configExists: Boolean = false,
+    val release: DmrRelease? = null,
+    val noReleases: Boolean = false,
+    val upToDate: Boolean = false,
+    val apiError: String? = null,
+) {
+    /** Installed and a newer release published (the CTRL badge); never for a stack that is not installed. */
+    val hasUpdate: Boolean get() = !demo && installed && release != null && !upToDate
+}
+
+/** One key of dmr-tier3.conf in GET /api/dmr/config (order, help and section from the package's example). */
+@Serializable
+data class DmrConfKey(
+    val key: String = "",
+    val value: String = "",
+    val help: String = "",
+    val section: String = "",
+    val default: String = "",
+    /** Passwords: the value never comes; empty on save = keep the stored one. */
+    val secret: Boolean = false,
+    /** secret only: a value is stored in the conf. */
+    val set: Boolean = false,
+    /** The values its help lists as "2 = ..." / "3 = ..." lines (DMR_TIER). */
+    val choices: List<String>? = null,
+)
+
+@Serializable
+data class DmrConfResp(
+    val exists: Boolean = false,
+    val installed: Boolean = false,
+    val active: Boolean = false,
+    val degraded: Boolean = false,
+    val missing: List<String> = emptyList(),
+    val shared: Boolean = false,
+    val path: String = "",
+    val examplePath: String = "",
+    val keys: List<DmrConfKey> = emptyList(),
+)
+
+/** POST /api/dmr/config and /api/dmr/regenerate: gen-config.py's errors and log. */
+@Serializable
+data class DmrOpResult(
+    val ok: Boolean = false,
+    val errors: List<String> = emptyList(),
+    val log: List<String> = emptyList(),
+    val applied: Boolean? = null,
+)
+
+@Serializable
+data class DmrName(val callsign: String = "", val name: String? = null, val city: String? = null, val country: String? = null)
+
+@Serializable
+data class DmrSlotCall(
+    val src: Long = 0, val dst: Long = 0, val type: String = "", val network: Boolean = false,
+    @SerialName("call_time_s") val callTimeS: Double = 0.0,
+)
+
+@Serializable
+data class DmrSlot(
+    val slot: Int = 0, val control: Boolean = false, val enabled: Boolean = true, val busy: Boolean = false,
+    /** control | disabled | busy | idle */
+    val state: String = "idle", val text: String = "", val call: DmrSlotCall? = null,
+)
+
+@Serializable
+data class DmrChannel(
+    @SerialName("channel_id") val channelId: Int = 0,
+    @SerialName("logical_channel") val logicalChannel: Int = 0,
+    @SerialName("tx_freq") val txFreq: Long = 0,
+    @SerialName("rx_freq") val rxFreq: Long = 0,
+    @SerialName("colour_code") val colourCode: Int = 0,
+    val control: Boolean = false,
+    val slots: List<DmrSlot> = emptyList(),
+)
+
+@Serializable
+data class DmrRegistered(
+    val id: Long = 0,
+    val talkgroups: List<Long> = emptyList(),
+    val dgna: List<Long> = emptyList(),
+    @SerialName("registered_at") val registeredAt: String = "",
+    @SerialName("last_seen") val lastSeen: String = "",
+)
+
+@Serializable
+data class DmrCall(
+    @SerialName("channel_id") val channelId: Int = 0, val slot: Int = 0, val index: Int = 0,
+    val src: Long = 0, val dst: Long = 0, val type: String = "", val network: Boolean = false,
+    @SerialName("call_time_s") val callTimeS: Double = 0.0,
+    val rssi: Double = 0.0, val ber: Double = 0.0, @SerialName("max_ber") val maxBer: Double = 0.0,
+    val started: String? = null,
+)
+
+@Serializable
+data class DmrGatewayEntry(@SerialName("gateway_name") val gatewayName: String = "")
+
+@Serializable
+data class DmrGateway(
+    val enabled: Boolean = false,
+    val address: String = "",
+    val gateways: List<DmrGatewayEntry> = emptyList(),
+    @SerialName("logged_in") val loggedIn: Boolean? = null,
+    @SerialName("logged_in_at") val loggedInAt: String? = null,
+)
+
+@Serializable
+data class DmrControlChannel(@SerialName("channel_id") val channelId: Int = 0, val slot: Int = 0)
+
+@Serializable
+data class DmrConfig(
+    @SerialName("system_code") val systemCode: Long? = null,
+    @SerialName("control_channel") val controlChannel: DmrControlChannel? = null,
+    @SerialName("channel_number") val channelNumber: Int? = null,
+    @SerialName("registration_required") val registrationRequired: Boolean = false,
+    @SerialName("authentication_required") val authenticationRequired: Boolean = false,
+    @SerialName("system_announcement_message") val systemAnnouncementMessage: String = "",
+    @SerialName("freq_base") val freqBase: Long = 0,
+    @SerialName("freq_separation") val freqSeparation: Long = 0,
+    @SerialName("freq_duplexsplit") val freqDuplexsplit: Long = 0,
+    @SerialName("local_tg_ids") val localTgIds: List<Long> = emptyList(),
+)
+
+/** GET /api/dmr/state: dmrtc's /state (Tier III) plus the callsigns the panel's cache knows. */
+@Serializable
+data class DmrState(
+    val version: String = "",
+    @SerialName("uptime_s") val uptimeS: Double = 0.0,
+    val config: DmrConfig = DmrConfig(),
+    val channels: List<DmrChannel> = emptyList(),
+    val registered: List<DmrRegistered> = emptyList(),
+    @SerialName("subscribed_talkgroups") val subscribedTalkgroups: List<Long> = emptyList(),
+    @SerialName("calls_active") val callsActive: List<DmrCall> = emptyList(),
+    val gateway: DmrGateway = DmrGateway(),
+    /** dmrtc's recent events as they come (heterogeneous: read by type). */
+    @SerialName("last_events") val lastEvents: List<kotlinx.serialization.json.JsonObject> = emptyList(),
+    val names: Map<String, DmrName> = emptyMap(),
+)
+
+/**
+ * One poll of /api/dmr/state: [state] when dmrtc answered; otherwise [reason] (stopped | unreachable | tier2 |
+ * offline), the panel's [message] and the stack's units.
+ */
+data class DmrStateResult(
+    val state: DmrState? = null,
+    val reason: String? = null,
+    val message: String? = null,
+    val stack: DmrStack? = null,
 )
 
 /** GET /api/flowstation/dashboard-status: the station's own web dashboard ([dashboard] in config.toml). */
@@ -566,6 +793,8 @@ data class TetraState(
     val station: StationActive? = null,
     /** Updater checks at connect and every hour, keyed "bluestation", "flowstation", "dashboard". */
     val updateChecks: Map<String, UpdateCheck> = emptyMap(),
+    /** GET /api/dmr/check with the other updater checks (null: no answer or a panel without DMR). */
+    val dmrCheck: DmrCheck? = null,
     /** Saved system password checked with /api/system/verify-password: null unknown/none, true ok, false wrong. */
     val passwordOk: Boolean? = null,
 
@@ -576,7 +805,7 @@ data class TetraState(
     val issiNames: Map<String, String> = emptyMap(),
 ) {
     /** Some updater has a newer version (badge on CTRL). */
-    val updateAvailable: Boolean get() = updateChecks.values.any { it.hasUpdate }
+    val updateAvailable: Boolean get() = updateChecks.values.any { it.hasUpdate } || dmrCheck?.hasUpdate == true
     val txCount: Int get() = terminals.values.count { it.activity == "TX" }
     val rxCount: Int get() = terminals.values.count { it.activity == "RX" }
     fun tgName(gssi: Int): String? = tgNames[gssi]

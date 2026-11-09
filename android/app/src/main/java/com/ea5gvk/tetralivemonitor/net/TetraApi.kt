@@ -43,6 +43,10 @@ object TetraApi {
     // Calls that run slow commands on the Pi before answering (systemctl, nmcli, wg-quick, BM/ADN download).
     private val slowClient = client.newBuilder().readTimeout(90, TimeUnit.SECONDS).build()
 
+    // A switch to (or from) the DMR waits up to 60 s for its units, plus up to 15 s per systemctl; CONFIG DMR stops
+    // the stack, runs gen-config.py and starts it again (as the web: 120 s).
+    private val switchClient = client.newBuilder().readTimeout(120, TimeUnit.SECONDS).build()
+
     /** GET of an updater's check endpoint (/api/update/check, /api/bluestation/check, …). */
     suspend fun checkUpdate(base: String, path: String): UpdateCheck? = withContext(Dispatchers.IO) {
         runCatching {
@@ -189,13 +193,16 @@ object TetraApi {
     suspend fun getStationActive(base: String): StationActive? = getJson(base, "/api/station/active")
 
     /**
-     * POST /api/station/switch {password, station}: starts [station] (bluestation | flowstation | miurastation) and
-     * then stops and disables the other installed ones. `log` holds the systemctl output, also on failure.
+     * POST /api/station/switch {password, station[, alone]}: starts [station] (bluestation | flowstation |
+     * miurastation | miuradmr | dmr) and then stops and disables the other installed ones. `alone` (MIURA and DMR):
+     * each alone on the SDR, so SDR_COMPARTIDO is taken off first. Switching to the DMR waits up to 60 s for its
+     * units on the server. `log` holds the systemctl output, also on failure.
      */
     suspend fun switchStation(base: String, password: String, station: String): StationSwitchResult =
         withContext(Dispatchers.IO) {
-            val r = call(slowClient, "POST", base, "/api/station/switch", buildJsonObject {
+            val r = call(switchClient, "POST", base, "/api/station/switch", buildJsonObject {
                 put("password", password); put("station", station)
+                if (station == "miurastation" || station == "dmr") put("alone", true)
             })
             val o = r.obj
             val ok = r.ok && (o?.get("ok") as? JsonPrimitive)?.booleanOrNull != false
@@ -223,6 +230,57 @@ object TetraApi {
     /** GET /api/flowstation/dashboard-status: the station's own dashboard (opened at ${base}/flow-iframe/). */
     suspend fun getFlowDashboardStatus(base: String): FlowDashboardStatus? =
         getJson(base, "/api/flowstation/dashboard-status")
+
+    // ─── 1.5: DMR Tier III / Tier II (dmr-tier3) ──────────────────────────────
+
+    /** GET /api/dmr/check (the Pi asks GitHub: up to ~15 s). */
+    suspend fun getDmrCheck(base: String): DmrCheck? = getJson(base, "/api/dmr/check", slowClient)
+
+    /** GET /api/dmr/state: dmrtc's state, or why there is none (503 with reason: stopped | unreachable | tier2). */
+    suspend fun getDmrState(base: String): DmrStateResult = withContext(Dispatchers.IO) {
+        val r = call(client, "GET", base, "/api/dmr/state")
+        when {
+            r.error != null -> DmrStateResult(reason = "offline", message = r.error)
+            r.ok -> runCatching { DmrStateResult(state = json.decodeFromString<DmrState>(r.raw)) }
+                .getOrElse { DmrStateResult(reason = "unreachable", message = "/api/dmr/state: ${it.message}") }
+            else -> DmrStateResult(
+                reason = r.obj.str("reason") ?: "unreachable",
+                message = r.obj.str("message") ?: "HTTP ${r.code}",
+                stack = r.obj?.get("state")?.let { runCatching { json.decodeFromJsonElement<DmrStack>(it) }.getOrNull() },
+            )
+        }
+    }
+
+    /** POST /api/dmr/cmd {password, cmd, ...args}: one of dmrtc's commands (the server checks every argument). */
+    suspend fun dmrCmd(base: String, password: String, cmd: String, args: JsonObject): ApiResult =
+        withContext(Dispatchers.IO) {
+            val body = JsonObject(args + mapOf("password" to JsonPrimitive(password), "cmd" to JsonPrimitive(cmd)))
+            call(client, "POST", base, "/api/dmr/cmd", body).result()
+        }
+
+    suspend fun getDmrConfig(base: String): DmrConfResp? = getJson(base, "/api/dmr/config")
+
+    /**
+     * POST /api/dmr/config {password, values, restart}: checked by gen-config.py --check on the server; with the
+     * stack running and [restart] it is stopped, regenerated and started again. Secrets left empty are kept.
+     */
+    suspend fun saveDmrConfig(base: String, password: String, values: Map<String, String>, restart: Boolean): DmrOpResult =
+        dmrOp(base, "/api/dmr/config", buildJsonObject {
+            put("password", password)
+            put("values", JsonObject(values.mapValues { JsonPrimitive(it.value) }))
+            put("restart", restart)
+        })
+
+    /** POST /api/dmr/regenerate {password}: the stack's files again from the conf (stop/start when it runs). */
+    suspend fun regenerateDmr(base: String, password: String): DmrOpResult =
+        dmrOp(base, "/api/dmr/regenerate", buildJsonObject { put("password", password) })
+
+    private suspend fun dmrOp(base: String, path: String, body: JsonObject): DmrOpResult = withContext(Dispatchers.IO) {
+        val r = call(switchClient, "POST", base, path, body)
+        if (r.error != null) return@withContext DmrOpResult(ok = false, errors = listOf("Sin conexión: ${r.error}"))
+        runCatching { json.decodeFromString<DmrOpResult>(r.raw) }.getOrNull()
+            ?: DmrOpResult(ok = false, errors = listOf(r.obj.str("message") ?: "Error ${r.code}"))
+    }
 
     // ─── 1.4: talkgroup names ─────────────────────────────────────────────────
 

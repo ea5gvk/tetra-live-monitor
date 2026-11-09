@@ -13,6 +13,8 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -55,8 +57,12 @@ import java.util.concurrent.TimeUnit
 private const val MAX_LINES = 2000
 private val json = Json { ignoreUnknownKeys = true; isLenient = true }
 
+/**
+ * [chosen]: the unit picked with the chips (kept by the app across tabs: the DMR tab opens LOG on the DMR
+ * journal); null = follow the active station. "dmr" = the journal of the DMR stack's units, "file:dmrtc" = dmrtc.log.
+ */
 @Composable
-fun LogScreen(base: String?, station: StationActive?) {
+fun LogScreen(base: String?, station: StationActive?, chosen: String?, onChoose: (String?) -> Unit) {
     if (base == null) {
         Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
             Text("Configura la URL en Ajustes.", color = Muted, fontSize = 12.sp)
@@ -68,14 +74,13 @@ fun LogScreen(base: String?, station: StationActive?) {
     var connected by remember { mutableStateOf(false) }
     // PAUSA freezes what is shown; lines keep arriving underneath.
     var frozen by remember { mutableStateOf<List<String>?>(null) }
-    // Unit picked with the chips; null = follow the active station (tmo.service for BlueStation).
-    var chosen by remember(base) { mutableStateOf<String?>(null) }
     val logService = chosen ?: station?.activeService
-    // Units of the installed stations, for the chips.
-    val units = StationActive.STATION_NAMES.mapNotNull { name ->
+    // Units of the installed stations, for the chips; with the DMR installed, its journal (and dmrtc.log in Tier III).
+    val units = (StationActive.STATION_NAMES.mapNotNull { name ->
         val s = station?.services?.get(name)
         if (s?.installed == true) s.service.ifBlank { null } ?: StationActive.STATION_DEFAULT_SERVICE[name] else null
-    }.distinct()
+    } + (if (station?.dmrInstalled == true) listOf(StationActive.DMR_LOG_SERVICE) else emptyList()) +
+        (if (station?.dmrInstalled == true && !station.tier2) listOf(StationActive.DMRTC_LOG_FILE) else emptyList())).distinct()
     var reconnect by remember { mutableIntStateOf(0) }
     val scope = rememberCoroutineScope()
     // One client for every (re)connection: a new one on each 3 s retry would pile up idle thread pools.
@@ -93,8 +98,9 @@ fun LogScreen(base: String?, station: StationActive?) {
         // journalctl replays its last 50 lines on every connection: skip those already shown after a reconnect.
         val seen = lines.take(60).toHashSet()
         var replayed = 0
+        val query = if (svc.startsWith("file:")) "file=${svc.removePrefix("file:")}" else "service=$svc"
         val request = Request.Builder()
-            .url("$base/api/log-stream?service=$svc")
+            .url("$base/api/log-stream?$query")
             .build()
         fun retry() {
             connected = false
@@ -148,7 +154,8 @@ fun LogScreen(base: String?, station: StationActive?) {
             )
         }
         Row(
-            Modifier.fillMaxWidth().background(Surface).padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth().background(Surface).horizontalScroll(rememberScrollState())
+                .padding(start = 12.dp, end = 12.dp, bottom = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp),
         ) {
@@ -163,13 +170,18 @@ fun LogScreen(base: String?, station: StationActive?) {
                     Modifier.clip(RoundedCornerShape(5.dp))
                         .background(if (sel) Cyan.copy(alpha = 0.15f) else Color.Transparent)
                         .border(1.dp, if (sel) Cyan.copy(alpha = 0.6f) else Border, RoundedCornerShape(5.dp))
-                        .clickable { chosen = if (active) null else u }
+                        .clickable { onChoose(if (active) null else u) }
                         .padding(horizontal = 8.dp, vertical = 3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
                     if (active) StatusDot(Ok, 6)
-                    Text(u.removeSuffix(".service"), color = if (sel) Cyan else Muted, fontSize = 10.sp,
+                    val label = when (u) {
+                        StationActive.DMR_LOG_SERVICE -> "dmr (pila)"
+                        StationActive.DMRTC_LOG_FILE -> "dmrtc.log"
+                        else -> u.removeSuffix(".service")
+                    }
+                    Text(label, color = if (sel) Cyan else Muted, fontSize = 10.sp,
                         fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold)
                 }
             }

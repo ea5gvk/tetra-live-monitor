@@ -64,7 +64,7 @@ class TetraClient(private val scope: CoroutineScope) {
         // Another server: nothing polled from the previous one is valid any more.
         _state.update {
             it.copy(connected = false, mode = "connecting", btsInfo = null, station = null,
-                updateChecks = emptyMap(), passwordOk = null)
+                updateChecks = emptyMap(), dmrCheck = null, passwordOk = null)
         }
         startPolling(base)
         val wsUrl = Settings.wsUrl(base)
@@ -130,10 +130,12 @@ class TetraClient(private val scope: CoroutineScope) {
     }
 
     private suspend fun pollUpdates(base: String) = coroutineScope {
+        val dmr = async { TetraApi.getDmrCheck(base) }
         val checks = UPDATE_CHECKS.map { (key, path) -> key to async { TetraApi.checkUpdate(base, path) } }
             .mapNotNull { (key, d) -> d.await()?.let { key to it } }.toMap()
+        val dmrCheck = dmr.await()
         if (this@TetraClient.base == base) {
-            _state.update { it.copy(updateChecks = it.updateChecks + checks) }
+            _state.update { it.copy(updateChecks = it.updateChecks + checks, dmrCheck = dmrCheck ?: it.dmrCheck) }
         }
     }
 

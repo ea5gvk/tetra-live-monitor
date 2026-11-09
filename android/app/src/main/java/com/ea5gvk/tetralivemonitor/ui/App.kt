@@ -21,6 +21,7 @@ import androidx.compose.material.icons.filled.Hub
 import androidx.compose.material.icons.filled.Map
 import androidx.compose.material.icons.filled.Podcasts
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.SettingsInputAntenna
 import androidx.compose.material.icons.filled.Terminal
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.Badge
@@ -36,6 +37,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -56,6 +58,7 @@ import com.ea5gvk.tetralivemonitor.ui.screens.CalcScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.CalcWebHolder
 import com.ea5gvk.tetralivemonitor.ui.screens.ControlScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.DgnaScreen
+import com.ea5gvk.tetralivemonitor.ui.screens.DmrScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.LogScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.MapScreen
 import com.ea5gvk.tetralivemonitor.ui.screens.MonitorScreen
@@ -79,9 +82,13 @@ private val TABS = listOf(
     Tab("CTRL", Icons.Filled.Tune),
     Tab("CALC", Icons.Filled.Calculate),
 )
+/** The DMR station's tab, last: only once the dmr-tier3 package is installed (as the web's DMR link). */
+private val DMR_TAB = Tab("DMR", Icons.Filled.SettingsInputAntenna)
+private const val TAB_LOG = 3
 private const val TAB_CTRL = 4
+private const val TAB_DMR = 6
 /** AJUSTES has no bottom tab any more: it opens from the gear next to the top bar. */
-private const val TAB_SETTINGS = 6
+private const val TAB_SETTINGS = 7
 
 @Composable
 fun TetraApp(
@@ -101,6 +108,9 @@ fun TetraApp(
     // The calculator's WebView outlives tab switches (unsaved edits are kept).
     val calcHolder = remember { CalcWebHolder() }
     DisposableEffect(Unit) { onDispose { calcHolder.destroy() } }
+    // LOG's unit picked with its chips (null = follow the active station); the DMR tab opens it on the DMR journal.
+    var logChoice by rememberSaveable(base) { mutableStateOf<String?>(null) }
+    val tabs = if (state.station?.dmrInstalled == true || tab == TAB_DMR) TABS + DMR_TAB else TABS
 
     Scaffold(
         containerColor = com.ea5gvk.tetralivemonitor.ui.theme.Bg,
@@ -118,7 +128,7 @@ fun TetraApp(
         },
         bottomBar = {
             NavigationBar(containerColor = Surface) {
-                TABS.forEachIndexed { i, t ->
+                tabs.forEachIndexed { i, t ->
                     NavigationBarItem(
                         selected = tab == i,
                         onClick = { tab = i },
@@ -145,9 +155,10 @@ fun TetraApp(
                 0 -> MonitorScreen(state, base, password)
                 1 -> MapScreen(state)
                 2 -> DgnaScreen(state, base, password)
-                3 -> LogScreen(base, state.station)
-                4 -> ControlScreen(state, base, password, hasPassword = password.isNotBlank())
+                TAB_LOG -> LogScreen(base, state.station, logChoice) { logChoice = it }
+                TAB_CTRL -> ControlScreen(state, base, password, hasPassword = password.isNotBlank())
                 5 -> CalcScreen(state, base, password, calcHolder)
+                TAB_DMR -> DmrScreen(state, base, password, hasPassword = password.isNotBlank()) { logChoice = it; tab = TAB_LOG }
                 else -> SettingsScreen(
                     serverUrl, password, profiles,
                     onSaveUrl, onSavePassword, onSaveProfile, onDeleteProfile,
@@ -196,13 +207,15 @@ private fun TopStatusBar(state: TetraState) {
             StatusDot(dotColor)
             Text(statusText, color = if (state.connected) Ok else Danger, fontSize = 10.sp, fontWeight = FontWeight.Bold)
         }
-        // Active station from /api/station/active (BLUE violet, FLOW green, MIURA amber, as the web switcher).
+        // Active station from /api/station/active (BLUE violet, FLOW green, MIURA and MIURA+DMR amber, DMR cyan, as
+        // the web switcher; MIURA+DMR and DMR carry the tier: T2 / T3).
         val station = state.station
         if (station != null) {
-            val c = when (station.station) {
+            val c = when (station.activeButton) {
                 "bluestation" -> Color(0xFFA78BFA)
                 "flowstation" -> Ok
-                "miurastation" -> Warn
+                "miurastation", "miuradmr" -> Warn
+                "dmr" -> Color(0xFF67E8F9)
                 else -> Muted
             }
             Text(

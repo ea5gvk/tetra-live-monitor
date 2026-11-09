@@ -87,8 +87,9 @@ fun ControlScreen(state: TetraState, base: String?, password: String, hasPasswor
     // Unit of the flow-family station in use (miurastation.service or flowstation.service), from the shared poll.
     val flowSvc = state.station?.flowService?.takeIf { it == "miurastation.service" } ?: "flowstation.service"
     // systemctl restart also starts a stopped unit: only the active station may be restarted (as the web).
+    // With the DMR alone on the SDR a restart of MiuraStation would take it off air (Conflicts=): not offered.
     val blueActive = state.station?.station == "bluestation"
-    val flowRestartable = state.station == null || !blueActive
+    val flowRestartable = state.station == null || state.station.station == "flowstation" || state.station.station == "miurastation"
     val tmoRestartable = state.station == null || blueActive
 
     var sdsIssi by remember { mutableStateOf("") }
@@ -148,7 +149,7 @@ fun ControlScreen(state: TetraState, base: String?, password: String, hasPasswor
         DualCarrierCard(state, base, password, hasPassword)
 
         // ── Actualizaciones (misma botonera que la web) ──
-        UpdatesSection(base, password, hasPassword, state.updateChecks)
+        UpdatesSection(base, password, hasPassword, state.updateChecks, state.dmrCheck)
 
         // ── Red: VPN, WiFi y dashboard propio de la estación ──
         Card {
@@ -473,20 +474,35 @@ private fun DualCarrierCard(state: TetraState, base: String?, password: String, 
     }
 }
 
-/** BLUE violet, FLOW green, MIURA amber: the web's station colours. */
+/** BLUE violet, FLOW green, MIURA and MIURA+DMR amber, DMR cyan: the web's station colours. */
 internal fun stationColor(name: String): Color = when (name) {
     "bluestation" -> Color(0xFFA78BFA)
     "flowstation" -> Ok
+    "dmr" -> Color(0xFF67E8F9)
     else -> Warn
 }
 
-/** BLUE / FLOW / MIURA selector, as the web's StationSwitcher (POST /api/station/switch). */
+/** Long name of a selector button, with the DMR tier applied (TIER II = conventional repeater). */
+private fun longName(button: String, tier2: Boolean): String {
+    val dmr = if (tier2) "DMR TIER II" else "DMR TIER III"
+    return when (button) {
+        "bluestation" -> "BLUESTATION"
+        "flowstation" -> "FLOWSTATION"
+        "miurastation" -> "MIURASTATION"
+        "miuradmr" -> "MIURASTATION + $dmr"
+        "dmr" -> dmr
+        else -> button.uppercase()
+    }
+}
+
+/** BLUE / FLOW / MIURA / MIURA+DMR / DMR selector, as the web's StationSwitcher (POST /api/station/switch). */
 @Composable
 private fun StationCard(state: TetraState, base: String?, password: String, hasPassword: Boolean) {
     val scope = rememberCoroutineScope()
     val client = LocalTetraClient.current
     val st = state.station
     var target by remember { mutableStateOf<String?>(null) }
+    var switching by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
     var result by remember { mutableStateOf<StationSwitchResult?>(null) }
 
@@ -495,37 +511,84 @@ private fun StationCard(state: TetraState, base: String?, password: String, hasP
         if (st == null) {
             Text("Sin datos de /api/station/active todavía.", color = Muted, fontSize = 11.sp)
         } else {
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
-                StationActive.STATION_NAMES.forEach { name ->
-                    val info = st.services[name]
-                    val installed = info?.installed == true
-                    val isActive = st.station == name
-                    val c = stationColor(name)
-                    Column(
-                        Modifier.weight(1f).alpha(if (installed) 1f else 0.45f).clip(RoundedCornerShape(8.dp))
-                            .background(if (isActive) c.copy(alpha = 0.18f) else SurfaceHi)
-                            .border(1.dp, if (isActive) c.copy(alpha = 0.7f) else Border, RoundedCornerShape(8.dp))
-                            .clickable(enabled = installed && !isActive && !busy && base != null) { result = null; target = name }
-                            .padding(vertical = 8.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        verticalArrangement = Arrangement.spacedBy(3.dp),
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
-                            Text(StationActive.stationLabel(name), color = if (isActive) c else OnBg,
-                                fontSize = 13.sp, fontWeight = FontWeight.Black)
-                            StatusDot(if (info?.active == true) Ok else Muted.copy(alpha = 0.4f), 7)
-                        }
-                        Text(
-                            when { !installed -> "no instalada"; isActive -> "activa"; info?.active == true -> "en marcha"; else -> "parada" },
-                            color = if (isActive) c else Muted, fontSize = 9.sp,
-                        )
-                    }
+            val current = st.activeButton
+            val dmrInfo = st.services["dmr"]
+            val dmrMissing = dmrInfo?.missing?.ifEmpty { null } ?: st.dmr?.missing.orEmpty()
+            // MIURA+DMR only where it can run (dmr-tier3 0.4.0 + MiuraStation 1.4.0) or is already applied;
+            // DMR and MIURA+DMR only on a panel that knows the DMR station.
+            val buttons = StationActive.BUTTONS.filter {
+                when (it) {
+                    "miuradmr" -> st.shared || st.dmr?.sharedAvailable == true
+                    "dmr" -> dmrInfo != null
+                    else -> true
                 }
             }
-            Text("${st.activeService}" + (st.current?.configPath?.ifBlank { null }?.let { " · $it" } ?: ""),
-                color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+            buttons.chunked(3).forEach { row ->
+                Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                    row.forEach { name ->
+                        val info = st.services[StationActive.unitOf(name)]
+                        val merged = name == "miuradmr"
+                        val installed = info?.installed == true && (!merged || dmrInfo?.installed == true)
+                        val isActive = current == name
+                        val on = st.onAir(name)
+                        // the chosen station with its units stopped (a failed switch, a crash) can be started again
+                        val canSwitch = installed && !(isActive && on)
+                        val degraded = (name == "dmr" && !st.shared && dmrInfo?.degraded == true && dmrMissing.isNotEmpty()) ||
+                            (merged && st.shared && st.services["miurastation"]?.active == true && dmrInfo?.active != true)
+                        val c = stationColor(name)
+                        Column(
+                            Modifier.weight(1f).alpha(if (installed) 1f else 0.45f).clip(RoundedCornerShape(8.dp))
+                                .background(if (isActive) c.copy(alpha = 0.18f) else SurfaceHi)
+                                .border(1.dp, if (isActive) c.copy(alpha = 0.7f) else Border, RoundedCornerShape(8.dp))
+                                .clickable(enabled = canSwitch && !busy && base != null) { result = null; target = name }
+                                .padding(vertical = 8.dp),
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            verticalArrangement = Arrangement.spacedBy(3.dp),
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                                Text(StationActive.buttonLabel(name), color = if (isActive) c else OnBg,
+                                    fontSize = if (merged) 11.sp else 13.sp, fontWeight = FontWeight.Black, maxLines = 1)
+                                StatusDot(if (on) Ok else if (degraded) Warn else Muted.copy(alpha = 0.4f), 7)
+                            }
+                            Text(
+                                when {
+                                    !installed -> "no instalada"
+                                    degraded -> "a medias"
+                                    isActive && on -> "activa"
+                                    isActive -> "elegida · parada"
+                                    on -> "en marcha"
+                                    // MIURA's unit and the stack run as MIURA+DMR, not alone on the SDR
+                                    st.shared && (name == "miurastation" || name == "dmr") && info?.active == true -> "en MIURA+DMR"
+                                    else -> "parada"
+                                },
+                                color = if (isActive) c else if (degraded) Warn else Muted, fontSize = 9.sp,
+                            )
+                        }
+                    }
+                    // keep the last row's buttons the same width as the others
+                    repeat(3 - row.size) { androidx.compose.foundation.layout.Spacer(Modifier.weight(1f)) }
+                }
+            }
+            if (current == "miuradmr" || current == "dmr") {
+                Text(longName(current, st.tier2) + if (st.tier2) " · repetidor convencional (2 slots, sin dmrtc)" else " · trunking (dmrtc)",
+                    color = stationColor(current), fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
+            val degradedNow = (current == "dmr" && dmrInfo?.degraded == true) ||
+                (current == "miuradmr" && st.services["miurastation"]?.active == true && dmrInfo?.active != true)
+            if (degradedNow) {
+                Text("La pila DMR no está entera: falta ${dmrMissing.ifEmpty { listOf(dmrInfo?.service ?: "dmr-tier3.target") }.joinToString(", ")}.",
+                    color = Warn, fontSize = 10.sp)
+            }
+            Text(
+                (if (current == "dmr") "dmr-tier3.target" else st.activeService) +
+                    (st.current?.configPath?.ifBlank { null }?.let { " · $it" } ?: ""),
+                color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace,
+            )
         }
-        if (busy) Text("Cambiando de estación…", color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        if (busy) Text(
+            if (switching == "dmr" || switching == "miuradmr") "Cambiando de estación… (la DMR puede tardar hasta 60 s)" else "Cambiando de estación…",
+            color = Cyan, fontSize = 11.sp, fontWeight = FontWeight.Bold,
+        )
         result?.let { r ->
             Text((if (r.ok) "✓ " else "✗ ") + r.message, color = if (r.ok) Ok else Danger, fontWeight = FontWeight.Bold, fontSize = 11.sp)
             if (r.log.isNotBlank()) MonoLog(r.log)
@@ -533,17 +596,29 @@ private fun StationCard(state: TetraState, base: String?, password: String, hasP
     }
 
     val t = target
-    if (t != null && st != null) {
-        val targetSvc = st.services[t]?.service?.ifBlank { null } ?: StationActive.STATION_DEFAULT_SERVICE[t].orEmpty()
-        val others = StationActive.STATION_NAMES.filter { it != t && st.services[it]?.exists == true }
+    if (t != null && st != null && !busy) {
+        val unit = StationActive.unitOf(t)
+        val targetSvc = st.services[unit]?.service?.ifBlank { null } ?: StationActive.STATION_DEFAULT_SERVICE[unit].orEmpty()
+        val toShared = t == "miuradmr"
+        val sharedOn = toShared && !st.shared
+        val sharedOff = st.shared && (t == "miurastation" || t == "dmr")
+        // the units the switch stops: the installed ones other than the target (MIURA+DMR keeps the stack)
+        val others = (StationActive.STATION_NAMES + "dmr").filter { it != unit && !(toShared && it == "dmr") && st.services[it]?.exists == true }
             .mapNotNull { st.services[it]?.service?.ifBlank { null } }
         AlertDialog(
             onDismissRequest = { target = null },
             containerColor = Surface,
-            title = { Text("¿Pasar a ${StationActive.stationLabel(t)}?", color = OnBg) },
+            title = { Text("¿Pasar a ${longName(t, st.tier2)}?", color = OnBg) },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    Text("Se arranca $targetSvc y se paran y deshabilitan las demás" +
+                    if (sharedOn) Text("Se activa la SDR compartida (SDR_COMPARTIDO=1 y gen-config.py): la TETRA y la DMR salen a la vez por la misma SDR. MiuraStation se reinicia y arranca la pila DMR a su lado.",
+                        color = Warn, fontSize = 11.sp)
+                    if (sharedOff) Text("Se quita la SDR compartida (SDR_COMPARTIDO=0 y gen-config.py): " +
+                        (if (t == "dmr") "la DMR queda sola en la SDR y la TETRA se para." else "la TETRA queda sola en la SDR y la pila DMR se para."),
+                        color = Warn, fontSize = 11.sp)
+                    if (t == "dmr") Text("La DMR usa la SDR ella sola: la estación TETRA en marcha se para primero. El cambio espera hasta 60 s a que arranquen sus servicios.",
+                        color = stationColor("dmr"), fontSize = 11.sp)
+                    Text("Se arranca $targetSvc" + (if (toShared) " con la pila DMR" else "") + " y se paran y deshabilitan las demás" +
                         (if (others.isEmpty()) "." else ": ${others.joinToString(", ")}.") +
                         " La red se corta unos segundos.", color = Muted)
                     if (!hasPassword) Text("Falta la contraseña del sistema (Ajustes).", color = Warn, fontSize = 11.sp)
@@ -556,9 +631,10 @@ private fun StationCard(state: TetraState, base: String?, password: String, hasP
                         target = null
                         val b = base ?: return@TextButton
                         scope.launch {
-                            busy = true; result = null
+                            busy = true; result = null; switching = t
                             result = TetraApi.switchStation(b, password, t)
-                            busy = false
+                            busy = false; switching = null
+                            // a failed switch may have changed things all the same (SDR_COMPARTIDO, a unit stopped)
                             client?.refreshStation()
                         }
                     },

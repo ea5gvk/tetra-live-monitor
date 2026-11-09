@@ -101,7 +101,8 @@ fun CalcScreen(state: TetraState, base: String?, password: String, holder: CalcW
     val ctx = LocalContext.current
     val client = LocalTetraClient.current
     val st = state.station
-    val sel = holder.station ?: st?.station ?: "bluestation"
+    // With the DMR alone on the SDR there is no TETRA config.toml of its own: MiuraStation's is the one it shares.
+    val sel = holder.station ?: st?.station?.let { if (it == "dmr") "miurastation" else it } ?: "bluestation"
     val svc = st?.services?.get(sel)
     val configPath = svc?.configPath?.ifBlank { null } ?: DEFAULT_CONFIG_PATH[sel].orEmpty()
     val serviceName = svc?.service?.ifBlank { null } ?: StationActive.STATION_DEFAULT_SERVICE[sel].orEmpty()

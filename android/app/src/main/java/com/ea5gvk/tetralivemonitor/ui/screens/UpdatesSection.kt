@@ -15,6 +15,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -35,6 +37,7 @@ import androidx.compose.ui.unit.sp
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.ui.platform.LocalContext
+import com.ea5gvk.tetralivemonitor.net.DmrCheck
 import com.ea5gvk.tetralivemonitor.net.LocalTetraClient
 import com.ea5gvk.tetralivemonitor.net.TetraApi
 import com.ea5gvk.tetralivemonitor.net.UpdateCheck
@@ -90,7 +93,10 @@ private const val ARCH_NOTE = "arm64: Raspberry Pi 3/4/5 con sistema de 64 bits;
  * [checks] are TetraClient's checks (at connect and hourly): shown first, so entering CTRL runs nothing on the Pi.
  */
 @Composable
-fun UpdatesSection(base: String?, password: String, hasPassword: Boolean, checks: Map<String, UpdateCheck> = emptyMap()) {
+fun UpdatesSection(
+    base: String?, password: String, hasPassword: Boolean,
+    checks: Map<String, UpdateCheck> = emptyMap(), dmrCheck: DmrCheck? = null,
+) {
     // Only one updater may run at a time (they share the SDR/services on the Pi).
     var running by remember { mutableStateOf<String?>(null) }
     Column(
@@ -104,6 +110,167 @@ fun UpdatesSection(base: String?, password: String, hasPassword: Boolean, checks
         UPDATERS.forEach { u ->
             UpdaterCard(u, base, password, hasPassword, running, checks[u.key]) { running = it }
         }
+        DmrUpdaterCard(base, password, hasPassword, running, dmrCheck) { running = it }
+    }
+}
+
+/**
+ * The dmr-tier3 package (DMR Tier III / Tier II) from ea5gvk/MiuraStation-dist: /api/dmr/check, /api/dmr/install,
+ * /api/dmr/apply (an optional version picks another release, also an older one). Nothing is started here: the
+ * station selector and CONFIG DMR do that.
+ */
+@Composable
+private fun DmrUpdaterCard(
+    base: String?, password: String, hasPassword: Boolean,
+    running: String?, polled: DmrCheck?, setRunning: (String?) -> Unit,
+) {
+    val scope = rememberCoroutineScope()
+    val ctx = LocalContext.current
+    val client = LocalTetraClient.current
+    var info by remember { mutableStateOf<DmrCheck?>(null) }
+    var checking by remember { mutableStateOf(false) }
+    var version by remember { mutableStateOf("") }
+    var log by remember { mutableStateOf("") }
+    var result by remember { mutableStateOf<String?>(null) }
+    var ok by remember { mutableStateOf(true) }
+    var confirm by remember { mutableStateOf(false) }
+    val busy = running == "dmr"
+    LaunchedEffect(polled) { if (polled != null) info = polled }
+
+    fun check() {
+        val b = base ?: return
+        scope.launch { checking = true; TetraApi.getDmrCheck(b)?.let { info = it }; checking = false }
+    }
+    val i = info
+    val install = i != null && !i.installed
+    val wanted = version.trim().removePrefix("v")
+    val versionOk = wanted.isEmpty() || Regex("""^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$""").matches(wanted)
+
+    fun run() {
+        val b = base ?: return
+        val body = buildJsonObject { put("password", password); if (wanted.isNotEmpty()) put("version", wanted) }
+        setRunning("dmr"); log = ""; result = null
+        scope.launch {
+            var exit: Int? = null
+            try {
+                TetraApi.streamPost(b, if (install) "/api/dmr/install" else "/api/dmr/apply", body).collect { line ->
+                    log = (log + line + "\n").takeLast(20_000)
+                    EXIT_RE.find(line)?.let { exit = it.groupValues[1].toIntOrNull() }
+                }
+                ok = exit == null || exit == 0
+                result = if (ok) "✓ Terminado" else "✗ Falló (código $exit)"
+            } catch (e: Exception) {
+                ok = false; result = e.message?.let { if (it == "dmr_not_installed") "La pila DMR no está instalada" else it } ?: "Error"
+            }
+            setRunning(null)
+            check()
+            client?.refreshStation()
+        }
+    }
+
+    val (status, color) = when {
+        base == null -> "Configura la URL en Ajustes" to Muted
+        i == null -> (if (checking) "Comprobando…" else "Sin datos (pulsa COMPROBAR)") to Muted
+        i.demo -> "Modo demo (el servidor no es Linux)" to Warn
+        i.apiError != null && i.release == null -> "No se ha podido consultar GitHub" to Danger
+        i.noReleases -> "Sin versiones publicadas" to Muted
+        !i.installed -> "No instalada — puedes instalarla" to Warn
+        i.upToDate -> "Al día · ${i.version}" to Ok
+        else -> "Nueva versión disponible · ${i.version} → ${i.release?.version}" to Cyan
+    }
+
+    Column(
+        Modifier.fillMaxWidth().clip(RoundedCornerShape(8.dp)).background(SurfaceHi).padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text("DMR TIER III / II", color = OnBg, fontWeight = FontWeight.Black, fontSize = 12.sp)
+            when {
+                i?.hasUpdate == true -> StatusDot(Cyan)
+                install -> StatusDot(Warn)
+            }
+            Text("${i?.repo?.ifBlank { null } ?: "ea5gvk/MiuraStation-dist"} · paquete dmr-tier3", color = Muted, fontSize = 9.sp,
+                fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1f))
+        }
+        Text(status, color = color, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+        i?.release?.let { r ->
+            Text("última publicada: ${r.tag}" + (if (r.prerelease) " (pre-release)" else "") + r.date.take(10).let { if (it.isBlank()) "" else " · $it" },
+                color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+        }
+        i?.state?.takeIf { i.installed }?.let { s ->
+            Text("dmr-tier3.target: " + when {
+                s.degraded -> "a medias (falta ${s.missing.joinToString(", ")})"
+                s.active -> "en marcha"
+                else -> "parada"
+            } + (if (!i.configExists) " · sin dmr-tier3.conf" else ""), color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+        }
+        i?.apiError?.let { Text(it, color = Danger, fontSize = 9.sp, maxLines = 2) }
+        i?.release?.url?.takeIf { it.isNotBlank() }?.let { url ->
+            Text(
+                "Ver release ↗", color = Cyan, fontSize = 10.sp, fontWeight = FontWeight.Bold,
+                modifier = Modifier.clickable { runCatching { ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } },
+            )
+        }
+        if (i != null && !i.demo) {
+            OutlinedTextField(
+                value = version, onValueChange = { version = it.trim() }, singleLine = true,
+                enabled = running == null, modifier = Modifier.fillMaxWidth(),
+                label = { Text("Versión (vacío = la última publicada)", fontSize = 10.sp) },
+                isError = !versionOk,
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = Cyan, unfocusedBorderColor = Border,
+                    focusedTextColor = OnBg, unfocusedTextColor = OnBg, cursorColor = Cyan,
+                    focusedLabelColor = Cyan, unfocusedLabelColor = Muted,
+                ),
+            )
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            Button(
+                onClick = { check() }, enabled = base != null && running == null && !checking, modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(containerColor = Surface, contentColor = Cyan),
+            ) { Text(if (checking) "…" else "COMPROBAR", fontWeight = FontWeight.Bold, fontSize = 10.sp) }
+            val hasNew = i?.hasUpdate == true || install || wanted.isNotEmpty()
+            Button(
+                onClick = { confirm = true },
+                enabled = base != null && hasPassword && running == null && i != null && !i.demo && versionOk &&
+                    (i.release != null || wanted.isNotEmpty()),
+                modifier = Modifier.weight(1f),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (hasNew) Cyan else Surface, contentColor = if (hasNew) Surface else OnBg,
+                ),
+            ) { Text(if (busy) "EN CURSO…" else if (install) "INSTALAR" else "ACTUALIZAR", fontWeight = FontWeight.Black, fontSize = 10.sp) }
+        }
+        if (!hasPassword) Text("Falta la contraseña del sistema (Ajustes).", color = Warn, fontSize = 9.sp)
+        if (log.isNotEmpty()) {
+            val scroll = rememberScrollState()
+            LaunchedEffect(log) { scroll.scrollTo(scroll.maxValue) }
+            Text(
+                log, color = Color(0xFF86EFAC), fontSize = 9.sp, fontFamily = FontFamily.Monospace,
+                modifier = Modifier.fillMaxWidth().heightIn(max = 220.dp).clip(RoundedCornerShape(6.dp))
+                    .background(Color(0xFF05070C)).verticalScroll(scroll).padding(6.dp),
+            )
+        }
+        result?.let { Text(it, color = if (ok) Ok else Danger, fontWeight = FontWeight.Bold, fontSize = 11.sp) }
+    }
+
+    if (confirm) {
+        val what = if (wanted.isNotEmpty()) "la versión $wanted" else "la última versión publicada"
+        AlertDialog(
+            onDismissRequest = { confirm = false },
+            containerColor = Surface,
+            title = { Text(if (install) "¿Instalar la pila DMR?" else "¿Actualizar la pila DMR?", color = OnBg) },
+            text = {
+                Text(
+                    if (install) "Se descarga el paquete dmr-tier3 ($what de ea5gvk/MiuraStation-dist, arm64), se comprueba su SHA-256 y se instala con apt-get. No se arranca nada: después configúrala en DMR → CONFIG y actívala con el selector de estación."
+                    else "Se descarga el paquete dmr-tier3 ($what), se comprueba su SHA-256 y se instala con apt-get. Si la pila está en marcha, el paquete la reinicia (la DMR se corta unos segundos). Actualiza antes el dashboard si la versión nueva lo pide.",
+                    color = Muted,
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { confirm = false; run() }) { Text(if (install) "INSTALAR" else "ACTUALIZAR", color = Cyan, fontWeight = FontWeight.Black) }
+            },
+            dismissButton = { TextButton(onClick = { confirm = false }) { Text("Cancelar", color = Muted) } },
+        )
     }
 }
 
