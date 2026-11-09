@@ -1610,7 +1610,8 @@ cargo build --release
       log.push(`$ python3 ${DMR.genConfig} --check (copia temporal)`);
       const r = await runGenConfig(["--check", tmp]);
       const errors = genConfigErrors(r.code, r.stdout, r.stderr);
-      if (!errors.length) for (const l of r.stdout.split("\n")) if (l.trim()) log.push(l);
+      // gen-config.py writes its warnings ("gen-config: aviso: ...") to stderr: show them with the plan
+      if (!errors.length) for (const l of `${r.stdout}\n${r.stderr}`.split("\n")) if (l.trim()) log.push(l);
       return errors;
     } finally {
       if (tmpDir) try { fs.rmSync(tmpDir, { recursive: true, force: true }); } catch { /* best effort */ }
