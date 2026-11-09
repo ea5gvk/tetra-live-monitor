@@ -11,7 +11,7 @@ import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
 import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken, telegramLanguage, telegramLanguageLine } from "./configMerge";
 import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, migrationInfo, miuraInstalled, miuraPackaged, installScript, updateScript, migrationScript, packageScript, DIST_REPO, RELEASE_TAG_RE, pkgTemplatePath, pkgConfigBasePath, parseRelease, debUpstreamVersion, compareVersions, type MiuraRelease, type Product, type ProductId } from "./stationScripts";
-import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, dmrConfRows, dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN, dmrTier2, dmrCoreUnits, type DmrRelease } from "./dmrStation";
+import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, dmrConfRows, dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN, dmrTier2, dmrCoreUnits, isInDmrConfDir, type DmrRelease } from "./dmrStation";
 import { dmrStatusRoutes } from "./dmrStatus";
 
 let pythonProcess: ChildProcess | null = null;
@@ -1320,9 +1320,8 @@ cargo build --release
   const STATION_PRODUCT: Record<StationName, string> = { bluestation: "BlueStation", flowstation: "FlowStation", miurastation: "MiuraStation", dmr: DMR.pkg };
   // The stations whose configuration is a config.toml (the calculator, btsinfo): everything but the DMR.
   const TOML_STATIONS: StationName[] = ["bluestation", "flowstation", "miurastation"];
-  const isDmrConfPath = (p: string) => {
-    try { return fs.realpathSync(p) === fs.realpathSync(STATION_CONFIG_PATH.dmr); } catch { return path.resolve(p) === STATION_CONFIG_PATH.dmr; }
-  };
+  // No solo el conf: sus copias .bak-dmr-*, DMRGateway.ini y dmrtc.cfg también llevan las claves de las redes.
+  const isDmrConfPath = (p: string) => isInDmrConfDir(p, STATION_CONFIG_PATH.dmr);
 
   function readActiveStation(): StationName {
     let s: StationName = "bluestation";

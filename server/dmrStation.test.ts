@@ -13,7 +13,7 @@ import {
   DMR, DMR_DEB, DMR_CORE_UNITS, DMR_JOURNAL_UNITS, parseDmrRelease, parseDmrReleases, dmrTagFrom, dmrHealth, dmrPackageScript,
   parseDmrConf, parseDmrConfHelp, updateDmrConf, writeDmrConf, saveDmrConf, genConfigErrors, logStreamCommand,
   dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN,
-  DMR_CORE_UNITS_TIER2, dmrTier2, dmrCoreUnits, DMR_SECRET_KEYS, dmrConfRows,
+  DMR_CORE_UNITS_TIER2, dmrTier2, dmrCoreUnits, DMR_SECRET_KEYS, dmrConfRows, isInDmrConfDir,
 } from "./dmrStation";
 import { compareVersions } from "./stationScripts";
 
@@ -317,6 +317,35 @@ test("multired: NET2..4_PASSWORD son secretas como NET_PASSWORD: no se mandan al
   assert.equal(updateDmrConf(conf, { NET3_PASSWORD: "otra-de-prueba", NET4_PASSWORD: "cuarta-de-prueba" }, known),
     conf.replace("NET3_PASSWORD=clave-de-prueba-3", "NET3_PASSWORD=otra-de-prueba") + "NET4_PASSWORD=cuarta-de-prueba\n");
   assert.equal(updateDmrConf(conf, { NET2_ROUTES: "" }, known), conf + "NET2_ROUTES=\n", "una clave no secreta vacía sí se escribe");
+});
+
+test("multired: /api/system/read-config rechaza toda la carpeta del conf (copias .bak-dmr-*, DMRGateway.ini, dmrtc.cfg)", () => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), "tlm-dmr-dir-"));
+  try {
+    const etc = path.join(d, "dmr-tier3");
+    const conf = path.join(etc, "dmr-tier3.conf");
+    saveDmrConf(conf, "NET_PASSWORD=clave-de-prueba\n");
+    const backup = writeDmrConf(conf, { NET2_PASSWORD: "clave-de-prueba-2" }, ["NET_PASSWORD", "NET2_PASSWORD"]).backup;
+    assert.ok(backup && path.basename(backup).startsWith("dmr-tier3.conf.bak-dmr-"), String(backup));
+    fs.writeFileSync(path.join(etc, "DMRGateway.ini"), "[DMR Network 2]\nPassword=clave-de-prueba-2\n");
+    fs.writeFileSync(path.join(etc, "dmrtc.cfg"), "");
+    for (const p of [conf, backup!, path.join(etc, "DMRGateway.ini"), path.join(etc, "dmrtc.cfg"), etc])
+      assert.equal(isInDmrConfDir(p, conf), true, p);
+    // una carpeta hermana con el mismo prefijo y un config.toml de fuera: se leen como siempre
+    fs.mkdirSync(path.join(d, "dmr-tier3-otra"));
+    fs.writeFileSync(path.join(d, "dmr-tier3-otra", "config.toml"), "");
+    fs.writeFileSync(path.join(d, "config.toml"), "");
+    for (const p of [path.join(d, "dmr-tier3-otra", "config.toml"), path.join(d, "config.toml"), d])
+      assert.equal(isInDmrConfDir(p, conf), false, p);
+    // un enlace de fuera que apunta a una copia también se rechaza (si el sistema deja crear enlaces)
+    const link = path.join(d, "copia.toml");
+    try { fs.symlinkSync(backup!, link); } catch { /* Windows sin permiso de enlaces */ }
+    if (fs.existsSync(link)) assert.equal(isInDmrConfDir(link, conf), true);
+    // las rutas de la Pi: /etc/dmr-tier3/... sí, la config.toml de la estación no
+    assert.equal(isInDmrConfDir(`${DMR.confPath}.bak-dmr-2026-11-09T10-00-00-000Z`), true);
+    assert.equal(isInDmrConfDir("/etc/dmr-tier3/DMRGateway.ini"), true);
+    assert.equal(isInDmrConfDir("/root/miurastation/config.toml"), false);
+  } finally { fs.rmSync(d, { recursive: true, force: true }); }
 });
 
 test("shared SDR: applied = gen-config's drop-in exists; the [dmr_window] block as gen-config recognises it", () => {

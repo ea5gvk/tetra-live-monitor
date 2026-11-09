@@ -257,6 +257,14 @@ export function readDmrConf(file = DMR.confPath): Record<string, string> | null 
   try { return parseDmrConf(fs.readFileSync(file, "utf-8")); } catch { return null; }
 }
 
+/** La ruta es (o resuelve a) un fichero de la carpeta del conf (/etc/dmr-tier3: el conf, sus copias .bak-dmr-*,
+ *  DMRGateway.ini, dmrtc.cfg...), que llevan las claves de las redes: nunca se leen ni se tocan como TOML. */
+export function isInDmrConfDir(p: string, confPath: string = DMR.confPath): boolean {
+  const real = (f: string) => { try { return fs.realpathSync(f); } catch { return path.resolve(f); } };
+  const rel = path.relative(real(path.dirname(confPath)), real(p));
+  return rel === "" || (!rel.startsWith("..") && !path.isAbsolute(rel));
+}
+
 export interface DmrConfKey { key: string; default: string; help: string; section: string; choices?: string[] }
 /** The keys of dmr-tier3.conf.example in order, each with its default and the help of the # lines right above it
  *  (a "# ---- Name" banner starts a section and is not help). A help with two or more lines that start with
