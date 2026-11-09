@@ -11,7 +11,7 @@ import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
 import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken, telegramLanguage, telegramLanguageLine } from "./configMerge";
 import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, migrationInfo, miuraInstalled, miuraPackaged, installScript, updateScript, migrationScript, packageScript, DIST_REPO, RELEASE_TAG_RE, pkgTemplatePath, pkgConfigBasePath, parseRelease, debUpstreamVersion, compareVersions, type MiuraRelease, type Product, type ProductId } from "./stationScripts";
-import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, DMR_SECRET_KEYS, dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN, dmrTier2, dmrCoreUnits, type DmrRelease } from "./dmrStation";
+import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, dmrConfRows, dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN, dmrTier2, dmrCoreUnits, type DmrRelease } from "./dmrStation";
 import { dmrStatusRoutes } from "./dmrStatus";
 
 let pythonProcess: ChildProcess | null = null;
@@ -1600,7 +1600,7 @@ cargo build --release
     return { ok: errors.length === 0, errors };
   }
 
-  // gen-config.py --check of `content` on a private copy (it holds NET_PASSWORD): the errors as it prints them, the
+  // gen-config.py --check of `content` on a private copy (it holds the NET*_PASSWORD): the errors as it prints them, the
   // channel plan in the log when there are none.
   async function checkDmrConf(content: string, log: string[]): Promise<string[]> {
     let tmpDir = "";
@@ -1704,13 +1704,7 @@ cargo build --release
     const installed = dmrInstalled();
     const exists = fs.existsSync(DMR.confPath);
     const current = exists ? parseDmrConf((() => { try { return fs.readFileSync(DMR.confPath, "utf-8"); } catch { return ""; } })()) : {};
-    const help = dmrConfHelp();
-    const template: typeof help = help.length ? help : Object.keys(current).map((key) => ({ key, default: "", help: "", section: "" }));
-    const keys = template.map((k) => {
-      const secret = (DMR_SECRET_KEYS as readonly string[]).includes(k.key);
-      const value = k.key in current ? current[k.key] : k.default;
-      return { key: k.key, value: secret ? "" : value, help: k.help, section: k.section, default: k.default, secret, ...(secret ? { set: value !== "" } : {}), ...(k.choices ? { choices: k.choices } : {}) };
-    });
+    const keys = dmrConfRows(dmrConfHelp(), current);
     const st = dmrState();
     res.json({ exists, installed, active: st.active, degraded: st.degraded, missing: st.missing, shared: dmrShared(), path: DMR.confPath, examplePath: DMR.examplePath, keys });
   });

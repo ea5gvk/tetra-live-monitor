@@ -9,7 +9,8 @@
 // - Tier II (DMR_TIER=2, dmrTier2): one conventional repeater (N_CHANNELS=1) for any DMR radio, without dmrtc
 //   (its unit carries ConditionPathExists=!<marker>, so the target starts and skips it): the core units are then
 //   mmdvm-multi + mmdvm-host@1.
-// - configuration: /etc/dmr-tier3/dmr-tier3.conf (KEY=VALUE, mode 0600, NET_PASSWORD is a secret), from which
+// - configuration: /etc/dmr-tier3/dmr-tier3.conf (KEY=VALUE, mode 0600, NET_PASSWORD, NET2..4_PASSWORD and AUTH_KEYS
+//   are secrets), from which
 //   /opt/dmr-tier3/bin/gen-config.py writes the nine files of the stack (only with dmrtc stopped: exit 3 otherwise;
 //   2 = invalid conf, listed in Spanish; 1 = write failure; --check only validates).
 // - the package script is the MiuraStation one parametrised by package (stationScripts): download + SHA-256 +
@@ -54,7 +55,8 @@ export const DMR_CORE_UNITS = ["mmdvm-multi.service", "dmrtc.service"] as const;
 export const DMR_CORE_UNITS_TIER2 = ["mmdvm-multi.service", "mmdvm-host@1.service"] as const;
 // The units of the live log preset "dmr" (journalctl -u accepts globs).
 export const DMR_JOURNAL_UNITS = ["mmdvm-multi", "mmdvm-iq@*", "mmdvm-host@*", "dmrtc", "dmrgateway"] as const;
-export const DMR_SECRET_KEYS = ["NET_PASSWORD", "AUTH_KEYS"] as const;
+// NET2..4_PASSWORD: las claves de las redes 2, 3 y 4 de Tier II (dmr-tier3 0.6.0), secretas como NET_PASSWORD.
+export const DMR_SECRET_KEYS = ["NET_PASSWORD", "NET2_PASSWORD", "NET3_PASSWORD", "NET4_PASSWORD", "AUTH_KEYS"] as const;
 export const DMR_KEY_RE = /^[A-Z][A-Z0-9_]*$/;
 // A value of the conf is one line of printable text (gen-config.py checks each key's own rules); AUTH_KEYS, a list
 // of id:key pairs, is the longest one.
@@ -282,6 +284,19 @@ export function parseDmrConfHelp(text: string): DmrConfKey[] {
 }
 export function dmrConfHelp(examplePath = DMR.examplePath): DmrConfKey[] {
   try { return parseDmrConfHelp(fs.readFileSync(examplePath, "utf-8")); } catch { return []; }
+}
+
+export interface DmrConfRow { key: string; value: string; help: string; section: string; default: string; secret: boolean; set?: boolean; choices?: string[] }
+/** Las filas del formulario (GET /api/dmr/config): las claves del ejemplo (sin él, las del conf) con su valor guardado
+ *  o el de por defecto. Una secreta (DMR_SECRET_KEYS) nunca sale hacia el navegador: value "" y `set` dice si hay una
+ *  guardada. Pura. */
+export function dmrConfRows(help: DmrConfKey[], current: Record<string, string>): DmrConfRow[] {
+  const template: DmrConfKey[] = help.length ? help : Object.keys(current).map((key) => ({ key, default: "", help: "", section: "" }));
+  return template.map((k) => {
+    const secret = (DMR_SECRET_KEYS as readonly string[]).includes(k.key);
+    const value = k.key in current ? current[k.key] : k.default;
+    return { key: k.key, value: secret ? "" : value, help: k.help, section: k.section, default: k.default, secret, ...(secret ? { set: value !== "" } : {}), ...(k.choices ? { choices: k.choices } : {}) };
+  });
 }
 
 /** `text` with `values` applied: a key already there is rewritten in place (comments, order and everything else

@@ -319,10 +319,16 @@ export default function DmrConfig() {
             </div>
           )}
 
-          {sections.map(sec => (
-            <div key={sec.name || "_"} className="bg-card border border-border rounded-lg" data-testid={`section-dmr-config-${sec.name || "misc"}`}>
+          {sections.map(sec => {
+            // las secciones "(solo Tier II)" del ejemplo (redes DMR 2..4): fuera de Tier II salen atenuadas, pero se editan
+            const tier2Only = /solo Tier II/i.test(sec.name) && values.DMR_TIER !== "2";
+            return (
+            <div key={sec.name || "_"} className={`bg-card border border-border rounded-lg ${tier2Only ? "opacity-60" : ""}`} data-testid={`section-dmr-config-${sec.name || "misc"}`}>
               {sec.name && (
-                <div className="px-3 py-2 border-b border-border text-[10px] font-bold uppercase tracking-wider text-cyan-300">{sec.name}</div>
+                <div className="px-3 py-2 border-b border-border flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-cyan-300">{sec.name}</span>
+                  {tier2Only && <span className="text-[10px] text-muted-foreground" data-testid="text-dmr-config-tier2-only">{t("dmr_config_tier2_only")}</span>}
+                </div>
               )}
               <div className="px-3">
                 {sec.keys.map(k => {
@@ -429,7 +435,8 @@ export default function DmrConfig() {
                 })}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {keys.length === 0 && (
             <p className="text-xs text-muted-foreground" data-testid="text-dmr-config-empty">{t("dmr_config_no_conf")}</p>

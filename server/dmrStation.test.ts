@@ -13,7 +13,7 @@ import {
   DMR, DMR_DEB, DMR_CORE_UNITS, DMR_JOURNAL_UNITS, parseDmrRelease, parseDmrReleases, dmrTagFrom, dmrHealth, dmrPackageScript,
   parseDmrConf, parseDmrConfHelp, updateDmrConf, writeDmrConf, saveDmrConf, genConfigErrors, logStreamCommand,
   dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN,
-  DMR_CORE_UNITS_TIER2, dmrTier2, dmrCoreUnits,
+  DMR_CORE_UNITS_TIER2, dmrTier2, dmrCoreUnits, DMR_SECRET_KEYS, dmrConfRows,
 } from "./dmrStation";
 import { compareVersions } from "./stationScripts";
 
@@ -221,6 +221,102 @@ test("conf help: a help with lines '2 = ' / '3 = ' lists the choices of the key 
   assert.ok(!("choices" in h[1]), "one line with '1 = ' (and '0 = ' inside it): the 0/1 switch, as always");
   assert.ok(!("choices" in h[2]), "the same value twice is one value");
   assert.ok(parseDmrConfHelp(EXAMPLE).every((k) => !("choices" in k)));
+});
+
+// Las claves de Tier II multired (dmr-tier3 0.6.0) como las escribe el ejemplo: NET_NAME y NET_ROUTES en la
+// pasarela y una sección "(solo Tier II)" por cada red 2, 3 y 4.
+const redSection = (n: number) => `# ---------------------------------------------------------------- Red DMR ${n} (solo Tier II)
+# 1 = la pasarela se conecta también a esta red (solo con DMR_TIER=2). 0 = no se usa.
+NET${n}_ENABLED=0
+# Nombre de la red en DMRGateway: letras, cifras, espacio, punto, guion y guion bajo, de 1 a 20
+# caracteres.
+NET${n}_NAME=Red ${n}
+# Máster de esta red (IP o nombre). Obligatorio si la red está activa.
+NET${n}_ADDRESS=
+# Puerto del máster de esta red (1..65535).
+NET${n}_PORT=62031
+# ID con el que la pasarela se presenta a esta red (1..2147483647). Vacío: el mismo NET_ID.
+NET${n}_ID=
+# Contraseña del máster de esta red. Obligatoria si la red está activa; aquí nunca va la clave
+# real. (Queda en DMRGateway.ini con permisos 0600.)
+NET${n}_PASSWORD=
+# Enrutado de esta red, con la misma sintaxis que NET_ROUTES (por ejemplo S2 o S1:P9).
+# Obligatorio si la red está activa.
+NET${n}_ROUTES=
+`;
+const EXAMPLE_MULTIRED = `# ---------------------------------------------------------------- Pasarela IP (DMRGateway)
+# Contraseña del máster. Vacío = rellenar; aquí nunca va la clave real. (Queda en DMRGateway.ini
+# con permisos 0600.)
+NET_PASSWORD=
+# Nombre de la red 1 en DMRGateway (Name=): letras, cifras, espacio, punto, guion y guion bajo,
+# de 1 a 20 caracteres. Solo se usa con DMR_TIER=2.
+NET_NAME=ADN
+# Enrutado de la red 1 con DMR_TIER=2: lista separada por comas. S1 o S2: el slot entero (grupos
+# y llamadas privadas). S1:9 o S2:214-219: un TG o un rango de TG en ese slot, sin cambiar el
+# número. S1:P8: prefijo 8, la radio marca 8000000 + TG y a la red va el TG. Las privadas solo
+# van con el slot entero. Con Tier III no se usa.
+NET_ROUTES=S1,S2
+
+${redSection(2)}
+${redSection(3)}
+${redSection(4)}
+# ---------------------------------------------------------------- Registro y depuración
+LOG_LEVEL=1
+`;
+
+test("multired: parseDmrConfHelp del ejemplo; cada clave nueva sale con el control que toca en CONFIG DMR", () => {
+  const h = parseDmrConfHelp(EXAMPLE_MULTIRED);
+  const red = (n: number) => ["ENABLED", "NAME", "ADDRESS", "PORT", "ID", "PASSWORD", "ROUTES"].map((k) => `NET${n}_${k}`);
+  assert.deepEqual(h.map((k) => k.key), ["NET_PASSWORD", "NET_NAME", "NET_ROUTES", ...red(2), ...red(3), ...red(4), "LOG_LEVEL"]);
+  const by = Object.fromEntries(h.map((k) => [k.key, k]));
+  assert.equal(by.NET_NAME.section, "Pasarela IP (DMRGateway)");
+  assert.equal(by.NET_ROUTES.default, "S1,S2");
+  assert.equal(by.LOG_LEVEL.section, "Registro y depuración", "la sección de la red 4 se cierra con el siguiente banner");
+  // las mismas reglas que kindOf de client/src/pages/DmrConfig.tsx
+  const BOOL_RE = /(^|\s)[01] = /;
+  const RANGE_RE = /(\d+)\.\.(\d+|N_CHANNELS)\)/;
+  const range = (k: string) => RANGE_RE.exec(by[k].help)?.slice(1, 3);
+  for (const n of [2, 3, 4]) {
+    for (const k of red(n)) assert.equal(by[k].section, `Red DMR ${n} (solo Tier II)`, k);
+    assert.ok(BOOL_RE.test(by[`NET${n}_ENABLED`].help) && by[`NET${n}_ENABLED`].default === "0", "ENABLED: el interruptor 0/1");
+    assert.equal(by[`NET${n}_NAME`].default, `Red ${n}`);
+    assert.deepEqual(range(`NET${n}_PORT`), ["1", "65535"]);
+    assert.equal(by[`NET${n}_PORT`].default, "62031");
+    assert.deepEqual(range(`NET${n}_ID`), ["1", "2147483647"], "ID: número (vacío vale: el mismo NET_ID)");
+    assert.equal(by[`NET${n}_ID`].default, "");
+  }
+  // texto libre: ni interruptor ("0 = " / "1 = "), ni desplegable ("<n> = " al principio), ni rango
+  for (const k of ["NET_NAME", "NET_ROUTES", ...[2, 3, 4].flatMap((n) => [`NET${n}_NAME`, `NET${n}_ADDRESS`, `NET${n}_ROUTES`])]) {
+    assert.ok(!BOOL_RE.test(by[k].help), `${k}: no es un interruptor`);
+    assert.ok(!RANGE_RE.test(by[k].help), `${k}: no es un número`);
+    assert.ok(!by[k].help.split("\n").some((l) => /^\d+ = /.test(l)), `${k}: no es un desplegable`);
+  }
+  assert.ok(h.every((k) => !("choices" in k)));
+});
+
+test("multired: NET2..4_PASSWORD son secretas como NET_PASSWORD: no se mandan al navegador y vacío conserva la guardada", () => {
+  for (const k of ["NET_PASSWORD", "NET2_PASSWORD", "NET3_PASSWORD", "NET4_PASSWORD", "AUTH_KEYS"]) assert.ok((DMR_SECRET_KEYS as readonly string[]).includes(k), k);
+  const help = parseDmrConfHelp(EXAMPLE_MULTIRED);
+  const current = { NET_PASSWORD: "clave-de-prueba", NET2_PASSWORD: "clave-de-prueba-2", NET3_PASSWORD: "", NET2_ENABLED: "1", NET2_ROUTES: "S2", NET2_ADDRESS: "192.0.2.20" };
+  const rows = dmrConfRows(help, current);
+  const by = Object.fromEntries(rows.map((r) => [r.key, r]));
+  assert.ok(!JSON.stringify(rows).includes("clave-de-prueba"), "ninguna clave sale en la respuesta");
+  assert.deepEqual([by.NET_PASSWORD, by.NET2_PASSWORD, by.NET3_PASSWORD, by.NET4_PASSWORD].map((r) => [r.value, r.secret, r.set]),
+    [["", true, true], ["", true, true], ["", true, false], ["", true, false]], "guardada / vacía / sin línea en el conf");
+  assert.deepEqual([by.NET2_ENABLED.value, by.NET2_ROUTES.value, by.NET2_ADDRESS.value, by.NET3_NAME.value], ["1", "S2", "192.0.2.20", "Red 3"]);
+  assert.ok(!("set" in by.NET2_ROUTES) && by.NET2_ROUTES.secret === false);
+  // sin ejemplo, las claves del conf: tampoco sale ninguna
+  const bare = dmrConfRows([], current);
+  assert.deepEqual(bare.map((r) => r.key), Object.keys(current));
+  assert.ok(!JSON.stringify(bare).includes("clave-de-prueba"));
+  assert.deepEqual(bare.find((r) => r.key === "NET2_PASSWORD"), { key: "NET2_PASSWORD", value: "", help: "", section: "", default: "", secret: true, set: true });
+
+  const known = help.map((k) => k.key);
+  const conf = "NET_PASSWORD=clave-de-prueba\nNET2_ENABLED=1\nNET2_PASSWORD=clave-de-prueba-2\nNET3_PASSWORD=clave-de-prueba-3\n";
+  assert.equal(updateDmrConf(conf, { NET2_PASSWORD: "", NET3_PASSWORD: "", NET4_PASSWORD: "" }, known), conf, "vacío conserva lo guardado (y no añade NET4)");
+  assert.equal(updateDmrConf(conf, { NET3_PASSWORD: "otra-de-prueba", NET4_PASSWORD: "cuarta-de-prueba" }, known),
+    conf.replace("NET3_PASSWORD=clave-de-prueba-3", "NET3_PASSWORD=otra-de-prueba") + "NET4_PASSWORD=cuarta-de-prueba\n");
+  assert.equal(updateDmrConf(conf, { NET2_ROUTES: "" }, known), conf + "NET2_ROUTES=\n", "una clave no secreta vacía sí se escribe");
 });
 
 test("shared SDR: applied = gen-config's drop-in exists; the [dmr_window] block as gen-config recognises it", () => {
