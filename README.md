@@ -19,6 +19,7 @@ Aplicación nativa para Android que se conecta a tu dashboard:
 - **Perfiles**: guarda varias flowstations (dirección + contraseña) y cambia entre ellas con un toque.
 - **Actualizaciones** (pestaña Control): la misma botonera que la web — comprobar, instalar y actualizar Bluestation, la FlowStation de razvan, MiuraStation (con la migración desde la FlowStation miura) y el Dashboard, viendo la salida en vivo.
 - **RSSI** de cada terminal local (dBFS, con los mismos colores que el dashboard).
+- **DMR Tier III / Tier II** (desde la 1.5, si la pila dmr-tier3 está instalada): pestaña DMR con el panel Tier III (canales y slots, radios registradas con ping/estado/posición/SMS/DGNA/auth, llamadas, historial y acciones del sitio) o, en Tier II, las redes DMR del repetidor; CONFIG DMR; selector MIURA+DMR / DMR; actualizador DMR y LOG de la pila.
 
 **➡️ [Descargar tetra-live-monitor.apk](https://github.com/ea5gvk/tetra-live-monitor/releases/latest/download/tetra-live-monitor.apk)**
 
