@@ -48,7 +48,8 @@ app.use((req, res, next) => {
     const duration = Date.now() - start;
     if (path.startsWith("/api")) {
       let logLine = `${req.method} ${path} ${res.statusCode} in ${duration}ms`;
-      if (capturedJsonResponse) {
+      // the Tier II monitor is polled every 1.5 s with ~30 KB: its body would fill the pm2 log
+      if (capturedJsonResponse && path !== "/api/dmr/tier2/state") {
         logLine += ` :: ${JSON.stringify(capturedJsonResponse)}`;
       }
 

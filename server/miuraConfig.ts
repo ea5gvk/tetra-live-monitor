@@ -419,6 +419,28 @@ export function setDualCarrierEnabled(content: string, on: boolean): string {
   return lines.join("\n");
 }
 
+// sample_rate and tx/rx_center_freq of [phy_io.soapysdr] in Apply (calculator) and the dual-carrier switch: what to
+// do with a line that is active, commented or missing when the option is on (secondary carrier / centre frequency
+// ticked, switch ON) or off. MiuraStation keeps an active sample_rate as it is: with several carriers it does not
+// start without one, and gen-config.py needs it for the DMR window. With the DMR window ([dmr_window], MIURA+DMR) an
+// active tx/rx_center_freq stays too (commented out, the RX LO moves 25 kHz and the window no longer fits) and a
+// missing or commented sample_rate is written active (a commented one is what main's Apply left on the MIURA+DMR Pis
+// with one carrier). "keep" = leave the line exactly as it is. FlowStation and BlueStation: as before.
+// The calculator's preview (calculator.html, buildToml) follows the same rule.
+const DMR_WINDOW_RE = /^[ \t]*\[dmr_window\][ \t]*\r?$/m;
+export function soapyDcLine(key: string, line: "active" | "commented" | "missing", on: boolean, miura: boolean, content: string): "active" | "commented" | "keep" {
+  if (on) return "active";
+  if (key === "sample_rate" && miura) {
+    if (line === "active") return "keep";
+    if ((line === "missing" || line === "commented") && DMR_WINDOW_RE.test(content)) return "active";
+  }
+  if ((key === "tx_center_freq" || key === "rx_center_freq") && miura && line === "active" && DMR_WINDOW_RE.test(content)) return "keep";
+  return "commented";
+}
+export const soapyDcNote = (key: string) => key === "sample_rate"
+  ? "sample_rate se deja como estaba: MiuraStation lo necesita (con varias portadoras no arranca sin él y la ventana DMR lo usa)."
+  : `${key} se deja como estaba: con la ventana DMR ([dmr_window]) comentarlo movería el LO de RX y la ventana dejaría de caber.`;
+
 // ── secondary_carrier_on_demand ([cell_info], FlowStation miura or TEA2 of 05-10-2026 or later) ──
 // Carriers other than the main one (the secondary and extra_carriers) go on the air only when needed, with
 // a warm-up (frames) before a radio is sent there and a grace (seconds) before they go off. razvan and older

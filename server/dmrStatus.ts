@@ -501,8 +501,9 @@ export function createDmrStatus(deps: DmrStatusDeps) {
   return { state, events, cmd, names };
 }
 
-/** The production wiring: the real dmrState, the control_port of dmrtc.cfg, dmrid_cache.json in the cwd. */
+/** The production wiring: the real dmrState, the control_port of dmrtc.cfg, dmrid_cache.json in the cwd. `cache` is
+ *  the panel's one name cache, shared with the Tier II monitor (dmrTier2.ts): a second one would clobber the file. */
 export function dmrStatusRoutes(getPassword: () => string) {
   const names = new DmrNameCache(path.join(process.cwd(), "dmrid_cache.json"), fetchRadioidUser);
-  return createDmrStatus({ dmrState: realDmrState, getPassword, upstream: () => dmrtcUpstream(), names, tier2: () => dmrTier2() });
+  return { ...createDmrStatus({ dmrState: realDmrState, getPassword, upstream: () => dmrtcUpstream(), names, tier2: () => dmrTier2() }), cache: names };
 }

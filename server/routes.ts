@@ -8,11 +8,12 @@ import { spawn, exec, execSync, type ChildProcess } from "child_process";
 import * as path from "path";
 import * as fs from "fs";
 import * as os from "os";
-import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
+import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, soapyDcLine, soapyDcNote, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
 import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken, telegramLanguage, telegramLanguageLine } from "./configMerge";
 import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, migrationInfo, miuraInstalled, miuraPackaged, installScript, updateScript, migrationScript, packageScript, DIST_REPO, RELEASE_TAG_RE, pkgTemplatePath, pkgConfigBasePath, parseRelease, debUpstreamVersion, compareVersions, type MiuraRelease, type Product, type ProductId } from "./stationScripts";
 import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, dmrConfRows, dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN, dmrTier2, dmrCoreUnits, isInDmrConfDir, type DmrRelease } from "./dmrStation";
 import { dmrStatusRoutes } from "./dmrStatus";
+import { dmrTier2Routes } from "./dmrTier2";
 
 let pythonProcess: ChildProcess | null = null;
 const startTime = Date.now();
@@ -1783,6 +1784,10 @@ cargo build --release
   app.get("/api/dmr/events", dmrStatus.events);
   app.post("/api/dmr/cmd", dmrStatus.cmd);
   app.get("/api/dmr/names", dmrStatus.names);
+  // The Tier II monitor (dmrTier2.ts): one shared journalctl of MMDVM-Host, DMRGateway, MMDVM-Multi and MMDVM-IQ,
+  // started by the first GET in Tier II and stopped after 10 min without one; the same name cache as above.
+  const dmrT2 = dmrTier2Routes(dmrStatus.cache);
+  app.get("/api/dmr/tier2/state", dmrT2.state);
 
   // ─── TETRA BTS Details ──────────────────────────────────────────────────────
   // RF / cell identity pulled (read-only) from the active station's config.toml.
@@ -2365,6 +2370,12 @@ cargo build --release
     if (!fs.existsSync(filePath)) return res.status(400).json({ ok: false, message: `No existe: ${filePath}` });
     const wantEnabled = enabled !== false;
     let content = fs.readFileSync(filePath, "utf-8");
+    const original = content;
+    const svc = (typeof serviceName === "string" && serviceName.trim() ? serviceName : STATION_SERVICE[flowFamily()])
+      .replace(/[^a-zA-Z0-9._@-]/g, "");
+    // MiuraStation (also MIURA+DMR and the DMR alone: flowFamily() gives MiuraStation's path and unit then).
+    const miura = svc === STATION_SERVICE.miurastation || filePath === STATION_CONFIG_PATH.miurastation;
+    const notes: string[] = [];
     if (readExtraCarriers(content).length) {
       // With extra_carriers only dual_carrier_enabled changes, as the station's own toggle does: commenting
       // secondary_carrier out would leave extra_carriers without it and the station would not start.
@@ -2375,8 +2386,10 @@ cargo build --release
       content = setDualCarrierEnabled(content, wantEnabled);
     } else {
       for (const key of DC_KEYS) {
-        content = content.replace(dcLineRe(key), (_m, indent, _hash, rest) =>
-          wantEnabled ? `${indent}${rest}` : `${indent}# ${rest}`);
+        content = content.replace(dcLineRe(key), (m, indent, hash, rest) => {
+          if (soapyDcLine(key, hash ? "commented" : "active", wantEnabled, miura, original) === "keep") { notes.push(soapyDcNote(key)); return m; }
+          return wantEnabled ? `${indent}${rest}` : `${indent}# ${rest}`;
+        });
       }
     }
     try {
@@ -2384,9 +2397,7 @@ cargo build --release
     } catch (e: any) {
       return res.status(500).json({ ok: false, message: `No se pudo escribir: ${e?.message || e}` });
     }
-    const svc = (typeof serviceName === "string" && serviceName.trim() ? serviceName : STATION_SERVICE[flowFamily()])
-      .replace(/[^a-zA-Z0-9._@-]/g, "");
-    const stateMsg = wantEnabled ? "Dual carrier activado" : "Dual carrier desactivado";
+    const stateMsg = (wantEnabled ? "Dual carrier activado" : "Dual carrier desactivado") + (notes.length ? `. ${notes.join(" ").replace(/\.$/, "")}` : "");
     if (restart && svc) {
       res.json({ ok: true, message: `${stateMsg}. Reiniciando ${svc}...`, enabled: wantEnabled });
       setTimeout(() => { exec(`sudo systemctl restart ${svc}`, (err) => { if (err) console.error("restart err:", err.message); }); }, 500);
@@ -3685,6 +3696,10 @@ cargo build --release
       const dcDamVal = Math.max(0, Math.min(5, Number(dualCarrierConfig?.dgna?.attachment_mode) || 0));
       // sample_rate [phy_io.soapysdr]: fixed value, uncommented when secondary_carrier is enabled, re-commented when disabled
       const dcSampleRateVal = 600000;
+      // MiuraStation (MIURA+DMR too): an active sample_rate stays; with [dmr_window] an active tx/rx_center_freq too (soapyDcLine).
+      const dcMiura = underMiura || unit === STATION_SERVICE.miurastation;
+      // keys the calculator translates (apply_note_<key>, {k} = the line): sr_kept, cf_kept, sr_added
+      const dcNotes: { key: string; k?: string }[] = [];
 
       const brewUpdates: Record<string, string> = {};
       if (brewEnabled) {
@@ -3735,13 +3750,18 @@ cargo build --release
           const commentedSr = lines[i].match(/^(\s*)#\s*sample_rate\s*=\s*(.*)/);
           if (commentedSr) {
             if (srFound) { lines.splice(i, 1); i--; continue; }
-            lines[i] = dcSecondaryEnabled
+            const srOn = soapyDcLine("sample_rate", "commented", dcSecondaryEnabled, dcMiura, original) === "active";
+            if (srOn && !dcSecondaryEnabled) dcNotes.push({ key: "sr_added" });
+            lines[i] = srOn
               ? `${commentedSr[1]}sample_rate = ${dcSampleRateVal}`
               : `${commentedSr[1]}# sample_rate = ${dcSampleRateVal}`;
             srFound = true; continue;
           }
           const activeSr = lines[i].match(/^(\s*)sample_rate\s*=\s*(.*)/);
           if (activeSr) {
+            if (soapyDcLine("sample_rate", "active", dcSecondaryEnabled, dcMiura, original) === "keep") {
+              dcNotes.push({ key: "sr_kept" }); srFound = true; continue;
+            }
             if (srFound) { lines.splice(i, 1); i--; continue; }
             lines[i] = dcSecondaryEnabled
               ? `${activeSr[1]}sample_rate = ${dcSampleRateVal}`
@@ -3763,6 +3783,12 @@ cargo build --release
             rxCenterFound = true; continue;
           }
           const cfKMatch = lines[i].match(/^(\s*)([\w]+)(\s*=\s*)(.*)/);
+          if (cfKMatch && (cfKMatch[2] === "tx_center_freq" || cfKMatch[2] === "rx_center_freq")
+            && soapyDcLine(cfKMatch[2], "active", dcCenterEnabled, dcMiura, original) === "keep") {
+            dcNotes.push({ key: "cf_kept", k: cfKMatch[2] });
+            if (cfKMatch[2] === "tx_center_freq") txCenterFound = true; else rxCenterFound = true;
+            continue;
+          }
           if (cfKMatch) {
             if (cfKMatch[2] === "tx_center_freq") {
               lines[i] = dcCenterEnabled
@@ -4098,7 +4124,11 @@ cargo build --release
               let ins = i + 1;
               while (ins < lines.length && !lines[ins].match(/^\s*\[/) && lines[ins].trim() !== "") ins++;
               const newLines: string[] = [];
-              if (!srFound) newLines.push(dcSecondaryEnabled ? `sample_rate = ${dcSampleRateVal}` : `# sample_rate = ${dcSampleRateVal}`);
+              if (!srFound) {
+                const srActive = soapyDcLine("sample_rate", "missing", dcSecondaryEnabled, dcMiura, original) === "active";
+                if (srActive && !dcSecondaryEnabled) dcNotes.push({ key: "sr_added" });
+                newLines.push(srActive ? `sample_rate = ${dcSampleRateVal}` : `# sample_rate = ${dcSampleRateVal}`);
+              }
               if (!txCenterFound) newLines.push(dcCenterEnabled ? `tx_center_freq = ${dcTxCenter}` : `# tx_center_freq = ${dcTxCenter}`);
               if (!rxCenterFound) newLines.push(dcCenterEnabled ? `rx_center_freq = ${dcRxCenter}` : `# rx_center_freq = ${dcRxCenter}`);
               lines.splice(ins, 0, ...newLines);
@@ -5613,9 +5643,9 @@ cargo build --release
       exec(`sudo systemctl --no-block restart ${safeServiceName}`, { timeout: 15000 }, (err, _out, errOut) => {
         if (err) {
           console.error(`Error al reiniciar ${safeServiceName}:`, err.message);
-          return res.status(500).json({ message: `config.toml escrito, pero no se ha podido reiniciar ${safeServiceName}: ${String(errOut || err.message).trim().slice(0, 300)}`, backup });
+          return res.status(500).json({ message: `config.toml escrito, pero no se ha podido reiniciar ${safeServiceName}: ${String(errOut || err.message).trim().slice(0, 300)}`, backup, ...(dcNotes.length ? { notes: dcNotes } : {}) });
         }
-        res.json({ message: "Config aplicada. Reiniciando TMO...", backup });
+        res.json({ message: "Config aplicada. Reiniciando TMO...", backup, ...(dcNotes.length ? { notes: dcNotes } : {}) });
       });
     } catch (err: any) {
       console.error("Error al aplicar config:", err);

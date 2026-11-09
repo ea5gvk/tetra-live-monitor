@@ -9,6 +9,7 @@ import { useI18n } from "@/lib/i18n";
 import { getCountryCode, getFlagEmoji } from "@/lib/callsignFlags";
 import { OPEN_DMR_UPDATER_EVENT } from "@/components/DmrUpdater";
 import { OPEN_STATION_SWITCHER_EVENT } from "@/components/StationSwitcher";
+import { Tier2Monitor } from "@/components/dmr/Tier2Monitor";
 import {
   useDmrEvents, eventRadioId, eventCallType, isPrivateType, DMR_ID_MAX, DMR_SMS_MAX, DMR_DGNA_MAX,
   type DmrCmd, type DmrState, type DmrStackState, type DmrChannel, type DmrSlot, type DmrRegistered, type DmrCall,
@@ -19,21 +20,21 @@ import {
 // Data: useDmrEvents (/api/dmr/state + /api/dmr/events); actions: /api/dmr/cmd with the system password.
 
 type T = (k: string) => string;
-type NameOf = (id: number | string | undefined | null) => DmrName | undefined;
+export type NameOf = (id: number | string | undefined | null) => DmrName | undefined;
 
 const POLL_FORMATS = ["nmea", "binary", "address", "4bcd", "iso7", "iso8", "ip", "utf16", "status"];
 const REPLY_WAIT_MS = 6000;
 
 // ── small helpers ──
 
-const fmt = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
+export const fmt = (s: string, vars: Record<string, string | number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k] ?? ""));
 
-function mhz(hz: number | null | undefined): string {
+export function mhz(hz: number | null | undefined): string {
   if (hz == null || !isFinite(hz)) return "—";
   return (hz / 1e6).toFixed(hz % 1000 === 0 ? 4 : 5);
 }
 
-function hhmmss(iso: string | null | undefined): string {
+export function hhmmss(iso: string | number | null | undefined): string {
   if (!iso) return "—";
   const d = new Date(iso);
   return isNaN(d.getTime()) ? "—" : d.toLocaleTimeString("en-GB");
@@ -47,7 +48,7 @@ function hms(totalS: number): string {
   return `${r}s`;
 }
 
-function ago(iso: string | null | undefined, now: number): string {
+export function ago(iso: string | number | null | undefined, now: number): string {
   if (!iso) return "—";
   const ms = now - new Date(iso).getTime();
   if (!isFinite(ms)) return "—";
@@ -78,7 +79,7 @@ function Clock() {
 }
 
 /** A ticking "now" (1 s) while `on`; frozen otherwise. */
-function useNow(on: boolean): number {
+export function useNow(on: boolean): number {
   const [now, setNow] = useState(Date.now());
   useEffect(() => {
     if (!on) return;
@@ -89,7 +90,7 @@ function useNow(on: boolean): number {
   return now;
 }
 
-function CountryFlag({ callsign }: { callsign?: string }) {
+export function CountryFlag({ callsign }: { callsign?: string }) {
   if (!callsign) return null;
   const cc = getCountryCode(callsign);
   if (!cc) return null;
@@ -97,7 +98,7 @@ function CountryFlag({ callsign }: { callsign?: string }) {
 }
 
 /** A radio: its ID and, when the cache knows it, flag + callsign + name. */
-function RadioLabel({ id, nameOf, withName = true }: { id: number | string | undefined; nameOf: NameOf; withName?: boolean }) {
+export function RadioLabel({ id, nameOf, withName = true }: { id: number | string | undefined; nameOf: NameOf; withName?: boolean }) {
   if (id === undefined || id === null || id === "") return <span className="text-muted-foreground">?</span>;
   const n = nameOf(id);
   return (
@@ -115,13 +116,13 @@ function RadioLabel({ id, nameOf, withName = true }: { id: number | string | und
 }
 
 /** The destination of a call or SMS: a talkgroup pill or a radio. */
-function DstLabel({ dst, group, nameOf }: { dst: number | string | undefined; group: boolean; nameOf: NameOf }) {
+export function DstLabel({ dst, group, nameOf }: { dst: number | string | undefined; group: boolean; nameOf: NameOf }) {
   if (dst === undefined || dst === null) return <span className="text-muted-foreground">?</span>;
   if (group) return <span className="px-1.5 py-0.5 rounded bg-secondary/50 border border-white/5 text-secondary-foreground text-xs font-mono">TG {dst}</span>;
   return <RadioLabel id={dst} nameOf={nameOf} />;
 }
 
-function Card({ icon, title, count, right, children, testid, tone = "text-primary", band = "bg-primary/5" }: {
+export function Card({ icon, title, count, right, children, testid, tone = "text-primary", band = "bg-primary/5" }: {
   icon: ReactNode; title: string; count?: string; right?: ReactNode; children: ReactNode; testid: string; tone?: string; band?: string;
 }) {
   return (
@@ -137,7 +138,7 @@ function Card({ icon, title, count, right, children, testid, tone = "text-primar
   );
 }
 
-const th = "text-left px-2 sm:px-3 py-2 font-medium whitespace-nowrap";
+export const th = "text-left px-2 sm:px-3 py-2 font-medium whitespace-nowrap";
 
 // ── events as text (history, modal replies) ──
 
@@ -462,32 +463,10 @@ function StackCard({ conn, stack, reason, onRetry, t }: { conn: ConnStatus; stac
   useEffect(() => {
     fetch("/api/station/active").then(r => r.ok ? r.json() : null).then(j => setShared(!!j?.dmr?.shared)).catch(() => {});
   }, []);
-  // Tier II (DMR_TIER=2): a conventional repeater, no dmrtc and so nothing for this page; its live log tells.
-  // A Tier II stack not on air (stopped, degraded, not installed) shows the card below like a Tier III one.
-  if (conn === "tier2" && stack?.installed && stack.active) {
-    return (
-      <div className="glass-panel rounded-md p-4 sm:p-6 flex flex-col items-center text-center gap-3 border border-cyan-500/30" data-testid="panel-dmr-tier2">
-        <Info className="w-10 h-10 text-cyan-400" />
-        <h2 className="text-sm font-bold tracking-[0.15em] uppercase text-foreground">{t("dmrd_tier2_title")}</h2>
-        <p className="text-xs text-muted-foreground max-w-xl leading-relaxed" data-testid="text-dmr-stack-explain">{t("dmrd_tier2_explain")}</p>
-        {stack?.version && <p className="text-[10px] font-mono text-muted-foreground">dmr-tier3 {stack.version}</p>}
-        <div className="flex items-center gap-2 flex-wrap justify-center">
-          <Link href="/log-live" onClick={() => { try { localStorage.setItem("tetra_log_service", "dmr"); } catch {} }} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded text-white bg-cyan-600 hover:bg-cyan-500 transition-colors" data-testid="button-dmr-tier2-log">
-            <History className="w-3.5 h-3.5" />
-            {t("dmrd_tier2_log")}
-          </Link>
-          <button onClick={onRetry} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded bg-white/10 hover:bg-white/20 text-foreground transition-colors" data-testid="button-dmr-stack-retry">
-            <RefreshCw className="w-3.5 h-3.5" />
-            {t("dmrd_retry")}
-          </button>
-          <Link href="/dmr-config" className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded bg-white/10 hover:bg-white/20 text-foreground transition-colors">
-            <Wrench className="w-3.5 h-3.5" />
-            {t("dmr_config")}
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  // Tier II (DMR_TIER=2): a conventional repeater without dmrtc; the Tier II monitor (journal of MMDVM-Host,
+  // DMRGateway, MMDVM-Multi) takes the place of this dashboard. A Tier II stack not on air (stopped, degraded,
+  // not installed) shows the card below like a Tier III one.
+  if (conn === "tier2" && stack?.installed && stack.active) return <Tier2Monitor />;
   const open = () => {
     if (notInstalled) window.dispatchEvent(new Event(OPEN_DMR_UPDATER_EVENT));
     else window.dispatchEvent(new CustomEvent(OPEN_STATION_SWITCHER_EVENT, { detail: { station: "dmr" } }));
@@ -862,7 +841,7 @@ export default function DmrDash() {
         <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
           <div className="flex items-center gap-2">
             <RadioTower className="w-5 h-5 text-cyan-400" />
-            <h1 className="text-xs sm:text-sm font-bold tracking-wide text-foreground" data-testid="text-dmr-title">{t("dmrd_title")}</h1>
+            <h1 className="text-xs sm:text-sm font-bold tracking-wide text-foreground" data-testid="text-dmr-title">{conn === "tier2" ? t("dmr2_title") : t("dmrd_title")}</h1>
           </div>
           <span className="text-muted-foreground text-xs hidden sm:inline">|</span>
           <span className="text-foreground font-mono text-xs sm:text-sm font-semibold"><Clock /></span>

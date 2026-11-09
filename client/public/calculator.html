@@ -2312,7 +2312,10 @@
       apply_need_password: "Please enter the system password.",
       apply_success: "✅ Config applied. Restarting TMO...",
       apply_error: "⚠️ Error: {msg}",
-      apply_sending: "Applying changes..."
+      apply_sending: "Applying changes...",
+      apply_note_sr_kept: "sample_rate is left as it was: MiuraStation needs it (with several carriers it does not start without it, and the DMR window uses it).",
+      apply_note_cf_kept: "{k} is left as it was: with the DMR window ([dmr_window]), commenting it out would move the RX LO and the window would no longer fit.",
+      apply_note_sr_added: "sample_rate = 600000 is written active: the DMR window ([dmr_window]) needs it."
     },
     zh: {
       title: "TETRA 頻率計算器",
@@ -3026,7 +3029,10 @@
       apply_need_password: "Introduce la contraseña del sistema.",
       apply_success: "✅ Config aplicada. Reiniciando TMO...",
       apply_error: "⚠️ Error: {msg}",
-      apply_sending: "Aplicando cambios..."
+      apply_sending: "Aplicando cambios...",
+      apply_note_sr_kept: "sample_rate se deja como estaba: MiuraStation lo necesita (con varias portadoras no arranca sin él y la ventana DMR lo usa).",
+      apply_note_cf_kept: "{k} se deja como estaba: con la ventana DMR ([dmr_window]) comentarlo movería el LO de RX y la ventana dejaría de caber.",
+      apply_note_sr_added: "sample_rate = 600000 se escribe activo: la ventana DMR ([dmr_window]) lo necesita."
     },
     pt: {
       title: "Calculadora de Frequ\u00eancias TETRA",
@@ -5381,6 +5387,9 @@
 
   // Station picked in the bar above the calculator (bluestation | flowstation | miurastation).
   var calcStation = "bluestation";
+  // [phy_io.soapysdr] of the loaded config.toml, for the preview to write what Apply writes (soapyDcLine of
+  // server/miuraConfig.ts): sr / tx / rx = the active line (trimmed) or null, win = an active [dmr_window]. null = none loaded.
+  var calcSoapyLoaded = null;
   // [telegram_alerts] language to write (MiuraStation only): "es" is the station's default, so it is written only
   // when the loaded config.toml already had the key; "en" always. null = no line (a station without the option
   // rejects the key; the server keeps the line the file already has).
@@ -5729,14 +5738,17 @@
     lines.push(`rx_freq = ${out.rxHz}`);
     // Dual carrier center frequencies (Flowstation only)
     if (document.getElementById("sectionDualCarrier")?.style.display !== "none") {
-      // sample_rate: uncommented when secondary_carrier enabled, commented (default) otherwise
+      // sample_rate: uncommented when secondary_carrier enabled, commented (default) otherwise. MiuraStation, as Apply
+      // does (soapyDcLine): an active one of the loaded config stays as it is, with [dmr_window] it is written active,
+      // and an active tx/rx_center_freq stays with [dmr_window]
       const scOn = el("enableSecondaryCarrier").checked;
-      lines.push(scOn ? `sample_rate = 600000` : `# sample_rate = 600000`);
+      const ld = calcStation === "miurastation" ? calcSoapyLoaded : null;
+      lines.push(scOn ? `sample_rate = 600000` : ld?.sr ? ld.sr : ld?.win ? `sample_rate = 600000` : `# sample_rate = 600000`);
       const cfEnabled = el("enableCenterFreq").checked;
       const txCf = Number(el("txCenterFreqVal").value) || 0;
       const rxCf = Number(el("rxCenterFreqVal").value) || 0;
-      lines.push(cfEnabled ? `tx_center_freq = ${txCf}` : `# tx_center_freq = ${txCf}`);
-      lines.push(cfEnabled ? `rx_center_freq = ${rxCf}` : `# rx_center_freq = ${rxCf}`);
+      lines.push(cfEnabled ? `tx_center_freq = ${txCf}` : ld?.win && ld.tx ? ld.tx : `# tx_center_freq = ${txCf}`);
+      lines.push(cfEnabled ? `rx_center_freq = ${rxCf}` : ld?.win && ld.rx ? ld.rx : `# rx_center_freq = ${rxCf}`);
     }
     // tx_gain_dac / tx_gain_mixer (SXceiver / µCell): commented when unticked
     lines.push(`${el("enableTxGainDac").checked ? "" : "# "}tx_gain_dac = ${txGainValue("dac")}`);
@@ -6800,11 +6812,13 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       // ── Dual Carrier (secondary_carrier, dual_carrier_enabled, tx/rx_center_freq, dgna_use_ss_facility)
       // Parse from raw TOML client-side for maximum reliability.
       (function() {
+        calcSoapyLoaded = null;
         if (document.getElementById("sectionDualCarrier")?.style.display === "none") return;
         var raw = (typeof data._raw === "string") ? data._raw : null;
         if (!raw) return;
         var lines = raw.split("\n");
         var inPhyIo = false, inCellInfo = false;
+        var soapy = { sr: undefined, tx: null, rx: null, win: /^[ \t]*\[dmr_window\][ \t]*\r?$/m.test(raw) };
         var scEnabled = false, scVal = null;
         var dcActive = true; // default: absent = ON
         var cfEnabled = false, txCf = null, rxCf = null;
@@ -6823,9 +6837,10 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
           }
           if (inPhyIo) {
             var m;
-            m = t.match(/^tx_center_freq\s*=\s*(\d+)/); if (m) { cfEnabled = true; txCf = Number(m[1]); continue; }
+            if (/^#?\s*sample_rate\s*=/.test(t)) { if (soapy.sr === undefined) soapy.sr = t[0] === "#" ? null : t; continue; }
+            m = t.match(/^tx_center_freq\s*=\s*(\d+)/); if (m) { cfEnabled = true; txCf = Number(m[1]); soapy.tx = t; continue; }
             m = t.match(/^#\s*tx_center_freq\s*=\s*(\d+)/); if (m && txCf === null) { txCf = Number(m[1]); continue; }
-            m = t.match(/^rx_center_freq\s*=\s*(\d+)/); if (m) { rxCf = Number(m[1]); continue; }
+            m = t.match(/^rx_center_freq\s*=\s*(\d+)/); if (m) { rxCf = Number(m[1]); soapy.rx = t; continue; }
             m = t.match(/^#\s*rx_center_freq\s*=\s*(\d+)/); if (m && rxCf === null) { rxCf = Number(m[1]); continue; }
           }
           if (inCellInfo) {
@@ -6838,6 +6853,7 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
             m = t.match(/^#\s*dgna_attachment_mode\s*=\s*(\d+)/); if (m && dgnaAttachMode === null) { dgnaAttachMode = Number(m[1]); continue; }
           }
         }
+        calcSoapyLoaded = soapy;
         el("extraCarriersVal").value = (Array.isArray(data.cell_info?.extra_carriers) ? data.cell_info.extra_carriers : []).join(", ");
         // Carriers on demand: ticked only with an active "secondary_carrier_on_demand = true" in [cell_info]; the numbers
         // that are missing keep the station's defaults.
@@ -7763,6 +7779,8 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
       } else {
         statusEl.innerHTML = `<span class="good">${escapeHtml(t("apply_success"))}</span>`;
       }
+      // Lines the server kept as they were or wrote active (MiuraStation sample_rate, centre frequencies with the DMR window)
+      if (Array.isArray(data.notes)) statusEl.innerHTML += data.notes.map(n => `<div class="hint">${escapeHtml(t("apply_note_" + n.key, { k: n.k }))}</div>`).join("");
     } catch(e){
       statusEl.innerHTML = `<span class="bad">${escapeHtml(t("apply_error", { msg: "Connection error" }))}</span>`;
     }
@@ -8214,10 +8232,12 @@ el("outTxHz").textContent = fmtHz(txHz) + "  (" + fmtMHz(txHz) + " MHz)";
   el("enableSecondaryCarrier").addEventListener("change", function(){
     el("secondaryCarrierFields").style.display = this.checked ? "block" : "none";
     updateSecondaryFromCenter();
+    updateTomlFromNew();
   });
   el("enableCenterFreq").addEventListener("change", function(){
     el("centerFreqFields").style.display = this.checked ? "block" : "none";
     updateSecondaryFromCenter();
+    updateTomlFromNew();
   });
   el("enableDgnaAttachMode").addEventListener("change", function(){
     el("dgnaAttachModeField").style.display = this.checked ? "block" : "none";

@@ -13,6 +13,7 @@ import FlowstationDash from "@/pages/FlowstationDash";
 import DgnaCenter from "@/pages/DgnaCenter";
 import DmrConfig from "@/pages/DmrConfig";
 import DmrDash from "@/pages/DmrDash";
+import { Tier2Page } from "@/components/dmr/Tier2Monitor";
 import NotFound from "@/pages/not-found";
 import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin, Gauge, Heart, Copy, Check, X, Tag, Hexagon, RadioTower } from "lucide-react";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
@@ -380,6 +381,7 @@ function Router() {
           <Route path="/wifi" component={WifiManager} />
           <Route path="/flow-dash" component={FlowstationDash} />
           <Route path="/dgna" component={DgnaCenter} />
+          <Route path="/dmr/tier2" component={Tier2Page} />
           <Route path="/dmr" component={DmrDash} />
           <Route path="/dmr-config" component={DmrConfig} />
           <Route component={NotFound} />
