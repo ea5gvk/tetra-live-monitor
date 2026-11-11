@@ -8,7 +8,8 @@
 //   after it dies while in use. Every (re)start begins from a clean state that the -n 3000 backlog rebuilds, plus
 //   dmr-tier2-heard.json (the last 100 calls, written atomically every 5 s at most, deduplicated by key).
 // - parseLine (pure) turns one journal entry into an event; Tier2Monitor folds the events into the state;
-//   routeNetwork (pure) says which DMRGateway network a network call belongs to after NET_ROUTES/NETn_ROUTES.
+//   routeNetwork (pure) says which DMRGateway network a network call belongs to after NET_ROUTES/NETn_ROUTES
+//   (dmr-tier3 0.7.0, with the slot and TG changes of ">": the radio side decides).
 // - times are the journal's __REALTIME_TIMESTAMP (the time inside an MMDVM line is UTC: only a fallback).
 // - callsigns come from the panel's one DmrNameCache (dmrStatus.ts: two writers would clobber dmrid_cache.json).
 // - demo (not Linux, or TETRA_DEMO=1): a generator writes lines in the real formats into the same parser.
@@ -172,15 +173,17 @@ export function parseLine(entry: unknown): Tier2Event | null {
 
 // ── The networks (pure) ──
 
-const ROUTE_RE = /^[Ss](\d+)(?::(?:[Pp](\d+)|(\d+)(?:-(\d+))?))?$/;
+// The radio side (groups 1-4) and, after ">", how it goes to the network (S1:9>S2:91, S1:9>S2, S1:P8>S2): not read.
+const ROUTE_RE = /^[Ss](\d+)(?::(?:[Pp](\d+)(?:>[Ss]\d+)?|(\d+)(?:-(\d+))?(?:>[Ss]\d+(?::\d+)?)?))?$/;
 const TG_PREFIX_SEPARATION = 1000000;   // gen-config.py: S1:P8 = 8000001..8999999 -> 1..999999
 
 /** The DMRGateway network of a call in `slot` to talkgroup `tg` (null: a private call, only a whole slot takes it),
- *  after NET_ROUTES / NETn_ROUTES of dmr-tier3 0.6.0: "S1"/"S2" the whole slot (PassAllTG + PassAllPC), "S1:9" or
- *  "S2:214-219" that TG or range, "S1:P8" the prefix 8 (8000001..8999999). DMRGateway tries the TGRewrite of every
- *  network first (in order), then the PassAll: the first rule that matches takes the call. The numbers are the ones
- *  of the radio side, which is what MMDVM-Host logs both ways. `nets`: the enabled ones, in order; one network =
- *  that one; nothing matches = null. Pure. */
+ *  after NET_ROUTES / NETn_ROUTES of dmr-tier3 0.7.0: "S1"/"S2" the whole slot (PassAllTG + PassAllPC), "S1:9" or
+ *  "S2:214-219" that TG or range, "S1:P8" the prefix 8 (8000001..8999999); a TG, range or prefix may add ">S2" or
+ *  ">S2:91" (to the network by that slot and TG: TGRewrite both ways). DMRGateway tries the TGRewrite of every
+ *  network first (in order), then the PassAll: the first rule that matches takes the call. The slot and numbers are
+ *  the ones of the radio side (the left one of ">"), which is what MMDVM-Host logs both ways. `nets`: the enabled
+ *  ones, in order; one network = that one; nothing matches = null. Pure. */
 export function routeNetwork(slot: number, tg: number | null, nets: { name: string; routes: string | null }[]): string | null {
   if (nets.length === 1) return nets[0].name;
   const rules = nets.flatMap((n) => (n.routes ?? "").split(",").map((r) => ({ net: n.name, m: ROUTE_RE.exec(r.trim()) })))

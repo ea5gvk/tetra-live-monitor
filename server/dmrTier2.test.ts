@@ -380,6 +380,35 @@ test("routeNetwork: whole slots, TG and ranges, prefixes, the TGRewrite of every
   assert.equal(routeNetwork(1, 9, [{ name: "A", routes: "S3,foo,S1:x" }, { name: "B", routes: "S1" }]), "B", "bad rules ignored");
 });
 
+test("routeNetwork: the slot and TG changes of 0.7.0 (S1:9>S2:91) go by the radio side, before any whole slot", () => {
+  const nets = [{ name: "ADN", routes: "S1,S2" }, { name: "BM", routes: "S1:9>S2:91, S1:214-219>S2:3214,S1:P8>S2,s2:8>s2:9" }];
+  assert.equal(routeNetwork(1, 9, nets), "BM", "S1:9>S2:91: the radios dial TG 9 on slot 1");
+  assert.equal(routeNetwork(2, 91, nets), "ADN", "TG 91 on slot 2 of the radios: the network side does not count");
+  assert.equal(routeNetwork(2, 9, nets), "ADN", "S2:8>S2:9: TG 9 of the radios is not BM's");
+  assert.equal(routeNetwork(2, 8, nets), "BM");
+  assert.equal(routeNetwork(1, 214, nets), "BM");
+  assert.equal(routeNetwork(1, 219, nets), "BM");
+  assert.equal(routeNetwork(1, 220, nets), "ADN");
+  assert.equal(routeNetwork(2, 3214, nets), "ADN");
+  assert.equal(routeNetwork(2, 216, nets), "ADN");
+  assert.equal(routeNetwork(1, 8000214, nets), "BM", "S1:P8>S2");
+  assert.equal(routeNetwork(2, 8000214, nets), "ADN");
+  assert.equal(routeNetwork(1, null, nets), "ADN", "a private call: the whole slot");
+  assert.equal(routeNetwork(2, null, nets), "ADN");
+  // the whole slot of an earlier network does not take a TG that a later one changes, nor the other way round
+  const s2 = [{ name: "A", routes: "S2" }, { name: "B", routes: "S1:9>S2:91" }];
+  assert.equal(routeNetwork(1, 9, s2), "B");
+  assert.equal(routeNetwork(2, 91, s2), "A");
+  assert.equal(routeNetwork(1, 10, s2), null, "slot 1 has no whole-slot rule");
+  assert.equal(routeNetwork(1, 9, [{ name: "A", routes: "S1" }, { name: "B", routes: "S1:9>S1" }]), "B", "S1:9>S1 is S1:9");
+  assert.equal(routeNetwork(1, 9, [{ name: "A", routes: "S1" }, { name: "B", routes: "S1:9>S1:9" }]), "B");
+  const bad = [{ name: "A", routes: "S1>S2,S1:9>,S1:9>S2:,S1:9>2,S1:9>S2:91-95,S1:9>>S2,S1:P8>S2:5,S2>S2" }, { name: "B", routes: "S1" }];
+  assert.equal(routeNetwork(1, 9, bad), "B", "bad rules ignored");
+  assert.equal(routeNetwork(1, 8000001, bad), "B");
+  assert.equal(routeNetwork(1, null, bad), "B", "S1>S2 is not a whole slot");
+  assert.equal(routeNetwork(2, null, bad), null, "nor S2>S2 (gen-config rejects it too)");
+});
+
 test("tier2Nets and readTier2Station: the networks of the conf without passwords, the station of MMDVM-Host-1.ini", () => {
   const conf = {
     GATEWAY_ENABLED: "1", NET_NAME: "ADN", NET_ADDRESS: "10.33.1.50", NET_PORT: "62037", NET_PASSWORD: "secreto1", NET_ROUTES: "S1,S2",

@@ -315,7 +315,7 @@ private fun Tier2Networks(base: String) {
             Text(routes, color = Warn, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
         }
     }
-    Text("Rutas: S1/S2 = slot entero · S1:9 = TG · S2:214-219 = rango · S1:P8 = prefijo (estilo Pi-Star). Primero casan las reglas por TG o prefijo de todas las redes y luego los slots enteros.",
+    Text("Rutas: S1/S2 = slot entero · S1:9 = TG · S2:214-219 = rango · S1:P8 = prefijo (estilo Pi-Star) · S1:9>S2:91 = a la red por el slot 2 como TG 91. Primero casan las reglas por TG o prefijo de todas las redes y luego los slots enteros.",
         color = Muted, fontSize = 9.sp)
 }
 
