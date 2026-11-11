@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Reglas de red DMRGateway</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&family=Saira+Semi+Condensed:wght@600;700&display=swap">
+<style>
+/* Layout: una columna de lectura (~68ch) con tablas y bloques de .ini a ancho completo; el probador en dos columnas en pantalla ancha. */
+:root {
+  --bg: #f4f6f8; --surface: #ffffff; --ink: #17212c; --muted: #586474; --line: #d6dce4;
+  --accent: #1c5bb8; --accent-soft: #e4edfa; --ts1: #0b7d72; --ts1-soft: #dcf1ee; --ts2: #b5570b; --ts2-soft: #fbeadb;
+  --ok: #2b7a33; --ok-soft: #e1f2e2; --bad: #b0281f; --bad-soft: #fbe5e3; --code: #eef1f5;
+  --f-display: "Saira Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --f-body: "IBM Plex Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --f-mono: "IBM Plex Mono", ui-monospace, "Cascadia Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0e131a; --surface: #151c25; --ink: #e5eaf0; --muted: #98a5b4; --line: #283341;
+  --accent: #6ea6ff; --accent-soft: #1b2a40; --ts1: #43c7b8; --ts1-soft: #11302d; --ts2: #f2a359; --ts2-soft: #3a2614;
+  --ok: #73c77a; --ok-soft: #15301a; --bad: #ff8f86; --bad-soft: #3d1a18; --code: #1b2430; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #0e131a; --surface: #151c25; --ink: #e5eaf0; --muted: #98a5b4; --line: #283341;
+  --accent: #6ea6ff; --accent-soft: #1b2a40; --ts1: #43c7b8; --ts1-soft: #11302d; --ts2: #f2a359; --ts2-soft: #3a2614;
+  --ok: #73c77a; --ok-soft: #15301a; --bad: #ff8f86; --bad-soft: #3d1a18; --code: #1b2430; color-scheme: dark }
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.6;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px)); padding-block: 0 48px; }
+.wrap { max-width: 920px; margin: 0 auto; display: flex; flex-direction: column; gap: 56px; }
+.prose { max-width: 68ch; }
+h1, h2, h3 { font-family: var(--f-display); line-height: 1.15; text-wrap: balance; margin: 0; letter-spacing: 0.01em; }
+h1 { font-size: clamp(2.1rem, 6vw, 3.2rem); font-weight: 700; }
+h2 { font-size: 1.75rem; font-weight: 700; }
+h3 { font-size: 1.2rem; font-weight: 600; }
+p { margin: 0; }
+section { display: flex; flex-direction: column; gap: 18px; }
+.eyebrow { font-family: var(--f-mono); font-size: 0.78rem; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+code, kbd, .mono { font-family: var(--f-mono); font-size: 0.92em; }
+:not(pre) > code { background: var(--code); border-radius: 4px; padding: 1px 5px; white-space: nowrap; }
+pre { margin: 0; background: var(--code); border: 1px solid var(--line); border-radius: 8px; padding: 12px 14px; overflow-x: auto;
+  font-family: var(--f-mono); font-size: 0.88rem; line-height: 1.55; }
+a { color: var(--accent); }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+/* Cabecera */
+header.hero { padding-top: 40px; display: flex; flex-direction: column; gap: 16px; }
+.hero .lede { font-size: 1.12rem; color: var(--ink); max-width: 64ch; }
+.facts { display: flex; flex-wrap: wrap; gap: 8px; }
+.fact { font-family: var(--f-mono); font-size: 0.8rem; border: 1px solid var(--line); background: var(--surface); border-radius: 999px; padding: 3px 11px; color: var(--muted); }
+.fact b { color: var(--ink); font-weight: 500; }
+
+/* Slots */
+.ts { display: inline-flex; align-items: baseline; gap: 6px; font-family: var(--f-mono); font-size: 0.86rem; font-weight: 500;
+  border-radius: 6px; padding: 2px 8px; white-space: nowrap; }
+.ts.s1 { background: var(--ts1-soft); color: var(--ts1); }
+.ts.s2 { background: var(--ts2-soft); color: var(--ts2); }
+.ts .k { font-size: 0.72rem; letter-spacing: 0.06em; opacity: 0.85; }
+.hop { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 0.92rem; }
+.hop .who { font-weight: 600; }
+.hop .arr { color: var(--muted); font-family: var(--f-mono); }
+
+/* Pasos */
+.steps { list-style: none; padding: 0; margin: 0; display: grid; gap: 12px; counter-reset: s; }
+.steps li { counter-increment: s; display: grid; grid-template-columns: 2.2rem 1fr; gap: 12px; align-items: start; }
+.steps li::before { content: counter(s); font-family: var(--f-display); font-weight: 700; font-size: 1.3rem; color: var(--accent);
+  border: 2px solid var(--accent); border-radius: 50%; width: 2.2rem; height: 2.2rem; display: grid; place-items: center; line-height: 1; }
+.steps li > div { min-width: 0; padding-top: 4px; }
+.aside-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.note { border: 1px solid var(--line); border-radius: 10px; padding: 14px 16px; background: var(--surface); display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.note h3 { font-size: 1.02rem; }
+
+/* Anatomía de TGRewrite */
+.anat { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 18px; display: flex; flex-direction: column; gap: 14px; }
+.anat-line { display: grid; grid-template-columns: auto repeat(5, minmax(0, 1fr)); gap: 6px; align-items: end; font-family: var(--f-mono); }
+.anat-line .lead { font-size: 1.05rem; padding-bottom: 26px; }
+.field { display: flex; flex-direction: column; align-items: center; gap: 6px; min-width: 0; }
+.field .v { font-size: 1.25rem; font-weight: 500; border-radius: 6px; padding: 4px 0; width: 100%; text-align: center; background: var(--code); }
+.field.s1 .v { background: var(--ts1-soft); color: var(--ts1); }
+.field.s2 .v { background: var(--ts2-soft); color: var(--ts2); }
+.field .l { font-family: var(--f-body); font-size: 0.74rem; color: var(--muted); text-align: center; line-height: 1.3; }
+@media (max-width: 560px) {
+  .anat-line { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .anat-line .lead { grid-column: 1 / -1; padding-bottom: 0; }
+}
+
+/* Tablas */
+.tbl { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; min-width: 620px; font-size: 0.93rem; }
+th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font-family: var(--f-mono); font-size: 0.74rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); font-weight: 500; }
+tr:last-child td { border-bottom: 0; }
+td.rule { font-family: var(--f-mono); font-weight: 500; white-space: nowrap; }
+td.ini { font-family: var(--f-mono); font-size: 0.85rem; white-space: nowrap; }
+tr.group td { background: var(--accent-soft); font-family: var(--f-mono); font-size: 0.74rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--accent); padding: 6px 14px; }
+
+/* Ejemplos */
+.examples { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 400px), 1fr)); gap: 14px; }
+.ex { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.ex .tag { font-family: var(--f-mono); font-size: 0.74rem; color: var(--muted); letter-spacing: 0.06em; text-transform: uppercase; }
+.ex .cfg { display: grid; gap: 6px; }
+.ex pre { font-size: 0.84rem; }
+.ex .label { font-size: 0.74rem; color: var(--muted); font-family: var(--f-mono); letter-spacing: 0.05em; text-transform: uppercase; }
+.ex .hint { font-size: 0.9rem; color: var(--muted); }
+
+/* No se puede */
+.nogo { display: grid; gap: 10px; }
+.nogo .item { border: 1px solid var(--line); border-left: 4px solid var(--bad); background: var(--surface); border-radius: 8px; padding: 12px 14px; display: grid; gap: 4px; min-width: 0; }
+.nogo .item code { white-space: normal; }
+
+/* Probador */
+.tester { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 18px; display: grid; gap: 18px; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+@media (max-width: 820px) { .tester { grid-template-columns: minmax(0, 1fr); } }
+.col { display: flex; flex-direction: column; gap: 14px; min-width: 0; }
+.netrow { display: grid; grid-template-columns: auto 7.5rem minmax(0, 1fr); gap: 8px; align-items: center; }
+.netrow .n { font-family: var(--f-mono); font-size: 0.8rem; color: var(--muted); width: 4.6rem; display: flex; align-items: center; gap: 6px; }
+@media (max-width: 460px) { .netrow { grid-template-columns: auto minmax(0, 1fr); } .netrow .routes { grid-column: 1 / -1; } }
+input[type="text"], input[type="number"], select { font: inherit; font-size: 0.92rem; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+  border-radius: 7px; padding: 7px 9px; width: 100%; min-width: 0; }
+input.routes { font-family: var(--f-mono); }
+input:disabled { opacity: 0.5; }
+.fieldset-title { font-family: var(--f-mono); font-size: 0.74rem; letter-spacing: 0.07em; text-transform: uppercase; color: var(--muted); }
+.call { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+.call label { display: flex; flex-direction: column; gap: 4px; font-size: 0.78rem; color: var(--muted); min-width: 0; }
+.status { border-radius: 8px; padding: 10px 12px; font-size: 0.9rem; display: grid; gap: 6px; }
+.status.ok { background: var(--ok-soft); color: var(--ok); }
+.status.bad { background: var(--bad-soft); color: var(--bad); }
+.status ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+.result { border: 1px solid var(--line); border-radius: 8px; padding: 12px; display: grid; gap: 8px; font-size: 0.93rem; }
+.presets { display: flex; flex-wrap: wrap; gap: 6px; }
+button { font: inherit; font-size: 0.82rem; border: 1px solid var(--line); background: var(--bg); color: var(--ink); border-radius: 999px; padding: 4px 11px; cursor: pointer; }
+button:hover { border-color: var(--accent); color: var(--accent); }
+.small { font-size: 0.86rem; color: var(--muted); }
+
+footer { border-top: 1px solid var(--line); padding-top: 22px; display: grid; gap: 10px; color: var(--muted); font-size: 0.92rem; }
+footer ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; color: var(--ink); }
+@media (prefers-reduced-motion: no-preference) { button { transition: border-color .15s, color .15s; } }
+</style>
+<script>
+// Dentro del panel (iframe del mismo origen) sigue el tema del panel: LIGHT = claro, el resto (DARK, NAVY, MIL) = oscuro.
+(function () {
+  try {
+    if (window.parent === window) return;
+    var p = window.parent.document.documentElement;
+    var set = function () { document.documentElement.setAttribute("data-theme", p.classList.contains("light") ? "light" : "dark"); };
+    set();
+    new MutationObserver(set).observe(p, { attributes: true, attributeFilter: ["class"] });
+  } catch (e) {}
+})();
+</script>
+</head>
+<body>
+<div class="wrap">
+
+<header class="hero">
+  <span class="eyebrow">DMR Tier II · dmr-tier3 0.7.0 · panel MiuraStation</span>
+  <h1>Reglas de red DMRGateway</h1>
+  <p class="lede">En Tier II el repetidor puede estar conectado a la vez a hasta cuatro redes: ADN, BrandMeister, una red local… Las reglas deciden qué llamada de las radios va a cada red y cómo vuelve lo que llega de cada una. Es el DMRGateway de G4KLX, el mismo de Pi-Star y WPSD. En el panel no se edita el <code>DMRGateway.ini</code>: las reglas se escriben en CONFIG DMR y el panel genera el fichero.</p>
+  <div class="facts">
+    <span class="fact"><b>Solo Tier II</b>: en Tier III hay una red y reglas fijas</span>
+    <span class="fact"><b>Hasta 4 redes</b>: NET_ROUTES y NET2..4_ROUTES</span>
+    <span class="fact"><b>Cambio de slot y de TG</b> desde 0.7.0</span>
+  </div>
+</header>
+
+<section aria-labelledby="como">
+  <span class="eyebrow">Lo primero</span>
+  <h2 id="como">Cómo decide DMRGateway a qué red va cada llamada</h2>
+  <ol class="steps">
+    <li><div>Mira primero las <b>reglas por TG o prefijo</b> (<code>TGRewrite</code>) de todas las redes, en orden: red 1, red 2, red 3, red 4.</div></li>
+    <li><div>Si ninguna encaja, mira las de <b>slot entero</b> (<code>PassAllTG</code> y <code>PassAllPC</code>), también en orden de red.</div></li>
+    <li><div>La <b>primera regla que encaja</b> se lleva la llamada. Una llamada va a una sola red, nunca a dos.</div></li>
+  </ol>
+  <div class="aside-grid">
+    <div class="note"><h3>De vuelta</h3><p>Cada red deshace sus propias reglas: lo que llega de una red sale a las radios por el slot y con el TG que marcan las radios. Lo que no encaja con ninguna regla de esa red se descarta.</p></div>
+    <div class="note"><h3>Un slot, una red a la vez</h3><p>Mientras dura una llamada y unos 10 segundos después, ese slot del repetidor es de esa red: lo que otra red mande a ese slot espera. Igual que en Pi-Star.</p></div>
+    <div class="note"><h3>Privadas</h3><p>Las llamadas privadas solo pasan por las reglas de slot entero (<code>S1</code>, <code>S2</code>). Las reglas por TG son solo para grupos.</p></div>
+  </div>
+</section>
+
+<section aria-labelledby="lineas">
+  <span class="eyebrow">El fichero</span>
+  <h2 id="lineas">Las líneas del DMRGateway.ini</h2>
+  <p class="prose">Cada red es una sección <code>[DMR Network n]</code> con sus reglas. El panel solo usa tres tipos de línea. La importante es <code>TGRewrite</code>, que tiene cinco números:</p>
+  <div class="anat" role="figure" aria-label="Partes de TGRewrite=1,9,2,91,1">
+    <div class="anat-line">
+      <span class="lead">TGRewrite=</span>
+      <span class="field s1"><span class="v">1</span><span class="l">slot de las radios</span></span>
+      <span class="field s1"><span class="v">9</span><span class="l">TG que marcan las radios</span></span>
+      <span class="field s2"><span class="v">2</span><span class="l">slot en la red</span></span>
+      <span class="field s2"><span class="v">91</span><span class="l">TG en la red</span></span>
+      <span class="field"><span class="v">1</span><span class="l">cuántos TG seguidos</span></span>
+    </div>
+    <div class="hop"><span class="who">Radios</span><span class="ts s1"><span class="k">TS1</span>TG 9</span><span class="arr">→ red →</span><span class="ts s2"><span class="k">TS2</span>TG 91</span><span class="arr">·</span><span class="small">y lo que vuelve por TS2 con el 91 llega por TS1 como 9</span></div>
+  </div>
+  <div class="aside-grid">
+    <div class="note"><h3><code>PassAllTG=1</code></h3><p>Todos los grupos del slot 1 van a esta red tal cual, y todos los que mande la red por el slot 1 llegan a las radios.</p></div>
+    <div class="note"><h3><code>PassAllPC=1</code></h3><p>Lo mismo para las llamadas privadas del slot 1. El panel lo pone siempre junto con <code>PassAllTG</code>.</p></div>
+    <div class="note"><h3>Lo que el panel no genera</h3><p><code>PCRewrite</code>, <code>TypeRewrite</code>, <code>SrcRewrite</code>, <code>TGDynRewrite</code> y XLX existen en DMRGateway pero no se usan aquí. Lo que se edite a mano en el .ini se pierde al guardar CONFIG DMR.</p></div>
+  </div>
+</section>
+
+<section aria-labelledby="panel">
+  <span class="eyebrow">En CONFIG DMR</span>
+  <h2 id="panel">Cómo se escriben las reglas en el panel</h2>
+  <p class="prose">Red 1 en <code>NET_ROUTES</code> y redes 2, 3 y 4 en <code>NET2_ROUTES</code>, <code>NET3_ROUTES</code> y <code>NET4_ROUTES</code>. Reglas separadas por comas y sin espacios dentro. A la izquierda de <code>&gt;</code> va lo que marcan las radios; a la derecha, cómo va a la red.</p>
+  <div class="tbl">
+    <table>
+      <thead><tr><th>Regla</th><th>Qué hace</th><th>En el DMRGateway.ini</th></tr></thead>
+      <tbody>
+        <tr><td class="rule">S1</td><td>El slot 1 entero: todos los grupos y las privadas</td><td class="ini">PassAllTG=1<br>PassAllPC=1</td></tr>
+        <tr><td class="rule">S1:9</td><td>El TG 9 del slot 1, tal cual</td><td class="ini">TGRewrite=1,9,1,9,1</td></tr>
+        <tr><td class="rule">S2:214-219</td><td>Los TG 214 a 219 del slot 2, tal cual</td><td class="ini">TGRewrite=2,214,2,214,6</td></tr>
+        <tr><td class="rule">S1:P8</td><td>Prefijo 8: la radio marca 8000214 y a la red va el 214</td><td class="ini">TGRewrite=1,8000001,1,1,999999</td></tr>
+        <tr class="group"><td colspan="3">Desde 0.7.0: cambiar de slot o de TG camino de la red</td></tr>
+        <tr><td class="rule">S1:9&gt;S2</td><td>El TG 9: las radios por el slot 1, la red por el slot 2</td><td class="ini">TGRewrite=1,9,2,9,1</td></tr>
+        <tr><td class="rule">S2:8&gt;S2:9</td><td>Las radios marcan el 8 y a la red va el 9</td><td class="ini">TGRewrite=2,8,2,9,1</td></tr>
+        <tr><td class="rule">S1:9&gt;S2:91</td><td>Radios TG 9 por TS1 → red TG 91 por TS2</td><td class="ini">TGRewrite=1,9,2,91,1</td></tr>
+        <tr><td class="rule">S1:1-9&gt;S2:2141</td><td>Radios TG 1 a 9 por TS1 → red TG 2141 a 2149 por TS2</td><td class="ini">TGRewrite=1,1,2,2141,9</td></tr>
+        <tr><td class="rule">S1:P8&gt;S2</td><td>Prefijo 8 en TS1 → red por TS2, sin el prefijo</td><td class="ini">TGRewrite=1,8000001,2,1,999999</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="ejemplos">
+  <span class="eyebrow">Casos reales</span>
+  <h2 id="ejemplos">Ejemplos</h2>
+  <p class="prose">En todos, la red 1 es ADN y la red 2 es BrandMeister (BM). Debajo de cada configuración está lo que el panel escribe en el .ini para la red 2; la red 1, con <code>S1,S2</code>, lleva <code>PassAllTG</code> y <code>PassAllPC</code> de los dos slots.</p>
+  <div class="examples">
+    <article class="ex">
+      <span class="tag">Una red por slot</span>
+      <div class="cfg"><pre>NET_ROUTES=S1
+NET2_ROUTES=S2</pre></div>
+      <div class="hop"><span class="ts s1"><span class="k">TS1</span>todo</span><span class="arr">→</span><span class="who">ADN</span><span class="arr">·</span><span class="ts s2"><span class="k">TS2</span>todo</span><span class="arr">→</span><span class="who">BM</span></div>
+      <span class="label">red 2 en el .ini</span><pre>PassAllTG=2
+PassAllPC=2</pre>
+    </article>
+    <article class="ex">
+      <span class="tag">Todo a ADN y el prefijo 8 a BM (estilo Pi-Star)</span>
+      <div class="cfg"><pre>NET_ROUTES=S1,S2
+NET2_ROUTES=S1:P8</pre></div>
+      <div class="hop"><span class="ts s1"><span class="k">TS1</span>TG 8000214</span><span class="arr">→</span><span class="who">BM</span><span class="ts s1"><span class="k">TS1</span>TG 214</span></div>
+      <span class="label">red 2 en el .ini</span><pre>TGRewrite=1,8000001,1,1,999999</pre>
+      <p class="hint">Lo que llega de BM entra como 8000214: ese TG tiene que estar en la lista de recepción de las radios.</p>
+    </article>
+    <article class="ex">
+      <span class="tag">Unos TG concretos a BM, el resto a ADN</span>
+      <div class="cfg"><pre>NET_ROUTES=S1,S2
+NET2_ROUTES=S2:214-219</pre></div>
+      <div class="hop"><span class="ts s2"><span class="k">TS2</span>TG 214…219</span><span class="arr">→</span><span class="who">BM</span><span class="ts s2"><span class="k">TS2</span>TG 214…219</span></div>
+      <span class="label">red 2 en el .ini</span><pre>TGRewrite=2,214,2,214,6</pre>
+    </article>
+    <article class="ex">
+      <span class="tag">Las radios llevan el 214 en TS1; en BM está en TS2</span>
+      <div class="cfg"><pre>NET_ROUTES=S1,S2
+NET2_ROUTES=S1:214&gt;S2</pre></div>
+      <div class="hop"><span class="ts s1"><span class="k">TS1</span>TG 214</span><span class="arr">→</span><span class="who">BM</span><span class="ts s2"><span class="k">TS2</span>TG 214</span></div>
+      <span class="label">red 2 en el .ini</span><pre>TGRewrite=1,214,2,214,1</pre>
+    </article>
+    <article class="ex">
+      <span class="tag">Las radios marcan el 1; en BM es el 214 por TS2</span>
+      <div class="cfg"><pre>NET_ROUTES=S1,S2
+NET2_ROUTES=S1:1&gt;S2:214</pre></div>
+      <div class="hop"><span class="ts s1"><span class="k">TS1</span>TG 1</span><span class="arr">→</span><span class="who">BM</span><span class="ts s2"><span class="k">TS2</span>TG 214</span></div>
+      <span class="label">red 2 en el .ini</span><pre>TGRewrite=1,1,2,214,1</pre>
+    </article>
+    <article class="ex">
+      <span class="tag">Un bloque de TG renumerado</span>
+      <div class="cfg"><pre>NET_ROUTES=S1,S2
+NET2_ROUTES=S1:1-9&gt;S2:2141</pre></div>
+      <div class="hop"><span class="ts s1"><span class="k">TS1</span>TG 1…9</span><span class="arr">→</span><span class="who">BM</span><span class="ts s2"><span class="k">TS2</span>TG 2141…2149</span></div>
+      <span class="label">red 2 en el .ini</span><pre>TGRewrite=1,1,2,2141,9</pre>
+    </article>
+    <article class="ex">
+      <span class="tag">Prefijo 8 en TS1 hacia TS2 de BM</span>
+      <div class="cfg"><pre>NET_ROUTES=S1,S2
+NET2_ROUTES=S1:P8&gt;S2</pre></div>
+      <div class="hop"><span class="ts s1"><span class="k">TS1</span>TG 8000214</span><span class="arr">→</span><span class="who">BM</span><span class="ts s2"><span class="k">TS2</span>TG 214</span></div>
+      <span class="label">red 2 en el .ini</span><pre>TGRewrite=1,8000001,2,1,999999</pre>
+    </article>
+    <article class="ex">
+      <span class="tag">Renumerar sin tocar el resto de TS2</span>
+      <div class="cfg"><pre>NET_ROUTES=S1,S2
+NET2_ROUTES=S2:8&gt;S2:9</pre></div>
+      <div class="hop"><span class="ts s2"><span class="k">TS2</span>TG 8</span><span class="arr">→</span><span class="who">BM</span><span class="ts s2"><span class="k">TS2</span>TG 9</span></div>
+      <span class="label">red 2 en el .ini</span><pre>TGRewrite=2,8,2,9,1</pre>
+      <p class="hint">Vale porque el slot 2 entero va a otra red (ADN). Con <code>S2</code> y <code>S2:8&gt;S2:9</code> en la misma red no se puede: abajo está por qué.</p>
+    </article>
+  </div>
+</section>
+
+<section aria-labelledby="nogo">
+  <span class="eyebrow">Protecciones</span>
+  <h2 id="nogo">Lo que el panel no deja guardar</h2>
+  <p class="prose">DMRGateway aceptaría estas combinaciones sin avisar, pero alguna llamada se perdería o volvería por otro sitio. El panel las rechaza al guardar y dice qué regla falla.</p>
+  <div class="nogo">
+    <div class="item"><b>El mismo slot entero en dos redes</b><span><code>NET_ROUTES=S1,S2</code> y <code>NET2_ROUTES=S2</code>: la red 1 se queda el slot 2 y la red 2 no recibiría nada.</span></div>
+    <div class="item"><b>Dos reglas que se pisan en el mismo slot de las radios</b><span><code>S2:214-219</code> en una red y <code>S2:215</code> en otra: el 215 iría solo a la primera.</span></div>
+    <div class="item"><b>Slot entero con <code>&gt;</code></b><span><code>S1&gt;S2</code>: DMRGateway pasa el slot entero tal cual. Para llevar todos los grupos de un slot al otro se usa un rango, <code>S1:1-999999&gt;S2</code>, pero las privadas solo van con el slot entero.</span></div>
+    <div class="item"><b>Prefijo con número detrás</b><span><code>S1:P8&gt;S2:5</code>: con prefijo solo se cambia el slot; a la red va siempre el TG sin el prefijo.</span></div>
+    <div class="item"><b>En una misma red: renumerar junto al slot entero</b><span><code>S1,S2,S2:8&gt;S2:9</code>: quien marque el 9 en el slot 2 (por el slot entero) oiría la respuesta como 8. El ejemplo de DMR+ del .ini de G4KLX hace justo esto; aquí se rechaza. Solución: el renumerado en otra red, o no poner el slot 2 entero en esa red.</span></div>
+    <div class="item"><b>En una misma red: prefijo junto al slot entero</b><span><code>S1,S2,S1:P8</code>: lo que vuelve de la red llegaría a las radios con el prefijo delante.</span></div>
+    <div class="item"><b>En una misma red: cambiar de slot hacia un slot entero</b><span><code>S1,S2,S1:9&gt;S2:91</code>: lo que vuelve por el slot 2 con el 91 iría al 9 del slot 1, aunque lo hubiera marcado alguien en el slot 2.</span></div>
+    <div class="item"><b>Una red activa sin reglas, sin servidor o sin clave</b><span>Y espacios dentro de una regla: se escribe <code>S1:9&gt;S2</code>, no <code>S1:9 &gt; S2</code>.</span></div>
+  </div>
+</section>
+
+<section aria-labelledby="probador">
+  <span class="eyebrow">Pruébalo</span>
+  <h2 id="probador">Probador de reglas</h2>
+  <p class="prose">Escribe las reglas como en CONFIG DMR. Verás las líneas que el panel escribiría en el .ini, los errores que daría al guardar y por dónde va una llamada. Hace las mismas comprobaciones de reglas que el panel; el servidor, la clave y el resto los mira el panel.</p>
+  <div class="tester">
+    <div class="col">
+      <span class="fieldset-title">Redes</span>
+      <div class="netrow"><span class="n"><input type="checkbox" id="en1" checked disabled aria-label="Red 1 siempre activa"> red 1</span>
+        <input type="text" id="name1" value="ADN" aria-label="Nombre de la red 1"><input type="text" class="routes" id="routes1" value="S1,S2" aria-label="NET_ROUTES"></div>
+      <div class="netrow"><span class="n"><input type="checkbox" id="en2" checked aria-label="Activar la red 2"> red 2</span>
+        <input type="text" id="name2" value="BM" aria-label="Nombre de la red 2"><input type="text" class="routes" id="routes2" value="S1:9&gt;S2:91,S2:214-219&gt;S1:3214" aria-label="NET2_ROUTES"></div>
+      <div class="netrow"><span class="n"><input type="checkbox" id="en3" aria-label="Activar la red 3"> red 3</span>
+        <input type="text" id="name3" value="Red 3" aria-label="Nombre de la red 3"><input type="text" class="routes" id="routes3" value="" placeholder="p. ej. S1:P8" aria-label="NET3_ROUTES"></div>
+      <div class="netrow"><span class="n"><input type="checkbox" id="en4" aria-label="Activar la red 4"> red 4</span>
+        <input type="text" id="name4" value="Red 4" aria-label="Nombre de la red 4"><input type="text" class="routes" id="routes4" value="" aria-label="NET4_ROUTES"></div>
+      <div class="presets" aria-label="Ejemplos para cargar">
+        <button type="button" data-p="slots">Una red por slot</button>
+        <button type="button" data-p="p8">Prefijo 8</button>
+        <button type="button" data-p="remap">Cambio de slot y TG</button>
+        <button type="button" data-p="bad">Un caso que falla</button>
+      </div>
+      <span class="fieldset-title">Una llamada de las radios</span>
+      <div class="call">
+        <label for="cslot">Slot<select id="cslot"><option value="1">TS1</option><option value="2">TS2</option></select></label>
+        <label for="ctype">Tipo<select id="ctype"><option value="g">Grupo (TG)</option><option value="p">Privada</option></select></label>
+        <label for="cnum">TG o ID<input type="number" id="cnum" value="9" min="1" max="16777215"></label>
+      </div>
+    </div>
+    <div class="col">
+      <div id="status" class="status ok" aria-live="polite"></div>
+      <div class="result" id="callres" aria-live="polite"></div>
+      <span class="fieldset-title">DMRGateway.ini que generaría</span>
+      <pre id="ini"></pre>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <b style="color:var(--ink)">Dónde se cambia</b>
+  <ol>
+    <li>Panel → selector en <b>MIURA</b> (la DMR parada) antes de tocar.</li>
+    <li>Panel → <a href="/dmr-config" target="_top"><b>CONFIG DMR</b></a>: <code>NET_ROUTES</code> en "Pasarela IP" y las redes 2 a 4 en "Red DMR n (solo Tier II)".</li>
+    <li>Guardar y volver a <b>MIURA+DMR</b> o <b>DMR</b>. En el LOG de la estación DMR cada red dice "&lt;nombre&gt;, Logged into the master successfully".</li>
+  </ol>
+  <p>Las reglas con <code>&gt;</code> necesitan dmr-tier3 0.7.0 o posterior (Update DMR). Si el servidor de cualquier red activa no existe o no resuelve, DMRGateway no arranca y tampoco funciona la red 1.</p>
+  <p>73 de EA5GVK</p>
+</footer>
+
+</div>
+
+<script id="rules-logic">
+// Puerto de parse_routes / parse_networks / route_lines de gen-config.py (dmr-tier3 0.7.0) y del enrutado de
+// DMRGateway (DMRGateway.cpp): primero los TGRewrite de todas las redes, luego los PassAll; la vuelta, al revés.
+var TG_SEP = 1000000;
+var ROUTE_RE = /^[Ss](\d+)(?::(?:[Pp](\d+)|(\d+)(?:-(\d+))?))?(?:>[Ss](\d+)(?::(\d+))?)?$/;
+function parseRoutes(key, raw, errors) {
+  var routes = [];
+  raw.split(",").forEach(function (it) {
+    var item = it.trim();
+    if (!item) return;
+    var m = ROUTE_RE.exec(item);
+    if (!m) {
+      errors.push(key + ": regla '" + item + "' no es S1, S2, S1:TG, S1:TG-TG ni S1:Pn (las tres últimas pueden llevar " +
+        "detrás >S2 o >S2:TG, y S1:Pn solo >S2)" + (/\s/.test(item) ? "; la regla va sin espacios" : ""));
+      return;
+    }
+    var slot = parseInt(m[1], 10);
+    var nslot = m[5] !== undefined ? parseInt(m[5], 10) : slot;
+    if (slot !== 1 && slot !== 2) {
+      errors.push(key + ": regla '" + item + "': el slot tiene que ser 1 o 2");
+    } else if (nslot !== 1 && nslot !== 2) {
+      errors.push(key + ": regla '" + item + "': el slot de la red (detrás de '>') tiene que ser 1 o 2");
+    } else if (m[2] === undefined && m[3] === undefined) {
+      if (m[5] !== undefined) {
+        errors.push(key + ": regla '" + item + "': el slot entero no puede cambiar de slot ni de número (DMRGateway lo " +
+          "pasa tal cual); para llevar sus TG a la red por otro slot usa un rango, p. ej. S" + slot + ":1-999999>S" +
+          (nslot !== slot ? nslot : 3 - slot) + ", pero las privadas solo van con el slot entero");
+      } else {
+        routes.push({ item: item, slot: slot, lo: null, hi: null, nslot: null, to: null });
+      }
+    } else if (m[2] !== undefined) {
+      var p = parseInt(m[2], 10);
+      if (p < 1 || p > 9) {
+        errors.push(key + ": regla '" + item + "': el prefijo tiene que estar entre 1 y 9");
+      } else if (m[6] !== undefined) {
+        errors.push(key + ": regla '" + item + "': con prefijo solo se puede cambiar el slot (S" + slot + ":P" + p + ">S" + nslot +
+          "): a la red va siempre el TG sin el prefijo");
+      } else {
+        routes.push({ item: item, slot: slot, lo: p * TG_SEP + 1, hi: p * TG_SEP + 999999, nslot: nslot, to: 1 });
+      }
+    } else {
+      var lo = parseInt(m[3], 10);
+      var hi = m[4] !== undefined ? parseInt(m[4], 10) : lo;
+      var to = m[6] !== undefined ? parseInt(m[6], 10) : lo;
+      if (lo < 1 || hi > 16777215) {
+        errors.push(key + ": regla '" + item + "': TG fuera de 1..16777215");
+      } else if (lo > hi) {
+        errors.push(key + ": regla '" + item + "': el rango va de menor a mayor");
+      } else if (to < 1 || to + hi - lo > 16777215) {
+        errors.push(key + ": regla '" + item + "': TG de la red fuera de 1..16777215" +
+          (lo === hi ? "" : " (iría del " + to + " al " + (to + hi - lo) + ")"));
+      } else {
+        routes.push({ item: item, slot: slot, lo: lo, hi: hi, nslot: nslot, to: to });
+      }
+    }
+  });
+  return routes;
+}
+// nets: [{n, name, raw}] solo las activas, en orden (la 1 siempre).
+function parseNetworks(netsIn) {
+  var errors = [], nets = [];
+  netsIn.forEach(function (x) {
+    var pre = x.n === 1 ? "NET_" : "NET" + x.n + "_";
+    var net = { n: x.n, name: x.name, key: pre + "ROUTES", routes: parseRoutes(pre + "ROUTES", x.raw, errors) };
+    if (!x.raw.replace(/,/g, "").trim()) {
+      errors.push(pre + "ROUTES: " + (x.n === 1 ? "vacío (lo de siempre es S1,S2)" : "obligatorio con " + pre + "ENABLED=1") +
+        "; sin reglas la red " + x.n + " no recibiría nada de las radios");
+    }
+    nets.push(net);
+  });
+  var whole = {}, marked = [];
+  nets.forEach(function (net) {
+    net.routes.forEach(function (r) {
+      if (r.lo === null) {
+        if (whole[r.slot] && whole[r.slot].n === net.n) {
+          errors.push(net.key + ": el slot " + r.slot + " entero está repetido");
+        } else if (whole[r.slot]) {
+          var w = whole[r.slot];
+          errors.push(w.key + " y " + net.key + " llevan los dos el slot " + r.slot + " entero: DMRGateway se lo da a la red " +
+            w.n + " y la red " + net.n + " no recibiría nada de ese slot");
+        } else {
+          whole[r.slot] = net;
+        }
+        return;
+      }
+      marked.forEach(function (o) {
+        if (o.slot === r.slot && r.lo <= o.hi && o.lo <= r.hi) {
+          errors.push("'" + o.item + "' de " + o.key + " y '" + r.item + "' de " + net.key + " se solapan en el slot " + r.slot +
+            " (marcado " + o.lo + "-" + o.hi + " y " + r.lo + "-" + r.hi + "): las llamadas comunes irían solo a la primera");
+        }
+      });
+      marked.push({ key: net.key, item: r.item, slot: r.slot, lo: r.lo, hi: r.hi });
+    });
+  });
+  nets.forEach(function (net) {
+    var seen = [];
+    net.routes.forEach(function (r) {
+      if (r.lo === null) return;
+      var nlo = r.to, nhi = r.to + r.hi - r.lo;
+      var plain = r.slot === r.nslot && r.lo === r.to;
+      seen.forEach(function (o) {
+        if (o.nslot === r.nslot && !(o.plain && plain) && nlo <= o.hi && o.lo <= nhi) {
+          errors.push(net.key + ": '" + o.item + "' y '" + r.item + "' llevan a la red el mismo TG en el slot " + r.nslot + " (" +
+            o.lo + "-" + o.hi + " y " + nlo + "-" + nhi + "): lo que vuelve de la red solo llegaría a las radios por una de las dos");
+        }
+      });
+      seen.push({ item: r.item, nslot: r.nslot, lo: nlo, hi: nhi, plain: plain });
+      var hasWhole = net.routes.some(function (x) { return x.slot === r.nslot && x.lo === null; });
+      if (plain || !hasWhole) return;
+      if (r.item.toUpperCase().indexOf(":P") >= 0) {
+        errors.push(net.key + ": '" + r.item + "' no puede ir con el slot " + r.nslot + " entero en la misma red: lo que vuelve de la red " +
+          "llegaría a las radios " + (r.slot === r.nslot ? "" : "por el slot " + r.slot + " y ") + "con el prefijo delante");
+        return;
+      }
+      var spans = [];
+      nets.forEach(function (o) { o.routes.forEach(function (x) { if (x.slot === r.nslot && x.lo !== null) spans.push([x.lo, x.hi]); }); });
+      spans.sort(function (a, b) { return a[0] - b[0] || a[1] - b[1]; });
+      var free = nlo;
+      for (var i = 0; i < spans.length; i++) {
+        if (spans[i][0] > free) break;
+        free = Math.max(free, spans[i][1] + 1);
+      }
+      if (free <= nhi) {
+        var ntg = nlo === nhi ? "" + nlo : nlo + "-" + nhi;
+        var rtg = r.lo === r.hi ? "" + r.lo : r.lo + "-" + r.hi;
+        errors.push(net.key + ": '" + r.item + "' no puede ir con el slot " + r.nslot + " entero en la misma red: lo marcado como TG " +
+          ntg + " en el slot " + r.nslot + " va a la red por el slot entero, pero lo que vuelve de la red con el TG " + ntg +
+          " por el slot " + r.nslot + " llega a las radios por el slot " + r.slot + " como TG " + rtg);
+      }
+    });
+  });
+  return { nets: nets, errors: errors };
+}
+function cmpRw(a, b) { return a.slot - b.slot || a.lo - b.lo || a.hi - b.hi || a.nslot - b.nslot || a.to - b.to; }
+function routeLines(routes) {
+  var rw = routes.filter(function (r) { return r.lo !== null; }).slice().sort(cmpRw);
+  var slots = routes.filter(function (r) { return r.lo === null; }).map(function (r) { return r.slot; }).sort();
+  return rw.map(function (r) { return "TGRewrite=" + r.slot + "," + r.lo + "," + r.nslot + "," + r.to + "," + (r.hi - r.lo + 1) + "\n"; }).join("") +
+    slots.map(function (s) { return "PassAllTG=" + s + "\n"; }).join("") + slots.map(function (s) { return "PassAllPC=" + s + "\n"; }).join("");
+}
+// Radios -> red. group: true = TG, false = privada. Devuelve {net, slot, dst, via} o null.
+function routeCall(nets, slot, dst, group) {
+  var i, j;
+  if (group) {
+    for (i = 0; i < nets.length; i++) {
+      var rw = nets[i].routes.filter(function (r) { return r.lo !== null; }).slice().sort(cmpRw);
+      for (j = 0; j < rw.length; j++) {
+        if (rw[j].slot === slot && dst >= rw[j].lo && dst <= rw[j].hi) {
+          return { net: nets[i], slot: rw[j].nslot, dst: dst + rw[j].to - rw[j].lo, via: rw[j].item };
+        }
+      }
+    }
+  }
+  for (i = 0; i < nets.length; i++) {
+    if (nets[i].routes.some(function (r) { return r.lo === null && r.slot === slot; })) {
+      return { net: nets[i], slot: slot, dst: dst, via: "S" + slot };
+    }
+  }
+  return null;
+}
+// Red -> radios para una red concreta: TGRewrite al revés en el orden del .ini y luego PassAll.
+function returnCall(net, slot, dst, group) {
+  if (group) {
+    var rw = net.routes.filter(function (r) { return r.lo !== null; }).slice().sort(cmpRw);
+    for (var j = 0; j < rw.length; j++) {
+      var nhi = rw[j].to + rw[j].hi - rw[j].lo;
+      if (rw[j].nslot === slot && dst >= rw[j].to && dst <= nhi) return { slot: rw[j].slot, dst: dst + rw[j].lo - rw[j].to };
+    }
+  }
+  if (net.routes.some(function (r) { return r.lo === null && r.slot === slot; })) return { slot: slot, dst: dst };
+  return null;
+}
+</script>
+
+<script>
+(function () {
+  var $ = function (id) { return document.getElementById(id); };
+  var PRESETS = {
+    slots: [["ADN", "S1"], ["BM", "S2", true], ["Red 3", "", false], ["Red 4", "", false]],
+    p8: [["ADN", "S1,S2"], ["BM", "S1:P8", true], ["Red 3", "", false], ["Red 4", "", false]],
+    remap: [["ADN", "S1,S2"], ["BM", "S1:9>S2:91,S2:214-219>S1:3214", true], ["Red 3", "", false], ["Red 4", "", false]],
+    bad: [["ADN", "S1,S2,S2:8>S2:9"], ["BM", "S2", true], ["Red 3", "", false], ["Red 4", "", false]]
+  };
+  function ts(slot, text) {
+    return '<span class="ts s' + slot + '"><span class="k">TS' + slot + "</span>" + text + "</span>";
+  }
+  function esc(s) { return String(s).replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
+  function render() {
+    var inNets = [];
+    for (var n = 1; n <= 4; n++) {
+      var on = n === 1 || $("en" + n).checked;
+      $("name" + n).disabled = !on; $("routes" + n).disabled = !on;
+      if (on) inNets.push({ n: n, name: $("name" + n).value.trim() || "Red " + n, raw: $("routes" + n).value });
+    }
+    var res = parseNetworks(inNets);
+    var st = $("status");
+    if (res.errors.length) {
+      st.className = "status bad";
+      st.innerHTML = "<b>El panel no dejaría guardar esto:</b><ul>" + res.errors.map(function (e) { return "<li>" + esc(e) + "</li>"; }).join("") + "</ul>";
+    } else {
+      st.className = "status ok";
+      st.innerHTML = "<b>Reglas válidas:</b> el panel las aceptaría.";
+    }
+    $("ini").textContent = res.nets.map(function (net) {
+      return "[DMR Network " + net.n + "]\nName=" + net.name + "\n" + routeLines(net.routes);
+    }).join("\n");
+    var slot = parseInt($("cslot").value, 10), group = $("ctype").value === "g", num = parseInt($("cnum").value, 10);
+    var out = $("callres");
+    if (!(num >= 1 && num <= 16777215)) { out.innerHTML = '<span class="small">Pon un TG o un ID entre 1 y 16777215.</span>'; return; }
+    var what = group ? "TG " + num : "privada a " + num;
+    var r = routeCall(res.nets, slot, num, group);
+    if (!r) {
+      out.innerHTML = '<div class="hop"><span class="who">Radios</span>' + ts(slot, esc(what)) + '<span class="arr">→</span><b>no va a ninguna red</b></div>' +
+        '<span class="small">Ninguna regla encaja' + (group ? "" : " (las privadas solo van con S1 o S2 entero)") + ".</span>";
+      return;
+    }
+    var back = returnCall(r.net, r.slot, r.dst, group);
+    var whatNet = group ? "TG " + r.dst : "privada a " + r.dst;
+    var html = '<div class="hop"><span class="who">Radios</span>' + ts(slot, esc(what)) + '<span class="arr">→</span><span class="who">' + esc(r.net.name) +
+      '</span>' + ts(r.slot, esc(whatNet)) + "</div>" +
+      '<span class="small">Por la regla <code>' + esc(r.via) + "</code> de la red " + r.net.n + ".</span>";
+    if (group && back) {
+      var same = back.slot === slot && back.dst === num;
+      html += '<div class="hop"><span class="who">' + esc(r.net.name) + "</span>" + ts(r.slot, "TG " + r.dst) + '<span class="arr">→</span><span class="who">Radios</span>' +
+        ts(back.slot, "TG " + back.dst) + "</div>" +
+        '<span class="small">' + (same ? "La respuesta vuelve por el mismo slot y TG." : "Ojo: la respuesta no vuelve por el mismo slot y TG.") + "</span>";
+    }
+    if (res.errors.length) html += '<span class="small">Con los errores de arriba el panel no guardaría estas reglas.</span>';
+    out.innerHTML = html;
+  }
+  document.querySelectorAll("input, select").forEach(function (el) { el.addEventListener("input", render); el.addEventListener("change", render); });
+  document.querySelectorAll("[data-p]").forEach(function (b) {
+    b.addEventListener("click", function () {
+      PRESETS[b.getAttribute("data-p")].forEach(function (p, i) {
+        var n = i + 1;
+        $("name" + n).value = p[0]; $("routes" + n).value = p[1];
+        if (n > 1) $("en" + n).checked = !!p[2];
+      });
+      render();
+    });
+  });
+  render();
+})();
+</script>
+</body>
+</html>

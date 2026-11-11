@@ -13,9 +13,10 @@ import FlowstationDash from "@/pages/FlowstationDash";
 import DgnaCenter from "@/pages/DgnaCenter";
 import DmrConfig from "@/pages/DmrConfig";
 import DmrDash from "@/pages/DmrDash";
+import DmrRules from "@/pages/DmrRules";
 import { Tier2Page } from "@/components/dmr/Tier2Monitor";
 import NotFound from "@/pages/not-found";
-import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin, Gauge, Heart, Copy, Check, X, Tag, Hexagon, RadioTower } from "lucide-react";
+import { Radio, Calculator as CalcIcon, Globe, ScrollText, Sun, Moon, Droplet, Trees, ShieldCheck, Wifi, MapPin, Gauge, Heart, Copy, Check, X, Tag, Hexagon, RadioTower, BookOpen } from "lucide-react";
 import { I18nContext, useI18nState, useI18n, LANGUAGES, LANGUAGE_LABELS } from "@/lib/i18n";
 import { UpdateChecker } from "@/components/UpdateChecker";
 import { BluestationUpdater } from "@/components/BluestationUpdater";
@@ -270,6 +271,7 @@ function NavBar() {
     { href: "/dgna",       label: t("dgnac_title"), shortLabel: "DGNA",   icon: <Hexagon className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-dgna" },
     ...(dmrInstalled || location === "/dmr" ? [{ href: "/dmr", label: "DMR", shortLabel: "DMR", icon: <RadioTower className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-dmr" }] : []),
     { href: "/dmr-config", label: t("dmr_config"),  shortLabel: "CFG DMR", icon: <RadioTower className="w-3.5 h-3.5 flex-shrink-0" />, testId: "nav-link-dmr-config" },
+    { href: "/dmr-rules",  label: t("dmr_rules"),   shortLabel: "REGLAS", icon: <BookOpen className="w-3.5 h-3.5 flex-shrink-0" />,   testId: "nav-link-dmr-rules" },
   ];
 
   return (
@@ -384,6 +386,7 @@ function Router() {
           <Route path="/dmr/tier2" component={Tier2Page} />
           <Route path="/dmr" component={DmrDash} />
           <Route path="/dmr-config" component={DmrConfig} />
+          <Route path="/dmr-rules" component={DmrRules} />
           <Route component={NotFound} />
         </Switch>
       </div>
