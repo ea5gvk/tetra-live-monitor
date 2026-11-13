@@ -64,24 +64,24 @@ export const DMR_VALUE_MAX = 4096;
 export const DMR_TAG_RE = /^dmr-tier3-v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$/;
 
 // The Debian of the Pi picks the .deb (the naming of the dmr-tier3 releases from 0.7.1 on, one SHA256SUMS for all):
-// Trixie (Debian 13) dmr-tier3_V-1_arm64.deb, Bookworm (Debian 12) dmr-tier3_V-1~deb12_arm64.deb. 0.7.0 and older
+// Trixie (Debian 13) dmr-tier3_V-1_arm64.deb, Bookworm (Debian 12) dmr-tier3_V-1.deb12_arm64.deb (Debian version
+// V-1~deb12 inside; the file name has "." because GitHub renames the "~" of assets). 0.7.0 and older
 // only have the Trixie one (built on debian:trixie: libc6 >= 2.38, libstdc++6 >= 14, Qt5 t64), which apt refuses on
 // Bookworm.
 export type DmrOs = "trixie" | "bookworm";
 export const DMR_OSES: Record<DmrOs, { label: string; suffix: string; hint: string }> = {
   trixie: { label: "Debian 13 (trixie)", suffix: "", hint: "Prueba con otra versión." },
-  bookworm: { label: "Debian 12 (bookworm)", suffix: "~deb12", hint: "Usa la 0.7.1 o posterior, o Debian 13 (trixie)." },
+  bookworm: { label: "Debian 12 (bookworm)", suffix: ".deb12", hint: "Usa la 0.7.1 o posterior, o Debian 13 (trixie)." },
 };
 export const DMR_OS_NOTE = "Debian 12 (bookworm) y Debian 13 (trixie)";
 export const dmrDebAsset = (version: string, arch: string, os: DmrOs = "trixie") => `dmr-tier3_${version}-1${DMR_OSES[os].suffix}_${arch}.deb`;
 const DMR_ARCH = "arm64";
-/** The .deb of `os` in a release's asset list, or null. GitHub renames the "~" of an uploaded asset to "."
- *  (dmr-tier3_V-1~deb12_arm64.deb is listed and served as dmr-tier3_V-1.deb12_arm64.deb), so either name counts;
- *  without a list (unknown), the name of dmrDebAsset. */
+/** The .deb of `os` in a release's asset list, or null. The releases name it with ".deb12" (GitHub would rename a
+ *  "~" anyway); a "~deb12" name in a list also counts. Without a list (unknown), the name of dmrDebAsset. */
 export function dmrReleaseAsset(version: string, arch: string, os: DmrOs, assets?: readonly string[]): string | null {
   const deb = dmrDebAsset(version, arch, os);
   if (!assets) return deb;
-  return [deb, deb.replace(/~/g, ".")].find((n) => assets.includes(n)) ?? null;
+  return [deb, deb.replace(".deb12_", "~deb12_")].find((n) => assets.includes(n)) ?? null;
 }
 
 export const DMR_DEB: DebPackage = {

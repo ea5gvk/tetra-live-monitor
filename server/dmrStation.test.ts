@@ -497,7 +497,7 @@ function sandbox(): Sandbox {
   return { L, state, log, releases, opt, etc, env };
 }
 // A release dmr-tier3-vX.Y.Z of ea5gvk/MiuraStation-dist: the arm64 .deb (Trixie), with `bookworm` the Debian 12 one
-// too (`renamed`: as GitHub stores it, "~" -> "."), the sources tarball line and one SHA256SUMS for all. Returns the
+// too (`renamed`: with the older "~deb12" name), the sources tarball line and one SHA256SUMS for all. Returns the
 // asset list of the release.
 function publish(sb: Sandbox, version: string, opts: { badSum?: boolean; bookworm?: boolean; renamed?: boolean } = {}): string[] {
   const dir = path.join(sb.releases, `dmr-tier3-v${version}`);
@@ -506,7 +506,7 @@ function publish(sb: Sandbox, version: string, opts: { badSum?: boolean; bookwor
   const debs: [string, string][] = [[DMR_DEB.asset(version, "arm64"), `Version: ${up}-1\n`]];
   if (opts.bookworm) {
     const deb = dmrDebAsset(version, "arm64", "bookworm");
-    debs.push([opts.renamed ? deb.replace("~", ".") : deb, `Version: ${up}-1~deb12\n`]);
+    debs.push([opts.renamed ? deb.replace(".deb12_", "~deb12_") : deb, `Version: ${up}-1~deb12\n`]);
   }
   let sums = "";
   for (const [deb, body] of debs) {
@@ -600,19 +600,19 @@ test("package: an unsupported arch and a bad sum install nothing; the install le
   assert.equal(pkgVersion(sb), "0.4.0~beta.1-1");
 });
 
-// ── The Debian of the Pi: Trixie (Debian 13) dmr-tier3_V-1_arm64.deb, Bookworm (Debian 12) dmr-tier3_V-1~deb12_arm64.deb ──
+// ── The Debian of the Pi: Trixie (Debian 13) dmr-tier3_V-1_arm64.deb, Bookworm (Debian 12) dmr-tier3_V-1.deb12_arm64.deb ──
 
 const OS_TRIXIE = `PRETTY_NAME="Debian GNU/Linux 13 (trixie)"\nNAME="Debian GNU/Linux"\nVERSION_ID="13"\nVERSION="13 (trixie)"\nVERSION_CODENAME=trixie\nID=debian\n`;
 const OS_BOOKWORM = `PRETTY_NAME="Debian GNU/Linux 12 (bookworm)"\nNAME="Debian GNU/Linux"\nVERSION_ID="12"\nVERSION="12 (bookworm)"\nVERSION_CODENAME=bookworm\nID=debian\nHOME_URL="https://www.debian.org/"\n`;
 const OS_UBUNTU = `PRETTY_NAME="Ubuntu 24.04.1 LTS"\nNAME="Ubuntu"\nVERSION_ID="24.04"\nVERSION_CODENAME=noble\nID=ubuntu\n`;
 const NO_DEB_BOOKWORM_070 = "La versión 0.7.0 del paquete DMR no tiene .deb para Debian 12 (bookworm). Usa la 0.7.1 o posterior, o Debian 13 (trixie).";
 const ASSETS_070 = ["dmr-tier3-0.7.0-de1663d-aarch64.tar.gz", "dmr-tier3-0.7.0-src.tar.gz", "dmr-tier3_0.7.0-1_arm64.deb", "SHA256SUMS"];
-const ASSETS_071 = ["dmr-tier3-0.7.1-src.tar.gz", "dmr-tier3_0.7.1-1_arm64.deb", "dmr-tier3_0.7.1-1~deb12_arm64.deb", "SHA256SUMS"];
+const ASSETS_071 = ["dmr-tier3-0.7.1-src.tar.gz", "dmr-tier3_0.7.1-1_arm64.deb", "dmr-tier3_0.7.1-1.deb12_arm64.deb", "SHA256SUMS"];
 
 test("system: the asset of each Debian; os-release by codename (else number); any other system is none", () => {
   assert.equal(dmrDebAsset("0.7.1", "arm64", "trixie"), "dmr-tier3_0.7.1-1_arm64.deb");
-  assert.equal(dmrDebAsset("0.7.1", "arm64", "bookworm"), "dmr-tier3_0.7.1-1~deb12_arm64.deb");
-  assert.equal(dmrDebAsset("0.8.0-beta.1", "arm64", "bookworm"), "dmr-tier3_0.8.0-beta.1-1~deb12_arm64.deb");
+  assert.equal(dmrDebAsset("0.7.1", "arm64", "bookworm"), "dmr-tier3_0.7.1-1.deb12_arm64.deb");
+  assert.equal(dmrDebAsset("0.8.0-beta.1", "arm64", "bookworm"), "dmr-tier3_0.8.0-beta.1-1.deb12_arm64.deb");
   assert.equal(DMR_DEB.asset("0.7.1", "arm64"), "dmr-tier3_0.7.1-1_arm64.deb", "the shared helpers' asset is Trixie's, as before");
   assert.equal(DMR_DEB.archNote, "arm64 (Raspberry Pi con Debian 12 o 13 de 64 bits)");
   assert.deepEqual(dmrSystemFrom("arm64", OS_BOOKWORM), { arch: "arm64", os: "bookworm", name: "Debian GNU/Linux 12 (bookworm)" });
@@ -630,31 +630,31 @@ test("system: the asset of each Debian; os-release by codename (else number); an
   assert.equal(debUpstreamVersion("0.7.1-1~deb12"), "0.7.1");
   assert.equal(debUpstreamVersion("0.8.0~beta.1-1~deb12"), "0.8.0-beta.1");
   // GitHub stores an uploaded "~" as ".": that name counts as the Bookworm .deb too; without a list, the contract's
-  assert.equal(dmrReleaseAsset("0.7.1", "arm64", "bookworm", ASSETS_071), "dmr-tier3_0.7.1-1~deb12_arm64.deb");
+  assert.equal(dmrReleaseAsset("0.7.1", "arm64", "bookworm", ASSETS_071), "dmr-tier3_0.7.1-1.deb12_arm64.deb");
   assert.equal(dmrReleaseAsset("0.7.1", "arm64", "bookworm", ["dmr-tier3_0.7.1-1.deb12_arm64.deb"]), "dmr-tier3_0.7.1-1.deb12_arm64.deb");
   assert.equal(dmrReleaseAsset("0.7.0", "arm64", "bookworm", ASSETS_070), null);
-  assert.equal(dmrReleaseAsset("0.7.0", "arm64", "bookworm"), "dmr-tier3_0.7.0-1~deb12_arm64.deb");
+  assert.equal(dmrReleaseAsset("0.7.0", "arm64", "bookworm"), "dmr-tier3_0.7.0-1.deb12_arm64.deb");
   assert.equal(dmrReleaseAsset("0.7.1", "arm64", "trixie", ["dmr-tier3_0.7.1-1.deb12_arm64.deb"]), null);
 });
 
 test("installable: an old release (Trixie .deb only) refuses Bookworm with the reason; a new one has both; arch and os", () => {
   const bookworm = dmrSystemFrom("arm64", OS_BOOKWORM), trixie = dmrSystemFrom("arm64", OS_TRIXIE);
   const old = { version: "0.7.0", assets: ASSETS_070 }, neu = { version: "0.7.1", assets: ASSETS_071 };
-  assert.deepEqual(dmrInstallability(bookworm, old), { installable: false, reason: "no_deb", message: NO_DEB_BOOKWORM_070, asset: "dmr-tier3_0.7.0-1~deb12_arm64.deb" });
+  assert.deepEqual(dmrInstallability(bookworm, old), { installable: false, reason: "no_deb", message: NO_DEB_BOOKWORM_070, asset: "dmr-tier3_0.7.0-1.deb12_arm64.deb" });
   assert.deepEqual(dmrInstallability(trixie, old), { installable: true, reason: null, message: null, asset: "dmr-tier3_0.7.0-1_arm64.deb" });
-  assert.deepEqual(dmrInstallability(bookworm, neu), { installable: true, reason: null, message: null, asset: "dmr-tier3_0.7.1-1~deb12_arm64.deb" });
+  assert.deepEqual(dmrInstallability(bookworm, neu), { installable: true, reason: null, message: null, asset: "dmr-tier3_0.7.1-1.deb12_arm64.deb" });
   assert.deepEqual(dmrInstallability(trixie, neu), { installable: true, reason: null, message: null, asset: "dmr-tier3_0.7.1-1_arm64.deb" });
-  assert.deepEqual(dmrInstallability(trixie, { version: "0.7.2", assets: ["dmr-tier3_0.7.2-1~deb12_arm64.deb"] }), { installable: false, reason: "no_deb",
+  assert.deepEqual(dmrInstallability(trixie, { version: "0.7.2", assets: ["dmr-tier3_0.7.2-1.deb12_arm64.deb"] }), { installable: false, reason: "no_deb",
     message: "La versión 0.7.2 del paquete DMR no tiene .deb para Debian 13 (trixie). Prueba con otra versión.", asset: "dmr-tier3_0.7.2-1_arm64.deb" });
-  assert.deepEqual(dmrInstallability(bookworm, { version: "0.7.0" }), { installable: true, reason: null, message: null, asset: "dmr-tier3_0.7.0-1~deb12_arm64.deb" },
+  assert.deepEqual(dmrInstallability(bookworm, { version: "0.7.0" }), { installable: true, reason: null, message: null, asset: "dmr-tier3_0.7.0-1.deb12_arm64.deb" },
     "without an asset list: unknown, the script and apt tell");
   assert.deepEqual(dmrInstallability({ ...bookworm, arch: "armhf" }, neu), { installable: false, reason: "arch", asset: null,
     message: "DMR Tier III solo se publica para arm64 (Raspberry Pi con Debian 12 o 13 de 64 bits), y este sistema es armhf" });
   assert.deepEqual(dmrInstallability(dmrSystemFrom("arm64", OS_UBUNTU), neu), { installable: false, reason: "os", asset: null,
     message: "DMR Tier III solo se publica para Debian 12 (bookworm) y Debian 13 (trixie), y este sistema es Ubuntu 24.04.1 LTS" });
   // the release keeps the asset names of the API (only when it has the list)
-  const r = parseDmrRelease(rel("dmr-tier3-v0.7.1", { assets: [{ name: "dmr-tier3_0.7.1-1~deb12_arm64.deb", size: 1 }, { size: 2 }, null, { name: "SHA256SUMS" }] }));
-  assert.deepEqual(r?.assets, ["dmr-tier3_0.7.1-1~deb12_arm64.deb", "SHA256SUMS"]);
+  const r = parseDmrRelease(rel("dmr-tier3-v0.7.1", { assets: [{ name: "dmr-tier3_0.7.1-1.deb12_arm64.deb", size: 1 }, { size: 2 }, null, { name: "SHA256SUMS" }] }));
+  assert.deepEqual(r?.assets, ["dmr-tier3_0.7.1-1.deb12_arm64.deb", "SHA256SUMS"]);
   assert.equal("assets" in parseDmrRelease(rel("dmr-tier3-v0.7.1"))!, false);
 });
 
@@ -666,9 +666,9 @@ test("package script: the Debian of the Pi picks DEB after the arch check; a rel
   assert.ok(old.includes('  *) die "DMR Tier III solo se publica para Debian 12 (bookworm) y Debian 13 (trixie), y este sistema es $OS_NAME" ;;'));
   assert.ok(old.indexOf("  arm64) DEB=") < old.indexOf("case \"$OS_CODENAME:$OS_VERSION\"") && old.indexOf("bookworm:*|:12)") < old.indexOf("curl "), "decided before any download");
   const neu = dmrPackageScript(PI_LAYOUT, { mode: "update", tag: "dmr-tier3-v0.7.1", version: "0.7.1", assets: ASSETS_071 });
-  assert.ok(neu.includes("  trixie:*|:13) DEB='dmr-tier3_0.7.1-1_arm64.deb' ;;") && neu.includes("  bookworm:*|:12) DEB='dmr-tier3_0.7.1-1~deb12_arm64.deb' ;;"), neu);
+  assert.ok(neu.includes("  trixie:*|:13) DEB='dmr-tier3_0.7.1-1_arm64.deb' ;;") && neu.includes("  bookworm:*|:12) DEB='dmr-tier3_0.7.1-1.deb12_arm64.deb' ;;"), neu);
   const unknown = dmrPackageScript(PI_LAYOUT, { mode: "install", tag: "dmr-tier3-v0.7.0", version: "0.7.0" });
-  assert.ok(unknown.includes("  bookworm:*|:12) DEB='dmr-tier3_0.7.0-1~deb12_arm64.deb' ;;"), "no asset list: the contract's name, apt and curl tell");
+  assert.ok(unknown.includes("  bookworm:*|:12) DEB='dmr-tier3_0.7.0-1.deb12_arm64.deb' ;;"), "no asset list: the contract's name, apt and curl tell");
 });
 
 test("package on Bookworm / Trixie: the .deb of each; an old release and another system are refused before downloading", { skip: !bashOk && "sin bash" }, () => {
@@ -691,14 +691,14 @@ test("package on Bookworm / Trixie: the .deb of each; an old release and another
   assert.match(r.out, /y este sistema es desconocido ===/);
   assert.ok(!/curl|apt-get/.test(calls(sb)) && !has(sb, "pkg-version"), "nothing downloaded nor installed");
 
-  // Bookworm with a new release: its ~deb12, checked against the one SHA256SUMS
+  // Bookworm with a new release: its .deb12, checked against the one SHA256SUMS
   r = run(sb, install("0.7.1", assets071), { OS_RELEASE: bookworm });
   assert.equal(r.code, 0, r.out);
   assert.equal(pkgVersion(sb), "0.7.1-1~deb12");
-  assert.match(r.out, /Descargando dmr-tier3_0\.7\.1-1~deb12_arm64\.deb y SHA256SUMS/);
+  assert.match(r.out, /Descargando dmr-tier3_0\.7\.1-1\.deb12_arm64\.deb y SHA256SUMS/);
   assert.match(r.out, /dmr-tier3 0\.7\.1-1~deb12 instalado \(\/opt\/dmr-tier3\)/);
-  assert.match(calls(sb), /curl .*\/dmr-tier3-v0\.7\.1\/dmr-tier3_0\.7\.1-1~deb12_arm64\.deb/);
-  assert.match(calls(sb), /apt-get install .*dmr-tier3_0\.7\.1-1~deb12_arm64\.deb/);
+  assert.match(calls(sb), /curl .*\/dmr-tier3-v0\.7\.1\/dmr-tier3_0\.7\.1-1\.deb12_arm64\.deb/);
+  assert.match(calls(sb), /apt-get install .*dmr-tier3_0\.7\.1-1\.deb12_arm64\.deb/);
 
   // Trixie (the sandbox's os-release), the same release: its own .deb, not Bookworm's
   fs.rmSync(path.join(sb.state, "pkg-version"));
@@ -715,11 +715,11 @@ test("package on Bookworm / Trixie: the .deb of each; an old release and another
   assert.equal(r.code, 0, r.out);
   assert.equal(pkgVersion(sb), "0.7.0-1");
 
-  // the Bookworm .deb as GitHub stores it ("~" -> "."), its SHA256SUMS line with that name
+  // a Bookworm .deb named with "~deb12" in the list (older naming) still counts
   const assets072 = publish(sb, "0.7.2", { bookworm: true, renamed: true });
   fs.rmSync(path.join(sb.state, "pkg-version"));
   r = run(sb, install("0.7.2", assets072), { OS_RELEASE: bookworm });
   assert.equal(r.code, 0, r.out);
   assert.equal(pkgVersion(sb), "0.7.2-1~deb12");
-  assert.match(calls(sb), /apt-get install .*dmr-tier3_0\.7\.2-1\.deb12_arm64\.deb/);
+  assert.match(calls(sb), /apt-get install .*dmr-tier3_0\.7\.2-1~deb12_arm64\.deb/);
 });
