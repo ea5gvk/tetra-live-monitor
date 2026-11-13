@@ -31,6 +31,13 @@ interface CheckInfo {
   noReleases: boolean;
   upToDate: boolean;
   apiError?: string;
+  // the Pi's architecture and Debian (they pick the .deb); installable: the latest release has a .deb for it (null
+  // without a release), else installReason says why. Absent from an older panel.
+  system?: { arch: string; os: "trixie" | "bookworm" | null; name: string };
+  installable?: boolean | null;
+  installReason?: "arch" | "os" | "no_deb" | null;
+  installMessage?: string | null;
+  asset?: string | null;
 }
 
 const CHECK_INTERVAL_MS = 60 * 60 * 1000;
@@ -72,7 +79,9 @@ export function DmrUpdater() {
 
   const notInstalled = info !== null && !info.installed;
   const hasRelease = !!info?.release;
-  const hasUpdate = !!info && !info.demo && info.installed && hasRelease && !info.upToDate;
+  // the latest release has no .deb for this system (or the system is not one the package is published for)
+  const blocked = info?.installable === false;
+  const hasUpdate = !!info && !info.demo && info.installed && hasRelease && !info.upToDate && !blocked;
   const mode: "install" | "update" = notInstalled ? "install" : "update";
   const applyUrl = mode === "install" ? "/api/dmr/install" : "/api/dmr/apply";
   const repo = info?.repo ?? DEFAULTS.repo;
@@ -80,7 +89,14 @@ export function DmrUpdater() {
   const service = info?.service ?? DEFAULTS.service;
   const configPath = info?.configPath ?? DEFAULTS.configPath;
   // the install button is of no use without a published release (the server would answer "[Exit: 1]")
-  const canRun = !!info && !info.demo && hasRelease && (mode === "install" || hasUpdate);
+  const canRun = !!info && !info.demo && hasRelease && !blocked && (mode === "install" || hasUpdate);
+  const sysName = info?.system?.name ?? "?";
+  const blockedText = !blocked || !info ? "" :
+    info.installReason === "arch" ? t("dmr_blocked_arch").replace("{arch}", info.system?.arch ?? "?") :
+    info.installReason === "os" ? t("dmr_blocked_os").replace("{os}", sysName) :
+    info.installReason === "no_deb" ? t("dmr_blocked_no_deb").replace("{version}", info.release?.version ?? "").replace("{os}", sysName) +
+      (info.system?.os === "bookworm" ? ` ${t("dmr_blocked_bookworm_hint")}` : "") :
+    info.installMessage ?? "";
   const succeeded = done && exitCode === 0;
   const failed = done && exitCode !== 0;
   const installedNow = succeeded && mode === "install";
@@ -185,6 +201,9 @@ export function DmrUpdater() {
                 <div><span className="font-medium">Dir:</span> <code className="text-cyan-400 font-mono">{dir}</code></div>
                 <div><span className="font-medium">Service:</span> <code className="text-amber-400 font-mono">{service}</code></div>
                 <div><span className="font-medium">Config:</span> <code className="font-mono">{configPath}</code></div>
+                {info?.system && !info.demo && (
+                  <div><span className="font-medium">System:</span> <code className="font-mono">{info.system.name} · {info.system.arch}</code></div>
+                )}
               </div>
 
               {info === null ? (
@@ -221,12 +240,22 @@ export function DmrUpdater() {
                     </div>
                   )}
 
+                  {blocked && (
+                    <div className="flex items-start gap-2 p-3 rounded bg-red-500/10 border border-red-500/30 text-red-400 text-xs" data-testid="text-dmr-not-installable">
+                      <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <div className="flex-1 min-w-0">
+                        <div className="font-bold">{t("dmr_not_installable")}</div>
+                        <div className="text-[10px] mt-0.5">{blockedText}</div>
+                      </div>
+                    </div>
+                  )}
+
                   {notInstalled ? (
                     <div className="flex items-center gap-2 p-3 rounded bg-orange-500/10 border border-orange-500/30 text-orange-400 text-xs" data-testid="text-dmr-not-installed">
                       <Download className="w-4 h-4 shrink-0" />
                       <div className="flex-1">
                         <div className="font-bold">{t("dmr_not_installed")}</div>
-                        <div className="text-orange-300 text-[10px] mt-0.5">{t("dmr_install_hint")}</div>
+                        {!blocked && <div className="text-orange-300 text-[10px] mt-0.5">{t("dmr_install_hint")}</div>}
                       </div>
                     </div>
                   ) : hasUpdate ? (
@@ -261,9 +290,9 @@ export function DmrUpdater() {
 
               {!done && canRun && (
                 <div className="bg-black/40 border border-border rounded p-2 text-[10px] font-mono text-muted-foreground space-y-0.5">
-                  <div className="text-green-400">$ curl -LO …/{repo}/releases/download/{info.release?.tag ?? "dmr-tier3-vX.Y.Z"}/dmr-tier3_…_arm64.deb · SHA256SUMS</div>
+                  <div className="text-green-400">$ curl -LO …/{repo}/releases/download/{info.release?.tag ?? "dmr-tier3-vX.Y.Z"}/{info.asset ?? "dmr-tier3_…_arm64.deb"} · SHA256SUMS</div>
                   <div className="text-green-400">$ sha256sum -c</div>
-                  <div className="text-green-400">$ sudo apt-get install ./dmr-tier3_…_arm64.deb</div>
+                  <div className="text-green-400">$ sudo apt-get install ./{info.asset ?? "dmr-tier3_…_arm64.deb"}</div>
                   {mode === "install" ? (
                     <div className="text-sky-400"># {service}: not enabled nor started (configure first, then the station selector)</div>
                   ) : (

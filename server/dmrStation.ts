@@ -15,14 +15,14 @@
 //   2 = invalid conf, listed in Spanish; 1 = write failure; --check only validates).
 // - the package script is the MiuraStation one parametrised by package (stationScripts): download + SHA-256 +
 //   apt-get install; it never enables or starts anything (the selector does) and the postinst restarts a running
-//   stack on an upgrade by itself.
+//   stack on an upgrade by itself. The .deb is the one of the Pi's Debian (12 bookworm or 13 trixie, dmrOsCheck).
 // Pure generators and parsers; the tests run the script against a temporary layout with mocked tools.
 import * as fs from "fs";
 import * as path from "path";
 import { execSync } from "child_process";
 import {
   type Layout, type DebPackage, DIST_REPO, lockCmd, releaseVars, archCheck, fetchDeb, aptInstall, checkInstalled,
-  compareVersions, debUpstreamVersion,
+  compareVersions, debUpstreamVersion, sq,
 } from "./stationScripts";
 import { backupWithRotation, atomicWriteFile } from "./configMerge";
 
@@ -63,16 +63,38 @@ export const DMR_KEY_RE = /^[A-Z][A-Z0-9_]*$/;
 export const DMR_VALUE_MAX = 4096;
 export const DMR_TAG_RE = /^dmr-tier3-v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.]+)?)$/;
 
+// The Debian of the Pi picks the .deb (the naming of the dmr-tier3 releases from 0.7.1 on, one SHA256SUMS for all):
+// Trixie (Debian 13) dmr-tier3_V-1_arm64.deb, Bookworm (Debian 12) dmr-tier3_V-1~deb12_arm64.deb. 0.7.0 and older
+// only have the Trixie one (built on debian:trixie: libc6 >= 2.38, libstdc++6 >= 14, Qt5 t64), which apt refuses on
+// Bookworm.
+export type DmrOs = "trixie" | "bookworm";
+export const DMR_OSES: Record<DmrOs, { label: string; suffix: string; hint: string }> = {
+  trixie: { label: "Debian 13 (trixie)", suffix: "", hint: "Prueba con otra versión." },
+  bookworm: { label: "Debian 12 (bookworm)", suffix: "~deb12", hint: "Usa la 0.7.1 o posterior, o Debian 13 (trixie)." },
+};
+export const DMR_OS_NOTE = "Debian 12 (bookworm) y Debian 13 (trixie)";
+export const dmrDebAsset = (version: string, arch: string, os: DmrOs = "trixie") => `dmr-tier3_${version}-1${DMR_OSES[os].suffix}_${arch}.deb`;
+const DMR_ARCH = "arm64";
+/** The .deb of `os` in a release's asset list, or null. GitHub renames the "~" of an uploaded asset to "."
+ *  (dmr-tier3_V-1~deb12_arm64.deb is listed and served as dmr-tier3_V-1.deb12_arm64.deb), so either name counts;
+ *  without a list (unknown), the name of dmrDebAsset. */
+export function dmrReleaseAsset(version: string, arch: string, os: DmrOs, assets?: readonly string[]): string | null {
+  const deb = dmrDebAsset(version, arch, os);
+  if (!assets) return deb;
+  return [deb, deb.replace(/~/g, ".")].find((n) => assets.includes(n)) ?? null;
+}
+
 export const DMR_DEB: DebPackage = {
-  name: DMR.pkg, product: DMR.name, arches: ["arm64"],
-  asset: (version, arch) => `dmr-tier3_${version}-1_${arch}.deb`,
-  archNote: "arm64 (Raspberry Pi 5 con Debian 13 de 64 bits)",
+  name: DMR.pkg, product: DMR.name, arches: [DMR_ARCH],
+  asset: (version, arch) => dmrDebAsset(version, arch),
+  archNote: "arm64 (Raspberry Pi con Debian 12 o 13 de 64 bits)",
   tmpPrefix: "dmr-tier3-deb", shownPath: () => DMR.dir,
 };
 
 // ── Releases (pure) ──
 
-export interface DmrRelease { tag: string; version: string; name: string; date: string; url: string; prerelease: boolean }
+// assets: the file names of the release (GitHub API), when the listing has them.
+export interface DmrRelease { tag: string; version: string; name: string; date: string; url: string; prerelease: boolean; assets?: string[] }
 
 /** One release of the GitHub API as a dmr-tier3 one, or null (another tag scheme, a draft). */
 export function parseDmrRelease(j: any): DmrRelease | null {
@@ -85,7 +107,80 @@ export function parseDmrRelease(j: any): DmrRelease | null {
     date: typeof j.published_at === "string" ? j.published_at : "",
     url: typeof j.html_url === "string" ? j.html_url : `https://github.com/${DIST_REPO}/releases/tag/${tag}`,
     prerelease: !!j.prerelease,
+    ...(Array.isArray(j.assets) ? { assets: j.assets.map((a: any) => a?.name).filter((n: unknown): n is string => typeof n === "string") } : {}),
   };
+}
+
+// ── The system of the Pi and the .deb of a release for it ──
+
+/** The KEY=value lines of an /etc/os-release, quotes removed (the first of a repeated key). Pure. */
+export function parseOsRelease(text: string): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const raw of text.split("\n")) {
+    const m = /^([A-Z_]+)=(.*)$/.exec(raw.replace(/\r$/, ""));
+    if (m && !(m[1] in out)) out[m[1]] = m[2].replace(/["']/g, "");
+  }
+  return out;
+}
+
+/** The Debian of a VERSION_CODENAME / VERSION_ID: the codename first, the number only without one (the very rule of
+ *  the package script); any other system is null. */
+export function dmrOs(codename: string, versionId: string): DmrOs | null {
+  if (codename === "trixie" || (!codename && versionId === "13")) return "trixie";
+  if (codename === "bookworm" || (!codename && versionId === "12")) return "bookworm";
+  return null;
+}
+
+export interface DmrSystem { arch: string; os: DmrOs | null; name: string }
+/** The system of a dpkg architecture and an os-release text; name = PRETTY_NAME (else the codename or number). Pure. */
+export function dmrSystemFrom(arch: string, osRelease: string): DmrSystem {
+  const o = parseOsRelease(osRelease);
+  const codename = o.VERSION_CODENAME ?? "", version = o.VERSION_ID ?? "";
+  return { arch, os: dmrOs(codename, version), name: o.PRETTY_NAME || codename || version || "desconocido" };
+}
+export function dmrSystem(osReleaseFile = "/etc/os-release"): DmrSystem {
+  let arch = "desconocida", text = "";
+  try { arch = execSync("dpkg --print-architecture 2>/dev/null", { timeout: 4000 }).toString().trim() || arch; } catch { /* no dpkg */ }
+  try { text = fs.readFileSync(osReleaseFile, "utf-8"); } catch { /* none */ }
+  return dmrSystemFrom(arch, text);
+}
+
+// The refusals of the package script, word for word (archCheck's for the architecture).
+const archMsg = (arch: string) => `${DMR.name} solo se publica para ${DMR_DEB.archNote}, y este sistema es ${arch}`;
+const osMsg = (name: string) => `${DMR.name} solo se publica para ${DMR_OS_NOTE}, y este sistema es ${name}`;
+export const dmrNoDebMsg = (version: string, os: DmrOs) => `La versión ${version} del paquete DMR no tiene .deb para ${DMR_OSES[os].label}. ${DMR_OSES[os].hint}`;
+
+export type DmrInstallReason = "arch" | "os" | "no_deb";
+export interface DmrInstallability { installable: boolean; reason: DmrInstallReason | null; message: string | null; asset: string | null }
+/** Whether `rel` installs on `sys`, and why not: the checks of the package script (architecture, Debian, the .deb in
+ *  the release's asset list), for /api/dmr/check. A release without an asset list counts as installable (the script
+ *  and apt will tell). Pure. */
+export function dmrInstallability(sys: DmrSystem, rel: Pick<DmrRelease, "version" | "assets">): DmrInstallability {
+  if (!DMR_DEB.arches.includes(sys.arch)) return { installable: false, reason: "arch", message: archMsg(sys.arch), asset: null };
+  if (!sys.os) return { installable: false, reason: "os", message: osMsg(sys.name), asset: null };
+  const asset = dmrReleaseAsset(rel.version, sys.arch, sys.os, rel.assets);
+  if (!asset) return { installable: false, reason: "no_deb", message: dmrNoDebMsg(rel.version, sys.os), asset: dmrDebAsset(rel.version, sys.arch, sys.os) };
+  return { installable: true, reason: null, message: null, asset };
+}
+
+// The Debian of the Pi (/etc/os-release; OS_RELEASE points elsewhere in the tests) picks DEB after archCheck (arm64
+// only). A .deb the release does not have (`assets`, its asset list; undefined = unknown) stops before any download.
+function dmrOsCheck(version: string, assets?: readonly string[]): string {
+  const branch = (os: DmrOs) => {
+    const deb = dmrReleaseAsset(version, DMR_ARCH, os, assets);
+    return deb ? `DEB=${sq(deb)}` : `die ${sq(dmrNoDebMsg(version, os))}`;
+  };
+  return `OS_FILE="\${OS_RELEASE:-/etc/os-release}"
+osr() { sed -n "s/^$1=//p" "$OS_FILE" 2>/dev/null | head -n 1 | tr -d "\\"'" || true; }
+OS_CODENAME=$(osr VERSION_CODENAME); OS_VERSION=$(osr VERSION_ID); OS_NAME=$(osr PRETTY_NAME)
+[ -n "$OS_NAME" ] || OS_NAME="\${OS_CODENAME:-\${OS_VERSION:-desconocido}}"
+echo "=== Sistema: $OS_NAME ($ARCH) ==="
+case "$OS_CODENAME:$OS_VERSION" in
+  trixie:*|:13) ${branch("trixie")} ;;
+  bookworm:*|:12) ${branch("bookworm")} ;;
+  *) die "${osMsg("$OS_NAME")}" ;;
+esac
+`;
 }
 
 /** The highest dmr-tier3 version of a /releases listing (pre-releases count, drafts do not), or null when there is
@@ -217,15 +312,16 @@ export function genConfigKnowsShared(file = DMR.genConfig): boolean {
 // Instalar / Actualizar DMR Tier III from its .deb: download and check the release's .deb and SHA256SUMS, apt-get
 // install (with the same apt-get update retry as MiuraStation), check the installed version. Nothing is enabled or
 // started: the selector does that; on an upgrade the package's postinst stops and restarts a running stack itself
-// and creates the conf from its example when there is none. allowDowngrade: an older version that was asked for.
-export function dmrPackageScript(L: Layout, opts: { mode: "install" | "update"; tag: string; version: string; allowDowngrade?: boolean }): string {
+// and creates the conf from its example when there is none. allowDowngrade: an older version that was asked for;
+// assets: the release's asset list (dmrOsCheck).
+export function dmrPackageScript(L: Layout, opts: { mode: "install" | "update"; tag: string; version: string; allowDowngrade?: boolean; assets?: readonly string[] }): string {
   const install = opts.mode === "install";
   return `
 set -euo pipefail
 ${lockCmd(L)}${releaseVars(opts.tag, opts.version)}die() { echo ""; echo "=== ERROR: $* ==="; exit 1; }
 ${aptInstall(opts.allowDowngrade ? " --allow-downgrades" : "")}echo "=== Fuente: ${DMR.repoLabel} ==="
 echo "=== ${DMR.name} $VER ($TAG) ==="
-${archCheck(opts.version, "die", DMR_DEB)}${fetchDeb(L, "die", DMR_DEB)}${install ? "" : `if systemctl is-active --quiet ${DMR.target} 2>/dev/null; then
+${archCheck(opts.version, "die", DMR_DEB)}${dmrOsCheck(opts.version, opts.assets)}${fetchDeb(L, "die", DMR_DEB)}${install ? "" : `if systemctl is-active --quiet ${DMR.target} 2>/dev/null; then
   echo "=== ${DMR.target} está en marcha: el paquete la para y la vuelve a arrancar al instalarse ==="
 fi
 `}apt_install_deb || die "apt-get install ha fallado"

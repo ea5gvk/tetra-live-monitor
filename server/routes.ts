@@ -11,7 +11,7 @@ import * as os from "os";
 import { readMiuraFeatures, applyMiuraFeatures, readExtraCarriers, normalizeExtraCarriers, applyExtraCarriers, setDualCarrierEnabled, soapyDcLine, soapyDcNote, readCarrierOnDemand, normalizeCarrierOnDemand, applyCarrierOnDemand, readSoapyTxGains, applySoapyTxGains } from "./miuraConfig";
 import { mergeConfigFile, backupWithRotation, STATION_START_FAIL_RE, reorderNewSections, spliceTableBlock, findWhitelist, tomlBroken, telegramLanguage, telegramLanguageLine } from "./configMerge";
 import { PI_LAYOUT, PRODUCTS, productDir, detectInstall, flowDirInstalled, isMigrationLink, migrationState, migrationInfo, miuraInstalled, miuraPackaged, installScript, updateScript, migrationScript, packageScript, DIST_REPO, RELEASE_TAG_RE, pkgTemplatePath, pkgConfigBasePath, parseRelease, debUpstreamVersion, compareVersions, type MiuraRelease, type Product, type ProductId } from "./stationScripts";
-import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, dmrConfRows, dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN, dmrTier2, dmrCoreUnits, isInDmrConfDir, type DmrRelease } from "./dmrStation";
+import { DMR, DMR_CORE_UNITS, dmrPackageScript, parseDmrReleases, dmrTagFrom, dmrPkgVersion, dmrInstalled, dmrHealth, dmrState, dmrRunning, unitActive, unitState, dmrConfHelp, parseDmrConf, updateDmrConf, saveDmrConf, genConfigErrors, logStreamCommand, dmrJournalRecent, dmrConfRows, dmrShared, hasDmrWindowBlock, genConfigKnowsShared, startedBeforeChange, dmrWindowOffLine, DMR_WINDOW_MIURA_MIN, dmrTier2, dmrCoreUnits, isInDmrConfDir, dmrSystem, dmrInstallability, type DmrRelease } from "./dmrStation";
 import { dmrStatusRoutes } from "./dmrStatus";
 import { dmrTier2Routes } from "./dmrTier2";
 
@@ -1440,14 +1440,21 @@ cargo build --release
       demo: process.platform !== "linux", installed: state.installed, version: state.version,
       state: { exists: state.exists, active: state.active, enabled: state.enabled, degraded: state.degraded, missing: state.missing },
       configExists: fs.existsSync(DMR.confPath),
+      // the Pi's architecture and Debian, which pick the .deb (dmrStation.dmrInstallability)
+      system: dmrSystem(),
     };
+    // installable: the latest release has a .deb for this system (null without a release); else installReason
+    // (arch | os | no_deb) and installMessage (the script's refusal). asset: the .deb for this system.
+    const none = { installable: null, installReason: null, installMessage: null, asset: null };
     let rel: DmrRelease | null;
     try { rel = await fetchDmrRelease(); } catch (err) {
-      return res.json({ ...base, release: null, noReleases: false, upToDate: false, apiError: String(err).substring(0, 160) });
+      return res.json({ ...base, release: null, noReleases: false, upToDate: false, apiError: String(err).substring(0, 160), ...none });
     }
+    const inst = rel && dmrInstallability(base.system, rel);
     res.json({
       ...base, release: rel, noReleases: rel === null,
       upToDate: !!state.version && !!rel && compareVersions(state.version, rel.version) >= 0,
+      ...(inst ? { installable: inst.installable, installReason: inst.reason, installMessage: inst.message, asset: inst.asset } : none),
     });
   });
 
@@ -1479,7 +1486,7 @@ cargo build --release
       res.end();
       return;
     }
-    const child = spawn("bash", ["-c", dmrPackageScript(L, { mode, tag: rel.tag, version: rel.version, allowDowngrade: !!cur && compareVersions(rel.version, cur) < 0 })], { cwd: L.tmp });
+    const child = spawn("bash", ["-c", dmrPackageScript(L, { mode, tag: rel.tag, version: rel.version, allowDowngrade: !!cur && compareVersions(rel.version, cur) < 0, assets: rel.assets })], { cwd: L.tmp });
     child.stdout.on("data", (d: Buffer) => write(d.toString()));
     child.stderr.on("data", (d: Buffer) => write(d.toString()));
     child.on("close", (code: number) => {
