@@ -646,6 +646,133 @@ data class DmrStateResult(
     val stack: DmrStack? = null,
 )
 
+// --- DMR Tier II monitor (GET /api/dmr/tier2/state, server/dmrTier2.ts): MMDVM-Host, DMRGateway and MMDVM-Multi's
+// journal. Times are ms of the Pi's clock. ---
+
+@Serializable
+data class Tier2Rssi(val min: Double = 0.0, val max: Double = 0.0, val ave: Double = 0.0)
+
+/** One call: a timeslot's on the air or one of the last heard. */
+@Serializable
+data class Tier2Call(
+    val key: String = "",
+    val slot: Int = 0,
+    /** rf | net */
+    val src: String = "rf",
+    /** voice | data */
+    val kind: String = "voice",
+    /** As MMDVM-Host logs it: the callsign of DMRIds.dat, else the number. */
+    val from: String = "",
+    @SerialName("from_id") val fromId: Long? = null,
+    /** The TG or radio ("ALL" = 16777215). */
+    val to: String = "",
+    @SerialName("to_id") val toId: Long? = null,
+    val group: Boolean = false,
+    /** The DMRGateway network of a network call (NET_ROUTES / NETn_ROUTES). */
+    val net: String? = null,
+    val start: Long = 0,
+    val end: Long? = null,
+    val dur: Double? = null,
+    val ber: Double? = null,
+    val loss: Double? = null,
+    val rssi: Tier2Rssi? = null,
+    /** end | lost | watchdog | timeout | restart; null while on the air. */
+    @SerialName("end_kind") val endKind: String? = null,
+    val blocks: Int? = null,
+    /** Talker Alias. */
+    val ta: String? = null,
+    val late: Boolean = false,
+)
+
+@Serializable
+data class Tier2Net(
+    val n: Int = 0,
+    val name: String = "",
+    val address: String? = null,
+    val port: Int? = null,
+    val routes: String? = null,
+    val enabled: Boolean = false,
+    /** up | down | connecting | unknown | off */
+    val status: String = "unknown",
+    val since: Long? = null,
+    val reason: String? = null,
+)
+
+/** The MiuraStation DMR window (shared SDR): MMDVM-Multi's attach line and its minute stats. */
+@Serializable
+data class Tier2Window(
+    val attached: Boolean = false,
+    @SerialName("sdr_rate") val sdrRate: Double? = null,
+    @SerialName("rx_hz") val rxHz: Double? = null,
+    @SerialName("tx_hz") val txHz: Double? = null,
+    @SerialName("tx_gain") val txGain: Double? = null,
+    @SerialName("rx_lost") val rxLost: Int? = null,
+    @SerialName("tx_late") val txLate: Int? = null,
+    @SerialName("min_margin_ms") val minMarginMs: Double? = null,
+    val at: Long? = null,
+)
+
+@Serializable
+data class Tier2Alert(
+    val ts: Long = 0,
+    /** info | warn | error */
+    val level: String = "info",
+    val text: String = "",
+)
+
+/** MMDVM-Host-1.ini and dmr-tier3.conf. */
+@Serializable
+data class Tier2Station(
+    val callsign: String? = null,
+    val id: Long? = null,
+    @SerialName("rx_hz") val rxHz: Long? = null,
+    @SerialName("tx_hz") val txHz: Long? = null,
+    @SerialName("color_code") val colorCode: Int? = null,
+    @SerialName("timeout_s") val timeoutS: Int? = null,
+    val shared: Boolean = false,
+    /** With 0, or 3 or more, MMDVM-Host no longer logs the calls. */
+    @SerialName("display_level") val displayLevel: Int? = null,
+)
+
+@Serializable
+data class Tier2Modem(val tx: Boolean = false, val mode: String? = null, val since: Long? = null)
+
+@Serializable
+data class Tier2Slots(
+    @SerialName("1") val ts1: Tier2Call? = null,
+    @SerialName("2") val ts2: Tier2Call? = null,
+)
+
+@Serializable
+data class Tier2State(
+    val ok: Boolean = false,
+    val demo: Boolean = false,
+    /** The Pi's clock when it answered. */
+    val now: Long = 0,
+    val stack: DmrStack = DmrStack(),
+    val station: Tier2Station = Tier2Station(),
+    val slots: Tier2Slots = Tier2Slots(),
+    /** The last 100 calls, most recent first. */
+    val heard: List<Tier2Call> = emptyList(),
+    val nets: List<Tier2Net> = emptyList(),
+    val modem: Tier2Modem = Tier2Modem(),
+    /** Only with the SDR shared with MiuraStation. */
+    val window: Tier2Window? = null,
+    val alerts: List<Tier2Alert> = emptyList(),
+    val names: Map<String, DmrName> = emptyMap(),
+)
+
+/**
+ * One poll of /api/dmr/tier2/state: [state], or [reason]: tier3 | stopped | not_installed (the panel's 503),
+ * unsupported (a panel without the monitor), offline (no connection) or error.
+ */
+data class Tier2Result(
+    val state: Tier2State? = null,
+    val reason: String? = null,
+    val message: String? = null,
+    val stack: DmrStack? = null,
+)
+
 /** GET /api/flowstation/dashboard-status: the station's own web dashboard ([dashboard] in config.toml). */
 @Serializable
 data class FlowDashboardStatus(

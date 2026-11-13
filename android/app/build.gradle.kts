@@ -13,8 +13,8 @@ android {
         applicationId = "com.ea5gvk.tetralivemonitor"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "1.5"
+        versionCode = 6
+        versionName = "1.6"
     }
 
     buildTypes {
@@ -58,4 +58,5 @@ dependencies {
     implementation(libs.osmdroid.android)
     implementation(libs.zxing.core)
     debugImplementation(libs.androidx.ui.tooling)
+    testImplementation(libs.junit)
 }

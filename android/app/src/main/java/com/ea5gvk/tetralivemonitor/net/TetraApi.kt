@@ -282,6 +282,37 @@ object TetraApi {
             ?: DmrOpResult(ok = false, errors = listOf(r.obj.str("message") ?: "Error ${r.code}"))
     }
 
+    // ─── 1.6: DMR Tier II monitor ─────────────────────────────────────────────
+
+    /** GET /api/dmr/tier2/state: the Tier II monitor (read only, no password). */
+    suspend fun getDmrTier2State(base: String): Tier2Result = withContext(Dispatchers.IO) {
+        val r = call(client, "GET", base, "/api/dmr/tier2/state")
+        decodeTier2(r.code, r.raw, r.error)
+    }
+
+    /**
+     * An answer of /api/dmr/tier2/state: a 503 with its reason (tier3 | stopped | not_installed) is an answer; a 404
+     * or the web's index.html (the panel answers any unknown path with it) is a panel without the monitor.
+     */
+    internal fun decodeTier2(code: Int, raw: String, error: String?): Tier2Result {
+        if (error != null) return Tier2Result(reason = "offline", message = error)
+        val obj = runCatching { json.decodeFromString<JsonObject>(raw) }.getOrNull()
+        val ok = code in 200..299
+        val okField = (obj?.get("ok") as? JsonPrimitive)?.booleanOrNull
+        return when {
+            code == 404 || (ok && obj == null) -> Tier2Result(reason = "unsupported", message = "HTTP $code")
+            ok && okField == true ->
+                runCatching { Tier2Result(state = json.decodeFromJsonElement<Tier2State>(obj)) }
+                    .getOrElse { Tier2Result(reason = "error", message = "/api/dmr/tier2/state: ${it.message}") }
+            code == 503 && obj.str("reason") != null -> Tier2Result(
+                reason = obj.str("reason"),
+                message = obj.str("message"),
+                stack = obj?.get("state")?.let { runCatching { json.decodeFromJsonElement<DmrStack>(it) }.getOrNull() },
+            )
+            else -> Tier2Result(reason = "error", message = obj.str("message") ?: "HTTP $code")
+        }
+    }
+
     // ─── 1.4: talkgroup names ─────────────────────────────────────────────────
 
     /** GET /api/talkgroups?source=bm|adn (server cache 1 h; the first download can take ~30 s). */

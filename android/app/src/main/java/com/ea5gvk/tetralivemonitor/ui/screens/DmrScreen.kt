@@ -33,6 +33,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -45,13 +46,18 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.lifecycle.repeatOnLifecycle
 import com.ea5gvk.tetralivemonitor.net.DmrChannel
 import com.ea5gvk.tetralivemonitor.net.DmrConfKey
 import com.ea5gvk.tetralivemonitor.net.DmrConfResp
@@ -65,6 +71,9 @@ import com.ea5gvk.tetralivemonitor.net.LocalTetraClient
 import com.ea5gvk.tetralivemonitor.net.StationActive
 import com.ea5gvk.tetralivemonitor.net.TetraApi
 import com.ea5gvk.tetralivemonitor.net.TetraState
+import com.ea5gvk.tetralivemonitor.net.Tier2Call
+import com.ea5gvk.tetralivemonitor.net.Tier2Result
+import com.ea5gvk.tetralivemonitor.net.Tier2State
 import com.ea5gvk.tetralivemonitor.ui.StatusDot
 import com.ea5gvk.tetralivemonitor.ui.theme.Border
 import com.ea5gvk.tetralivemonitor.ui.theme.Cyan
@@ -88,10 +97,12 @@ import kotlinx.serialization.json.longOrNull
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import kotlin.math.roundToLong
 
 // The DMR tab: the panel of the DMR station (Tier III: what dmrtc's status server reports, through /api/dmr/state
-// and /api/dmr/cmd; Tier II: a conventional repeater without dmrtc, so its networks and the way to its live log) and
-// CONFIG DMR (/etc/dmr-tier3/dmr-tier3.conf through /api/dmr/config, as the web's form).
+// and /api/dmr/cmd; Tier II: a conventional repeater without dmrtc, so the Tier II monitor of /api/dmr/tier2/state, its
+// networks and the way to its live log), CONFIG DMR (/etc/dmr-tier3/dmr-tier3.conf through /api/dmr/config, as the
+// web's form) and REGLAS (the web's guide to the network rules, DmrRulesScreen.kt).
 
 private val DmrCyan = Color(0xFF67E8F9)
 private val Violet = Color(0xFFA78BFA)
@@ -119,7 +130,7 @@ fun DmrScreen(state: TetraState, base: String?, password: String, hasPassword: B
                 Text(if (st.tier2) "TIER II" else "TIER III", color = Muted, fontSize = 10.sp, fontWeight = FontWeight.Bold)
             }
             Spacer(Modifier.weight(1f))
-            listOf("panel" to "PANEL", "config" to "CONFIG DMR").forEach { (k, label) ->
+            listOf("panel" to "PANEL", "config" to "CONFIG DMR", "rules" to "REGLAS").forEach { (k, label) ->
                 Chip(label, view == k, DmrCyan) { view = k }
             }
         }
@@ -129,6 +140,7 @@ fun DmrScreen(state: TetraState, base: String?, password: String, hasPassword: B
         }
         when (view) {
             "config" -> DmrConfigView(base, password, hasPassword, state.station)
+            "rules" -> DmrRulesView(base) { view = "config" }
             else -> DmrPanel(state, base, password, hasPassword, onOpenLog) { view = "config" }
         }
     }
@@ -158,7 +170,8 @@ private fun DmrPanel(
         var fails = 0
         while (true) {
             val r = TetraApi.getDmrState(base)
-            if (r.reason == "offline" && res?.state != null && ++fails < 3) { stale = true; staleWhy = r.message.orEmpty() }
+            // Tier II too: a blip must not take the Tier II monitor (and what it has) off the screen
+            if (r.reason == "offline" && (res?.state != null || res?.reason == "tier2") && ++fails < 3) { stale = true; staleWhy = r.message.orEmpty() }
             else { fails = 0; stale = false; res = r }
             r.state?.let { s ->
                 names.putAll(s.names)
@@ -211,6 +224,9 @@ private fun DmrPanel(
         val r = res
         when {
             r == null -> Text("Consultando /api/dmr/state…", color = Muted, fontSize = 11.sp)
+            st == null && r.reason == "tier2" && r.stack?.active == true -> Tier2Monitor(base, poke, onOpenLog, onOpenConfig) {
+                StackCard(r, state.station, base, onOpenLog, onOpenConfig) { poke++ }
+            }
             st == null -> StackCard(r, state.station, base, onOpenLog, onOpenConfig) { poke++ }
             else -> {
                 Tiles(st)
@@ -755,12 +771,401 @@ private fun hms(totalS: Double): String {
 private val TIME = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
 private fun instant(iso: String): Instant? = runCatching { Instant.parse(iso) }.getOrNull()
 private fun hhmmss(iso: String): String = instant(iso)?.let { TIME.format(it) } ?: "—"
+/** A time in ms (the Tier II monitor's). */
+private fun hhmmss(ms: Long?): String = ms?.let { TIME.format(Instant.ofEpochMilli(it)) } ?: "—"
 private fun since(iso: String): String = instant(iso)?.let { hms((System.currentTimeMillis() - it.toEpochMilli()) / 1000.0) } ?: "—"
-private fun ago(iso: String): String {
-    val t = instant(iso) ?: return "—"
-    val s = ((System.currentTimeMillis() - t.toEpochMilli()) / 1000).coerceAtLeast(0)
+private fun ago(iso: String): String = instant(iso)?.let { ago(it.toEpochMilli(), System.currentTimeMillis()) } ?: "—"
+private fun ago(ms: Long, now: Long): String {
+    val s = ((now - ms) / 1000).coerceAtLeast(0)
     return when { s < 60 -> "$s s"; s < 3600 -> "${s / 60} min"; s < 86400 -> "${s / 3600} h"; else -> "${s / 86400} d" }
 }
+
+// ─────────────────────────────── Tier II monitor ───────────────────────────────
+
+private const val TIER2_POLL_MS = 1500L
+private const val TIER2_STALE_FAILS = 3
+private const val TIER2_HEARD_ROWS = 20
+private const val TIER2_HEARD_ROWS_ALL = 100
+private val TIER2_NA = mapOf(
+    "tier3" to "La estación DMR está en Tier III (DMR_TIER=3): este monitor es solo para Tier II (repetidor convencional).",
+    "stopped" to "La pila DMR está parada: el monitor Tier II enseña el tráfico mientras está en el aire.",
+    "not_installed" to "La pila DMR (dmr-tier3) no está instalada.",
+)
+
+/**
+ * The DMR Tier II monitor (a conventional repeater, after Pi-Star / WPSD), as the web's Tier2Monitor: GET
+ * /api/dmr/tier2/state every 1.5 s while the app is on screen and nothing in the background (the panel reads the
+ * journal only while someone asks: it stops its journalctl after 10 min without a GET). A failed poll keeps the last
+ * state and 3 in a row mark it stale; a 503 (tier3 / stopped / not_installed) is an answer. A panel without the
+ * monitor shows [fallback], the card of 1.5.
+ */
+@Composable
+private fun Tier2Monitor(base: String, poke: Int, onOpenLog: (String) -> Unit, onOpenConfig: () -> Unit, fallback: @Composable () -> Unit) {
+    var data by remember(base) { mutableStateOf<Tier2State?>(null) }
+    var na by remember(base) { mutableStateOf<Tier2Result?>(null) }
+    var unsupported by remember(base) { mutableStateOf(false) }
+    var fails by remember(base) { mutableIntStateOf(0) }
+    var fetchedAt by remember(base) { mutableStateOf<Long?>(null) }
+    // the Pi's clock - the phone's: the call times are the journal's, the live counters run on the phone
+    var skew by remember(base) { mutableLongStateOf(0L) }
+    var wall by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    val lifecycle = LocalLifecycleOwner.current.lifecycle
+
+    LaunchedEffect(base, poke) {
+        unsupported = false
+        lifecycle.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                val t0 = System.currentTimeMillis()
+                val r = TetraApi.getDmrTier2State(base)
+                val s = r.state
+                when {
+                    s != null -> { data = s; na = null; fails = 0; fetchedAt = System.currentTimeMillis(); skew = s.now - System.currentTimeMillis() }
+                    r.reason in TIER2_NA -> { data = null; na = r; fails = 0 }
+                    r.reason == "unsupported" -> { unsupported = true; break }
+                    else -> fails++
+                }
+                delay((TIER2_POLL_MS - (System.currentTimeMillis() - t0)).coerceAtLeast(0))
+            }
+        }
+    }
+    LaunchedEffect(Unit) { while (true) { wall = System.currentTimeMillis(); delay(1000) } }
+
+    if (unsupported && data == null) { fallback(); return }
+    val now = wall + skew
+    val stale = fails >= TIER2_STALE_FAILS
+    val d = data
+    val n = na
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text("MONITOR DMR TIER II", color = DmrCyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
+            if (d?.demo == true) Tier2Pill("DEMO", Warn)
+            Spacer(Modifier.weight(1f))
+            if (stale) Text("sin respuesta", color = Danger, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            else fetchedAt?.let { Text("actualizado ${hhmmss(it)}", color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace) }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.fillMaxWidth()) {
+            SmallButton("VER LOG DMR", DmrCyan, Modifier.weight(1f)) { onOpenLog(StationActive.DMR_LOG_SERVICE) }
+            SmallButton("CONFIG DMR", OnBg, Modifier.weight(1f)) { onOpenConfig() }
+        }
+        if (stale) Text("Sin respuesta del panel ($fails sondeos seguidos): son los últimos datos recibidos, a las ${hhmmss(fetchedAt)}.",
+            color = Danger, fontSize = 10.sp)
+        when {
+            d == null && n != null -> Card {
+                Text("MONITOR DMR TIER II", color = DmrCyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
+                Text(TIER2_NA[n.reason].orEmpty(), color = Muted, fontSize = 11.sp)
+                n.stack?.version?.let { Text("dmr-tier3 $it", color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace) }
+            }
+            d == null -> Text("Cargando el monitor Tier II…", color = Muted, fontSize = 11.sp)
+            else -> Column(Modifier.alpha(if (stale) 0.7f else 1f), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Tier2Tiles(d)
+                Text("EN EL AIRE", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+                Tier2SlotCard(1, d.slots.ts1, d.heard.firstOrNull { it.slot == 1 }, d.names, now)
+                Tier2SlotCard(2, d.slots.ts2, d.heard.firstOrNull { it.slot == 2 }, d.names, now)
+                Tier2HeardCard(d, now, rf = false)
+                Tier2HeardCard(d, now, rf = true)
+                Tier2NetsCard(d, now)
+                Tier2StatusCard(d, now)
+                Card { Tier2Networks(base) }
+            }
+        }
+    }
+}
+
+private data class Tier2Tile(val label: String, val value: String, val color: Color, val sub: String? = null, val led: Color? = null)
+
+@Composable
+private fun Tier2Tiles(d: Tier2State) {
+    val s = d.station
+    val w = d.window
+    val live = listOfNotNull(d.slots.ts1, d.slots.ts2)
+    val listening = live.none { it.src == "rf" } && !d.modem.tx && live.none { it.src == "net" }
+    val (trx, trxColor) = when {
+        live.any { it.src == "rf" } -> "RX RF" to Ok
+        !listening -> "TX DMR" to Danger
+        else -> "Escuchando" to Ok.copy(alpha = 0.8f)
+    }
+    val tiles = mutableListOf(
+        Tier2Tile("REPETIDOR", s.callsign ?: "—", OnBg, sub = s.id?.toString()),
+        Tier2Tile("TX MHz", mhz(s.txHz ?: 0), Ok),
+        Tier2Tile("RX MHz", mhz(s.rxHz ?: 0), Sky),
+        Tier2Tile("CÓDIGO DE COLOR", s.colorCode?.toString() ?: "—", OnBg),
+        Tier2Tile("TRX", trx, trxColor, led = if (listening) Ok.copy(alpha = 0.4f) else trxColor),
+    )
+    if (s.shared) {
+        val attached = w?.attached == true
+        tiles += Tier2Tile(
+            "SDR COMPARTIDA",
+            if (attached) w?.sdrRate?.let { "${(it / 1000).roundToLong()} kS/s" } ?: "—" else "sin ventana",
+            if (attached) DmrCyan else Warn,
+            sub = w?.txGain?.takeIf { attached }?.let { "TX gain $it" },
+        )
+        val m = w?.minMarginMs
+        val late = w?.txLate ?: 0
+        tiles += Tier2Tile(
+            "MARGEN TX MÍN.", m?.let { "%.1f ms".format(it) } ?: "—",
+            when { m == null -> Muted; m < 5 -> Danger; m < 10 || late > 0 -> Warn; else -> Ok },
+            sub = late.takeIf { it > 0 }?.let { "$it muestras TX tarde" },
+        )
+        val lost = w?.rxLost
+        tiles += Tier2Tile("RX PERDIDOS/MIN", lost?.toString() ?: "—",
+            when { lost == null -> Muted; lost == 0 -> Ok; lost < 10 -> Warn; else -> Danger })
+    }
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        tiles.chunked(2).forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp), modifier = Modifier.fillMaxWidth()) {
+                row.forEach { t ->
+                    Column(Modifier.weight(1f).clip(RoundedCornerShape(8.dp)).background(Surface)
+                        .border(1.dp, Border, RoundedCornerShape(8.dp)).padding(horizontal = 10.dp, vertical = 6.dp)) {
+                        Text(t.label, color = Muted, fontSize = 8.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                            t.led?.let { StatusDot(it, 7) }
+                            Text(t.value, color = t.color, fontSize = 13.sp, fontWeight = FontWeight.Black, fontFamily = FontFamily.Monospace, maxLines = 1)
+                        }
+                        t.sub?.let { Text(it, color = Muted, fontSize = 8.sp, fontFamily = FontFamily.Monospace, maxLines = 1) }
+                    }
+                }
+                if (row.size == 1) Spacer(Modifier.weight(1f))
+            }
+        }
+    }
+}
+
+/** One timeslot: the call on the air (WPSD's live caller) or, idle, the last one heard on it. */
+@Composable
+private fun Tier2SlotCard(n: Int, c: Tier2Call?, last: Tier2Call?, names: Map<String, DmrName>, now: Long) {
+    val shape = RoundedCornerShape(8.dp)
+    if (c == null) {
+        Column(Modifier.fillMaxWidth().clip(shape).background(Surface).border(1.dp, Border, shape).padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                StatusDot(Color.White.copy(alpha = 0.2f), 9)
+                Text("TS$n", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Black)
+                Spacer(Modifier.weight(1f))
+                Text("LIBRE", color = Muted.copy(alpha = 0.7f), fontSize = 9.sp, fontWeight = FontWeight.Bold)
+            }
+            last?.let {
+                Text("Última: ${tier2CallsignOf(it, names) ?: it.from} > ${tier2TargetText(it, names)} · hace ${ago(it.end ?: it.start, now)}",
+                    color = Muted, fontSize = 10.sp)
+            }
+        }
+        return
+    }
+    val call = tier2CallsignOf(c, names)
+    val nm = c.fromId?.let { names[it.toString()] }
+    val where = listOfNotNull(nm?.city, nm?.country).filter { it.isNotBlank() }.joinToString(", ")
+    Column(Modifier.fillMaxWidth().clip(shape).background(Danger.copy(alpha = 0.15f)).border(1.dp, Danger.copy(alpha = 0.5f), shape).padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            StatusDot(Danger, 9)
+            Text("TS$n", color = Color(0xFFFCA5A5), fontSize = 11.sp, fontWeight = FontWeight.Black)
+            Tier2SrcPill(c)
+            if (c.kind == "data") Tier2Pill(tier2Blocks(c), Violet)
+            Spacer(Modifier.weight(1f))
+            Tier2TxTimer(c, now, 12)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            Text(call ?: c.from, color = if (call != null) OnBg else Cyan, fontSize = 24.sp, fontWeight = FontWeight.Bold,
+                fontFamily = if (call != null) null else FontFamily.Monospace, modifier = Modifier.weight(1f, fill = false))
+            if (call != null && c.fromId != null) Text("${c.fromId}", color = Muted, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        }
+        listOfNotNull(nm?.name?.ifBlank { null }, where.ifBlank { null }).takeIf { it.isNotEmpty() }?.let {
+            Text(it.joinToString(" · "), color = OnBg.copy(alpha = 0.8f), fontSize = 11.sp)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(">", color = Muted.copy(alpha = 0.7f), fontSize = 11.sp)
+            Tier2Target(c, names)
+            c.ta?.let { Text("«$it»", color = Cyan, fontSize = 11.sp, fontStyle = FontStyle.Italic) }
+        }
+    }
+}
+
+/** The last heard (RF and network) or, with [rf], the local RF activity: the calls on the air first. */
+@Composable
+private fun Tier2HeardCard(d: Tier2State, now: Long, rf: Boolean) {
+    var all by rememberSaveable { mutableStateOf(false) }
+    val active = listOfNotNull(d.slots.ts1, d.slots.ts2).filter { !rf || it.src == "rf" }.sortedByDescending { it.start }
+    val done = if (rf) d.heard.filter { it.src == "rf" } else d.heard
+    val shown = done.take(if (!rf && all) TIER2_HEARD_ROWS_ALL else TIER2_HEARD_ROWS)
+    Card {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text("${if (rf) "ACTIVIDAD RF LOCAL" else "ÚLTIMAS ESCUCHADAS"} · ${shown.size + active.size}",
+                color = if (active.isNotEmpty()) Danger else if (rf) Ok else Warn, fontWeight = FontWeight.Black, fontSize = 12.sp,
+                modifier = Modifier.weight(1f))
+            if (!rf && done.size > TIER2_HEARD_ROWS) {
+                Chip(if (all) "VER SOLO $TIER2_HEARD_ROWS" else "VER MÁS (${minOf(done.size, TIER2_HEARD_ROWS_ALL)})", false, Muted) { all = !all }
+            }
+        }
+        if (active.isEmpty() && shown.isEmpty()) {
+            Text(if (rf) "Todavía no hay actividad RF local" else "Todavía no se ha escuchado nada", color = Muted, fontSize = 11.sp)
+        }
+        active.forEach { Tier2Row(it, live = true, rf = rf, names = d.names, now = now) }
+        shown.forEach { Tier2Row(it, live = false, rf = rf, names = d.names, now = now) }
+    }
+}
+
+@Composable
+private fun Tier2Row(c: Tier2Call, live: Boolean, rf: Boolean, names: Map<String, DmrName>, now: Long) {
+    Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(if (live) Danger.copy(alpha = 0.1f) else SurfaceHi)
+        .padding(horizontal = 8.dp, vertical = 5.dp), verticalArrangement = Arrangement.spacedBy(3.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(hhmmss(c.start), color = Muted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            if (live) StatusDot(Danger, 6)
+            Tier2Caller(c, names, Modifier.weight(1f))
+            Text("TS${c.slot}", color = Muted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            if (!rf) Tier2SrcPill(c)
+        }
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(">", color = Muted.copy(alpha = 0.7f), fontSize = 10.sp)
+            Box(Modifier.weight(1f)) { Tier2Target(c, names) }
+            when {
+                live -> Tier2TxTimer(c, now, 10)
+                c.kind == "data" -> Tier2Pill(tier2Blocks(c), Violet)
+                else -> Text(c.dur?.let { "%.1f s".format(it) } ?: "—", color = OnBg, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            }
+            Tier2EndPill(c)
+            if (!rf) Text("pérdida ${c.loss?.let { "${tier2Num(it)}%" } ?: "—"}", color = tier2LossColor(c.loss), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+            Text("BER ${c.ber?.let { "%.1f%%".format(it) } ?: "—"}", color = tier2BerColor(c.ber), fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+        }
+        if (rf) c.rssi?.let {
+            Text("RSSI ${tier2Num(it.min)}/${tier2Num(it.ave)}/${tier2Num(it.max)} dBm (mín/media/máx)", color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+/** DMRGateway's networks as its journal tells: connected, down (and why), connecting. */
+@Composable
+private fun Tier2NetsCard(d: Tier2State, now: Long) {
+    Card {
+        Text("REDES · ${d.nets.size}", color = DmrCyan, fontWeight = FontWeight.Black, fontSize = 12.sp)
+        if (d.nets.isEmpty()) Text("No hay redes configuradas", color = Muted, fontSize = 11.sp)
+        d.nets.forEach { n ->
+            Column(Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp)).background(SurfaceHi).padding(8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    Text("${n.n}", color = Muted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text(n.name, color = OnBg, fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    val (label, c) = when (n.status) {
+                        "up" -> "CONECTADA" to Ok
+                        "down" -> "CAÍDA" to Danger
+                        "connecting" -> "CONECTANDO" to Warn
+                        "off" -> "DESACTIVADA" to Muted
+                        else -> "SIN DATOS" to Muted
+                    }
+                    Tier2Pill(label, c)
+                    Spacer(Modifier.weight(1f))
+                    n.since?.let { Text("hace ${ago(it, now)}", color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace) }
+                }
+                val addr = n.address?.let { a -> a + (n.port?.let { ":$it" } ?: "") }
+                val line = listOfNotNull(addr, n.routes?.let { "rutas $it" }).joinToString(" · ")
+                if (line.isNotEmpty()) Text(line, color = Muted, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                if (n.status == "down") n.reason?.let { Text(it, color = Danger, fontSize = 10.sp) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun Tier2StatusCard(d: Tier2State, now: Long) {
+    val st = d.stack
+    val level = d.station.displayLevel
+    Card {
+        Text("ESTADO", color = Ok, fontWeight = FontWeight.Black, fontSize = 12.sp)
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            if (st.degraded && st.missing.isNotEmpty()) Tier2Pill("DEGRADADA · FALTAN: ${st.missing.joinToString(", ")}", Warn)
+            else Tier2Pill("PILA EN MARCHA", Ok)
+            st.version?.let { Text("dmr-tier3 $it", color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace) }
+        }
+        val modem = buildList {
+            add("TX ${if (d.modem.tx) "ON" else "OFF"}")
+            d.modem.mode?.let { add("modo $it") }
+            d.modem.since?.let { add("hace ${ago(it, now)}") }
+            d.station.timeoutS?.let { add("Timeout $it s") }
+        }
+        Text("Módem: ${modem.joinToString(" · ")}", color = if (d.modem.tx) Danger else OnBg, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+        if (level != null && (level == 0 || level > 2)) {
+            Text("DISPLAY_LEVEL vale $level: con 0, o con 3 o más, MMDVM-Host deja de escribir las líneas de llamada y este monitor se queda vacío. Ponlo a 2 en CONFIG DMR.",
+                color = Warn, fontSize = 10.sp, modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(6.dp))
+                    .background(Warn.copy(alpha = 0.1f)).border(1.dp, Warn.copy(alpha = 0.3f), RoundedCornerShape(6.dp)).padding(8.dp))
+        }
+        Text("AVISOS · ${d.alerts.size}", color = Muted, fontSize = 9.sp, fontWeight = FontWeight.Bold)
+        if (d.alerts.isEmpty()) Text("Sin avisos", color = Muted, fontSize = 10.sp)
+        else Column(Modifier.fillMaxWidth().heightIn(max = 260.dp).clip(RoundedCornerShape(6.dp)).background(Color(0xFF05070C))
+            .verticalScroll(rememberScrollState()).padding(6.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            d.alerts.forEach { a ->
+                Text("[${hhmmss(a.ts)}] ${a.text}", fontSize = 10.sp, fontFamily = FontFamily.Monospace,
+                    color = when (a.level) { "error" -> Danger; "warn" -> Warn; else -> Muted })
+            }
+        }
+    }
+}
+
+/** The callsign of the caller: radioid.net's (names) or, when DMRIds.dat resolved it, the log's own text. */
+private fun tier2CallsignOf(c: Tier2Call, names: Map<String, DmrName>): String? =
+    c.fromId?.let { names[it.toString()]?.callsign?.ifBlank { null } } ?: c.from.takeIf { c.fromId == null }
+
+private fun tier2TargetText(c: Tier2Call, names: Map<String, DmrName>): String = when {
+    c.to == "ALL" -> "ALL"
+    c.group -> "TG ${c.to}"
+    else -> c.toId?.let { id -> names[id.toString()]?.callsign?.ifBlank { null }?.let { "$id $it" } } ?: c.to
+}
+
+@Composable
+private fun Tier2Caller(c: Tier2Call, names: Map<String, DmrName>, modifier: Modifier = Modifier) {
+    val call = tier2CallsignOf(c, names)
+    val name = c.fromId?.let { names[it.toString()]?.name }?.ifBlank { null }
+    Row(modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+        if (call != null) Text(call, color = OnBg, fontSize = 11.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+        else Text(c.from, color = Cyan, fontSize = 11.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
+        if (call != null && c.fromId != null) Text("${c.fromId}", color = Muted, fontSize = 9.sp, fontFamily = FontFamily.Monospace, maxLines = 1)
+        name?.let { Text(it, color = Muted, fontSize = 10.sp, maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.weight(1f, fill = false)) }
+    }
+}
+
+@Composable
+private fun Tier2Target(c: Tier2Call, names: Map<String, DmrName>) {
+    if (c.group || c.to == "ALL") Tier2Pill(tier2TargetText(c, names), if (c.to == "ALL") Muted else OnBg)
+    else Text(tier2TargetText(c, names), color = Cyan, fontSize = 10.sp, fontFamily = FontFamily.Monospace, maxLines = 1, overflow = TextOverflow.Ellipsis)
+}
+
+@Composable
+private fun Tier2SrcPill(c: Tier2Call) {
+    if (c.src == "rf") Tier2Pill("RF", Ok) else Tier2Pill("RED" + (c.net?.let { " $it" } ?: ""), Warn)
+}
+
+/** How a call ended when it was not its end line: lost, network watchdog, Timeout, MMDVM-Host restart. */
+@Composable
+private fun Tier2EndPill(c: Tier2Call) {
+    val (label, color) = when (c.endKind) {
+        "lost" -> "PERDIDA" to Danger
+        "watchdog" -> "WATCHDOG" to Danger
+        "timeout" -> "TIEMPO" to Warn
+        "restart" -> "REINICIO" to Sky
+        else -> return
+    }
+    Tier2Pill(label, color)
+}
+
+@Composable
+private fun Tier2TxTimer(c: Tier2Call, now: Long, size: Int) {
+    Text("TX ${((now - c.start) / 1000).coerceAtLeast(0)} s", color = Color.White, fontSize = size.sp, fontWeight = FontWeight.Black,
+        fontFamily = FontFamily.Monospace, modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(Color(0xFFDC2626)).padding(horizontal = 6.dp, vertical = 1.dp))
+}
+
+@Composable
+private fun Tier2Pill(text: String, color: Color) {
+    Text(text, color = color, fontSize = 9.sp, fontWeight = FontWeight.Bold, maxLines = 1,
+        modifier = Modifier.clip(RoundedCornerShape(4.dp)).background(color.copy(alpha = 0.1f))
+            .border(1.dp, color.copy(alpha = 0.35f), RoundedCornerShape(4.dp)).padding(horizontal = 5.dp, vertical = 1.dp))
+}
+
+private fun tier2Blocks(c: Tier2Call): String = c.blocks?.let { "$it bloques" } ?: "datos"
+
+/** A number as JavaScript prints it: 0, 3, 1.5. */
+private fun tier2Num(x: Double): String = if (x % 1.0 == 0.0) x.toLong().toString() else x.toString()
+
+// Pi-Star's colours: BER 0 none, < 2 % green, 2-5 % amber, >= 5 % red; loss <= 1 % green, 1-3 % amber, > 3 % red
+private fun tier2BerColor(b: Double?): Color = when { b == null -> Muted.copy(alpha = 0.5f); b == 0.0 -> Muted; b < 2 -> Ok; b < 5 -> Warn; else -> Danger }
+private fun tier2LossColor(l: Double?): Color = when { l == null -> Muted.copy(alpha = 0.5f); l <= 1 -> Ok; l <= 3 -> Warn; else -> Danger }
 
 // ─────────────────────────────── CONFIG DMR ───────────────────────────────
 
